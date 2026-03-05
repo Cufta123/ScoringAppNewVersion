@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import PropTypes from 'prop-types';
 import Flag from 'react-world-flags';
 import ScoreCell from './ScoreCell';
@@ -13,35 +13,22 @@ function QualifyingTable({
   editMode,
   compareMode,
   selectedBoatIds,
-  compareInfo,
-  rdg2Picker,
+  compareInfo = null,
+  rdg2Picker = null,
   setRdg2Picker,
   onCompareRowClick,
   onRaceChange,
   confirmRdg2,
   getFlagCode,
 }) {
-  const [showTotal, setShowTotal] = useState(false);
-
   if (!leaderboard.length) return null;
 
-  const raceHeaders = leaderboard[0]?.races?.map((_, i) => `R${i + 1}`) || [];
-  const columnHeaders = ['Rank', 'Name', 'Country', 'Sail #', 'Type', ...raceHeaders];
+  const identityHeaders = ['Rank', 'Name', 'Country', 'Sail #', 'Type'];
+  const raceCount = leaderboard[0]?.races?.length || 0;
 
   return (
     <>
       <SectionDivider label="Qualifying Series" />
-      <div style={{ display: 'flex', gap: '16px', marginBottom: '6px', fontSize: '0.8rem', color: '#555' }}>
-        <label htmlFor="q-show-total" style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', userSelect: 'none' }}>
-          <input
-            id="q-show-total"
-            type="checkbox"
-            checked={showTotal}
-            onChange={(e) => setShowTotal(e.target.checked)}
-          />
-          Show Total
-        </label>
-      </div>
       <div
         style={{
           border: '1px solid var(--border, #dde3ea)',
@@ -64,7 +51,8 @@ function QualifyingTable({
                 borderBottom: '2px solid var(--border, #dde3ea)',
               }}
             >
-              {columnHeaders.map((h) => (
+              {/* Identity headers */}
+              {identityHeaders.map((h) => (
                 <th
                   key={h}
                   style={{
@@ -78,25 +66,71 @@ function QualifyingTable({
                   {h}
                 </th>
               ))}
-              {showTotal && (
+
+              {/* Gross column */}
+              <th
+                style={{
+                  textAlign: 'center',
+                  padding: '7px 10px',
+                  fontWeight: 700,
+                  color: '#888',
+                  whiteSpace: 'nowrap',
+                  background: 'rgba(0,0,0,0.03)',
+                  borderLeft: '2px solid rgba(0,0,0,0.1)',
+                  borderRight: '1px solid rgba(0,0,0,0.08)',
+                  fontSize: '0.78rem',
+                }}
+              >
+                Gross
+              </th>
+
+              {/* Overall column */}
+              <th
+                style={{
+                  textAlign: 'center',
+                  padding: '7px 10px',
+                  fontWeight: 700,
+                  color: 'var(--teal, #2a9d8f)',
+                  whiteSpace: 'nowrap',
+                  background: 'rgba(42,157,143,0.1)',
+                  borderLeft: '2px solid rgba(42,157,143,0.3)',
+                  borderRight: '2px solid rgba(42,157,143,0.3)',
+                }}
+              >
+                Overall
+              </th>
+
+              {/* Race headers */}
+              {Array.from({ length: raceCount }, (_, i) => (
                 <th
+                  key={`qh-r${i + 1}`}
                   style={{
                     textAlign: 'center',
-                    padding: '9px 12px',
-                    fontWeight: 700,
-                    color: 'var(--teal, #2a9d8f)',
+                    padding: '7px 10px',
+                    fontWeight: 600,
+                    color: '#1a56a0',
                     whiteSpace: 'nowrap',
-                    borderLeft: '2px solid rgba(42,157,143,0.3)',
+                    background: 'rgba(41,98,255,0.08)',
+                    borderLeft:
+                      i === 0
+                        ? '2px solid rgba(41,98,255,0.35)'
+                        : '1px solid rgba(41,98,255,0.12)',
                   }}
                 >
-                  Total
+                  Q{i + 1}
                 </th>
-              )}
+              ))}
             </tr>
           </thead>
           <tbody>
             {leaderboard.map((entry, index) => {
               const isSelected = selectedBoatIds.includes(entry.boat_id);
+              const grossTotal = (entry.races || []).reduce((sum, r) => {
+                const v = parseFloat(String(r).replace(/[()]/g, ''));
+                return sum + (Number.isNaN(v) ? 0 : v);
+              }, 0);
+              const overallNet = entry.computed_total ?? entry.total_points_event;
+
               return (
                 <tr
                   key={`ev-${entry.boat_id}`}
@@ -116,13 +150,7 @@ function QualifyingTable({
                   }}
                 >
                   {/* Rank */}
-                  <td
-                    style={{
-                      padding: '8px 12px',
-                      fontWeight: 700,
-                      color: 'var(--navy)',
-                    }}
-                  >
+                  <td style={{ padding: '8px 12px', fontWeight: 700, color: 'var(--navy)' }}>
                     {index + 1}
                   </td>
 
@@ -132,19 +160,11 @@ function QualifyingTable({
                   </td>
 
                   {/* Country + flag */}
-                  <td
-                    style={{
-                      padding: '8px 12px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                    }}
-                  >
-                    <Flag
-                      code={getFlagCode(entry.country)}
-                      style={{ width: '24px' }}
-                    />
-                    {entry.country}
+                  <td style={{ padding: '8px 12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Flag code={getFlagCode(entry.country)} style={{ width: '24px' }} />
+                      {entry.country}
+                    </div>
                   </td>
 
                   {/* Sail number */}
@@ -155,6 +175,37 @@ function QualifyingTable({
                   {/* Boat type */}
                   <td style={{ padding: '8px 12px', color: '#555' }}>
                     {entry.boat_type}
+                  </td>
+
+                  {/* Gross */}
+                  <td
+                    style={{
+                      padding: '8px 10px',
+                      textAlign: 'center',
+                      fontWeight: 600,
+                      color: '#888',
+                      background: 'rgba(0,0,0,0.02)',
+                      borderLeft: '2px solid rgba(0,0,0,0.1)',
+                      borderRight: '1px solid rgba(0,0,0,0.08)',
+                      fontSize: '0.85rem',
+                    }}
+                  >
+                    {grossTotal > 0 ? grossTotal : '–'}
+                  </td>
+
+                  {/* Overall */}
+                  <td
+                    style={{
+                      padding: '8px 10px',
+                      textAlign: 'center',
+                      fontWeight: 700,
+                      color: 'var(--teal, #2a9d8f)',
+                      background: 'rgba(42,157,143,0.05)',
+                      borderLeft: '2px solid rgba(42,157,143,0.3)',
+                      borderRight: '2px solid rgba(42,157,143,0.3)',
+                    }}
+                  >
+                    {overallNet != null && !Number.isNaN(overallNet) ? overallNet : '–'}
                   </td>
 
                   {/* Race score cells */}
@@ -183,21 +234,6 @@ function QualifyingTable({
                       />
                     );
                   })}
-
-                  {/* Total */}
-                  {showTotal && (
-                    <td
-                      style={{
-                        padding: '8px 12px',
-                        textAlign: 'center',
-                        fontWeight: 700,
-                        color: 'var(--teal, #2a9d8f)',
-                        borderLeft: '2px solid rgba(42,157,143,0.3)',
-                      }}
-                    >
-                      {entry.computed_total ?? entry.total_points_event}
-                    </td>
-                  )}
                 </tr>
               );
             })}
@@ -220,11 +256,6 @@ QualifyingTable.propTypes = {
   onRaceChange: PropTypes.func.isRequired,
   confirmRdg2: PropTypes.func.isRequired,
   getFlagCode: PropTypes.func.isRequired,
-};
-
-QualifyingTable.defaultProps = {
-  compareInfo: null,
-  rdg2Picker: null,
 };
 
 export default QualifyingTable;
