@@ -5,7 +5,7 @@ import PropTypes from 'prop-types';
  * Compare mode panel. Shows a hint when waiting for boat selection, or the
  * full side-by-side tie-breaking breakdown once two boats are selected.
  */
-function ComparePanel({ compareMode, compareInfo, selectedBoatIds }) {
+function ComparePanel({ compareMode, compareInfo = null, selectedBoatIds }) {
   if (!compareMode) return null;
 
   // Waiting for selection
@@ -245,10 +245,6 @@ ComparePanel.propTypes = {
     sharedQualRacePairs: PropTypes.array,
   }),
   selectedBoatIds: PropTypes.arrayOf(PropTypes.number).isRequired,
-};
-
-ComparePanel.defaultProps = {
-  compareInfo: null,
 };
 
 export default ComparePanel;

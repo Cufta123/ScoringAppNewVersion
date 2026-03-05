@@ -25,7 +25,7 @@ function getScoresForA81(event_id: any, boat_id: any) {
     FROM Scores
     JOIN Races ON Scores.race_id = Races.race_id
     JOIN Heats ON Races.heat_id = Heats.heat_id
-    WHERE Heats.event_id = ? AND Scores.boat_id = ?
+    WHERE Heats.event_id = ? AND Scores.boat_id = ? AND Heats.heat_type = 'Qualifying'
     ORDER BY points DESC
   `);
   return scoresQuery
@@ -39,7 +39,7 @@ function getScoresForA82(event_id: any, boat_id: any) {
     FROM Scores s
     JOIN Races r ON s.race_id = r.race_id
     JOIN Heats h ON r.heat_id = h.heat_id
-    WHERE h.event_id = ? AND s.boat_id = ?
+    WHERE h.event_id = ? AND s.boat_id = ? AND h.heat_type = 'Qualifying'
     ORDER BY r.race_number DESC
   `);
 
@@ -54,7 +54,7 @@ function getRaceScoresForTieBreak(event_id: any, boat_id: any): RaceScoreEntry[]
     FROM Scores s
     JOIN Races r ON s.race_id = r.race_id
     JOIN Heats h ON r.heat_id = h.heat_id
-    WHERE h.event_id = ? AND s.boat_id = ?
+    WHERE h.event_id = ? AND s.boat_id = ? AND h.heat_type = 'Qualifying'
     ORDER BY r.race_number DESC, s.race_id DESC
   `);
 

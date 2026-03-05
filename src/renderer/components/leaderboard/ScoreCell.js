@@ -24,14 +24,14 @@ function ScoreCell({
   boatId,
   entry,
   editMode,
-  isEditable,
-  isShared,
-  cellStyle,
+  isEditable = true,
+  isShared = false,
+  cellStyle = {},
   onRaceChange,
-  rdg2Picker,
+  rdg2Picker = null,
   setRdg2Picker,
   confirmRdg2,
-  qualifyingEntry,
+  qualifyingEntry = null,
 }) {
   const { displayText, displayColor, isPenalty, isRdgCell, isExcluded } =
     getRaceCellDisplay(race, raceStatus);
@@ -179,14 +179,6 @@ ScoreCell.propTypes = {
   setRdg2Picker: PropTypes.func.isRequired,
   confirmRdg2: PropTypes.func.isRequired,
   qualifyingEntry: PropTypes.shape({ races: PropTypes.array }),
-};
-
-ScoreCell.defaultProps = {
-  isEditable: true,
-  isShared: false,
-  cellStyle: {},
-  rdg2Picker: null,
-  qualifyingEntry: null,
 };
 
 export default ScoreCell;

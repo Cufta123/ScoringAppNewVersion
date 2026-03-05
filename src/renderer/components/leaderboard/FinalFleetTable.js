@@ -17,8 +17,8 @@ function FinalFleetTable({
   compareMode,
   selectedBoatIds,
   eventLeaderboard,
-  compareInfo,
-  rdg2Picker,
+  compareInfo = null,
+  rdg2Picker = null,
   setRdg2Picker,
   onCompareRowClick,
   onRaceChange,
@@ -109,6 +109,26 @@ function FinalFleetTable({
                 </th>
               ))}
 
+              {/* Gross Total column — sum of ALL race points including discards */}
+              <th
+                rowSpan={2}
+                style={{
+                  textAlign: 'center',
+                  padding: '7px 10px',
+                  fontWeight: 700,
+                  color: '#888',
+                  whiteSpace: 'nowrap',
+                  background: 'rgba(0,0,0,0.03)',
+                  borderLeft: '2px solid rgba(0,0,0,0.1)',
+                  borderRight: '1px solid rgba(0,0,0,0.08)',
+                  borderBottom: `2px solid ${fleetAccent.border}`,
+                  verticalAlign: 'bottom',
+                  fontSize: '0.78rem',
+                }}
+              >
+                Gross
+              </th>
+
               {/* Overall column header — right after Type */}
               <th
                 rowSpan={2}
@@ -131,7 +151,7 @@ function FinalFleetTable({
               {/* Qualifying section header */}
               {qualRaceCount > 0 && (
                 <th
-                  colSpan={showQTot ? qualRaceCount + 1 : qualRaceCount}
+                  colSpan={showTotals ? qualRaceCount + 1 : qualRaceCount}
                   style={{
                     textAlign: 'center',
                     padding: '4px 10px',
@@ -324,6 +344,35 @@ function FinalFleetTable({
                     {entry.boat_type}
                   </td>
 
+                  {/* Gross total — sum of all races including discarded */}
+                  {(() => {
+                    const qualGross = (qualifyingEntry?.races || []).reduce((sum, r) => {
+                      const v = parseFloat(String(r).replace(/[()]/g, ''));
+                      return sum + (Number.isNaN(v) ? 0 : v);
+                    }, 0);
+                    const finalGross = (entry.races || []).reduce((sum, r) => {
+                      const v = parseFloat(String(r).replace(/[()]/g, ''));
+                      return sum + (Number.isNaN(v) ? 0 : v);
+                    }, 0);
+                    const grossTotal = qualGross + finalGross;
+                    return (
+                      <td
+                        style={{
+                          padding: '8px 10px',
+                          textAlign: 'center',
+                          fontWeight: 600,
+                          color: '#888',
+                          background: 'rgba(0,0,0,0.02)',
+                          borderLeft: '2px solid rgba(0,0,0,0.1)',
+                          borderRight: '1px solid rgba(0,0,0,0.08)',
+                          fontSize: '0.85rem',
+                        }}
+                      >
+                        {grossTotal > 0 ? grossTotal : '–'}
+                      </td>
+                    );
+                  })()}
+
                   {/* Overall combined total (SHRS 5.4) — right after Type */}
                   <td
                     style={{
@@ -463,11 +512,6 @@ FinalFleetTable.propTypes = {
   onRaceChange: PropTypes.func.isRequired,
   confirmRdg2: PropTypes.func.isRequired,
   getFlagCode: PropTypes.func.isRequired,
-};
-
-FinalFleetTable.defaultProps = {
-  compareInfo: null,
-  rdg2Picker: null,
 };
 
 export default FinalFleetTable;

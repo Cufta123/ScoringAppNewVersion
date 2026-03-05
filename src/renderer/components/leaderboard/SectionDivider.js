@@ -2,7 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 
 /** A horizontal rule with a centred label, used between table sections. */
-function SectionDivider({ label, marginTop }) {
+function SectionDivider({ label, marginTop = '4px' }) {
   return (
     <div
       style={{
@@ -36,10 +36,6 @@ function SectionDivider({ label, marginTop }) {
 SectionDivider.propTypes = {
   label: PropTypes.string.isRequired,
   marginTop: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-};
-
-SectionDivider.defaultProps = {
-  marginTop: '4px',
 };
 
 export default SectionDivider;
