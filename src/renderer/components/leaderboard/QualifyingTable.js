@@ -2,7 +2,13 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import Flag from 'react-world-flags';
 import ScoreCell from './ScoreCell';
-import SectionDivider from './SectionDivider';
+
+// Accent colours for the qualifying series (blue scheme)
+const QUAL_ACCENT = {
+  border: '#4a7fc1',
+  thead: '#4a7fc1',
+  dot: '#1a56a0',
+};
 
 /**
  * Qualifying series results table.
@@ -27,11 +33,35 @@ function QualifyingTable({
   const raceCount = leaderboard[0]?.races?.length || 0;
 
   return (
-    <>
-      <SectionDivider label="Qualifying Series" />
+    <div style={{ marginBottom: '18px' }}>
+      {/* Section heading */}
+      <h3
+        style={{
+          fontSize: '0.9rem',
+          color: 'var(--navy)',
+          margin: '0 0 6px 0',
+          fontWeight: 700,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+        }}
+      >
+        <span
+          style={{
+            display: 'inline-block',
+            width: '10px',
+            height: '10px',
+            borderRadius: '50%',
+            background: QUAL_ACCENT.dot,
+            flexShrink: 0,
+          }}
+        />
+        Qualifying Series
+      </h3>
+
       <div
         style={{
-          border: '1px solid var(--border, #dde3ea)',
+          border: `1.5px solid ${QUAL_ACCENT.border}`,
           borderRadius: '10px',
           overflow: 'hidden',
           boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
@@ -40,15 +70,16 @@ function QualifyingTable({
         <table
           style={{
             width: '100%',
-            borderCollapse: 'collapse',
+            borderCollapse: 'separate',
+            borderSpacing: 0,
             fontSize: '0.9rem',
           }}
         >
           <thead>
             <tr
               style={{
-                background: 'var(--surface, #f5f7fa)',
-                borderBottom: '2px solid var(--border, #dde3ea)',
+                background: QUAL_ACCENT.thead,
+                borderBottom: `2px solid ${QUAL_ACCENT.border}`,
               }}
             >
               {/* Identity headers */}
@@ -59,8 +90,9 @@ function QualifyingTable({
                     textAlign: 'left',
                     padding: '9px 12px',
                     fontWeight: 600,
-                    color: 'var(--navy)',
+                    color: 'white',
                     whiteSpace: 'nowrap',
+                    background: QUAL_ACCENT.thead,
                   }}
                 >
                   {h}
@@ -73,11 +105,11 @@ function QualifyingTable({
                   textAlign: 'center',
                   padding: '7px 10px',
                   fontWeight: 700,
-                  color: '#888',
+                  color: 'rgba(255,255,255,0.75)',
                   whiteSpace: 'nowrap',
-                  background: 'rgba(0,0,0,0.03)',
-                  borderLeft: '2px solid rgba(0,0,0,0.1)',
-                  borderRight: '1px solid rgba(0,0,0,0.08)',
+                  background: 'rgba(0,0,0,0.15)',
+                  borderLeft: '1px solid rgba(255,255,255,0.2)',
+                  borderRight: '1px solid rgba(255,255,255,0.1)',
                   fontSize: '0.78rem',
                 }}
               >
@@ -90,11 +122,11 @@ function QualifyingTable({
                   textAlign: 'center',
                   padding: '7px 10px',
                   fontWeight: 700,
-                  color: 'var(--teal, #2a9d8f)',
+                  color: 'white',
                   whiteSpace: 'nowrap',
-                  background: 'rgba(42,157,143,0.1)',
-                  borderLeft: '2px solid rgba(42,157,143,0.3)',
-                  borderRight: '2px solid rgba(42,157,143,0.3)',
+                  background: '#2a9d8f',
+                  borderLeft: '1px solid rgba(255,255,255,0.25)',
+                  borderRight: '1px solid rgba(255,255,255,0.25)',
                 }}
               >
                 Overall
@@ -108,13 +140,10 @@ function QualifyingTable({
                     textAlign: 'center',
                     padding: '7px 10px',
                     fontWeight: 600,
-                    color: '#1a56a0',
+                    color: 'white',
                     whiteSpace: 'nowrap',
-                    background: 'rgba(41,98,255,0.08)',
-                    borderLeft:
-                      i === 0
-                        ? '2px solid rgba(41,98,255,0.35)'
-                        : '1px solid rgba(41,98,255,0.12)',
+                    background: 'rgba(255,255,255,0.15)',
+                    borderLeft: '1px solid rgba(255,255,255,0.18)',
                   }}
                 >
                   Q{i + 1}
@@ -240,7 +269,7 @@ function QualifyingTable({
           </tbody>
         </table>
       </div>
-    </>
+    </div>
   );
 }
 

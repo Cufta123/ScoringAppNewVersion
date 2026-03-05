@@ -140,7 +140,7 @@ function HeatComponent({ event, onHeatSelect = () => {}, onStartScoring = null, 
       let boatIndex = 0;
       for (let i = 0; i < numFinalHeats; i += 1) {
         const fleetName = fleetNames[i] || `Fleet ${i + 1}`;
-        const heatName = `Heat ${fleetName}`;
+        const heatName = `Final ${fleetName}`;
         const heatType = 'Final';
 
         // Insert new heat for the final series

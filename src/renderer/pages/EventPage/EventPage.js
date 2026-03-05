@@ -234,6 +234,8 @@ function EventPage() {
   return (
     <div>
       <Navbar
+        onBack={() => navigate('/')}
+        backLabel="Back"
         onOpenLeaderboard={handleOpenLeaderboard}
         isEventLocked={isEventLocked}
         onHeatRaceClick={handleHeatRaceClick}

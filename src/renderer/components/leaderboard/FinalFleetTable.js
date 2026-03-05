@@ -36,8 +36,25 @@ function FinalFleetTable({
 
   return (
     <div style={{ marginBottom: '18px' }}>
-      <div style={{ display: 'flex', gap: '16px', marginBottom: '6px', fontSize: '0.8rem', color: '#555' }}>
-        <label htmlFor={`${group}-show-totals`} style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', userSelect: 'none' }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: '16px',
+          marginBottom: '6px',
+          fontSize: '0.8rem',
+          color: '#555',
+        }}
+      >
+        <label
+          htmlFor={`${group}-show-totals`}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            cursor: 'pointer',
+            userSelect: 'none',
+          }}
+        >
           <input
             id={`${group}-show-totals`}
             type="checkbox"
@@ -83,123 +100,68 @@ function FinalFleetTable({
         <table
           style={{
             width: '100%',
-            borderCollapse: 'collapse',
+            borderCollapse: 'separate',
+            borderSpacing: 0,
             fontSize: '0.9rem',
           }}
         >
           <thead>
-            {/* Row 1: section group headers */}
-            <tr style={{ borderBottom: 'none' }}>
-              {['Rank', 'Name', 'Country', 'Sail #', 'Type'].map((h) => (
-                <th
-                  key={h}
-                  rowSpan={2}
-                  style={{
-                    textAlign: 'left',
-                    padding: '9px 12px',
-                    fontWeight: 600,
-                    color: 'var(--navy)',
-                    whiteSpace: 'nowrap',
-                    background: fleetAccent.thead,
-                    borderBottom: `2px solid ${fleetAccent.border}`,
-                    verticalAlign: 'bottom',
-                  }}
-                >
-                  {h}
-                </th>
-              ))}
-
-              {/* Gross Total column — sum of ALL race points including discards */}
-              <th
-                rowSpan={2}
-                style={{
-                  textAlign: 'center',
-                  padding: '7px 10px',
-                  fontWeight: 700,
-                  color: '#888',
-                  whiteSpace: 'nowrap',
-                  background: 'rgba(0,0,0,0.03)',
-                  borderLeft: '2px solid rgba(0,0,0,0.1)',
-                  borderRight: '1px solid rgba(0,0,0,0.08)',
-                  borderBottom: `2px solid ${fleetAccent.border}`,
-                  verticalAlign: 'bottom',
-                  fontSize: '0.78rem',
-                }}
-              >
-                Gross
-              </th>
-
-              {/* Overall column header — right after Type */}
-              <th
-                rowSpan={2}
-                style={{
-                  textAlign: 'center',
-                  padding: '7px 10px',
-                  fontWeight: 700,
-                  color: 'var(--teal, #2a9d8f)',
-                  whiteSpace: 'nowrap',
-                  background: 'rgba(42,157,143,0.1)',
-                  borderLeft: '2px solid rgba(42,157,143,0.3)',
-                  borderRight: '2px solid rgba(42,157,143,0.3)',
-                  borderBottom: `2px solid ${fleetAccent.border}`,
-                  verticalAlign: 'bottom',
-                }}
-              >
-                Overall
-              </th>
-
-              {/* Qualifying section header */}
-              {qualRaceCount > 0 && (
-                <th
-                  colSpan={showTotals ? qualRaceCount + 1 : qualRaceCount}
-                  style={{
-                    textAlign: 'center',
-                    padding: '4px 10px',
-                    fontWeight: 700,
-                    fontSize: '0.72rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
-                    color: '#1a56a0',
-                    background: 'rgba(41,98,255,0.1)',
-                    borderLeft: '2px solid rgba(41,98,255,0.35)',
-                    borderBottom: '1px solid rgba(41,98,255,0.2)',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  Qualifying Series
-                </th>
-              )}
-
-              {/* Final section header */}
-              {finalRaceCount > 0 && (
-                <th
-                  colSpan={showTotals ? finalRaceCount + 1 : finalRaceCount}
-                  style={{
-                    textAlign: 'center',
-                    padding: '4px 10px',
-                    fontWeight: 700,
-                    fontSize: '0.72rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
-                    color: 'var(--navy)',
-                    background: fleetAccent.thead,
-                    borderLeft: '3px solid rgba(0,0,0,0.12)',
-                    borderBottom: '1px solid rgba(0,0,0,0.1)',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  Final Series
-                </th>
-              )}
-            </tr>
-
-            {/* Row 2: individual column headers */}
             <tr
               style={{
                 background: fleetAccent.thead,
                 borderBottom: `2px solid ${fleetAccent.border}`,
               }}
             >
+              {/* Identity headers */}
+              {['Rank', 'Name', 'Country', 'Sail #', 'Type'].map((h) => (
+                <th
+                  key={h}
+                  style={{
+                    textAlign: 'left',
+                    padding: '9px 12px',
+                    fontWeight: 600,
+                    color: 'white',
+                    whiteSpace: 'nowrap',
+                    background: fleetAccent.thead,
+                  }}
+                >
+                  {h}
+                </th>
+              ))}
+
+              {/* Gross column */}
+              <th
+                style={{
+                  textAlign: 'center',
+                  padding: '7px 10px',
+                  fontWeight: 700,
+                  color: 'rgba(255,255,255,0.8)',
+                  whiteSpace: 'nowrap',
+                  background: fleetAccent.thead,
+                  borderLeft: '1px solid rgba(255,255,255,0.2)',
+                  borderRight: '1px solid rgba(255,255,255,0.1)',
+                  fontSize: '0.78rem',
+                }}
+              >
+                Gross
+              </th>
+
+              {/* Overall column */}
+              <th
+                style={{
+                  textAlign: 'center',
+                  padding: '7px 10px',
+                  fontWeight: 700,
+                  color: 'white',
+                  whiteSpace: 'nowrap',
+                  background: fleetAccent.thead,
+                  borderLeft: '1px solid rgba(255,255,255,0.25)',
+                  borderRight: '1px solid rgba(255,255,255,0.25)',
+                }}
+              >
+                Overall
+              </th>
+
               {/* Qualifying race headers */}
               {Array.from({ length: qualRaceCount }, (_, i) => (
                 <th
@@ -208,31 +170,28 @@ function FinalFleetTable({
                     textAlign: 'center',
                     padding: '7px 10px',
                     fontWeight: 600,
-                    color: '#1a56a0',
+                    color: 'white',
                     whiteSpace: 'nowrap',
-                    background: 'rgba(41,98,255,0.08)',
-                    borderLeft:
-                      i === 0
-                        ? '2px solid rgba(41,98,255,0.35)'
-                        : '1px solid rgba(41,98,255,0.12)',
+                    background: 'rgba(255,255,255,0.15)',
+                    borderLeft: '1px solid rgba(255,255,255,0.18)',
                   }}
                 >
                   Q{i + 1}
                 </th>
               ))}
 
-              {/* Qualifying total header */}
+              {/* Qualifying total */}
               {qualRaceCount > 0 && showTotals && (
                 <th
                   style={{
                     textAlign: 'center',
                     padding: '7px 10px',
                     fontWeight: 700,
-                    color: '#1a56a0',
+                    color: 'white',
                     whiteSpace: 'nowrap',
-                    background: 'rgba(41,98,255,0.15)',
-                    borderLeft: '1px solid rgba(41,98,255,0.15)',
-                    borderRight: '3px solid rgba(41,98,255,0.35)',
+                    background: 'rgba(255,255,255,0.2)',
+                    borderLeft: '1px solid rgba(255,255,255,0.18)',
+                    borderRight: '1px solid rgba(255,255,255,0.18)',
                   }}
                 >
                   Q-Tot
@@ -247,27 +206,27 @@ function FinalFleetTable({
                     textAlign: 'center',
                     padding: '7px 10px',
                     fontWeight: 600,
-                    color: 'var(--navy)',
+                    color: 'white',
                     whiteSpace: 'nowrap',
-                    background: fleetAccent.thead,
-                    borderLeft: '1px solid rgba(0,0,0,0.08)',
+                    background: 'rgba(255,255,255,0.15)',
+                    borderLeft: '1px solid rgba(255,255,255,0.18)',
                   }}
                 >
                   F{i + 1}
                 </th>
               ))}
 
-              {/* Final total header */}
+              {/* Final total */}
               {finalRaceCount > 0 && showTotals && (
                 <th
                   style={{
                     textAlign: 'center',
                     padding: '7px 10px',
                     fontWeight: 700,
-                    color: 'var(--navy)',
+                    color: 'white',
                     whiteSpace: 'nowrap',
-                    background: fleetAccent.thead,
-                    borderLeft: '1px solid rgba(0,0,0,0.12)',
+                    background: 'rgba(255,255,255,0.2)',
+                    borderLeft: '1px solid rgba(255,255,255,0.18)',
                   }}
                 >
                   F-Tot
@@ -346,10 +305,13 @@ function FinalFleetTable({
 
                   {/* Gross total — sum of all races including discarded */}
                   {(() => {
-                    const qualGross = (qualifyingEntry?.races || []).reduce((sum, r) => {
-                      const v = parseFloat(String(r).replace(/[()]/g, ''));
-                      return sum + (Number.isNaN(v) ? 0 : v);
-                    }, 0);
+                    const qualGross = (qualifyingEntry?.races || []).reduce(
+                      (sum, r) => {
+                        const v = parseFloat(String(r).replace(/[()]/g, ''));
+                        return sum + (Number.isNaN(v) ? 0 : v);
+                      },
+                      0,
+                    );
                     const finalGross = (entry.races || []).reduce((sum, r) => {
                       const v = parseFloat(String(r).replace(/[()]/g, ''));
                       return sum + (Number.isNaN(v) ? 0 : v);

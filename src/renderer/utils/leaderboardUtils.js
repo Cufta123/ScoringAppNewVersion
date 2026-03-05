@@ -131,11 +131,11 @@ export const getRaceCellDisplay = (race, raceStatus) => {
 };
 
 export const FLEET_COLORS = {
-  Gold: { border: '#c8960a', thead: 'rgba(255,215,0,0.18)' },
-  Silver: { border: '#7a8a94', thead: 'rgba(180,195,205,0.22)' },
-  Bronze: { border: '#9a6020', thead: 'rgba(180,110,40,0.14)' },
-  Copper: { border: '#8a5020', thead: 'rgba(180,100,50,0.12)' },
-  General: { border: 'var(--border,#dde3ea)', thead: 'var(--surface,#f5f7fa)' },
+  Gold: { border: '#c8960a', thead: '#c8960a' },
+  Silver: { border: '#7a8a94', thead: '#7a8a94' },
+  Bronze: { border: '#9a6020', thead: '#9a6020' },
+  Copper: { border: '#8a5020', thead: '#8a5020' },
+  General: { border: '#6b7c93', thead: '#6b7c93' },
 };
 
 export const GROUP_ORDER = ['Gold', 'Silver', 'Bronze', 'Copper', 'General'];
