@@ -40,6 +40,7 @@ export type Channels =
   | 'readGlobalLeaderboard'
   | 'updateFinalLeaderboard'
   | 'readFinalLeaderboard'
+  | 'readOverallLeaderboard'
   | 'lockEvent'
   | 'unlockEvent'
   | 'updateRaceResult'
@@ -506,6 +507,14 @@ const electronHandler = {
           return await ipcRenderer.invoke('readFinalLeaderboard', event_id);
         } catch (error) {
           console.error('Error invoking readFinalLeaderboard IPC:', error);
+          return false;
+        }
+      },
+      async readOverallLeaderboard(event_id: string) {
+        try {
+          return await ipcRenderer.invoke('readOverallLeaderboard', event_id);
+        } catch (error) {
+          console.error('Error invoking readOverallLeaderboard IPC:', error);
           return false;
         }
       },

@@ -98,6 +98,7 @@ function LeaderboardComponent({ eventId }) {
   const [newValue, setNewValue] = useState('');
   const [editMode, setEditMode] = useState(false);
   const [editableLeaderboard, setEditableLeaderboard] = useState([]);
+  const [overallLeaderboard, setOverallLeaderboard] = useState([]);
   const [shiftPositions, setShiftPositions] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
   const [selectedBoatIds, setSelectedBoatIds] = useState([]);
@@ -320,9 +321,12 @@ function LeaderboardComponent({ eventId }) {
         // Event may be locked; continue with existing DB values
       }
 
-      const [finalResults, eventResults] = await Promise.all([
+      const [finalResults, eventResults, overallResults] = await Promise.all([
         window.electron.sqlite.heatRaceDB.readFinalLeaderboard(eventId),
         window.electron.sqlite.heatRaceDB.readLeaderboard(eventId),
+        finalSeriesStarted
+          ? window.electron.sqlite.heatRaceDB.readOverallLeaderboard(eventId)
+          : Promise.resolve([]),
       ]);
 
       // Always build and store the event leaderboard.
@@ -337,15 +341,30 @@ function LeaderboardComponent({ eventId }) {
 
       const leaderboardWithRaces = results.map(processLeaderboardEntry);
 
+      // Store overall leaderboard from backend (SHRS 5.4 combined scoring)
+      if (finalSeriesStarted) {
+        setOverallLeaderboard(overallResults);
+      }
+
       // For each entry, compute combined total (qualifying + final after exclusions)
+      // Use backend-computed overall_points when available (SHRS 5.4)
       const mergedResults = leaderboardWithRaces.map((entry) => {
         if (finalSeriesStarted) {
+          const overallEntry = overallResults.find(
+            (o) => o.boat_id === entry.boat_id,
+          );
           const eventEntry = eventLeaderboardWithRaces.find(
             (e) => e.boat_id === entry.boat_id,
           );
-          const total_points_combined =
-            entry.computed_total + (eventEntry ? eventEntry.computed_total : 0);
-          return { ...entry, total_points_combined };
+          const total_points_combined = overallEntry
+            ? overallEntry.overall_points
+            : entry.computed_total + (eventEntry ? eventEntry.computed_total : 0);
+          return {
+            ...entry,
+            total_points_combined,
+            qualifying_points: overallEntry?.qualifying_points ?? eventEntry?.computed_total ?? 0,
+            overall_rank: overallEntry?.overall_rank,
+          };
         }
         return entry;
       });
@@ -1347,7 +1366,7 @@ function LeaderboardComponent({ eventId }) {
                           )}
                           {finalRaceCount > 0 && (
                             <th
-                              colSpan={finalRaceCount}
+                              colSpan={finalRaceCount + 1}
                               style={{
                                 textAlign: 'center',
                                 padding: '4px 10px',
@@ -1365,6 +1384,23 @@ function LeaderboardComponent({ eventId }) {
                               Final Series
                             </th>
                           )}
+                          {/* Overall column header (SHRS 5.4) — spans both rows */}
+                          <th
+                            rowSpan={2}
+                            style={{
+                              textAlign: 'center',
+                              padding: '7px 10px',
+                              fontWeight: 700,
+                              color: 'var(--teal, #2a9d8f)',
+                              whiteSpace: 'nowrap',
+                              background: 'rgba(42,157,143,0.1)',
+                              borderLeft: '2px solid rgba(42,157,143,0.3)',
+                              borderBottom: `2px solid ${fleetAccent.border}`,
+                              verticalAlign: 'bottom',
+                            }}
+                          >
+                            Overall
+                          </th>
                         </tr>
                         {/* Row 2: individual column headers */}
                         <tr
@@ -1434,7 +1470,7 @@ function LeaderboardComponent({ eventId }) {
                                 textAlign: 'center',
                                 padding: '7px 10px',
                                 fontWeight: 700,
-                                color: 'var(--teal, #2a9d8f)',
+                                color: 'var(--navy)',
                                 whiteSpace: 'nowrap',
                                 background: fleetAccent.thead,
                                 borderLeft: '1px solid rgba(0,0,0,0.12)',
@@ -1442,7 +1478,8 @@ function LeaderboardComponent({ eventId }) {
                             >
                               F-Tot
                             </th>
-                          )}
+                          )
+                        }
                         </tr>
                       </thead>
                       <tbody>
@@ -1806,23 +1843,36 @@ function LeaderboardComponent({ eventId }) {
                                   </td>
                                 );
                               })}
-                              {/* Final series total cell — qualifying + final combined */}
+                              {/* Final series total cell */}
                               {finalRaceCount > 0 && (
                                 <td
                                   style={{
                                     padding: '8px 10px',
                                     textAlign: 'center',
                                     fontWeight: 700,
-                                    color: 'var(--teal, #2a9d8f)',
+                                    color: 'var(--navy)',
                                     borderLeft: '1px solid rgba(0,0,0,0.1)',
                                   }}
                                 >
-                                  {entry.total_points_combined != null &&
-                                  !Number.isNaN(entry.total_points_combined)
-                                    ? entry.total_points_combined
-                                    : '–'}
+                                  {entry.computed_total ?? '–'}
                                 </td>
                               )}
+                              {/* Overall combined total cell (SHRS 5.4: qualifying + final) */}
+                              <td
+                                style={{
+                                  padding: '8px 10px',
+                                  textAlign: 'center',
+                                  fontWeight: 700,
+                                  color: 'var(--teal, #2a9d8f)',
+                                  background: 'rgba(42,157,143,0.05)',
+                                  borderLeft: '2px solid rgba(42,157,143,0.3)',
+                                }}
+                              >
+                                {entry.total_points_combined != null &&
+                                !Number.isNaN(entry.total_points_combined)
+                                  ? entry.total_points_combined
+                                  : '–'}
+                              </td>
                             </tr>
                           );
                         })}

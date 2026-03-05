@@ -226,17 +226,13 @@ export default function calculateBoatScores(
   Object.entries(boatsWithSamePoints).forEach(([totalPoints, boatIds]) => {
     if (boatIds.length > 1) {
       console.log(`Boats with total points ${totalPoints}:`, boatIds);
+      // SHRS 5.6(ii)(a)(2): For the purposes of breaking ties excluded scores
+      // shall be used. This changes RRS A8.1 (which normally excludes them).
       const sortedScores = boatIds.map((boat_id) => {
         const scores = getScoresForA81(event_id, boat_id);
-        const number_of_races =
-          results.find(
-            (result: { boat_id: string }) => result.boat_id === boat_id,
-          )?.number_of_races || 0;
-        const excludeCount = getExcludeCount(number_of_races);
-        const scoresToInclude = scores.slice(excludeCount);
         return {
           boat_id,
-          scores: scoresToInclude.sort((a: number, b: number) => a - b),
+          scores: scores.sort((a: number, b: number) => a - b),
         };
       });
 

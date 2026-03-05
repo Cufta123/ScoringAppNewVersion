@@ -72,28 +72,62 @@ function HeatComponent({ event, onHeatSelect = () => {}, clickable }) {
         await window.electron.sqlite.heatRaceDB.readLeaderboard(event.event_id);
 
       // Build adjusted totals for fleet assignment per SHRS 4.2.
-      // The leaderboard already has total_points_event (SHRS 5.4: worst excluded for n>=4)
-      // and race_positions (comma-separated raw positions/points per race).
-      // SHRS 4.2: when 5 < n < 8 completed races, additionally temporarily exclude
-      // the second-worst score solely for purposes of assigning boats to fleets.
+      // Recalculate from raw scores to avoid double-counting exclusions.
+      // SHRS 5.4: after 4 races exclude 1 worst, after 8 exclude 2, etc.
+      // SHRS 4.2: when 5 < n < 8 completed races, additionally temporarily
+      // exclude the second-worst score solely for purposes of assigning boats to fleets.
+      const getExcludeCount = (races) => {
+        if (races < 4) return 0;
+        if (races < 8) return 1;
+        return 2 + Math.floor((races - 8) / 8);
+      };
+
       const adjustedLeaderboard = leaderboard.map((boat) => {
         const racePosStr = boat.race_positions || '';
         const rawScores = racePosStr
-          ? racePosStr.split(',').map(Number).filter((n) => !Number.isNaN(n))
+          ? racePosStr
+              .split(',')
+              .map(Number)
+              .filter((n) => !Number.isNaN(n))
           : [];
         const n = rawScores.length;
-        // Start from the SHRS-5.4-adjusted total (worst already excluded for n>=4)
-        let totalPoints = boat.total_points_event || 0;
+
+        // Sort worst-first (descending) for exclusion
+        const sorted = [...rawScores].sort((a, b) => b - a);
+        let excludeCount = getExcludeCount(n);
+
         // SHRS 4.2: additionally exclude second-worst when 5 < n < 8
         if (n > 5 && n < 8) {
-          const sorted = [...rawScores].sort((a, b) => b - a);
-          if (sorted.length > 1) totalPoints -= sorted[1];
+          excludeCount += 1;
         }
+
+        // Exclude the worst scores and sum the rest
+        const scoresToInclude = sorted.slice(excludeCount);
+        const totalPoints = scoresToInclude.reduce((acc, s) => acc + s, 0);
+
         return { boat_id: boat.boat_id, totalPoints };
       });
 
-      // Sort boats by adjusted total points
-      adjustedLeaderboard.sort((a, b) => a.totalPoints - b.totalPoints);
+      // SHRS 4.1: boats withdrawn from the event at the time of division
+      // shall be placed in the lowest fleet.
+      const withdrawnBoatIds = new Set(
+        leaderboard
+          .filter((boat) => {
+            const statuses = boat.race_statuses
+              ? boat.race_statuses.split(',')
+              : [];
+            return statuses.some((s) => s.trim().toUpperCase() === 'WTH');
+          })
+          .map((boat) => boat.boat_id),
+      );
+
+      // Sort: non-withdrawn by adjusted total, then withdrawn boats at the end
+      adjustedLeaderboard.sort((a, b) => {
+        const aWithdrawn = withdrawnBoatIds.has(a.boat_id);
+        const bWithdrawn = withdrawnBoatIds.has(b.boat_id);
+        if (aWithdrawn !== bWithdrawn) return aWithdrawn ? 1 : -1;
+        return a.totalPoints - b.totalPoints;
+      });
       // Determine fleet sizes
       const boatsPerFleet = Math.floor(
         adjustedLeaderboard.length / numFinalHeats,
@@ -216,36 +250,30 @@ function HeatComponent({ event, onHeatSelect = () => {}, clickable }) {
         event.event_id,
       );
 
-      // Calculate the number of boats per heat
-      const boatsPerHeat = Math.floor(eventBoats.length / numHeats);
-      const extraBoats = eventBoats.length % numHeats;
-
+      // SHRS 3.1: Assign boats using snake/zigzag pattern
+      // A, B, C, D, E, E, D, C, B, A, A, B, C, D, E ...
+      // with the first extra boat going to Heat 1, the second to Heat 2, etc. (SHRS 2.2)
       const heatBoatPromises = [];
-      let boatIndex = 0;
+      let heatIndex = 0;
+      let direction = 1; // 1 = forward (A→E), -1 = backward (E→A)
 
-      // Assign boats to heats in A, B, C, D, A, B, C, D... pattern
-      for (let i = 0; i < eventBoats.length - extraBoats; i += 1) {
-        const heatIndex = i % numHeats;
+      for (let i = 0; i < eventBoats.length; i += 1) {
         const heat = FetchedHeats[heatIndex];
         heatBoatPromises.push(
           window.electron.sqlite.heatRaceDB.insertHeatBoat(
             heat.heat_id,
-            eventBoats[boatIndex].boat_id,
+            eventBoats[i].boat_id,
           ),
         );
-        boatIndex += 1;
-      }
 
-      // Assign extra boats to heats
-      for (let i = 0; i < extraBoats; i += 1) {
-        const heat = FetchedHeats[i];
-        heatBoatPromises.push(
-          window.electron.sqlite.heatRaceDB.insertHeatBoat(
-            heat.heat_id,
-            eventBoats[boatIndex].boat_id,
-          ),
-        );
-        boatIndex += 1;
+        // Move to next heat in snake order
+        if (direction === 1 && heatIndex === numHeats - 1) {
+          direction = -1; // reached last heat, reverse
+        } else if (direction === -1 && heatIndex === 0) {
+          direction = 1; // reached first heat, reverse
+        } else {
+          heatIndex += direction;
+        }
       }
 
       await Promise.all(heatBoatPromises);
@@ -414,15 +442,38 @@ function HeatComponent({ event, onHeatSelect = () => {}, clickable }) {
               width: '90%',
             }}
           >
-            <h3 style={{ marginTop: 0, marginBottom: '12px', color: 'var(--navy)' }}>
-              <i className="fa fa-flag-checkered" aria-hidden="true" style={{ marginRight: '8px', color: 'var(--teal)' }} />
+            <h3
+              style={{
+                marginTop: 0,
+                marginBottom: '12px',
+                color: 'var(--navy)',
+              }}
+            >
+              <i
+                className="fa fa-flag-checkered"
+                aria-hidden="true"
+                style={{ marginRight: '8px', color: 'var(--teal)' }}
+              />
               Start Final Series?
             </h3>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', lineHeight: 1.5 }}>
-              This will create <strong>{pendingFinalHeats}</strong> final fleet{pendingFinalHeats > 1 ? 's' : ''} based
-              on current standings. This action <strong>cannot be undone</strong>.
+            <p
+              style={{
+                color: 'var(--text-secondary)',
+                marginBottom: '24px',
+                lineHeight: 1.5,
+              }}
+            >
+              This will create <strong>{pendingFinalHeats}</strong> final fleet
+              {pendingFinalHeats > 1 ? 's' : ''} based on current standings.
+              This action <strong>cannot be undone</strong>.
             </p>
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <div
+              style={{
+                display: 'flex',
+                gap: '10px',
+                justifyContent: 'flex-end',
+              }}
+            >
               <button
                 type="button"
                 className="btn-ghost"
@@ -435,7 +486,11 @@ function HeatComponent({ event, onHeatSelect = () => {}, clickable }) {
                 className="btn-success"
                 onClick={handleConfirmFinalSeries}
               >
-                <i className="fa fa-check" aria-hidden="true" style={{ marginRight: '6px' }} />
+                <i
+                  className="fa fa-check"
+                  aria-hidden="true"
+                  style={{ marginRight: '6px' }}
+                />
                 Yes, Start Final Series
               </button>
             </div>
@@ -443,7 +498,11 @@ function HeatComponent({ event, onHeatSelect = () => {}, clickable }) {
         </div>
       )}
       <h2>
-        <i className="fa fa-flag" aria-hidden="true" style={{ marginRight: '8px' }} />
+        <i
+          className="fa fa-flag"
+          aria-hidden="true"
+          style={{ marginRight: '8px' }}
+        />
         Heats
       </h2>
       {/* ── Heat controls ─── */}
@@ -495,7 +554,11 @@ function HeatComponent({ event, onHeatSelect = () => {}, clickable }) {
           </>
         )}
         {hasMultipleRounds && (
-          <button type="button" className="btn-ghost" onClick={toggleDisplayMode}>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={toggleDisplayMode}
+          >
             {displayLastHeats ? 'Show All Heats' : 'Show Last Heats'}
           </button>
         )}

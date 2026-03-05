@@ -1035,7 +1035,15 @@ ipcMain.handle('readFinalLeaderboard', async (event, event_id) => {
       WHERE fl.event_id = ? AND h.event_id = ? AND h.heat_type = 'Final'
         AND sc.race_id IS NOT NULL
       GROUP BY fl.boat_id
-      ORDER BY fl.placement_group, fl.total_points_final ASC
+      ORDER BY
+        CASE fl.placement_group
+          WHEN 'Gold' THEN 1
+          WHEN 'Silver' THEN 2
+          WHEN 'Bronze' THEN 3
+          WHEN 'Copper' THEN 4
+          ELSE 5
+        END,
+        fl.total_points_final ASC
     `;
     const readQuery = db.prepare(query);
     const results = readQuery.all(event_id, event_id);
@@ -1043,6 +1051,91 @@ ipcMain.handle('readFinalLeaderboard', async (event, event_id) => {
     return results;
   } catch (error) {
     console.error('Error reading final leaderboard:', error);
+    throw error;
+  }
+});
+
+/**
+ * SHRS 5.4: A boat's overall series score = qualifying series score + final series score.
+ * Gold fleet boats rank before Silver, Silver before Bronze, etc.
+ * SHRS 1.5: If no races are completed in the Final Series, boats are ranked
+ * according to their series score in the Qualifying Series.
+ */
+ipcMain.handle('readOverallLeaderboard', async (event, event_id) => {
+  try {
+    // Check whether any Final Series races exist
+    const finalRaceCount = db.prepare(
+      `SELECT COUNT(*) as cnt
+       FROM Races r
+       JOIN Heats h ON r.heat_id = h.heat_id
+       WHERE h.event_id = ? AND h.heat_type = 'Final'`,
+    ).get(event_id) as { cnt: number };
+
+    // SHRS 1.5: If no final races completed, fall back to qualifying standings
+    if (!finalRaceCount || finalRaceCount.cnt === 0) {
+      const qualifyingResults = db.prepare(
+        `SELECT
+          lb.boat_id,
+          lb.total_points_event AS overall_points,
+          lb.place,
+          'Qualifying' AS placement_group,
+          b.sail_number AS boat_number,
+          b.model AS boat_type,
+          s.name,
+          s.surname,
+          b.country
+        FROM Leaderboard lb
+        LEFT JOIN Boats b ON lb.boat_id = b.boat_id
+        LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id
+        WHERE lb.event_id = ?
+        ORDER BY lb.place ASC`,
+      ).all(event_id);
+      return qualifyingResults;
+    }
+
+    // Combined overall series: qualifying score + final score
+    const fleetOrder = `CASE fl.placement_group
+      WHEN 'Gold' THEN 1
+      WHEN 'Silver' THEN 2
+      WHEN 'Bronze' THEN 3
+      WHEN 'Copper' THEN 4
+      ELSE 5
+    END`;
+
+    const overallQuery = db.prepare(
+      `SELECT
+        fl.boat_id,
+        COALESCE(lb.total_points_event, 0) AS qualifying_points,
+        fl.total_points_final AS final_points,
+        COALESCE(lb.total_points_event, 0) + fl.total_points_final AS overall_points,
+        fl.placement_group,
+        fl.place AS final_place,
+        b.sail_number AS boat_number,
+        b.model AS boat_type,
+        s.name,
+        s.surname,
+        b.country
+      FROM FinalLeaderboard fl
+      LEFT JOIN Leaderboard lb ON fl.boat_id = lb.boat_id AND lb.event_id = fl.event_id
+      LEFT JOIN Boats b ON fl.boat_id = b.boat_id
+      LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id
+      WHERE fl.event_id = ?
+      ORDER BY ${fleetOrder}, overall_points ASC, fl.place ASC`,
+    );
+
+    const results = overallQuery.all(event_id);
+
+    // Assign overall rank: Gold before Silver before Bronze before Copper
+    let rank = 1;
+    results.forEach((row: any) => {
+      row.overall_rank = rank;
+      rank += 1;
+    });
+
+    console.log('Overall leaderboard results:', results);
+    return results;
+  } catch (error) {
+    console.error('Error reading overall leaderboard:', (error as Error).message);
     throw error;
   }
 });
