@@ -1,5 +1,7 @@
 import React from 'react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import '@fortawesome/fontawesome-free/css/all.min.css';
+import './App.css';
 import LandingPage from './pages/LandingPage/LandingPage';
 import EventPage from './pages/EventPage/EventPage';
 import HeatRacePage from './pages/HeatRacePage/HeatRacePage';

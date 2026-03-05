@@ -302,148 +302,120 @@ function SailorForm({ onAddSailor, eventId }) {
   const onClubChange = (event, { newValue }) => {
     setClub(newValue);
   };
-  const inputFieldStyle = {
-    width: '100%',
-    maxWidth: '400px',
-    margin: '5px',
-    boxSizing: 'border-box',
-  };
-
-  const autosuggestStyles = {
-    container: {
-      position: 'relative',
-    },
-    input: {
-      width: '100%',
-      maxWidth: '400px',
-      padding: '2px 2px', // Adjust padding to match other inputs
-      fontSize: '13px', // Ensure this matches the other fields
-      lineHeight: '1', // Adjust line height for consistent height
-      border: '1px solid #ccc',
-      borderRadius: '4px',
-      boxSizing: 'border-box', // Ensures padding doesn't affect height
-    },
-    suggestionsContainer: {
-      position: 'absolute',
-      zIndex: 1000,
-      width: '100%',
-      maxWidth: '400px',
-      background: '#fff',
-      border: '1px solid #ccc',
-      borderTop: 'none',
-      maxHeight: '200px',
-      overflowY: 'auto',
-      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-    },
-    suggestion: {
-      padding: '8px',
-      cursor: 'pointer',
-      backgroundColor: '#fff',
-    },
-    suggestionHighlighted: {
-      backgroundColor: '#f0f0f0',
-    },
-  };
-
-  const formRowStyle = {
-    display: 'flex',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-start',
-  };
-
-  const formFieldStyle = {
-    flex: '1 1 calc(33.33% - 10px)',
-    margin: '5px',
-    boxSizing: 'border-box',
-    ...inputFieldStyle, // Ensure existing input field styles are applied
-  };
-
   return (
     <div>
       {raceHappened ? (
         <p>No more sailors can be added as a race has already happened.</p>
       ) : (
         <form onSubmit={handleSubmit}>
-          <div style={formRowStyle}>
-            <input
-              type="text"
-              placeholder="Name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              style={formFieldStyle}
-            />
-            <input
-              type="text"
-              placeholder="Surname"
-              value={surname}
-              onChange={(e) => setSurname(e.target.value)}
-              required
-              style={formFieldStyle}
-            />
-            <input
-              type="date"
-              placeholder="Birthdate"
-              value={birthday}
-              onChange={(e) => setBirthday(e.target.value)}
-              required
-              style={formFieldStyle}
-            />
-          </div>
-          <div style={formRowStyle}>
-            <input
-              type="text"
-              placeholder="Sail Number"
-              value={sailNumber}
-              onChange={(e) => setSailNumber(e.target.value)}
-              required
-              style={formFieldStyle}
-            />
-            <select
-              value={selectedCountry}
-              onChange={(e) => setSelectedCountry(e.target.value)}
-              required
-              style={formFieldStyle}
-            >
-              <option value="" disabled>
-                Select Country
-              </option>
-              {Object.entries(iocCountries).map(([code, countryName]) => (
-                <option key={code} value={code}>
-                  {countryName} ({code})
+          <div className="sailor-form-grid">
+            <div className="sailor-form-field">
+              <label htmlFor="sf-name">First Name</label>
+              <input
+                id="sf-name"
+                type="text"
+                placeholder="e.g. Antonio"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </div>
+            <div className="sailor-form-field">
+              <label htmlFor="sf-surname">Surname</label>
+              <input
+                id="sf-surname"
+                type="text"
+                placeholder="e.g. Luksic"
+                value={surname}
+                onChange={(e) => setSurname(e.target.value)}
+                required
+              />
+            </div>
+            <div className="sailor-form-field">
+              <label htmlFor="sf-birthday">Date of Birth</label>
+              <input
+                id="sf-birthday"
+                type="date"
+                value={birthday}
+                onChange={(e) => setBirthday(e.target.value)}
+                required
+              />
+            </div>
+            <div className="sailor-form-field">
+              <label htmlFor="sf-sail">Sail Number</label>
+              <input
+                id="sf-sail"
+                type="text"
+                placeholder="e.g. 207386"
+                value={sailNumber}
+                onChange={(e) => setSailNumber(e.target.value)}
+                required
+              />
+            </div>
+            <div className="sailor-form-field">
+              <label htmlFor="sf-country">Country</label>
+              <select
+                id="sf-country"
+                value={selectedCountry}
+                onChange={(e) => setSelectedCountry(e.target.value)}
+                required
+              >
+                <option value="" disabled>
+                  Select country…
                 </option>
-              ))}
-            </select>
-            <input
-              type="text"
-              placeholder="Model"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              style={formFieldStyle}
-            />
+                {Object.entries(iocCountries).map(([code, countryName]) => (
+                  <option key={code} value={code}>
+                    {countryName} ({code})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="sailor-form-field">
+              <label htmlFor="sf-model">Boat Model</label>
+              <input
+                id="sf-model"
+                type="text"
+                placeholder="e.g. ILCA"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+              />
+            </div>
+            <div className="sailor-form-field">
+              <label htmlFor="sf-club">Club</label>
+              <Autosuggest
+                suggestions={suggestions}
+                onSuggestionsFetchRequested={({ value }) =>
+                  setSuggestions(getSuggestions(value))
+                }
+                onSuggestionsClearRequested={() => setSuggestions([])}
+                getSuggestionValue={getSuggestionValue}
+                renderSuggestion={renderSuggestion}
+                inputProps={{
+                  id: 'sf-club',
+                  placeholder: 'e.g. Opatija',
+                  value: club,
+                  onChange: onClubChange,
+                  required: true,
+                  className: 'autosuggest-input',
+                }}
+                theme={{
+                  container: 'autosuggest-container',
+                  input: 'autosuggest-input',
+                  suggestionsContainer: 'autosuggest-suggestions-container',
+                  suggestionsContainerOpen:
+                    'autosuggest-suggestions-container--open',
+                  suggestionsList: 'autosuggest-suggestions-list',
+                  suggestion: 'autosuggest-suggestion',
+                  suggestionHighlighted: 'autosuggest-suggestion--highlighted',
+                }}
+              />
+            </div>
           </div>
-          <Autosuggest
-            suggestions={suggestions}
-            onSuggestionsFetchRequested={onSuggestionsFetchRequested}
-            onSuggestionsClearRequested={onSuggestionsClearRequested}
-            getSuggestionValue={getSuggestionValue}
-            renderSuggestion={renderSuggestion}
-            inputProps={{
-              placeholder: 'Club name',
-              value: club,
-              onChange: onClubChange,
-              required: true,
-              style: inputFieldStyle,
-            }}
-            theme={{
-              container: autosuggestStyles.container,
-              input: autosuggestStyles.input,
-              suggestionsContainer: autosuggestStyles.suggestionsContainer,
-              suggestion: autosuggestStyles.suggestion,
-              suggestionHighlighted: autosuggestStyles.suggestionHighlighted,
-            }}
-          />
-          <button type="submit">Add Sailor</button>
+          <div style={{ marginTop: '16px' }}>
+            <button type="submit" className="btn-success">
+              <i className="fa fa-plus" aria-hidden="true" /> Add Sailor
+            </button>
+          </div>
         </form>
       )}
     </div>

@@ -1,0 +1,41 @@
+/* LandingPage.css */
+
+.landing-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 40px 24px;
+}
+
+.landing-hero {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.landing-hero h1 {
+  font-size: 2.6rem;
+  color: var(--navy);
+}
+
+.landing-hero p {
+  font-size: 1.1rem;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+.landing-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 32px 40px;
+  width: 100%;
+  max-width: 640px;
+}
+
+.landing-actions {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 32px;
+}

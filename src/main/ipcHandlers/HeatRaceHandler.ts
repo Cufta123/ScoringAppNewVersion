@@ -114,7 +114,7 @@ function recomputeEventLeaderboard(event_id: any) {
     FROM Scores
     JOIN Races ON Scores.race_id = Races.race_id
     JOIN Heats ON Races.heat_id = Heats.heat_id
-    WHERE Heats.event_id = ?
+    WHERE Heats.event_id = ? AND Heats.heat_type = 'Qualifying'
     GROUP BY boat_id
     ORDER BY total_points_event ASC
   `;
@@ -135,6 +135,30 @@ function recomputeEventLeaderboard(event_id: any) {
   temporaryTable.forEach((boat) => {
     updateQuery.run(boat.boat_id, boat.totalPoints, event_id, boat.place);
   });
+}
+
+/**
+ * SHRS 5.2: Get the number of boats in the largest heat for an event.
+ * Used for penalty scoring (DNS, DSQ, RET, etc. = largest heat size + 1).
+ */
+function getMaxHeatSize(event_id: any, heat_type?: string): number {
+  const heatTypeFilter = heat_type
+    ? `AND h.heat_type = ?`
+    : '';
+  const sql = `
+    SELECT MAX(boat_count) AS max_boats
+    FROM (
+      SELECT COUNT(*) AS boat_count
+      FROM Heat_Boat hb
+      JOIN Heats h ON hb.heat_id = h.heat_id
+      WHERE h.event_id = ? ${heatTypeFilter}
+      GROUP BY hb.heat_id
+    )
+  `;
+  const row = heat_type
+    ? (db.prepare(sql).get(event_id, heat_type) as { max_boats: number | null } | undefined)
+    : (db.prepare(sql).get(event_id) as { max_boats: number | null } | undefined);
+  return row?.max_boats ?? 0;
 }
 
 function getSeedingResultsFromLastRace(
@@ -425,6 +449,15 @@ ipcMain.handle(
   },
 );
 
+ipcMain.handle('getMaxHeatSize', async (event, event_id, heat_type) => {
+  try {
+    return getMaxHeatSize(event_id, heat_type || undefined);
+  } catch (error) {
+    console.error('Error getting max heat size:', error);
+    throw error;
+  }
+});
+
 ipcMain.handle(
   'updateScore',
   async (event, score_id, position, points, status) => {
@@ -442,9 +475,6 @@ ipcMain.handle(
   },
 );
 ipcMain.handle('updateEventLeaderboard', async (event, event_id) => {
-  if (isEventLocked(event_id)) {
-    throw new Error('Cannot insert heat for locked event.');
-  }
   try {
     recomputeEventLeaderboard(event_id);
   } catch (error) {
@@ -604,6 +634,58 @@ ipcMain.handle('createNewHeatsBasedOnLeaderboard', async (event, event_id) => {
   }
 });
 
+ipcMain.handle('undoLastScoredRaceForHeat', async (event, heat_id) => {
+  try {
+    const heatRow = db
+      .prepare('SELECT h.heat_id, h.heat_name, h.event_id FROM Heats h WHERE h.heat_id = ?')
+      .get(heat_id) as { heat_id: number; heat_name: string; event_id: number } | undefined;
+
+    if (!heatRow) {
+      throw new Error('Heat not found.');
+    }
+
+    if (isEventLocked(heatRow.event_id)) {
+      throw new Error('Cannot undo a race for a locked event.');
+    }
+
+    const lastRace = db
+      .prepare(
+        `SELECT race_id, race_number
+         FROM Races
+         WHERE heat_id = ?
+         ORDER BY race_number DESC, race_id DESC
+         LIMIT 1`,
+      )
+      .get(heat_id) as { race_id: number; race_number: number } | undefined;
+
+    if (!lastRace) {
+      throw new Error(`No scored races found for heat "${heatRow.heat_name}". There is nothing to undo.`);
+    }
+
+    const deleteScores = db.prepare('DELETE FROM Scores WHERE race_id = ?');
+    const deleteRace   = db.prepare('DELETE FROM Races  WHERE race_id = ?');
+
+    const transaction = db.transaction(() => {
+      const removedScores = deleteScores.run(lastRace.race_id).changes;
+      deleteRace.run(lastRace.race_id);
+      return removedScores;
+    });
+
+    const removedScores = transaction();
+    recomputeEventLeaderboard(heatRow.event_id);
+
+    return {
+      success: true,
+      heatName: heatRow.heat_name,
+      raceNumber: lastRace.race_number,
+      removedScores,
+    };
+  } catch (error) {
+    console.error('Error undoing last scored race for heat:', (error as Error).message);
+    throw error;
+  }
+});
+
 ipcMain.handle('undoLastScoredRace', async (event, event_id) => {
   if (isEventLocked(event_id)) {
     throw new Error('Cannot undo race for locked event.');
@@ -753,77 +835,61 @@ ipcMain.handle(
 
 ipcMain.handle(
   'updateRaceResult',
-  async (event, event_id, race_id, boat_id, new_position, shift_positions) => {
+  async (event, event_id, race_id, boat_id, new_position, shift_positions, new_status) => {
     try {
-      console.log(
-        `Updating race result for event_id: ${event_id}, race_id: ${race_id}, boat_id: ${boat_id}, new_position: ${new_position}, shift_positions: ${shift_positions}`,
-      );
+      const status = typeof new_status === 'string' && new_status.trim() !== '' && new_status.trim() !== 'FINISHED'
+        ? new_status.trim().toUpperCase()
+        : 'FINISHED';
 
-      // Step 1: Get the current race result
+      // For penalty statuses use largest-heat size + 1 per SHRS 5.2;
+      // otherwise use the supplied position
+      let finalPosition = Number(new_position);
+      if (status !== 'FINISHED') {
+        // Determine the heat type for this race
+        const heatRow = db
+          .prepare(
+            `SELECT h.heat_type FROM Heats h
+             JOIN Races r ON r.heat_id = h.heat_id
+             WHERE r.race_id = ?`,
+          )
+          .get(race_id) as { heat_type: string } | undefined;
+        const heatType = heatRow?.heat_type ?? 'Qualifying';
+        const maxBoats = getMaxHeatSize(event_id, heatType);
+        finalPosition = maxBoats + 1;
+      }
+      const points = finalPosition;
+
+      // Step 1: Get the current position for shift logic
       const currentResult = db
-        .prepare(
-          `SELECT position FROM Scores WHERE race_id = ? AND boat_id = ?`,
-        )
-        .get(race_id, boat_id);
+        .prepare(`SELECT position FROM Scores WHERE race_id = ? AND boat_id = ?`)
+        .get(race_id, boat_id) as { position: number } | undefined;
 
       if (!currentResult) {
-        console.error(
-          `Current result not found for race_id: ${race_id}, boat_id: ${boat_id}`,
-        );
-        throw new Error('Current result not found.');
+        throw new Error(`Current result not found for race_id: ${race_id}, boat_id: ${boat_id}`);
       }
-
       const currentPosition = currentResult.position;
 
-      // Step 2: Update the race result in the Scores table
-      const updateQuery = db.prepare(
-        `UPDATE Scores SET position = ? WHERE race_id = ? AND boat_id = ?`,
-      );
-      updateQuery.run(new_position, race_id, boat_id);
+      // Step 2: Update position, points and status
+      db.prepare(`UPDATE Scores SET position = ?, points = ?, status = ? WHERE race_id = ? AND boat_id = ?`)
+        .run(finalPosition, points, status, race_id, boat_id);
 
-      // Step 3: Optionally shift positions if needed
-      if (shift_positions) {
-        if (currentPosition > new_position) {
-          // Boat moved up, shift others down
-          const shiftQuery = db.prepare(
-            `UPDATE Scores SET position = position + 1 WHERE race_id = ? AND position >= ? AND position < ? AND boat_id != ?`,
-          );
-          shiftQuery.run(race_id, new_position, currentPosition, boat_id);
-        } else if (currentPosition < new_position) {
-          // Boat moved down, shift others up
-          const shiftQuery = db.prepare(
-            `UPDATE Scores SET position = position - 1 WHERE race_id = ? AND position <= ? AND position > ? AND boat_id != ?`,
-          );
-          shiftQuery.run(race_id, new_position, currentPosition, boat_id);
+      // Step 3: Optionally shift other finishers
+      if (shift_positions && status === 'FINISHED') {
+        if (currentPosition > finalPosition) {
+          db.prepare(
+            `UPDATE Scores SET position = position + 1, points = position + 1
+             WHERE race_id = ? AND status = 'FINISHED' AND position >= ? AND position < ? AND boat_id != ?`,
+          ).run(race_id, finalPosition, currentPosition, boat_id);
+        } else if (currentPosition < finalPosition) {
+          db.prepare(
+            `UPDATE Scores SET position = position - 1, points = position - 1
+             WHERE race_id = ? AND status = 'FINISHED' AND position <= ? AND position > ? AND boat_id != ?`,
+          ).run(race_id, finalPosition, currentPosition, boat_id);
         }
       }
 
-      // Step 4: Recalculate the total points for the affected boat
-      // Get all races for this boat in the event
-      const races = db
-        .prepare(
-          `SELECT position FROM Scores WHERE boat_id = ? AND race_id IN (SELECT race_id FROM Races WHERE heat_id IN (SELECT heat_id FROM Heats WHERE event_id = ?))`,
-        )
-        .all(boat_id, event_id);
-
-      const totalPointsEvent = races.reduce(
-        (acc: any, race: { position: any }) => acc + race.position,
-        0,
-      );
-
-      // Step 5: Update the total points in the Leaderboard (or FinalLeaderboard) table
-      const leaderboardUpdateQuery = db.prepare(
-        `UPDATE Leaderboard SET total_points_event = ? WHERE boat_id = ? AND event_id = ?`,
-      );
-      leaderboardUpdateQuery.run(totalPointsEvent, boat_id, event_id);
-
-      // If final series is started, update the FinalLeaderboard table
-      const finalLeaderboardUpdateQuery = db.prepare(
-        `UPDATE FinalLeaderboard SET total_points_final = ? WHERE boat_id = ? AND event_id = ?`,
-      );
-      finalLeaderboardUpdateQuery.run(totalPointsEvent, boat_id, event_id);
-
-      // Call updateEventLeaderboard to recalculate scores and exclude the worst ones
+      // Step 4: Recompute event leaderboard with correct exclusion logic
+      recomputeEventLeaderboard(event_id);
 
       return { success: true };
     } catch (err) {
@@ -846,7 +912,8 @@ ipcMain.handle('readLeaderboard', async (event, event_id) => {
         s.surname,
         b.country,
         GROUP_CONCAT(sc.position ORDER BY r.race_number) AS race_positions,
-        GROUP_CONCAT(r.race_id ORDER BY r.race_number) AS race_ids
+        GROUP_CONCAT(r.race_id ORDER BY r.race_number) AS race_ids,
+        GROUP_CONCAT(COALESCE(sc.status, 'DNS') ORDER BY r.race_number) AS race_statuses
       FROM Leaderboard lb
       LEFT JOIN Boats b ON lb.boat_id = b.boat_id
       LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id
@@ -955,7 +1022,8 @@ ipcMain.handle('readFinalLeaderboard', async (event, event_id) => {
         s.surname,
         b.country,
         GROUP_CONCAT(sc.position ORDER BY r.race_number) AS race_positions,
-        GROUP_CONCAT(r.race_id ORDER BY r.race_number) AS race_ids
+        GROUP_CONCAT(r.race_id ORDER BY r.race_number) AS race_ids,
+        GROUP_CONCAT(COALESCE(sc.status, 'DNS') ORDER BY r.race_number) AS race_statuses
       FROM FinalLeaderboard fl
       LEFT JOIN Boats b ON fl.boat_id = b.boat_id
       LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id

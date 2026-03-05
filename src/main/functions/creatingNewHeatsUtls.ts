@@ -228,7 +228,12 @@ export function checkRaceCountForLatestHeats(
   ];
 
   if (uniqueRaceCounts.length > 1) {
-    throw new Error('Latest heats do not have the same number of races.');
+    const breakdown = heatRaceCounts
+      .map((h) => `${h.heat_name}: ${h.raceCount} race(s)`)
+      .join(', ');
+    throw new Error(
+      `Not all heats have the same number of races yet — you need to finish the current round before redistributing.\n\nCurrent state: ${breakdown}`,
+    );
   }
 }
 

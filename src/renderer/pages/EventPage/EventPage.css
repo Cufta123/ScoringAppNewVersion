@@ -1,129 +1,37 @@
 /* EventPage.css */
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 20px 0;
-}
 
-th, td {
-  border: 1px solid #ddd;
-  padding: 8px;
-  text-align: left;
-}
-
-th {
-  background-color: #f2f2f2;
-}
-
-tr:nth-child(even) {
-  background-color: #f9f9f9;
-}
-
-tr:hover {
-  background-color: #f1f1f1;
-}
-
-button {
-  background-color: #dc3545;
-  color: white;
-  border: none;
-  padding: 5px 10px;
-  cursor: pointer;
-  border-radius: 5px;
-}
-
-button:hover {
-  background-color: #c82333;
-}
-
-next_button {
-  align-content: end;
-}
-button {
-  background-color: #dc3545;
-  color: white;
-  border: none;
-  padding: 5px 10px;
-  cursor: pointer;
-  border-radius: 5px;
-}
-
-button:hover {
-  background-color: #c82333;
-}
-.container {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 20px;
-  font-family: Arial, sans-serif;
-}
-
-button {
-  background-color: #007bff;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  margin: 10px 0;
-  cursor: pointer;
-  border-radius: 5px;
-}
-
-button:hover {
-  background-color: #0056b3;
-}
-
-h1, h2, h3 {
-  color: #333;
-}
-
-form {
-  margin-bottom: 20px;
-}
-
-input, select {
-  width: 30%;
-  padding: 5px;
-  margin: 10px 5px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-}
-
-ul {
-  list-style-type: none;
-  padding: 0;
-}
-
-li {
-  background-color: #007bff;
-  margin: 10px 0;
-  padding: 10px;
-  border: 1px solid #000000;
-  border-radius: 5px;
-  max-width: 30%;
-
-}
-
-li button {
-  background-color: #dc3545;
-  color: white;
-  border: none;
-  padding: 5px 10px;
-  cursor: pointer;
-  border-radius: 5px;
-}
-
-li button:hover {
-  background-color: #c82333;
-}
-
-.button-container {
+.event-header {
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 22px;
 }
 
-.next-button {
-  margin-left: auto;
-  margin-right: 5%;
+.event-header-info h1 { margin-bottom: 6px; }
+
+.event-header-info p {
+  font-size: .9rem;
+  color: #6B849A;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
+
+.section-block { position: relative; }
+
+.add-boat-form {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.add-boat-form > div { flex: 1; min-width: 260px; }
+
+.lock-btn { margin-top: 24px; }
+
+.lock-btn { margin-top: 20px; }

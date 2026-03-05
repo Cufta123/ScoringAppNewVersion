@@ -32,6 +32,7 @@ export type Channels =
   | 'updateEventLeaderboard'
   | 'updateGlobalLeaderboard'
   | 'createNewHeatsBasedOnLeaderboard'
+  | 'undoLastScoredRaceForHeat'
   | 'undoLastScoredRace'
   | 'undoLatestHeatRedistribution'
   | 'transferBoatBetweenHeats'
@@ -41,7 +42,9 @@ export type Channels =
   | 'readFinalLeaderboard'
   | 'lockEvent'
   | 'unlockEvent'
-  | 'updateRaceResult';
+  | 'updateRaceResult'
+  | 'getMaxHeatSize'
+  | 'importSailors';
 
 const electronHandler = {
   ipcRenderer: {
@@ -172,6 +175,14 @@ const electronHandler = {
         } catch (error) {
           console.error('Error invoking readAllBoats IPC:', error);
           return false;
+        }
+      },
+      async importSailors(rows: unknown[]) {
+        try {
+          return await ipcRenderer.invoke('importSailors', rows);
+        } catch (error) {
+          console.error('Error invoking importSailors IPC:', error);
+          return { imported: 0, skipped: 0, errors: [(error as Error).message] };
         }
       },
     },
@@ -310,8 +321,7 @@ const electronHandler = {
         try {
           return await ipcRenderer.invoke('insertRace', heat_id, race_number);
         } catch (error) {
-          console.error('Error invoking insertRace IPC:', error);
-          return false;
+          throw error;
         }
       },
       async readAllScores(race_id: string) {
@@ -339,8 +349,7 @@ const electronHandler = {
             status,
           );
         } catch (error) {
-          console.error('Error invoking insertScore IPC:', error);
-          return false;
+          throw error;
         }
       },
       async updateScore(
@@ -401,19 +410,21 @@ const electronHandler = {
             event_id,
           );
         } catch (error) {
-          console.error(
-            'Error invoking createNewHeatsBasedOnLeaderboard IPC:',
-            error,
-          );
-          return false;
+          throw error;
+        }
+      },
+      async undoLastScoredRaceForHeat(heat_id: number) {
+        try {
+          return await ipcRenderer.invoke('undoLastScoredRaceForHeat', heat_id);
+        } catch (error) {
+          throw error;
         }
       },
       async undoLastScoredRace(event_id: string) {
         try {
           return await ipcRenderer.invoke('undoLastScoredRace', event_id);
         } catch (error) {
-          console.error('Error invoking undoLastScoredRace IPC:', error);
-          return false;
+          throw error;
         }
       },
       async undoLatestHeatRedistribution(event_id: string) {
@@ -423,11 +434,7 @@ const electronHandler = {
             event_id,
           );
         } catch (error) {
-          console.error(
-            'Error invoking undoLatestHeatRedistribution IPC:',
-            error,
-          );
-          return false;
+          throw error;
         }
       },
       async transferBoatBetweenHeats(
@@ -477,7 +484,7 @@ const electronHandler = {
         boat_id: string,
         new_position: string,
         shift_positions: boolean,
-        heat_id: string
+        new_status: string,
       ) {
         try {
           return await ipcRenderer.invoke(
@@ -487,7 +494,7 @@ const electronHandler = {
             boat_id,
             new_position,
             shift_positions,
-            heat_id
+            new_status,
           );
         } catch (error) {
           console.error('Error invoking updateRaceResult IPC:', error);
@@ -500,6 +507,18 @@ const electronHandler = {
         } catch (error) {
           console.error('Error invoking readFinalLeaderboard IPC:', error);
           return false;
+        }
+      },
+      async getMaxHeatSize(event_id: string, heat_type?: string) {
+        try {
+          return await ipcRenderer.invoke(
+            'getMaxHeatSize',
+            event_id,
+            heat_type,
+          );
+        } catch (error) {
+          console.error('Error invoking getMaxHeatSize IPC:', error);
+          return 0;
         }
       },
     },

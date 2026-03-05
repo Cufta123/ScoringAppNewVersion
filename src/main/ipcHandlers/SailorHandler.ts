@@ -234,3 +234,114 @@ ipcMain.handle(
     return insertSailorWithRetry(1);
   },
 );
+
+interface ImportRow {
+  name: string;
+  surname: string;
+  birthday: string;
+  sail_number: string | number;
+  country: string;
+  model: string;
+  club_name: string;
+  category_name: string;
+  eventId?: number | string;
+}
+
+ipcMain.handle('importSailors', (_event, rows: ImportRow[]) => {
+  let created = 0;       // new boats added to DB
+  let associated = 0;    // existing boats newly added to this event
+  let alreadyInEvent = 0; // boats that were already in this event
+  let invalid = 0;       // rows missing required fields
+  const errors: string[] = [];
+
+  const importAll = db.transaction(() => {
+    for (const row of rows) {
+      try {
+        const { name, surname, birthday, sail_number, country, model, club_name, category_name, eventId } = row;
+
+        if (!name || !surname || !sail_number || !country || !model) {
+          invalid += 1;
+          continue;
+        }
+
+        // Resolve category
+        const catRow = db
+          .prepare('SELECT category_id FROM Categories WHERE UPPER(category_name) = UPPER(?)')
+          .get(category_name || 'SENIOR') as { category_id: number } | undefined;
+        const category_id = catRow?.category_id ?? 3; // default SENIOR
+
+        // Upsert club
+        let club_id: number;
+        const existingClub = db
+          .prepare('SELECT club_id FROM Clubs WHERE club_name = ?')
+          .get(club_name) as { club_id: number } | undefined;
+        if (existingClub) {
+          club_id = existingClub.club_id;
+        } else {
+          const clubResult = db
+            .prepare('INSERT INTO Clubs (club_name, country) VALUES (?, ?)')
+            .run(club_name || 'Unknown', country);
+          club_id = clubResult.lastInsertRowid as number;
+        }
+
+        // Upsert sailor
+        let sailor_id: number;
+        const existingSailor = db
+          .prepare('SELECT sailor_id FROM Sailors WHERE name = ? AND surname = ? AND birthday = ?')
+          .get(name, surname, birthday) as { sailor_id: number } | undefined;
+        if (existingSailor) {
+          sailor_id = existingSailor.sailor_id;
+        } else {
+          const sailorResult = db
+            .prepare('INSERT INTO Sailors (name, surname, birthday, category_id, club_id) VALUES (?, ?, ?, ?, ?)')
+            .run(name, surname, birthday || '', category_id, club_id);
+          sailor_id = sailorResult.lastInsertRowid as number;
+        }
+
+        // Upsert boat
+        let boat_id: number;
+        const existingBoat = db
+          .prepare('SELECT boat_id FROM Boats WHERE sail_number = ?')
+          .get(String(sail_number)) as { boat_id: number } | undefined;
+        if (existingBoat) {
+          boat_id = existingBoat.boat_id;
+        } else {
+          const boatResult = db
+            .prepare('INSERT INTO Boats (sail_number, country, model, sailor_id) VALUES (?, ?, ?, ?)')
+            .run(String(sail_number), country, model, sailor_id);
+          boat_id = boatResult.lastInsertRowid as number;
+          created += 1;
+        }
+
+        // Associate boat with event if event_id provided
+        if (eventId) {
+          const event_id = Number(eventId);
+          const inEvent = db
+            .prepare('SELECT boat_event_id FROM Boat_Event WHERE boat_id = ? AND event_id = ?')
+            .get(boat_id, event_id) as { boat_event_id: number } | undefined;
+          if (!inEvent) {
+            db.prepare('INSERT INTO Boat_Event (boat_id, event_id) VALUES (?, ?)')
+              .run(boat_id, event_id);
+            if (!existingBoat) {
+              // already counted under created
+            } else {
+              associated += 1;
+            }
+          } else {
+            alreadyInEvent += 1;
+          }
+        }
+      } catch (err) {
+        errors.push(`Row ${row.name} ${row.surname}: ${(err as Error).message}`);
+        invalid += 1;
+      }
+    }
+  });
+
+  importAll();
+  return { created, associated, alreadyInEvent, invalid, errors,
+    // keep legacy fields so UI doesn't break
+    imported: created + associated,
+    skipped: alreadyInEvent + invalid,
+  };
+});

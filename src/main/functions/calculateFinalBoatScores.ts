@@ -54,6 +54,13 @@ function compareA81Scores(scoresA: number[], scoresB: number[]) {
   return 0;
 }
 
+// SHRS 5.4: after 4 races exclude 1, after 8 exclude 2, then +1 per 8 more
+function getExcludeCount(numberOfRaces: number): number {
+  if (numberOfRaces < 4) return 0;
+  if (numberOfRaces < 8) return 1;
+  return 2 + Math.floor((numberOfRaces - 8) / 8);
+}
+
 export default function calculateFinalBoatScores(
   results: Result[],
   event_id: any,
@@ -72,8 +79,17 @@ export default function calculateFinalBoatScores(
       groupTables.set(groupName, []);
     }
 
+    // Fetch scores sorted DESC (worst first) and apply exclusions per SHRS 5.4
     const scores = getScoresForA81(event_id, boat_id, heat_name);
-    const totalPoints = scores.reduce((acc: any, score: any) => acc + score, 0);
+    const numberOfRaces = scores.length;
+    const excludeCount = getExcludeCount(numberOfRaces);
+
+    // Exclude the worst scores (scores are already sorted DESC)
+    const scoresToInclude = scores.slice(excludeCount);
+    const totalPoints = scoresToInclude.reduce(
+      (acc: number, score: number) => acc + score,
+      0,
+    );
 
     groupTables.get(groupName)?.push({ boat_id, totalPoints });
   });

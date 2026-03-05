@@ -11,6 +11,8 @@ function HeatComponent({ event, onHeatSelect = () => {}, clickable }) {
   const [raceHappened, setRaceHappened] = useState(false);
   const [displayLastHeats, setDisplayLastHeats] = useState(true);
   const [finalSeriesStarted, setFinalSeriesStarted] = useState(false);
+  const [showFinalConfirm, setShowFinalConfirm] = useState(false);
+  const [pendingFinalHeats, setPendingFinalHeats] = useState(0);
 
   const handleDisplayHeats = useCallback(async () => {
     try {
@@ -61,51 +63,33 @@ function HeatComponent({ event, onHeatSelect = () => {}, clickable }) {
     checkFinalSeriesStarted();
   }, [checkFinalSeriesStarted]);
 
-  const handleStartFinalSeries = async () => {
-    if (finalSeriesStarted) {
-      return;
-    }
+  const handleConfirmFinalSeries = async () => {
+    setShowFinalConfirm(false);
+    const numFinalHeats = pendingFinalHeats;
     try {
-      const allHeats = await window.electron.sqlite.heatRaceDB.readAllHeats(
-        event.event_id,
-      );
-      const qualifyingHeats = allHeats.filter(
-        (heat) => heat.heat_type === 'Qualifying',
-      );
-      const numFinalHeats = new Set(
-        qualifyingHeats.map((heat) => heat.heat_name.match(/Heat ([A-Z])/)[1]),
-      ).size;
-
       // Fetch leaderboard to rank boats
       const leaderboard =
         await window.electron.sqlite.heatRaceDB.readLeaderboard(event.event_id);
 
-      // Fetch race scores for each boat
-      const boatScores = await Promise.all(
-        leaderboard.map(async (boat) => {
-          const scores = await window.electron.sqlite.heatRaceDB.readAllScores(
-            boat.boat_id,
-          );
-          return {
-            boat_id: boat.boat_id,
-            scores: scores.map((score) => score.position).sort((a, b) => a - b),
-          };
-        }),
-      );
-      // Adjust scores by excluding the second worst score if applicable
-      const adjustedLeaderboard = boatScores.map((boat) => {
-        const { scores } = boat;
-        let totalPoints = scores.reduce((acc, score) => acc + score, 0);
-
-        if (scores.length > 5 && scores.length < 8) {
-          // Exclude the second worst score
-          totalPoints -= scores[scores.length - 2];
+      // Build adjusted totals for fleet assignment per SHRS 4.2.
+      // The leaderboard already has total_points_event (SHRS 5.4: worst excluded for n>=4)
+      // and race_positions (comma-separated raw positions/points per race).
+      // SHRS 4.2: when 5 < n < 8 completed races, additionally temporarily exclude
+      // the second-worst score solely for purposes of assigning boats to fleets.
+      const adjustedLeaderboard = leaderboard.map((boat) => {
+        const racePosStr = boat.race_positions || '';
+        const rawScores = racePosStr
+          ? racePosStr.split(',').map(Number).filter((n) => !Number.isNaN(n))
+          : [];
+        const n = rawScores.length;
+        // Start from the SHRS-5.4-adjusted total (worst already excluded for n>=4)
+        let totalPoints = boat.total_points_event || 0;
+        // SHRS 4.2: additionally exclude second-worst when 5 < n < 8
+        if (n > 5 && n < 8) {
+          const sorted = [...rawScores].sort((a, b) => b - a);
+          if (sorted.length > 1) totalPoints -= sorted[1];
         }
-
-        return {
-          boat_id: boat.boat_id,
-          totalPoints,
-        };
+        return { boat_id: boat.boat_id, totalPoints };
       });
 
       // Sort boats by adjusted total points
@@ -138,7 +122,7 @@ function HeatComponent({ event, onHeatSelect = () => {}, clickable }) {
           fleetPromises.push(
             window.electron.sqlite.heatRaceDB.insertHeatBoat(
               newHeatId,
-              leaderboard[boatIndex].boat_id,
+              adjustedLeaderboard[boatIndex].boat_id,
             ),
           );
           boatIndex += 1;
@@ -146,12 +130,46 @@ function HeatComponent({ event, onHeatSelect = () => {}, clickable }) {
       }
 
       await Promise.all(fleetPromises);
-      setFinalSeriesStarted(true); // Set final series started to true
+      setFinalSeriesStarted(true);
       alert('Final Series started successfully!');
-      handleDisplayHeats(); // Refresh the heats display
+      handleDisplayHeats();
     } catch (error) {
       console.error('Error starting final series:', error);
       alert('Error starting final series. Please try again later.');
+    }
+  };
+
+  const handleStartFinalSeries = async () => {
+    if (finalSeriesStarted) return;
+    try {
+      const allHeats = await window.electron.sqlite.heatRaceDB.readAllHeats(
+        event.event_id,
+      );
+      const qualifyingHeats = allHeats.filter(
+        (heat) => heat.heat_type === 'Qualifying',
+      );
+      const uniqueGroups = new Set(
+        qualifyingHeats
+          .map((heat) => {
+            const m = heat.heat_name.match(/Heat ([A-Z])/);
+            return m ? m[1] : null;
+          })
+          .filter(Boolean),
+      );
+      const numFinalHeats = uniqueGroups.size;
+      if (numFinalHeats < 2) {
+        alert(
+          numFinalHeats === 0
+            ? 'No qualifying heats found. Please create and run at least 2 heats before starting the Final Series.'
+            : 'At least 2 qualifying heats are required before starting the Final Series.',
+        );
+        return;
+      }
+      setPendingFinalHeats(numFinalHeats);
+      setShowFinalConfirm(true);
+    } catch (error) {
+      console.error('Error checking heats for final series:', error);
+      alert('Error checking heats. Please try again.');
     }
   };
 
@@ -306,6 +324,7 @@ function HeatComponent({ event, onHeatSelect = () => {}, clickable }) {
   };
 
   const heatsToDisplay = displayLastHeats ? getLastHeats(heats) : heats;
+  const hasMultipleRounds = heats.length > getLastHeats(heats).length;
 
   const getFlagCode = (iocCode) => {
     return iocToFlagCodeMap[iocCode] || iocCode;
@@ -349,56 +368,123 @@ function HeatComponent({ event, onHeatSelect = () => {}, clickable }) {
     e.preventDefault();
   };
 
-  const heatsContainerStyle = {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '10px',
-    padding: '10px',
-  };
+  const heatsContainerStyle = {}; // handled by .heats-container CSS class
 
   const heatColumnStyle = {
-    backgroundColor: '#f0f0f0',
-    border: '2px solid #ccc',
-    borderRadius: '5px',
-    padding: '10px',
-    maxWidth: '400px', // Set max width
-    flex: '1 1 30%', // Ensure only 4 columns per row with uniform spacing
-    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
     cursor: clickable ? 'pointer' : 'default',
   };
+
   const selectedHeatColumnStyle = {
-    ...heatColumnStyle,
-    border: '2px solid #007bff', // Blue border to highlight the selected heat
-    boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)', // Add shadow for more emphasis
+    cursor: clickable ? 'pointer' : 'default',
+    borderColor: '#1A6FBF',
+    boxShadow:
+      '0 0 0 3px rgba(26,111,191,.20), 0 4px 16px rgba(26,111,191,.18)',
   };
+
   const boatNumberColumnStyle = {
-    ...heatColumnStyle,
-    maxWidth: '100px', // Shorter width for boat number
+    maxWidth: '100px',
   };
 
   const sailorNameColumnStyle = {
-    ...heatColumnStyle,
-    maxWidth: '400px', // Wider width for sailor name
+    maxWidth: '220px',
   };
 
   return (
-    <div>
-      <div>
+    <div className="section-block">
+      {/* ── Confirmation modal ─── */}
+      {showFinalConfirm && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 999,
+            background: 'rgba(10,24,38,.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--surface)',
+              borderRadius: 'var(--radius)',
+              boxShadow: 'var(--shadow-md)',
+              padding: '32px 36px',
+              maxWidth: '420px',
+              width: '90%',
+            }}
+          >
+            <h3 style={{ marginTop: 0, marginBottom: '12px', color: 'var(--navy)' }}>
+              <i className="fa fa-flag-checkered" aria-hidden="true" style={{ marginRight: '8px', color: 'var(--teal)' }} />
+              Start Final Series?
+            </h3>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', lineHeight: 1.5 }}>
+              This will create <strong>{pendingFinalHeats}</strong> final fleet{pendingFinalHeats > 1 ? 's' : ''} based
+              on current standings. This action <strong>cannot be undone</strong>.
+            </p>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => setShowFinalConfirm(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-success"
+                onClick={handleConfirmFinalSeries}
+              >
+                <i className="fa fa-check" aria-hidden="true" style={{ marginRight: '6px' }} />
+                Yes, Start Final Series
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <h2>
+        <i className="fa fa-flag" aria-hidden="true" style={{ marginRight: '8px' }} />
+        Heats
+      </h2>
+      {/* ── Heat controls ─── */}
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: '12px',
+          marginBottom: '16px',
+        }}
+      >
         {!raceHappened && !finalSeriesStarted && (
           <>
-            <label htmlFor="numHeats">Number of Heats:</label>
-            <select
-              id="numHeats"
-              value={numHeats}
-              onChange={(e) => setNumHeats(Number(e.target.value))}
-              disabled={raceHappened || finalSeriesStarted}
+            <label
+              htmlFor="numHeats"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '.88rem',
+                fontWeight: 600,
+                color: '#6B849A',
+                whiteSpace: 'nowrap',
+              }}
             >
-              {[...Array(10).keys()].map((i) => (
-                <option key={i + 1} value={i + 1}>
-                  {i + 1}
-                </option>
-              ))}
-            </select>
+              Heats
+              <select
+                id="numHeats"
+                value={numHeats}
+                onChange={(e) => setNumHeats(Number(e.target.value))}
+                disabled={raceHappened || finalSeriesStarted}
+                style={{ width: '72px' }}
+              >
+                {[...Array(10).keys()].map((i) => (
+                  <option key={i + 1} value={i + 1}>
+                    {i + 1}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button
               type="button"
               onClick={heatsCreated ? handleRecreateHeats : handleCreateHeats}
@@ -408,16 +494,21 @@ function HeatComponent({ event, onHeatSelect = () => {}, clickable }) {
             </button>
           </>
         )}
+        {hasMultipleRounds && (
+          <button type="button" className="btn-ghost" onClick={toggleDisplayMode}>
+            {displayLastHeats ? 'Show All Heats' : 'Show Last Heats'}
+          </button>
+        )}
+        {!finalSeriesStarted && (
+          <button
+            type="button"
+            className="btn-success"
+            onClick={handleStartFinalSeries}
+          >
+            Start Final Series
+          </button>
+        )}
       </div>
-
-      <button type="button" onClick={toggleDisplayMode}>
-        {displayLastHeats ? 'Show All Heats' : 'Show Last Heats'}
-      </button>
-      {!finalSeriesStarted && (
-        <button type="button" onClick={handleStartFinalSeries}>
-          Start Final Series
-        </button>
-      )}
       {heatsToDisplay.length > 0 && (
         <div style={heatsContainerStyle} className="heats-container">
           {heatsToDisplay.map((heat) => (

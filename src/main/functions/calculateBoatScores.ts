@@ -133,6 +133,13 @@ function getSharedRaceScoresForTieBreak(
   return { a81A, a81B, a82A, a82B };
 }
 
+// SHRS 5.4: after 4 races exclude 1, after 8 exclude 2, then +1 per 8 more
+function getExcludeCount(numberOfRaces: number): number {
+  if (numberOfRaces < 4) return 0;
+  if (numberOfRaces < 8) return 1;
+  return 2 + Math.floor((numberOfRaces - 8) / 8);
+}
+
 export default function calculateBoatScores(
   results: Result[],
   event_id: any,
@@ -144,12 +151,8 @@ export default function calculateBoatScores(
     // Fetch all scores for the boat
     const scores = getScoresForA81(event_id, boat_id);
 
-    // Determine the number of scores to exclude
-    let excludeCount = 0;
-    const thresholds = [4, 8, 16, 24, 32, 40, 48, 56, 64, 72];
-    excludeCount = thresholds.filter(
-      (threshold) => number_of_races >= threshold,
-    ).length;
+    // Determine the number of scores to exclude per SHRS 5.4
+    const excludeCount = getExcludeCount(number_of_races);
     console.log(
       `Boat ID: ${boat_id}, Number of Races: ${number_of_races}, Places to Exclude: ${excludeCount}`,
     );
@@ -229,10 +232,7 @@ export default function calculateBoatScores(
           results.find(
             (result: { boat_id: string }) => result.boat_id === boat_id,
           )?.number_of_races || 0;
-        const thresholds = [4, 8, 16, 24, 32, 40, 48, 56, 64, 72];
-        const excludeCount = thresholds.filter(
-          (threshold) => number_of_races >= threshold,
-        ).length;
+        const excludeCount = getExcludeCount(number_of_races);
         const scoresToInclude = scores.slice(excludeCount);
         return {
           boat_id,

@@ -1,8 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useLayoutEffect,
+} from 'react';
 import Select from 'react-select';
 import { useLocation, useNavigate } from 'react-router-dom';
 import SailorForm from '../../components/SailorForm';
 import SailorList from '../../components/SailorList';
+import SailorImport from '../../components/SailorImport';
 import Navbar from '../../components/Navbar';
 import './EventPage.css';
 import HeatComponent from '../../components/HeatComponent';
@@ -22,7 +29,15 @@ function EventPage() {
   const [boats, setBoats] = useState([]);
   const [allBoats, setAllBoats] = useState([]);
   const [selectedBoats, setSelectedBoats] = useState([]);
-  const [isSailorFormVisible, setIsSailorFormVisible] = useState(false);
+  const [addSailorMode, setAddSailorMode] = useState(null); // null | 'bulk' | 'single'
+  const tabPanelInnerRef = useRef(null);
+  const [tabPanelHeight, setTabPanelHeight] = useState(0);
+
+  useLayoutEffect(() => {
+    if (tabPanelInnerRef.current) {
+      setTabPanelHeight(tabPanelInnerRef.current.scrollHeight);
+    }
+  }, [addSailorMode]);
   const [raceHappened, setRaceHappened] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [isEventLocked, setIsEventLocked] = useState(event.is_locked === 1);
@@ -99,20 +114,17 @@ function EventPage() {
     fetchBoatsWithSailors();
   };
 
+  const handleImportComplete = useCallback(() => {
+    fetchBoatsWithSailors();
+    fetchAllBoats();
+  }, [fetchBoatsWithSailors, fetchAllBoats]);
+
   const handleBackClick = () => {
     navigate('/');
   };
 
   const handleHeatRaceClick = () => {
     navigate(`/event/${event.event_name}/heat-race`, { state: { event } });
-  };
-
-  const toggleSailorFormVisibility = () => {
-    if (raceHappened) {
-      alert('No more sailors can be added as a race has already happened.');
-      return;
-    }
-    setIsSailorFormVisible(!isSailorFormVisible);
   };
 
   const handleBoatSelection = async (e) => {
@@ -218,10 +230,16 @@ function EventPage() {
 
   if (showLeaderboard) {
     return (
-      <div>
-        <button type="button" onClick={handleCloseLeaderboard}>
-          Back
-        </button>
+      <div className="page-wrapper">
+        <div style={{ marginBottom: '16px' }}>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={handleCloseLeaderboard}
+          >
+            <i className="fa fa-arrow-left" aria-hidden="true" /> Back to Event
+          </button>
+        </div>
         <LeaderboardComponent eventId={event.event_id} />
       </div>
     );
@@ -243,57 +261,189 @@ function EventPage() {
         isEventLocked={isEventLocked}
         onHeatRaceClick={handleHeatRaceClick}
       />
-      <h1>{event.event_name}</h1>
-      <p>Start Date: {event.start_date}</p>
-      <p>End Date: {event.end_date}</p>
-      {raceHappened || isEventLocked ? (
-        <div className="warning">
-          <p>
-            No more sailors or boats can be added as at least one race has
-            happened or the event is locked.
-          </p>
-        </div>
-      ) : (
-        <>
-          <h2>Add Sailors</h2>
-          <button type="button" onClick={toggleSailorFormVisibility}>
-            {isSailorFormVisible ? 'Hide Sailor Form' : 'Show Sailor Form'}
-          </button>
-          {isSailorFormVisible && (
-            <SailorForm
-              onAddSailor={handleAddSailor}
-              eventId={event.event_id}
-            />
-          )}
-          <h2>Add Existing Boat to Event</h2>
-          <form onSubmit={handleBoatSelection}>
-            <Select
-              isMulti
-              value={selectedBoats}
-              onChange={handleBoatChange}
-              options={boatOptions}
-              closeMenuOnSelect={false}
-            />
-            <button type="submit">Add Boats</button>
-          </form>
-        </>
-      )}
 
-      <h3>Boats and Sailors</h3>
-      <SailorList
-        sailors={Array.isArray(boats) ? boats : []}
-        onRemoveBoat={handleRemoveBoat}
-        onRefreshSailors={fetchBoatsWithSailors}
-        raceHappened={raceHappened} // Pass raceHappened state to SailorList
-      />
-      <HeatComponent event={event} clickable={false} />
-      <button
-        type="button"
-        onClick={handleLockEventClick}
-        style={{ backgroundColor: 'red', color: 'white' }}
-      >
-        {isEventLocked ? 'Unlock Event' : 'Lock Event'}
-      </button>
+      <div className="page-wrapper">
+        {/* ── Event header ─── */}
+        <div className="event-header">
+          <div className="event-header-info">
+            <h1>
+              <i
+                className="fa fa-calendar"
+                aria-hidden="true"
+                style={{ marginRight: '10px', color: '#2471A3' }}
+              />
+              {event.event_name}
+            </h1>
+            <p>
+              <i
+                className="fa fa-calendar-o"
+                aria-hidden="true"
+                style={{ marginRight: '6px' }}
+              />
+              {event.start_date} &rarr; {event.end_date}
+              {isEventLocked && (
+                <span
+                  style={{
+                    marginLeft: '14px',
+                    background: 'linear-gradient(135deg,#D63B2F,#B02720)',
+                    color: '#fff',
+                    borderRadius: '999px',
+                    padding: '3px 12px',
+                    fontSize: '.78rem',
+                    fontWeight: 700,
+                    letterSpacing: '.05em',
+                    textTransform: 'uppercase',
+                    boxShadow: '0 2px 6px rgba(214,59,47,.35)',
+                  }}
+                >
+                  <i className="fa fa-lock" aria-hidden="true" /> Locked
+                </span>
+              )}
+            </p>
+          </div>
+        </div>
+
+        {/* ── Warning banner ─── */}
+        {(raceHappened || isEventLocked) && (
+          <div className="warning">
+            <i
+              className="fa fa-exclamation-triangle"
+              aria-hidden="true"
+              style={{ marginRight: '8px' }}
+            />
+            No more sailors or boats can be added — a race has already happened
+            or the event is locked.
+          </div>
+        )}
+
+        {/* ── Add sailors / boats section ─── */}
+        {!raceHappened && !isEventLocked && (
+          <div className="section-block">
+            <h2>
+              <i className="fa fa-user-plus" aria-hidden="true" />
+              Add Sailors
+            </h2>
+
+            {/* Sliding pill tab toggle — left aligned, collapsible */}
+            <div className="tab-toggle">
+              {/* sliding pill tracks active tab */}
+              <div
+                className="tab-pill"
+                style={{
+                  transform:
+                    addSailorMode === 'single'
+                      ? 'translateX(100%)'
+                      : 'translateX(0)',
+                  opacity: addSailorMode ? 1 : 0,
+                }}
+              />
+              <button
+                type="button"
+                className={`tab-btn${addSailorMode === 'bulk' ? ' tab-active' : ''}`}
+                onClick={() =>
+                  setAddSailorMode(addSailorMode === 'bulk' ? null : 'bulk')
+                }
+              >
+                <i className="fa fa-table" aria-hidden="true" /> Bulk CSV
+              </button>
+              <button
+                type="button"
+                className={`tab-btn${addSailorMode === 'single' ? ' tab-active' : ''}`}
+                onClick={() =>
+                  setAddSailorMode(addSailorMode === 'single' ? null : 'single')
+                }
+              >
+                <i className="fa fa-user-plus" aria-hidden="true" /> Single
+              </button>
+            </div>
+
+            {/* Height-animated outer wrapper, content fades inside */}
+            <div
+              style={{
+                height: addSailorMode ? tabPanelHeight : 0,
+                overflow: 'hidden',
+                transition: 'height 0.32s cubic-bezier(.4,0,.2,1)',
+              }}
+            >
+              <div ref={tabPanelInnerRef} className="tab-panel">
+                {addSailorMode === 'single' ? (
+                  <SailorForm
+                    onAddSailor={handleAddSailor}
+                    eventId={event.event_id}
+                  />
+                ) : addSailorMode === 'bulk' ? (
+                  <SailorImport
+                    eventId={event.event_id}
+                    onImportComplete={handleImportComplete}
+                  />
+                ) : null}
+              </div>
+            </div>
+
+            <h2 style={{ marginTop: '24px' }}>
+              <i
+                className="fa fa-ship"
+                aria-hidden="true"
+                style={{ marginRight: '8px' }}
+              />
+              Add Existing Boat to Event
+            </h2>
+            <form onSubmit={handleBoatSelection} className="add-boat-form">
+              <div style={{ width: '100%', maxWidth: '460px' }}>
+                <Select
+                  isMulti
+                  value={selectedBoats}
+                  onChange={handleBoatChange}
+                  options={boatOptions}
+                  closeMenuOnSelect={false}
+                  placeholder="Search and select boats…"
+                  styles={{
+                    input: (base) => ({
+                      ...base,
+                      border: 'none',
+                      boxShadow: 'none',
+                      padding: 0,
+                      margin: 0,
+                      background: 'transparent',
+                    }),
+                  }}
+                />
+              </div>
+              <button type="submit" className="btn-success">
+                <i className="fa fa-plus" aria-hidden="true" /> Add Boats
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* ── Sailors list ─── */}
+        <div className="section-block">
+          <SailorList
+            sailors={Array.isArray(boats) ? boats : []}
+            onRemoveBoat={handleRemoveBoat}
+            onRefreshSailors={fetchBoatsWithSailors}
+            raceHappened={raceHappened}
+          />
+        </div>
+
+        {/* ── Heat overview ─── */}
+        <HeatComponent event={event} clickable={false} />
+
+        {/* ── Lock / Unlock ─── */}
+        <div className="lock-btn">
+          <button
+            type="button"
+            className={isEventLocked ? 'btn-success' : 'btn-danger'}
+            onClick={handleLockEventClick}
+          >
+            <i
+              className={`fa ${isEventLocked ? 'fa-unlock' : 'fa-lock'}`}
+              aria-hidden="true"
+            />
+            {isEventLocked ? 'Unlock Event' : 'Lock Event'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

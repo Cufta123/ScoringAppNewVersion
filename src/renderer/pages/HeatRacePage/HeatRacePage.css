@@ -1,42 +1,55 @@
 /* HeatRacePage.css */
-.heats-container {
-  display: flex;
-  flex-wrap: wrap;
-}
 
-.heat-column {
-  flex: 1;
-  min-width: 200px;
-  margin: 10px;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-}
-
-.heat-column table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.heat-column th, .heat-column td {
-  border: 1px solid #ccc;
-  padding: 8px;
-  text-align: left;
-}
-.boat-list, .search-results {
+.heatrace-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  margin-bottom: 22px;
+  padding: 16px 20px;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 2px 8px rgba(15,45,74,.10);
+  border: 1px solid rgba(200,223,242,.6);
 }
 
-.boat-list button, .search-results button {
-  padding: 10px;
-  background-color: #f0f0f0;
-  border: 1px solid #ccc;
-  cursor: pointer;
+.heats-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 4px 0;
 }
 
-.boat-list button:disabled, .search-results button:disabled {
-  background-color: #ddd;
-  cursor: not-allowed;
+.heat-column {
+  flex: 1 1 280px;
+  max-width: 400px;
+  background: #fff;
+  border: 1.5px solid #C8DFF2;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(15,45,74,.10);
+  cursor: default;
+  transition: border-color .18s, box-shadow .18s, transform .12s;
 }
+
+.heat-column:hover {
+  box-shadow: 0 4px 16px rgba(15,45,74,.14);
+}
+
+.heat-column.selected {
+  border-color: #1A6FBF;
+  box-shadow: 0 0 0 3px rgba(26,111,191,.20), 0 4px 16px rgba(26,111,191,.18);
+}
+
+.heat-column h4 {
+  color: #0F2D4A;
+  margin-bottom: 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #F0F6FC;
+}
+
+.heat-column table { box-shadow: none; border-radius: 8px; }
+.heat-column thead { background: linear-gradient(90deg,#1A6FBF 0%,#1259A5 100%); }
+.heat-column th  { padding: 7px 10px; font-size: .78rem; }
+.heat-column td  { padding: 7px 10px; font-size: .88rem; }

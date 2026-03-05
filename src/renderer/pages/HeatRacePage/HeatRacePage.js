@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import HeatComponent from '../../components/HeatComponent';
 import ScoringInputComponent from '../../components/ScoringInputComponent';
+import Navbar from '../../components/Navbar';
 import './HeatRacePage.css';
 
 function HeatRacePage() {
@@ -87,74 +88,71 @@ function HeatRacePage() {
   };
 
   const handleSubmitScores = async (placeNumbers) => {
-    console.log('Submitted place numbers:', placeNumbers);
-
-    // Fetch the current races for the selected heat
-    const races = await window.electron.sqlite.heatRaceDB.readAllRaces(
-      selectedHeat.heat_id,
-    );
-    const nextRaceNumber = races.length + 1;
-
-    // Insert a new race for the selected heat
-    const { lastInsertRowid: raceId } =
-      await window.electron.sqlite.heatRaceDB.insertRace(
+    try {
+      const races = await window.electron.sqlite.heatRaceDB.readAllRaces(
         selectedHeat.heat_id,
-        nextRaceNumber,
       );
+      const nextRaceNumber = races.length + 1;
 
-    // Insert scores for the new race
-    const scorePromises = placeNumbers.map(
-      async ({ boatNumber, place, status }) => {
-        const boats = await window.electron.sqlite.heatRaceDB.readBoatsByHeat(
+      // SHRS 5.2: penalty score = number of boats in the largest heat + 1
+      const heatType = finalSeriesStarted ? 'Final' : 'Qualifying';
+      const maxHeatSize =
+        await window.electron.sqlite.heatRaceDB.getMaxHeatSize(
+          event.event_id,
+          heatType,
+        );
+      const penaltyPlace = (maxHeatSize || placeNumbers.length) + 1;
+
+      const { lastInsertRowid: raceId } =
+        await window.electron.sqlite.heatRaceDB.insertRace(
           selectedHeat.heat_id,
+          nextRaceNumber,
         );
-        const boatDetails = boats.find(
-          (boat) => boat.sail_number === boatNumber,
-        );
-        if (boatDetails) {
-          await window.electron.sqlite.heatRaceDB.insertScore(
-            raceId,
-            boatDetails.boat_id,
-            place,
-            place,
-            status,
+
+      const scorePromises = placeNumbers.map(
+        async ({ boatNumber, place, status }) => {
+          const boats = await window.electron.sqlite.heatRaceDB.readBoatsByHeat(
+            selectedHeat.heat_id,
           );
-        }
-      },
-    );
-
-    await Promise.all(scorePromises);
-
-    console.log(
-      `Scores for race ${nextRaceNumber} in heat ${selectedHeat.heat_name} have been submitted.`,
-    );
-
-    if (!finalSeriesStarted) {
-      // Check if all heats have the same number of races before updating the local leaderboard
-      const allHeatsEqual = await doAllHeatsHaveSameNumberOfRaces(
-        event.event_id,
+          const boatDetails = boats.find(
+            (boat) => boat.sail_number === boatNumber,
+          );
+          if (boatDetails) {
+            // For penalties, use SHRS 5.2 largest-heat-based place
+            const finalPlace = status !== 'FINISHED' ? penaltyPlace : place;
+            await window.electron.sqlite.heatRaceDB.insertScore(
+              raceId,
+              boatDetails.boat_id,
+              finalPlace,
+              finalPlace,
+              status,
+            );
+          }
+        },
       );
-      if (allHeatsEqual) {
-        // Update the event leaderboard
-        await window.electron.sqlite.heatRaceDB.updateEventLeaderboard(
+
+      await Promise.all(scorePromises);
+
+      if (!finalSeriesStarted) {
+        const allHeatsEqual = await doAllHeatsHaveSameNumberOfRaces(
           event.event_id,
         );
+        if (allHeatsEqual) {
+          await window.electron.sqlite.heatRaceDB.updateEventLeaderboard(
+            event.event_id,
+          );
+        }
       } else {
-        console.log(
-          'Not all heats have the same number of races. Local leaderboard will not be updated.',
+        await window.electron.sqlite.heatRaceDB.updateFinalLeaderboard(
+          event.event_id,
         );
       }
-    } else {
-      console.log('Final series has started. Leaderboard will be updated.');
-      await window.electron.sqlite.heatRaceDB.updateFinalLeaderboard(
-        event.event_id,
-      );
+
+      setIsScoring(false);
+      setSelectedHeat({ ...selectedHeat, raceNumber: nextRaceNumber });
+    } catch (error) {
+      alert(`Error saving race scores:\n\n${error.message || 'Unknown error. Please try again.'}`);
     }
-
-    setIsScoring(false);
-
-    // Update the selected heat with the new race number
-    setSelectedHeat({ ...selectedHeat, raceNumber: nextRaceNumber });
   };
 
   const handleCreateNewHeatsBasedOnLeaderboard = async () => {
@@ -165,54 +163,52 @@ function HeatRacePage() {
       return;
     }
 
-    try {
-      // Create new heats
-      await window.electron.sqlite.heatRaceDB.createNewHeatsBasedOnLeaderboard(
-        event.event_id,
-      );
-      console.log('New heats created based on leaderboard.');
-
-      // Fetch and update heats
-      const updatedHeats = await window.electron.sqlite.heatRaceDB.readAllHeats(
-        event.event_id,
-      );
-      setHeats(updatedHeats); // Directly update the state with new heats
-    } catch (error) {
-      console.error(
-        'Error creating new heats based on leaderboard:',
-        error.message,
-      );
-    }
-  };
-
-  const handleUndoLastScoredRace = async () => {
     const confirmed = window.confirm(
-      'Undo the last scored race in the latest qualifying heats?',
+      'Create new heats based on the current leaderboard?\n\nAll heats in the current round must have the same number of races.',
     );
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
 
     try {
-      const result = await window.electron.sqlite.heatRaceDB.undoLastScoredRace(
+      await window.electron.sqlite.heatRaceDB.createNewHeatsBasedOnLeaderboard(
         event.event_id,
       );
       const updatedHeats = await window.electron.sqlite.heatRaceDB.readAllHeats(
         event.event_id,
       );
       setHeats(updatedHeats);
+    } catch (error) {
+      alert(`Could not create new heats:\n\n${error.message}`);
+    }
+  };
+
+  const handleUndoLastScoredRace = async () => {
+    if (!selectedHeat) {
+      alert('Please select a heat first by clicking on it, then click Undo Last Race.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Undo the last scored race in "${selectedHeat.heat_name}"?\n\nThis will permanently delete that race's scores.`,
+    );
+    if (!confirmed) return;
+
+    try {
+      const result = await window.electron.sqlite.heatRaceDB.undoLastScoredRaceForHeat(
+        selectedHeat.heat_id,
+      );
+      const updatedHeats = await window.electron.sqlite.heatRaceDB.readAllHeats(event.event_id);
+      setHeats(updatedHeats);
       alert(
-        `Last race undone successfully (Race ${result.raceNumber}). Removed ${result.removedScores} scores.`,
+        `Race ${result.raceNumber} in "${result.heatName}" has been undone.\n${result.removedScores} score(s) removed.`,
       );
     } catch (error) {
-      console.error('Error undoing last scored race:', error);
-      alert(error.message || 'Failed to undo the last scored race.');
+      alert(`Could not undo race:\n\n${error.message}`);
     }
   };
 
   const handleUndoLatestHeatRedistribution = async () => {
     const confirmed = window.confirm(
-      'Undo latest heat redistribution (delete latest qualifying heats and assignments)?',
+      'Undo latest heat redistribution?\n\nThis will delete the latest qualifying heats and all their boat assignments. This cannot be undone.',
     );
     if (!confirmed) {
       return;
@@ -231,8 +227,7 @@ function HeatRacePage() {
         `Heat redistribution undone. Removed ${result.removedHeats} heats and ${result.removedAssignments} assignments.`,
       );
     } catch (error) {
-      console.error('Error undoing latest heat redistribution:', error);
-      alert(error.message || 'Failed to undo latest heat redistribution.');
+      alert(`Could not undo heat redistribution:\n\n${error.message}`);
     }
   };
 
@@ -260,61 +255,90 @@ function HeatRacePage() {
 
   return (
     <div>
-      <button
-        type="button"
-        onClick={isScoring ? handleBackToHeats : () => navigate(-1)}
-      >
-        {isScoring ? 'Back to Heats' : 'Back'}
-      </button>
-      {!isScoring ? (
-        <>
-          <HeatComponent
-            key={JSON.stringify(heats)} // Forces re-render when heats changes
-            event={event}
-            heats={heats}
-            onHeatSelect={handleHeatSelect}
-            clickable
+      <Navbar
+        onBack={isScoring ? handleBackToHeats : () => navigate(-1)}
+        backLabel={isScoring ? 'Back to Heats' : 'Back to Event'}
+      />
+
+      <div className="page-wrapper">
+        {!isScoring ? (
+          <>
+            <h1 style={{ marginBottom: '20px' }}>
+              <i
+                className="fa fa-flag-checkered"
+                aria-hidden="true"
+                style={{ marginRight: '10px', color: '#2471A3' }}
+              />
+              {eventData?.event_name || 'Race Scoring'}
+            </h1>
+
+            {/* ── Action buttons ─── */}
+            <div className="heatrace-actions">
+              {selectedHeat && (
+                <button
+                  type="button"
+                  className="btn-success"
+                  onClick={handleStartScoring}
+                >
+                  Start Scoring &mdash; {selectedHeat.heat_name}
+                </button>
+              )}
+              {!finalSeriesStarted && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleCreateNewHeatsBasedOnLeaderboard}
+                  >
+                    Create New Heats from Leaderboard
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={handleUndoLastScoredRace}
+                    disabled={!selectedHeat}
+                    title={selectedHeat ? `Undo last race in ${selectedHeat.heat_name}` : 'Select a heat first'}
+                  >
+                    Undo Last Race{selectedHeat ? ` — ${selectedHeat.heat_name}` : ''}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={handleUndoLatestHeatRedistribution}
+                  >
+                    Undo Heat Redistribution
+                  </button>
+                </>
+              )}
+            </div>
+
+            {!selectedHeat && (
+              <div className="info-banner">
+                <i
+                  className="fa fa-info-circle"
+                  aria-hidden="true"
+                  style={{ marginRight: '8px' }}
+                />
+                {'Click on a heat below to select it, then press '}
+                <strong>Start Scoring</strong>.
+              </div>
+            )}
+
+            <HeatComponent
+              key={JSON.stringify(heats)}
+              event={event}
+              heats={heats}
+              onHeatSelect={handleHeatSelect}
+              clickable
+            />
+          </>
+        ) : (
+          <ScoringInputComponent
+            heat={selectedHeat}
+            onSubmit={handleSubmitScores}
+            onBack={handleBackToHeats}
           />
-          {selectedHeat && (
-            <button type="button" onClick={handleStartScoring}>
-              Start Scoring
-            </button>
-          )}
-          {!finalSeriesStarted && (
-            <button
-              type="button"
-              onClick={handleCreateNewHeatsBasedOnLeaderboard}
-              disabled={finalSeriesStarted}
-            >
-              Create New Heats Based on Leaderboard
-            </button>
-          )}
-          {!finalSeriesStarted && (
-            <button
-              type="button"
-              onClick={handleUndoLastScoredRace}
-              disabled={finalSeriesStarted}
-            >
-              Undo Last Scored Race
-            </button>
-          )}
-          {!finalSeriesStarted && (
-            <button
-              type="button"
-              onClick={handleUndoLatestHeatRedistribution}
-              disabled={finalSeriesStarted}
-            >
-              Undo Latest Heat Redistribution
-            </button>
-          )}
-        </>
-      ) : (
-        <ScoringInputComponent
-          heat={selectedHeat}
-          onSubmit={handleSubmitScores}
-          onBack={handleBackToHeats}
-        />
-      )}
+        )}
+      </div>
     </div>
   );
 }
