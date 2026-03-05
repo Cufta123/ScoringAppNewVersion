@@ -126,19 +126,7 @@ export default function calculateFinalBoatScores(
           };
         });
 
-        sortedScores.sort((a, b) => {
-          for (
-            let i = 0;
-            i < Math.min(a.scores.length, b.scores.length);
-            i += 1
-          ) {
-            if (a.scores[i] !== b.scores[i]) {
-              return a.scores[i] - b.scores[i];
-            }
-          }
-          return 0;
-        });
-
+        // A8.1: Compare best individual scores, then A8.2 (last race backward)
         sortedScores.sort((a, b) => {
           const initialComparison = compareA81Scores(a.scores, b.scores);
 

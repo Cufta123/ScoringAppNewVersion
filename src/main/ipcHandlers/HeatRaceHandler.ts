@@ -352,6 +352,23 @@ ipcMain.handle('deleteHeatsByEvent', async (event, event_id) => {
     throw new Error('Cannot insert heat for locked event.');
   }
   try {
+    // Delete Scores for all races in heats belonging to this event
+    db.prepare(
+      `DELETE FROM Scores WHERE race_id IN (
+        SELECT r.race_id FROM Races r
+        JOIN Heats h ON r.heat_id = h.heat_id
+        WHERE h.event_id = ?
+      )`,
+    ).run(event_id);
+
+    // Delete Races for heats belonging to this event
+    db.prepare(
+      `DELETE FROM Races WHERE heat_id IN (
+        SELECT heat_id FROM Heats WHERE event_id = ?
+      )`,
+    ).run(event_id);
+
+    // Delete Heat_Boat associations
     const result = db
       .prepare(
         'DELETE FROM Heat_Boat WHERE heat_id IN (SELECT heat_id FROM Heats WHERE event_id = ?)',
@@ -507,7 +524,7 @@ ipcMain.handle('updateGlobalLeaderboard', async (event, event_id) => {
     const temporaryTable = calculateBoatScores(results, event_id, pointsMap);
     // Update the leaderboard with the sorted results
     temporaryTable.forEach((boat) => {
-      updateQuery.run(boat.boat_id, boat.totalPoints, event_id, boat.place);
+      updateQuery.run(boat.boat_id, boat.totalPoints);
     });
 
     console.log('Global leaderboard updated successfully.');
@@ -917,10 +934,9 @@ ipcMain.handle('readLeaderboard', async (event, event_id) => {
       FROM Leaderboard lb
       LEFT JOIN Boats b ON lb.boat_id = b.boat_id
       LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id
-      LEFT JOIN Heat_Boat hb ON b.boat_id = hb.boat_id
-      LEFT JOIN Heats h ON hb.heat_id = h.heat_id
-      LEFT JOIN Races r ON hb.heat_id = r.heat_id
-      LEFT JOIN Scores sc ON r.race_id = sc.race_id AND sc.boat_id = b.boat_id
+      LEFT JOIN Scores sc ON sc.boat_id = b.boat_id
+      LEFT JOIN Races r ON sc.race_id = r.race_id
+      LEFT JOIN Heats h ON r.heat_id = h.heat_id
       WHERE lb.event_id = ? AND h.event_id = ? AND h.heat_type = 'Qualifying'
         AND sc.race_id IS NOT NULL
       GROUP BY lb.boat_id
@@ -1028,10 +1044,9 @@ ipcMain.handle('readFinalLeaderboard', async (event, event_id) => {
       FROM FinalLeaderboard fl
       LEFT JOIN Boats b ON fl.boat_id = b.boat_id
       LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id
-      LEFT JOIN Heat_Boat hb ON b.boat_id = hb.boat_id
-      LEFT JOIN Heats h ON hb.heat_id = h.heat_id
-      LEFT JOIN Races r ON hb.heat_id = r.heat_id
-      LEFT JOIN Scores sc ON r.race_id = sc.race_id AND sc.boat_id = b.boat_id
+      LEFT JOIN Scores sc ON sc.boat_id = b.boat_id
+      LEFT JOIN Races r ON sc.race_id = r.race_id
+      LEFT JOIN Heats h ON r.heat_id = h.heat_id
       WHERE fl.event_id = ? AND h.event_id = ? AND h.heat_type = 'Final'
         AND sc.race_id IS NOT NULL
       GROUP BY fl.boat_id

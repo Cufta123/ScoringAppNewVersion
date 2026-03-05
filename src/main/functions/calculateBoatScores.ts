@@ -236,20 +236,7 @@ export default function calculateBoatScores(
         };
       });
 
-      // A81.1 Sort the boats based on their scores
-      sortedScores.sort((a, b) => {
-        for (
-          let i = 0;
-          i < Math.min(a.scores.length, b.scores.length);
-          i += 1
-        ) {
-          if (a.scores[i] !== b.scores[i]) {
-            return a.scores[i] - b.scores[i]; // Compare scores in ascending order
-          }
-        }
-        return 0; // If all scores are the same, keep the original order
-      });
-
+      // A8.1 + SHRS 5.6: Compare shared-heat A81 scores first, then A82 (last race backward)
       sortedScores.sort((a, b) => {
         const sharedScores = getSharedRaceScoresForTieBreak(
           event_id,

@@ -82,7 +82,7 @@ const initializeSchema = () => {
   ON CONFLICT(category_id) DO NOTHING;
   INSERT INTO Categories (category_id, category_name) VALUES (3, 'SENIOR')
   ON CONFLICT(category_id) DO NOTHING;
-  INSERT INTO Categories (category_id, category_name) VALUES (4, 'JUNIOR')
+  INSERT INTO Categories (category_id, category_name) VALUES (4, 'VETERAN')
   ON CONFLICT(category_id) DO NOTHING;
   INSERT INTO Categories (category_id, category_name) VALUES (5, 'MASTER')
   ON CONFLICT(category_id) DO NOTHING;
@@ -123,7 +123,7 @@ const initializeSchema = () => {
     race_id INTEGER NOT NULL,
     boat_id INTEGER NOT NULL,
     position INTEGER NOT NULL,
-    points INTEGER NOT NULL,
+    points REAL NOT NULL,
     status TEXT NOT NULL, -- 'DNF', 'RET', 'NSC', 'OCS', 'DNS', 'DNC', 'WTH', 'UFD', 'BFD', 'DSQ', 'DNE'
     FOREIGN KEY (race_id) REFERENCES Races(race_id),
     FOREIGN KEY (boat_id) REFERENCES Boats(boat_id)
@@ -141,7 +141,7 @@ const initializeSchema = () => {
   const createLiderboardTable = `
   CREATE TABLE IF NOT EXISTS Leaderboard (
   boat_id INTEGER,
-  total_points_event INTEGER NOT NULL,
+  total_points_event REAL NOT NULL,
   event_id INTEGER NOT NULL,
   place INTEGER,
   PRIMARY KEY (boat_id, event_id),
@@ -161,7 +161,7 @@ const initializeSchema = () => {
   const createFinalLeaderboardTable = `
   CREATE TABLE IF NOT EXISTS FinalLeaderboard (
   boat_id INTEGER,
-  total_points_final INTEGER NOT NULL,
+  total_points_final REAL NOT NULL,
   event_id INTEGER NOT NULL,
   placement_group TEXT NOT NULL,
   place INTEGER,

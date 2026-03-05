@@ -26,6 +26,7 @@ const config: Config = {
     '**/src/__tests__/calculateFinalBoatScores.test.ts',
     '**/src/__tests__/creatingNewHeatsUtils.test.ts',
     '**/src/__tests__/HeatRaceHandler.createNewHeats.test.ts',
+    '**/src/__tests__/SHRS_comprehensive.test.ts',
   ],
 };
 
