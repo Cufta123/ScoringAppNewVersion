@@ -922,6 +922,7 @@ ipcMain.handle('readLeaderboard', async (event, event_id) => {
       LEFT JOIN Races r ON hb.heat_id = r.heat_id
       LEFT JOIN Scores sc ON r.race_id = sc.race_id AND sc.boat_id = b.boat_id
       WHERE lb.event_id = ? AND h.event_id = ? AND h.heat_type = 'Qualifying'
+        AND sc.race_id IS NOT NULL
       GROUP BY lb.boat_id
       ORDER BY lb.place ASC
     `;
@@ -1032,6 +1033,7 @@ ipcMain.handle('readFinalLeaderboard', async (event, event_id) => {
       LEFT JOIN Races r ON hb.heat_id = r.heat_id
       LEFT JOIN Scores sc ON r.race_id = sc.race_id AND sc.boat_id = b.boat_id
       WHERE fl.event_id = ? AND h.event_id = ? AND h.heat_type = 'Final'
+        AND sc.race_id IS NOT NULL
       GROUP BY fl.boat_id
       ORDER BY fl.placement_group, fl.total_points_final ASC
     `;
