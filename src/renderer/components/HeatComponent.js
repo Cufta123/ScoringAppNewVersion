@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import Flag from 'react-world-flags';
 import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
 
-function HeatComponent({ event, onHeatSelect = () => {}, clickable }) {
+function HeatComponent({ event, onHeatSelect = () => {}, onStartScoring = null, clickable }) {
   const [heats, setHeats] = useState([]);
   const [numHeats, setNumHeats] = useState(5); // Default number of heats
   const [selectedHeatId, setSelectedHeatId] = useState(null);
@@ -505,14 +505,14 @@ function HeatComponent({ event, onHeatSelect = () => {}, clickable }) {
         />
         Heats
       </h2>
-      {/* ── Heat controls ─── */}
+      {/* ── Heat setup controls ─── */}
       <div
         style={{
           display: 'flex',
           flexWrap: 'wrap',
           alignItems: 'center',
           gap: '12px',
-          marginBottom: '16px',
+          marginBottom: '12px',
         }}
       >
         {!raceHappened && !finalSeriesStarted && (
@@ -562,16 +562,8 @@ function HeatComponent({ event, onHeatSelect = () => {}, clickable }) {
             {displayLastHeats ? 'Show All Heats' : 'Show Last Heats'}
           </button>
         )}
-        {!finalSeriesStarted && (
-          <button
-            type="button"
-            className="btn-success"
-            onClick={handleStartFinalSeries}
-          >
-            Start Final Series
-          </button>
-        )}
       </div>
+
       {heatsToDisplay.length > 0 && (
         <div style={heatsContainerStyle} className="heats-container">
           {heatsToDisplay.map((heat) => (
@@ -629,8 +621,58 @@ function HeatComponent({ event, onHeatSelect = () => {}, clickable }) {
                   ))}
                 </tbody>
               </table>
+              {heat.heat_id === selectedHeatId && onStartScoring && (
+                <div
+                  style={{
+                    marginTop: '14px',
+                    paddingTop: '12px',
+                    borderTop: '2px solid #e8f0f8',
+                    display: 'flex',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="btn-success"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onStartScoring();
+                    }}
+                    style={{ width: '100%' }}
+                  >
+                    <i className="fa fa-play" aria-hidden="true" style={{ marginRight: '6px' }} />
+                    Start Scoring
+                  </button>
+                </div>
+              )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── Phase transition: Start Final Series ─── */}
+      {!finalSeriesStarted && (
+        <div
+          style={{
+            marginTop: '24px',
+            paddingTop: '20px',
+            borderTop: '2px solid #e8f0f8',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+          }}
+        >
+          <button
+            type="button"
+            className="btn-success"
+            onClick={handleStartFinalSeries}
+          >
+            <i className="fa fa-flag-checkered" aria-hidden="true" style={{ marginRight: '6px' }} />
+            Start Final Series
+          </button>
+          <span style={{ fontSize: '.85rem', color: '#6B849A' }}>
+            Advances the event to the final fleet stage based on current standings.
+          </span>
         </div>
       )}
     </div>
@@ -643,6 +685,7 @@ HeatComponent.propTypes = {
     // Add other event properties here if needed
   }).isRequired,
   onHeatSelect: PropTypes.func,
+  onStartScoring: PropTypes.func,
   clickable: PropTypes.bool.isRequired,
 };
 

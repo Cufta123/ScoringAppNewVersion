@@ -272,44 +272,33 @@ function HeatRacePage() {
               {eventData?.event_name || 'Race Scoring'}
             </h1>
 
-            {/* ── Action buttons ─── */}
-            <div className="heatrace-actions">
-              {selectedHeat && (
+            {/* ── Management actions ─── */}
+            {!finalSeriesStarted && (
+              <div className="heatrace-actions">
                 <button
                   type="button"
-                  className="btn-success"
-                  onClick={handleStartScoring}
+                  onClick={handleCreateNewHeatsBasedOnLeaderboard}
                 >
-                  Start Scoring &mdash; {selectedHeat.heat_name}
+                  Create New Heats from Leaderboard
                 </button>
-              )}
-              {!finalSeriesStarted && (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleCreateNewHeatsBasedOnLeaderboard}
-                  >
-                    Create New Heats from Leaderboard
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={handleUndoLastScoredRace}
-                    disabled={!selectedHeat}
-                    title={selectedHeat ? `Undo last race in ${selectedHeat.heat_name}` : 'Select a heat first'}
-                  >
-                    Undo Last Race{selectedHeat ? ` — ${selectedHeat.heat_name}` : ''}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={handleUndoLatestHeatRedistribution}
-                  >
-                    Undo Heat Redistribution
-                  </button>
-                </>
-              )}
-            </div>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={handleUndoLastScoredRace}
+                  disabled={!selectedHeat}
+                  title={selectedHeat ? `Undo last race in ${selectedHeat.heat_name}` : 'Select a heat first'}
+                >
+                  Undo Last Race{selectedHeat ? ` — ${selectedHeat.heat_name}` : ''}
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={handleUndoLatestHeatRedistribution}
+                >
+                  Undo Heat Redistribution
+                </button>
+              </div>
+            )}
 
             {!selectedHeat && (
               <div className="info-banner">
@@ -318,8 +307,7 @@ function HeatRacePage() {
                   aria-hidden="true"
                   style={{ marginRight: '8px' }}
                 />
-                {'Click on a heat below to select it, then press '}
-                <strong>Start Scoring</strong>.
+                Click on a heat below to select it — a <strong>Start Scoring</strong> button will appear inside the card.
               </div>
             )}
 
@@ -328,6 +316,7 @@ function HeatRacePage() {
               event={event}
               heats={heats}
               onHeatSelect={handleHeatSelect}
+              onStartScoring={handleStartScoring}
               clickable
             />
           </>
