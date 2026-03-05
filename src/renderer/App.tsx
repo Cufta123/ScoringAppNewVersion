@@ -5,6 +5,7 @@ import './App.css';
 import LandingPage from './pages/LandingPage/LandingPage';
 import EventPage from './pages/EventPage/EventPage';
 import HeatRacePage from './pages/HeatRacePage/HeatRacePage';
+import LeaderboardPage from './pages/LeaderboardPage/LeaderboardPage';
 
 function App() {
   return (
@@ -13,6 +14,10 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/event/:name" element={<EventPage />} />
         <Route path="/event/:eventName/heat-race" element={<HeatRacePage />} />
+        <Route
+          path="/event/:eventName/leaderboard"
+          element={<LeaderboardPage />}
+        />
       </Routes>
     </Router>
   );

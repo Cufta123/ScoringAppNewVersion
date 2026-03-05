@@ -13,7 +13,6 @@ import SailorImport from '../../components/SailorImport';
 import Navbar from '../../components/Navbar';
 import './EventPage.css';
 import HeatComponent from '../../components/HeatComponent';
-import LeaderboardComponent from '../../components/Leaderboard';
 
 function EventPage() {
   const location = useLocation();
@@ -39,7 +38,6 @@ function EventPage() {
     }
   }, [addSailorMode]);
   const [raceHappened, setRaceHappened] = useState(false);
-  const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [isEventLocked, setIsEventLocked] = useState(event.is_locked === 1);
 
   const fetchBoatsWithSailors = useCallback(async () => {
@@ -160,11 +158,7 @@ function EventPage() {
   };
 
   const handleOpenLeaderboard = () => {
-    setShowLeaderboard(true);
-  };
-
-  const handleCloseLeaderboard = () => {
-    setShowLeaderboard(false);
+    navigate(`/event/${event.event_name}/leaderboard`, { state: { event } });
   };
 
   const handleRemoveBoat = async (boatId) => {
@@ -226,23 +220,6 @@ function EventPage() {
 
   if (!event) {
     return null; // Render nothing if event is not available
-  }
-
-  if (showLeaderboard) {
-    return (
-      <div className="page-wrapper">
-        <div style={{ marginBottom: '16px' }}>
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={handleCloseLeaderboard}
-          >
-            <i className="fa fa-arrow-left" aria-hidden="true" /> Back to Event
-          </button>
-        </div>
-        <LeaderboardComponent eventId={event.event_id} />
-      </div>
-    );
   }
 
   const availableBoats = allBoats.filter(

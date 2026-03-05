@@ -1,0 +1,7 @@
+/* LeaderboardPage — page-level styles */
+
+.leaderboard-page-content {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
