@@ -226,6 +226,16 @@ export default function useLeaderboard(eventId) {
         // Event may be locked; continue with existing DB values
       }
 
+      // Recompute the final leaderboard so FinalLeaderboard is always current
+      // before reading (matches the pattern used for the qualifying leaderboard).
+      if (finalSeriesStarted) {
+        try {
+          await window.electron.sqlite.heatRaceDB.updateFinalLeaderboard(eventId);
+        } catch (_) {
+          // Event may be locked; continue with existing DB values
+        }
+      }
+
       const [finalResults, eventResults, overallResults] = await Promise.all([
         window.electron.sqlite.heatRaceDB.readFinalLeaderboard(eventId),
         window.electron.sqlite.heatRaceDB.readLeaderboard(eventId),
