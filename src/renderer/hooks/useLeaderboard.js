@@ -2,6 +2,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import {
   PENALTY_CODES,
   RDG_TYPES,
@@ -580,67 +582,303 @@ export default function useLeaderboard(eventId) {
     }
   };
 
-  // ─── Excel export ────────────────────────────────────────────────────────────
+  // ─── Export helpers ──────────────────────────────────────────────────────────
 
-  const exportToExcel = async () => {
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Leaderboard');
+  /**
+   * Builds a flat export structure:
+   *   { header: string[], sections: Array<{ title: string|null, rows: any[][] }> }
+   *
+   * When the final series has started the layout mirrors FinalFleetTable:
+   *   Rank | Name | Country | Sail# | Type | Gross | Overall | Q1…Qn | F1…Fn
+   * When qualifying only the layout mirrors QualifyingTable:
+   *   Rank | Name | Country | Sail# | Type | R1…Rn | Total
+   */
+  const buildExportData = () => {
+    if (!finalSeriesStarted) {
+      // ── Qualifying-only view ────────────────────────────────────────────────
+      const raceCount = eventLeaderboard[0]?.races?.length ?? 0;
+      const header = [
+        'Rank',
+        'Name',
+        'Country',
+        'Sail #',
+        'Type',
+        ...Array.from({ length: raceCount }, (_, i) => `R${i + 1}`),
+        'Total',
+      ];
+      const rows = (eventLeaderboard ?? []).map((e, i) => [
+        i + 1,
+        `${e.name} ${e.surname}`,
+        e.country ?? '',
+        e.boat_number ?? '',
+        e.boat_type ?? '',
+        ...(e.races ?? []),
+        e.computed_total ?? e.total_points_event ?? '',
+      ]);
+      return { header, sections: [{ title: null, rows }] };
+    }
+
+    // ── Final-series view ───────────────────────────────────────────────────
+    const qualRaceCount = eventLeaderboard[0]?.races?.length ?? 0;
+    const finalRaceCount = (editableLeaderboard ?? [])[0]?.races?.length ?? 0;
 
     const header = [
       'Rank',
       'Name',
       'Country',
-      'Boat Number',
-      'Boat Type',
-      ...(leaderboard[0]?.races?.map((_, index) => `Race ${index + 1}`) || []),
-      'Total Points',
+      'Sail #',
+      'Type',
+      'Gross',
+      'Overall',
+      ...Array.from({ length: qualRaceCount }, (_, i) => `Q${i + 1}`),
+      ...Array.from({ length: finalRaceCount }, (_, i) => `F${i + 1}`),
     ];
-    worksheet.addRow(header);
 
-    const groupedLeaderboard = editableLeaderboard?.reduce((acc, entry) => {
-      const group = entry.placement_group || 'General';
-      if (!acc[group]) acc[group] = [];
-      acc[group].push(entry);
+    const grpMap = (editableLeaderboard ?? []).reduce((acc, entry) => {
+      const g = entry.placement_group || 'General';
+      if (!acc[g]) acc[g] = [];
+      acc[g].push(entry);
       return acc;
     }, {});
-    const sortedGroups = Object.keys(groupedLeaderboard || {}).sort(
+    const grpOrder = Object.keys(grpMap).sort(
       (a, b) => GROUP_ORDER.indexOf(a) - GROUP_ORDER.indexOf(b),
     );
 
-    if (finalSeriesStarted) {
-      sortedGroups.forEach((group) => {
-        worksheet.addRow([`${group} Group`]);
-        groupedLeaderboard[group]?.forEach((entry, index) => {
-          worksheet.addRow([
-            index + 1,
-            `${entry.name} ${entry.surname}`,
-            entry.country,
-            entry.boat_number,
-            entry.boat_type,
-            ...entry.races,
-            entry.computed_total ?? entry.total_points_final,
-          ]);
-        });
-      });
-    } else {
-      leaderboard.forEach((entry, index) => {
-        worksheet.addRow([
-          index + 1,
-          `${entry.name} ${entry.surname}`,
-          entry.country,
-          entry.boat_number,
-          entry.boat_type,
-          ...entry.races,
-          entry.computed_total ?? entry.total_points_event,
-        ]);
-      });
-    }
+    const parseScore = (v) => {
+      const n = parseFloat(String(v ?? '').replace(/[()]/g, ''));
+      return Number.isNaN(n) ? 0 : n;
+    };
 
+    const sections = grpOrder.map((g) => ({
+      title: `${g} Fleet`,
+      rows: (grpMap[g] ?? []).map((entry, i) => {
+        const qualEntry = eventLeaderboard.find(
+          (e) => e.boat_id === entry.boat_id,
+        );
+        const qualRaces = qualEntry?.races ?? [];
+        const finalRaces = entry.races ?? [];
+
+        const qualGross = qualRaces.reduce((s, r) => s + parseScore(r), 0);
+        const finalGross = finalRaces.reduce((s, r) => s + parseScore(r), 0);
+        const gross = qualGross + finalGross;
+
+        const overall =
+          entry.total_points_combined != null &&
+          !Number.isNaN(entry.total_points_combined)
+            ? entry.total_points_combined
+            : '–';
+
+        return [
+          i + 1,
+          `${entry.name} ${entry.surname}`,
+          entry.country ?? '',
+          entry.boat_number ?? '',
+          entry.boat_type ?? '',
+          gross > 0 ? gross : '–',
+          overall,
+          ...qualRaces,
+          ...finalRaces,
+        ];
+      }),
+    }));
+
+    return { header, sections };
+  };
+
+  // ─── Excel export ────────────────────────────────────────────────────────────
+
+  const exportToExcel = async () => {
+    const { header, sections } = buildExportData();
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Leaderboard');
+    worksheet.addRow(header);
+    sections.forEach(({ title, rows }) => {
+      if (title) worksheet.addRow([title]);
+      rows.forEach((r) => worksheet.addRow(r));
+    });
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
     saveAs(blob, 'leaderboard.xlsx');
+  };
+
+  // ─── CSV export ──────────────────────────────────────────────────────────────
+
+  const exportToCSV = () => {
+    const { header, sections } = buildExportData();
+    const escape = (v) => {
+      const s = String(v ?? '');
+      return s.includes(',') || s.includes('"') || s.includes('\n')
+        ? `"${s.replace(/"/g, '""')}"`
+        : s;
+    };
+    const lines = [header.map(escape).join(',')];
+    sections.forEach(({ title, rows }) => {
+      if (title) lines.push(escape(title));
+      rows.forEach((r) => lines.push(r.map(escape).join(',')));
+    });
+    const blob = new Blob([lines.join('\n')], {
+      type: 'text/csv;charset=utf-8;',
+    });
+    saveAs(blob, 'leaderboard.csv');
+  };
+
+  // ─── TXT export ──────────────────────────────────────────────────────────────
+
+  const exportToTXT = () => {
+    const { header, sections } = buildExportData();
+    const allRows = sections.flatMap(({ rows }) => rows);
+    const colWidths = header.map((h, ci) =>
+      Math.max(
+        String(h).length,
+        ...allRows.map((r) => String(r[ci] ?? '').length),
+      ),
+    );
+    const pad = (v, w) => String(v ?? '').padEnd(w);
+    const divider = colWidths.map((w) => '-'.repeat(w)).join('-+-');
+    const fmtRow = (r) => r.map((v, i) => pad(v, colWidths[i])).join(' | ');
+
+    const lines = [fmtRow(header), divider];
+    sections.forEach(({ title, rows }) => {
+      if (title) {
+        lines.push('');
+        lines.push(`=== ${title} ===`);
+        lines.push(divider);
+      }
+      rows.forEach((r) => lines.push(fmtRow(r)));
+    });
+    const blob = new Blob([lines.join('\n')], {
+      type: 'text/plain;charset=utf-8;',
+    });
+    saveAs(blob, 'leaderboard.txt');
+  };
+
+  // ─── Markdown export ─────────────────────────────────────────────────────────
+
+  const exportToMarkdown = () => {
+    const { header, sections } = buildExportData();
+    const allRows = sections.flatMap(({ rows }) => rows);
+    const colWidths = header.map((h, ci) =>
+      Math.max(
+        String(h).length,
+        ...allRows.map((r) => String(r[ci] ?? '').length),
+      ),
+    );
+    const pad = (v, w) => String(v ?? '').padEnd(w);
+    const fmtRow = (r) =>
+      `| ${r.map((v, i) => pad(v, colWidths[i])).join(' | ')} |`;
+    const separator = `| ${colWidths.map((w) => '-'.repeat(w)).join(' | ')} |`;
+
+    const lines = [fmtRow(header), separator];
+    sections.forEach(({ title, rows }) => {
+      if (title) {
+        lines.push('');
+        lines.push(`### ${title}`);
+        lines.push('');
+        lines.push(fmtRow(header));
+        lines.push(separator);
+      }
+      rows.forEach((r) => lines.push(fmtRow(r)));
+    });
+    const blob = new Blob([lines.join('\n')], {
+      type: 'text/markdown;charset=utf-8;',
+    });
+    saveAs(blob, 'leaderboard.md');
+  };
+
+  // ─── HTML export ─────────────────────────────────────────────────────────────
+
+  const exportToHTML = () => {
+    const { header, sections } = buildExportData();
+    const thCells = header.map((h) => `<th>${h}</th>`).join('');
+    let tableBody = '';
+    sections.forEach(({ title, rows }) => {
+      if (title) {
+        tableBody += `<tr><td colspan="${header.length}" class="group-header">${title}</td></tr>`;
+      }
+      rows.forEach((r) => {
+        tableBody += `<tr>${r.map((v) => `<td>${v ?? ''}</td>`).join('')}</tr>`;
+      });
+    });
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Leaderboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; color: #1b2740; }
+    h1 { font-size: 1.4rem; margin-bottom: 16px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #dde3ea; padding: 6px 10px; text-align: left; font-size: 0.85rem; }
+    th { background: #1b2740; color: #fff; }
+    tr:nth-child(even) { background: #f0f4f8; }
+    .group-header { background: #2a9d8f; color: #fff; font-weight: 700; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <h1>Leaderboard</h1>
+  <table>
+    <thead><tr>${thCells}</tr></thead>
+    <tbody>${tableBody}</tbody>
+  </table>
+</body>
+</html>`;
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8;' });
+    saveAs(blob, 'leaderboard.html');
+  };
+
+  // ─── PDF export ──────────────────────────────────────────────────────────────
+
+  const exportToPDF = () => {
+    const { header, sections } = buildExportData();
+    // eslint-disable-next-line new-cap
+    const doc = new jsPDF({ orientation: 'landscape' });
+    doc.setFontSize(14);
+    doc.text('Leaderboard', 14, 16);
+
+    let startY = 22;
+    sections.forEach(({ title, rows }) => {
+      if (title) {
+        doc.setFontSize(11);
+        doc.text(title, 14, startY + 4);
+        startY += 8;
+      }
+      autoTable(doc, {
+        head: [header],
+        body: rows.map((r) => r.map((v) => String(v ?? ''))),
+        startY,
+        styles: { fontSize: 7, cellPadding: 2 },
+        headStyles: { fillColor: [27, 39, 64] },
+        alternateRowStyles: { fillColor: [240, 244, 248] },
+        didDrawPage: (data) => {
+          startY = data.cursor.y + 6;
+        },
+      });
+      startY = doc.lastAutoTable.finalY + 10;
+    });
+    doc.save('leaderboard.pdf');
+  };
+
+  // ─── Unified export dispatcher ───────────────────────────────────────────────
+
+  const exportAs = async (format) => {
+    switch (format) {
+      case 'excel':
+        return exportToExcel();
+      case 'csv':
+        return exportToCSV();
+      case 'txt':
+        return exportToTXT();
+      case 'md':
+        return exportToMarkdown();
+      case 'html':
+        return exportToHTML();
+      case 'pdf':
+        return exportToPDF();
+      default:
+        return exportToExcel();
+    }
   };
 
   // ─── Derived values ──────────────────────────────────────────────────────────
@@ -659,13 +897,13 @@ export default function useLeaderboard(eventId) {
     [editableLeaderboard],
   );
 
-  const sortedGroups = useMemo(
-    () =>
-      Object.keys(groupedLeaderboard).sort(
-        (a, b) => GROUP_ORDER.indexOf(a) - GROUP_ORDER.indexOf(b),
-      ),
-    [groupedLeaderboard],
-  );
+  const sortedGroups = useMemo(() => {
+    const rank = (g) => {
+      const i = GROUP_ORDER.indexOf(g);
+      return i === -1 ? 999 : i;
+    };
+    return Object.keys(groupedLeaderboard).sort((a, b) => rank(a) - rank(b));
+  }, [groupedLeaderboard]);
 
   return {
     // State
@@ -700,6 +938,7 @@ export default function useLeaderboard(eventId) {
     confirmRdg2,
     handleCompareRowClick,
     exportToExcel,
+    exportAs,
     getFlagCode,
   };
 }

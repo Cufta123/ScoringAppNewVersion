@@ -93,13 +93,13 @@ function FinalFleetTable({
         style={{
           border: `1.5px solid ${fleetAccent.border}`,
           borderRadius: '10px',
-          overflow: 'hidden',
+          overflowX: 'auto',
           boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
         }}
       >
         <table
           style={{
-            width: '100%',
+            minWidth: '100%',
             borderCollapse: 'separate',
             borderSpacing: 0,
             fontSize: '0.9rem',

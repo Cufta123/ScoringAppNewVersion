@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
 
 const btnBase = {
@@ -7,6 +7,100 @@ const btnBase = {
   fontWeight: 600,
   fontSize: '0.85rem',
   cursor: 'pointer',
+};
+
+const EXPORT_FORMATS = [
+  { key: 'excel', label: 'Excel (.xlsx)' },
+  { key: 'csv', label: 'CSV (.csv)' },
+  { key: 'txt', label: 'Plain Text (.txt)' },
+  { key: 'md', label: 'Markdown (.md)' },
+  { key: 'html', label: 'HTML (.html)' },
+  { key: 'pdf', label: 'PDF (.pdf)' },
+];
+
+function ExportDropdown({ onExport }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          ...btnBase,
+          border: '1px solid var(--border, #dde3ea)',
+          background: 'var(--surface, #f0f4f8)',
+          color: 'var(--navy)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+        }}
+      >
+        Export
+        <span style={{ fontSize: '0.7rem' }}>{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <div
+          style={{
+            position: 'absolute',
+            right: 0,
+            top: 'calc(100% + 4px)',
+            background: '#fff',
+            border: '1px solid var(--border, #dde3ea)',
+            borderRadius: 'var(--radius, 6px)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+            zIndex: 200,
+            minWidth: '160px',
+            overflow: 'hidden',
+          }}
+        >
+          {EXPORT_FORMATS.map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => {
+                onExport(key);
+                setOpen(false);
+              }}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '8px 14px',
+                textAlign: 'left',
+                background: 'none',
+                border: 'none',
+                fontSize: '0.85rem',
+                color: 'var(--navy)',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--surface, #f0f4f8)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'none';
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+ExportDropdown.propTypes = {
+  onExport: PropTypes.func.isRequired,
 };
 
 function LeaderboardToolbar({
@@ -113,18 +207,7 @@ function LeaderboardToolbar({
         </button>
 
         {/* Export */}
-        <button
-          type="button"
-          onClick={onExport}
-          style={{
-            ...btnBase,
-            border: '1px solid var(--border, #dde3ea)',
-            background: 'var(--surface, #f0f4f8)',
-            color: 'var(--navy)',
-          }}
-        >
-          Export to Excel
-        </button>
+        <ExportDropdown onExport={onExport} />
       </div>
     </div>
   );

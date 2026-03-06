@@ -37,7 +37,7 @@ function LeaderboardContent({ eventId }) {
     handleRaceChange,
     confirmRdg2,
     handleCompareRowClick,
-    exportToExcel,
+    exportAs,
     getFlagCode,
   } = useLeaderboard(eventId);
 
@@ -69,7 +69,7 @@ function LeaderboardContent({ eventId }) {
           setCompareMode((m) => !m);
           setSelectedBoatIds([]);
         }}
-        onExport={exportToExcel}
+        onExport={exportAs}
       />
 
       {hasEventData && !finalSeriesStarted && (

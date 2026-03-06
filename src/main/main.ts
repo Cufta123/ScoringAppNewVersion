@@ -10,6 +10,9 @@ import './ipcHandlers/HeatRaceHandler';
 
 if (require('electron-squirrel-startup')) app.quit();
 
+// Suppress unimplemented Chrome DevTools Protocol warnings (e.g. Autofill)
+app.commandLine.appendSwitch('disable-features', 'AutofillServerCommunication');
+
 let mainWindow: BrowserWindow | null = null;
 
 if (process.env.NODE_ENV === 'production') {
@@ -27,13 +30,10 @@ if (isDebug) {
 const installExtensions = async () => {
   const installer = require('electron-devtools-installer');
   const forceDownload = !!process.env.UPGRADE_EXTENSIONS;
-  const extensions = ['REACT_DEVELOPER_TOOLS'];
+  const extensions = [installer.REACT_DEVELOPER_TOOLS];
 
   return installer
-    .default(
-      extensions.map((name) => installer[name]),
-      forceDownload
-    )
+    .installExtension(extensions, { forceDownload })
     .catch(console.log);
 };
 
@@ -60,6 +60,7 @@ const createWindow = async () => {
         ? path.join(__dirname, 'preload.js')
         : path.join(__dirname, '../../.erb/dll/preload.js'),
       contextIsolation: true,
+      sandbox: false,
     },
   });
 
