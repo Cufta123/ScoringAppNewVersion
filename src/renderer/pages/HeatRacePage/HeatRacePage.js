@@ -98,7 +98,11 @@ function HeatRacePage() {
       // SHRS 3.2 warning: in a multi-heat qualifying series each heat group
       // should only ever race once before redistribution. Warn any time the
       // user tries to score a second (or later) race on a qualifying heat.
-      if (!finalSeriesStarted && numQualifyingGroups >= 2 && races.length >= 1) {
+      if (
+        !finalSeriesStarted &&
+        numQualifyingGroups >= 2 &&
+        races.length >= 1
+      ) {
         const proceed = window.confirm(
           `Warning: "${selectedHeat.heat_name}" has already completed Race ${races.length}.\n\n` +
             `According to SHRS 3.2 boats should be redistributed before racing again.\n\n` +
