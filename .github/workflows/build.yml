@@ -4,11 +4,10 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch: # Allows you to trigger this manually from the Actions tab if needed
+  workflow_dispatch:
 
 jobs:
   build:
-    # This matrix creates one run with two parallel jobs (one for Mac, one for Windows)
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -24,14 +23,8 @@ jobs:
           node-version: 18
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci --ignore-scripts
-
-      - name: Install electron-builder
-        run: npm install --no-save electron-builder@latest
-
-      - name: Install app native deps
-        run: npx electron-builder install-app-deps
+      - name: Install Dependencies
+        run: npm install
 
       - name: Build Webpack (React/Main Code)
         run: npm run build
