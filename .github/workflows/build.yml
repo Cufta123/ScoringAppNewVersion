@@ -3,7 +3,7 @@ name: Build Release Apps
 on:
   push:
     branches:
-      - master
+      - main
   workflow_dispatch: # Allows you to trigger this manually from the Actions tab if needed
 
 jobs:
