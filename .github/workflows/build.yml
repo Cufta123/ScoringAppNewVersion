@@ -27,22 +27,7 @@ jobs:
       - name: Install dependencies
         run: |
           set -eux
-          npm ci
-
-      - name: Debug: environment and binaries
-        run: |
-          set -eux
-          echo "PATH=$PATH"
-          node -v
-          npm -v
-          echo "--- node_modules/.bin ---"
-          ls -la node_modules/.bin || true
-          echo "--- which binaries ---"
-          which electron-forge || true
-          which forge || true
-          which npx || true
-          echo "--- workspace files ---"
-          ls -la
+          npm ci --ignore-scripts
 
       - name: Build (webpack)
         run: npm run build
