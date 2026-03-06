@@ -944,7 +944,7 @@ ipcMain.handle('readLeaderboard', async (event, event_id) => {
     `;
     const readQuery = db.prepare(query);
     const results = readQuery.all(event_id, event_id);
-    console.log('Raw results from readLeaderboard:', results);
+    console.log(`[IPC → Renderer] readLeaderboard (event_id=${event_id}): ${results.length} entries`);
     return results;
   } catch (error) {
     console.error('Error reading leaderboard:', error);
@@ -1062,7 +1062,10 @@ ipcMain.handle('readFinalLeaderboard', async (event, event_id) => {
     `;
     const readQuery = db.prepare(query);
     const results = readQuery.all(event_id, event_id);
-    console.log('Final leaderboard results:', results);
+    console.log(
+      `[IPC → Renderer] readFinalLeaderboard (event_id=${event_id}): sending ${results.length} entr${results.length === 1 ? 'y' : 'ies'} to frontend`,
+      results,
+    );
     return results;
   } catch (error) {
     console.error('Error reading final leaderboard:', error);
@@ -1147,7 +1150,7 @@ ipcMain.handle('readOverallLeaderboard', async (event, event_id) => {
       rank += 1;
     });
 
-    console.log('Overall leaderboard results:', results);
+    console.log(`[IPC → Renderer] readOverallLeaderboard (event_id=${event_id}): ${results.length} entries`);
     return results;
   } catch (error) {
     console.error('Error reading overall leaderboard:', (error as Error).message);

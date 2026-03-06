@@ -1,9 +1,9 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
-const os = require('os');
-// Define the directory and filename for the database
-const dataDir = path.join(__dirname, '..', '..', 'public', 'Database', 'data');
+const { app } = require('electron');
+// Store the database in the user data directory so it persists across app updates
+const dataDir = path.join(app.getPath('userData'), 'data');
 const dbFilename = 'scoring_app.db';
 const dbPath = path.join(dataDir, dbFilename);
 

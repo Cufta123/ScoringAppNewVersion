@@ -234,6 +234,8 @@ export default function useLeaderboard(eventId) {
           : Promise.resolve([]),
       ]);
 
+      console.log('[Leaderboard] Data received from main process:', { finalResults, eventResults, overallResults });
+
       const eventLeaderboardWithRaces = eventResults
         .map(processLeaderboardEntry)
         .sort((a, b) => (a.place ?? Infinity) - (b.place ?? Infinity));
@@ -273,8 +275,7 @@ export default function useLeaderboard(eventId) {
 
       mergedResults.sort((a, b) =>
         finalSeriesStarted
-          ? a.total_points_combined - b.total_points_combined ||
-            (a.place ?? Infinity) - (b.place ?? Infinity)
+          ? (a.overall_rank ?? Infinity) - (b.overall_rank ?? Infinity)
           : (a.place ?? Infinity) - (b.place ?? Infinity),
       );
 

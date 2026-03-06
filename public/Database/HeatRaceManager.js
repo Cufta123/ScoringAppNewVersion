@@ -429,7 +429,6 @@ const readLeaderboard = (event_id) => {
 
     const readQuery = db.prepare(query);
     const results = readQuery.all(event_id);
-    console.log('Raw results from readLeaderboard:', results); // Log the raw results
     return results;
   } catch (err) {
     console.error('Error reading leaderboard from the database:', err.message);
@@ -546,7 +545,6 @@ const readFinalLeaderboard = (event_id) => {
     `;
     const readQuery = db.prepare(query);
     const results = readQuery.all(event_id);
-    console.log('Final leaderboard results:', results);
     return results;
   } catch (err) {
     console.error('Error reading final leaderboard from the database:', err.message);

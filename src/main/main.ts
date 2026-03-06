@@ -28,13 +28,15 @@ if (isDebug) {
 }
 
 const installExtensions = async () => {
-  const installer = require('electron-devtools-installer');
-  const forceDownload = !!process.env.UPGRADE_EXTENSIONS;
-  const extensions = [installer.REACT_DEVELOPER_TOOLS];
-
-  return installer
-    .installExtension(extensions, { forceDownload })
-    .catch(console.log);
+  try {
+    const installer = require('electron-devtools-installer');
+    const forceDownload = !!process.env.UPGRADE_EXTENSIONS;
+    await installer.installExtension([installer.REACT_DEVELOPER_TOOLS], {
+      forceDownload,
+    });
+  } catch (_) {
+    // DevTools extension install failures are non-fatal
+  }
 };
 
 const createWindow = async () => {
