@@ -858,10 +858,13 @@ ipcMain.handle(
         ? new_status.trim().toUpperCase()
         : 'FINISHED';
 
+      const rdgStatuses = ['RDG1', 'RDG2', 'RDG3'];
+      const isRdg = rdgStatuses.includes(status);
+
       // For penalty statuses use largest-heat size + 1 per SHRS 5.2;
-      // otherwise use the supplied position
+      // RDG statuses keep the pre-computed average/manual value from the frontend
       let finalPosition = Number(new_position);
-      if (status !== 'FINISHED') {
+      if (status !== 'FINISHED' && !isRdg) {
         // Determine the heat type for this race
         const heatRow = db
           .prepare(

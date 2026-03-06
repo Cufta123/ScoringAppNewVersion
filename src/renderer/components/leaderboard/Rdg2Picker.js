@@ -191,6 +191,7 @@ function Rdg2Picker({
             borderRadius: '5px',
             background: 'var(--surface,#f5f7fa)',
             border: '1px solid var(--border,#dde3ea)',
+            color: 'var(--navy,#1a2e44)',
             cursor: 'pointer',
           }}
         >
