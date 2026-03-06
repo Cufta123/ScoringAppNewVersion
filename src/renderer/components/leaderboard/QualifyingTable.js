@@ -2,6 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import Flag from 'react-world-flags';
 import ScoreCell from './ScoreCell';
+import ComparePanel from './ComparePanel';
 
 // Accent colours for the qualifying series (blue scheme)
 const QUAL_ACCENT = {
@@ -269,6 +270,11 @@ function QualifyingTable({
           </tbody>
         </table>
       </div>
+      <ComparePanel
+        show={compareMode}
+        compareInfo={compareInfo}
+        selectedBoatIds={selectedBoatIds}
+      />
     </div>
   );
 }

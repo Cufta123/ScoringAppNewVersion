@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import Flag from 'react-world-flags';
 import ScoreCell from './ScoreCell';
+import ComparePanel from './ComparePanel';
 import { FLEET_COLORS } from '../../utils/leaderboardUtils';
 
 /**
@@ -36,21 +37,46 @@ function FinalFleetTable({
 
   return (
     <div style={{ marginBottom: '18px' }}>
+      {/* Fleet name heading + Show Totals on the same row */}
       <div
         style={{
           display: 'flex',
-          gap: '16px',
+          alignItems: 'center',
+          justifyContent: 'space-between',
           marginBottom: '6px',
-          fontSize: '0.8rem',
-          color: '#555',
         }}
       >
+        <h3
+          style={{
+            fontSize: '0.9rem',
+            color: 'var(--navy)',
+            margin: 0,
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
+          <span
+            style={{
+              display: 'inline-block',
+              width: '10px',
+              height: '10px',
+              borderRadius: '50%',
+              background: fleetAccent.border,
+              flexShrink: 0,
+            }}
+          />
+          {group} Fleet
+        </h3>
         <label
           htmlFor={`${group}-show-totals`}
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '5px',
+            fontSize: '0.8rem',
+            color: '#555',
             cursor: 'pointer',
             userSelect: 'none',
           }}
@@ -64,30 +90,6 @@ function FinalFleetTable({
           Show Totals
         </label>
       </div>
-      {/* Fleet name heading */}
-      <h3
-        style={{
-          fontSize: '0.9rem',
-          color: 'var(--navy)',
-          margin: '0 0 6px 0',
-          fontWeight: 700,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-        }}
-      >
-        <span
-          style={{
-            display: 'inline-block',
-            width: '10px',
-            height: '10px',
-            borderRadius: '50%',
-            background: fleetAccent.border,
-            flexShrink: 0,
-          }}
-        />
-        {group} Fleet
-      </h3>
 
       <div
         style={{
@@ -456,6 +458,15 @@ function FinalFleetTable({
           </tbody>
         </table>
       </div>
+      <ComparePanel
+        show={
+          compareMode &&
+          selectedBoatIds.length > 0 &&
+          selectedBoatIds.every((id) => entries.some((e) => e.boat_id === id))
+        }
+        compareInfo={compareInfo}
+        selectedBoatIds={selectedBoatIds}
+      />
     </div>
   );
 }

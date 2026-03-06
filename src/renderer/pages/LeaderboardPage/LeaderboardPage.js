@@ -8,7 +8,6 @@ import SectionDivider from '../../components/leaderboard/SectionDivider';
 import QualifyingTable from '../../components/leaderboard/QualifyingTable';
 import FinalFleetTable from '../../components/leaderboard/FinalFleetTable';
 import RdgLegend from '../../components/leaderboard/RdgLegend';
-import ComparePanel from '../../components/leaderboard/ComparePanel';
 import './LeaderboardPage.css';
 
 function LeaderboardContent({ eventId }) {
@@ -135,11 +134,6 @@ function LeaderboardContent({ eventId }) {
         />
       )}
 
-      <ComparePanel
-        compareMode={compareMode}
-        compareInfo={compareInfo}
-        selectedBoatIds={selectedBoatIds}
-      />
     </div>
   );
 }

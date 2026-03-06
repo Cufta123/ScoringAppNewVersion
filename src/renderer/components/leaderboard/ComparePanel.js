@@ -1,36 +1,72 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 
 /**
  * Compare mode panel. Shows a hint when waiting for boat selection, or the
  * full side-by-side tie-breaking breakdown once two boats are selected.
+ *
+ * Uses a CSS grid-template-rows trick to animate height smoothly without
+ * needing to know the content height in advance.
+ * When the content changes (hint → full breakdown), it cross-fades so the
+ * height swap happens while the panel is invisible.
  */
-function ComparePanel({ compareMode, compareInfo = null, selectedBoatIds }) {
-  if (!compareMode) return null;
+function ComparePanel({ show, compareInfo = null, selectedBoatIds }) {
+  // `displayed` is what's actually rendered; it lags behind compareInfo
+  // by one fade-out cycle so the height change isn't visible.
+  const [displayed, setDisplayed] = useState(compareInfo);
+  const [fading, setFading] = useState(false);
+  const timerRef = useRef(null);
 
-  // Waiting for selection
-  if (!compareInfo) {
-    return (
-      <div
-        style={{
-          marginTop: '10px',
-          padding: '9px 14px',
-          borderRadius: '8px',
-          border: '1px solid var(--border, #dde3ea)',
-          background: 'var(--surface, #f5f7fa)',
-          fontSize: '0.83rem',
-          color: '#888',
-          marginBottom: '8px',
-        }}
-      >
-        {selectedBoatIds.length === 0
-          ? 'Click two rows to compare (SHRS 5.6 tie-breaking).'
-          : 'Select one more competitor to compare.'}
-      </div>
-    );
-  }
+  useEffect(() => {
+    // When the panel is hidden, sync immediately with no animation.
+    if (!show) {
+      setDisplayed(compareInfo);
+      setFading(false);
+      return;
+    }
+    // Don't animate if content hasn't changed.
+    if (compareInfo === displayed) return;
 
-  const {
+    // Expanding (hint → full comparison): swap immediately so the panel
+    // just grows — no fake close/reopen.
+    if (!displayed && compareInfo) {
+      setDisplayed(compareInfo);
+      return;
+    }
+
+    // Shrinking (full → hint, or different comparison): fade out first so
+    // the height change isn't jarring.
+    clearTimeout(timerRef.current);
+    setFading(true);
+    timerRef.current = setTimeout(() => {
+      setDisplayed(compareInfo);
+      setFading(false);
+    }, 160);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compareInfo, show]);
+
+  const inner = (() => {
+    // Waiting for selection
+    if (!displayed) {
+      return (
+        <div
+          style={{
+            padding: '9px 14px',
+            borderRadius: '8px',
+            border: '1px solid var(--border, #dde3ea)',
+            background: 'var(--surface, #f5f7fa)',
+            fontSize: '0.83rem',
+            color: '#888',
+          }}
+        >
+          {selectedBoatIds.length === 0
+            ? 'Click two rows to compare (SHRS 5.6 tie-breaking).'
+            : 'Select one more competitor to compare.'}
+        </div>
+      );
+    }
+
+    const {
     boatA,
     boatB,
     totalA,
@@ -40,21 +76,19 @@ function ComparePanel({ compareMode, compareInfo = null, selectedBoatIds }) {
     sharedRacePairs,
     sharedQualRacePairs,
     sharedIds,
-  } = compareInfo;
+  } = displayed;
 
-  return (
-    <div
-      style={{
-        marginTop: '12px',
-        padding: '14px 16px',
-        borderRadius: '8px',
-        border: '1px solid var(--border, #dde3ea)',
-        background: 'var(--surface, #f5f7fa)',
-        fontSize: '0.85rem',
-        color: 'var(--navy)',
-        marginBottom: '8px',
-      }}
-    >
+    return (
+      <div
+        style={{
+          padding: '14px 16px',
+          borderRadius: '8px',
+          border: '1px solid var(--border, #dde3ea)',
+          background: 'var(--surface, #f5f7fa)',
+          fontSize: '0.85rem',
+          color: 'var(--navy)',
+        }}
+      >
       {/* ── Header: names + totals ── */}
       <div
         style={{
@@ -227,12 +261,36 @@ function ComparePanel({ compareMode, compareInfo = null, selectedBoatIds }) {
             : ''}
         </div>
       )}
+      </div>
+    );
+  })();
+
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateRows: show ? '1fr' : '0fr',
+        transition: 'grid-template-rows 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin-top 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        marginTop: show ? '10px' : '0px',
+      }}
+    >
+      <div
+        style={{
+          overflow: 'hidden',
+          opacity: (show && !fading) ? 1 : 0,
+          transform: (show && !fading) ? 'translateY(0)' : 'translateY(-5px)',
+          transition: 'opacity 0.18s ease, transform 0.18s ease',
+          minHeight: 0,
+        }}
+      >
+        {inner}
+      </div>
     </div>
   );
 }
 
 ComparePanel.propTypes = {
-  compareMode: PropTypes.bool.isRequired,
+  show: PropTypes.bool.isRequired,
   compareInfo: PropTypes.shape({
     boatA: PropTypes.object,
     boatB: PropTypes.object,
