@@ -23,6 +23,9 @@ jobs:
           node-version: 18
           cache: npm
 
+      - name: Pre-install electron-builder (Fix for missing bin)
+        run: npm install electron-builder@latest --no-save --ignore-scripts
+
       - name: Install Dependencies
         run: npm install
 
