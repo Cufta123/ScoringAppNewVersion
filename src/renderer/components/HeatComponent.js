@@ -227,6 +227,46 @@ function HeatComponent({
         );
         return;
       }
+
+      // All latest qualifying heats must have the same number of completed races
+      // before the Final Series can start — otherwise rankings are unequal.
+      const latestByGroup = qualifyingHeats.reduce((acc, heat) => {
+        const m = heat.heat_name.match(/Heat ([A-Z]+)(\d*)/);
+        if (m) {
+          const [, base, suffix] = m;
+          const num = suffix ? parseInt(suffix, 10) : 0;
+          if (!acc[base] || num > acc[base].num) {
+            acc[base] = { num, heat };
+          }
+        }
+        return acc;
+      }, {});
+      const latestHeats = Object.values(latestByGroup).map((e) => e.heat);
+      const raceCounts = await Promise.all(
+        latestHeats.map(async (heat) => {
+          const races = await window.electron.sqlite.heatRaceDB.readAllRaces(
+            heat.heat_id,
+          );
+          return { name: heat.heat_name, count: races.length };
+        }),
+      );
+      const uniqueCounts = [...new Set(raceCounts.map((r) => r.count))];
+      if (uniqueCounts.length > 1) {
+        const breakdown = raceCounts
+          .map((r) => `${r.name}: ${r.count} race(s)`)
+          .join('\n');
+        alert(
+          `Cannot start the Final Series — not all heats have the same number of races:\n\n${breakdown}\n\nFinish the current round first.`,
+        );
+        return;
+      }
+      if (uniqueCounts[0] === 0) {
+        const proceed = window.confirm(
+          'No qualifying races have been completed yet. Boats will be assigned to fleets based on their initial seeding only.\n\nStart the Final Series anyway?',
+        );
+        if (!proceed) return;
+      }
+
       setPendingFinalHeats(numFinalHeats);
       setShowFinalConfirm(true);
     } catch (error) {

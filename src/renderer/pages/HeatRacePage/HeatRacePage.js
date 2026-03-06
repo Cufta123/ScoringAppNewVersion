@@ -95,6 +95,18 @@ function HeatRacePage() {
       );
       const nextRaceNumber = races.length + 1;
 
+      // SHRS 3.2 warning: in a multi-heat qualifying series each heat group
+      // should only ever race once before redistribution. Warn any time the
+      // user tries to score a second (or later) race on a qualifying heat.
+      if (!finalSeriesStarted && numQualifyingGroups >= 2 && races.length >= 1) {
+        const proceed = window.confirm(
+          `Warning: "${selectedHeat.heat_name}" has already completed Race ${races.length}.\n\n` +
+            `According to SHRS 3.2 boats should be redistributed before racing again.\n\n` +
+            `Press OK to score Race ${nextRaceNumber} anyway, or Cancel to go back and use "Create New Heats from Leaderboard" first.`,
+        );
+        if (!proceed) return;
+      }
+
       // SHRS 5.2: penalty score = number of boats in the largest heat + 1
       const heatType = finalSeriesStarted ? 'Final' : 'Qualifying';
       const maxHeatSize =
@@ -309,8 +321,8 @@ function HeatRacePage() {
                   {selectedHeat && selectedHeat.raceNumber
                     ? ` — ${selectedHeat.heat_name}, Race ${selectedHeat.raceNumber}`
                     : selectedHeat
-                    ? ` — ${selectedHeat.heat_name} (no races)`
-                    : ''}
+                      ? ` — ${selectedHeat.heat_name} (no races)`
+                      : ''}
                 </button>
                 {numQualifyingGroups >= 2 && (
                   <button
