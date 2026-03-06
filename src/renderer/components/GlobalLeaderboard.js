@@ -29,7 +29,7 @@ function GlobalLeaderboardComponent() {
 
         setLeaderboard(mappedLeaderboard);
       } catch (error) {
-        console.error('Error fetching global leaderboard:', error.message);
+        console.error('Error fetching 1global leaderboard:', error.message);
       } finally {
         setLoading(false);
       }
