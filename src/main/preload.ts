@@ -43,6 +43,8 @@ export type Channels =
   | 'readOverallLeaderboard'
   | 'lockEvent'
   | 'unlockEvent'
+  | 'updateEvent'
+  | 'deleteEvent'
   | 'updateRaceResult'
   | 'getMaxHeatSize'
   | 'importSailors';
@@ -260,6 +262,35 @@ const electronHandler = {
           return await ipcRenderer.invoke('unlockEvent', event_id);
         } catch (error) {
           console.error('Error invoking unlockEvent IPC:', error);
+          return false;
+        }
+      },
+      async updateEvent(
+        event_id: string,
+        event_name: string,
+        event_location: string,
+        start_date: string,
+        end_date: string,
+      ) {
+        try {
+          return await ipcRenderer.invoke(
+            'updateEvent',
+            event_id,
+            event_name,
+            event_location,
+            start_date,
+            end_date,
+          );
+        } catch (error) {
+          console.error('Error invoking updateEvent IPC:', error);
+          return false;
+        }
+      },
+      async deleteEvent(event_id: string) {
+        try {
+          return await ipcRenderer.invoke('deleteEvent', event_id);
+        } catch (error) {
+          console.error('Error invoking deleteEvent IPC:', error);
           return false;
         }
       },

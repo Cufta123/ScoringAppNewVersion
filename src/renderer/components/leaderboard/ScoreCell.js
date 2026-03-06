@@ -48,7 +48,17 @@ function ScoreCell({
   // ── Read mode ─────────────────────────────────────────────────────────────
   if (!editMode || !isEditable) {
     return (
-      <td style={tdStyle}>
+      <td
+        style={{
+          ...tdStyle,
+          ...(isShared
+            ? {
+                background: 'rgba(255, 210, 0, 0.25)',
+                boxShadow: 'inset 0 0 0 1.5px rgba(200,160,0,0.35)',
+              }
+            : {}),
+        }}
+      >
         <span
           style={{
             color: displayColor,

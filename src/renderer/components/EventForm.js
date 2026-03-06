@@ -7,6 +7,17 @@ function EventForm() {
   const [eventStartDate, setEventStartDate] = useState('');
   const [eventEndDate, setEventEndDate] = useState('');
   const [events, setEvents] = useState([]);
+
+  // Edit state
+  const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editLocation, setEditLocation] = useState('');
+  const [editStartDate, setEditStartDate] = useState('');
+  const [editEndDate, setEditEndDate] = useState('');
+
+  // Delete confirmation state
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
   const navigate = useNavigate();
 
   const fetchEvents = async () => {
@@ -43,6 +54,48 @@ function EventForm() {
 
   const handleEventClick = (event) => {
     navigate(`/event/${event.event_name}`, { state: { event } });
+  };
+
+  const startEdit = (e, event) => {
+    e.stopPropagation();
+    setEditingId(event.event_id);
+    setEditName(event.event_name);
+    setEditLocation(event.event_location);
+    setEditStartDate(event.start_date);
+    setEditEndDate(event.end_date);
+    setConfirmDeleteId(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await window.electron.sqlite.eventDB.updateEvent(
+        editingId,
+        editName,
+        editLocation,
+        editStartDate,
+        editEndDate,
+      );
+      setEditingId(null);
+      fetchEvents();
+    } catch (error) {
+      console.error('Error updating event:', error);
+    }
+  };
+
+  const handleDeleteConfirm = async (e) => {
+    e.stopPropagation();
+    try {
+      await window.electron.sqlite.eventDB.deleteEvent(confirmDeleteId);
+      setConfirmDeleteId(null);
+      fetchEvents();
+    } catch (error) {
+      console.error('Error deleting event:', error);
+    }
   };
 
   const fieldStyle = {
@@ -128,28 +181,182 @@ function EventForm() {
             style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
           >
             {events.map((event) => (
-              <button
-                key={event.event_id}
-                type="button"
-                className="event-list-item"
-                onClick={() => handleEventClick(event)}
-              >
-                <span>
-                  {event.event_name}
-                  <span
+              <div key={event.event_id}>
+                {editingId === event.event_id ? (
+                  /* ── Inline edit form ─── */
+                  <form
+                    onSubmit={handleEditSubmit}
                     style={{
-                      marginLeft: '10px',
-                      color: '#5D6D7E',
-                      fontWeight: 400,
+                      background: 'var(--surface)',
+                      border: '1px solid var(--border, #d0d7de)',
+                      borderRadius: 'var(--radius)',
+                      padding: '16px',
                     }}
                   >
-                    &mdash; {event.event_location}
-                  </span>
-                </span>
-                <span className="event-item-meta">
-                  {event.start_date} &rarr; {event.end_date}
-                </span>
-              </button>
+                    <div style={fieldStyle}>
+                      <div>
+                        <label htmlFor={`editName-${event.event_id}`}>
+                          Event Name
+                          <input
+                            id={`editName-${event.event_id}`}
+                            type="text"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            required
+                          />
+                        </label>
+                      </div>
+                      <div>
+                        <label htmlFor={`editLoc-${event.event_id}`}>
+                          Location
+                          <input
+                            id={`editLoc-${event.event_id}`}
+                            type="text"
+                            value={editLocation}
+                            onChange={(e) => setEditLocation(e.target.value)}
+                            required
+                          />
+                        </label>
+                      </div>
+                      <div>
+                        <label htmlFor={`editStart-${event.event_id}`}>
+                          Start Date
+                          <input
+                            id={`editStart-${event.event_id}`}
+                            type="date"
+                            value={editStartDate}
+                            onChange={(e) => setEditStartDate(e.target.value)}
+                            required
+                          />
+                        </label>
+                      </div>
+                      <div>
+                        <label htmlFor={`editEnd-${event.event_id}`}>
+                          End Date
+                          <input
+                            id={`editEnd-${event.event_id}`}
+                            type="date"
+                            value={editEndDate}
+                            onChange={(e) => setEditEndDate(e.target.value)}
+                            required
+                          />
+                        </label>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button type="submit" className="btn-success">
+                        <i className="fa fa-check" aria-hidden="true" /> Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelEdit}
+                        className="btn-outline"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  /* ── Event row ─── */
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="event-list-item"
+                      style={{ flex: 1 }}
+                      onClick={() => handleEventClick(event)}
+                    >
+                      <span>
+                        {event.event_name}
+                        <span
+                          style={{
+                            marginLeft: '10px',
+                            color: '#5D6D7E',
+                            fontWeight: 400,
+                          }}
+                        >
+                          &mdash; {event.event_location}
+                        </span>
+                      </span>
+                      <span className="event-item-meta">
+                        {event.start_date} &rarr; {event.end_date}
+                      </span>
+                    </button>
+
+                    {/* Edit button */}
+                    <button
+                      type="button"
+                      aria-label="Edit event"
+                      title="Edit event"
+                      onClick={(e) => startEdit(e, event)}
+                      className="btn-outline btn-sm"
+                      style={{ flexShrink: 0 }}
+                    >
+                      <i className="fa fa-pencil" aria-hidden="true" />
+                    </button>
+
+                    {/* Delete / confirm delete */}
+                    {confirmDeleteId === event.event_id ? (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: '0.85rem',
+                            color: '#c0392b',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          Delete all data?
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleDeleteConfirm}
+                          className="btn-danger btn-sm"
+                        >
+                          <i className="fa fa-trash" aria-hidden="true" /> Yes,
+                          delete
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfirmDeleteId(null);
+                          }}
+                          className="btn-outline btn-sm"
+                        >
+                          No
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        aria-label="Delete event"
+                        title="Delete event"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmDeleteId(event.event_id);
+                          setEditingId(null);
+                        }}
+                        className="btn-danger btn-sm"
+                        style={{ flexShrink: 0 }}
+                      >
+                        <i className="fa fa-trash" aria-hidden="true" />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         </div>

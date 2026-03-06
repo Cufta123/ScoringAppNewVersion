@@ -75,12 +75,16 @@ export default function useLeaderboard(eventId) {
     const sharedRacePairs = [...sharedIds].map((raceId) => {
       const riA = boatA.race_ids.indexOf(raceId);
       const riB = boatB.race_ids.indexOf(raceId);
-      const scoreA = parseScore(boatA.races?.[riA]);
-      const scoreB = parseScore(boatB.races?.[riB]);
+      const rawA = boatA.races?.[riA];
+      const rawB = boatB.races?.[riB];
+      const scoreA = parseScore(rawA);
+      const scoreB = parseScore(rawB);
       return {
         raceId,
         scoreA,
         scoreB,
+        excludedA: typeof rawA === 'string' && rawA.startsWith('('),
+        excludedB: typeof rawB === 'string' && rawB.startsWith('('),
         displayA: scoreA ?? '–',
         displayB: scoreB ?? '–',
       };
@@ -102,85 +106,298 @@ export default function useLeaderboard(eventId) {
         ? [...sharedQualIds].map((raceId) => {
             const riA = qualA.race_ids.indexOf(raceId);
             const riB = qualB.race_ids.indexOf(raceId);
-            const scoreA = parseScore(qualA.races?.[riA]);
-            const scoreB = parseScore(qualB.races?.[riB]);
+            const rawA = qualA.races?.[riA];
+            const rawB = qualB.races?.[riB];
+            const scoreA = parseScore(rawA);
+            const scoreB = parseScore(rawB);
             return {
               raceId,
               scoreA,
               scoreB,
+              excludedA: typeof rawA === 'string' && rawA.startsWith('('),
+              excludedB: typeof rawB === 'string' && rawB.startsWith('('),
               displayA: scoreA ?? '–',
               displayB: scoreB ?? '–',
             };
           })
         : [];
 
-    // RRS A8.1: sort each boat's scores best-to-worst (ascending), compare pairwise
-    const a81 = (pairs) => {
-      if (pairs.length === 0) return null;
-      const validPairs = pairs.filter(
+    // ── Tie-breaking helpers ──────────────────────────────────────────────
+
+    // A8.1 on race pairs. When useExcluded is false, pairs with excluded
+    // scores are filtered out (standard A8.1). When true, all scores are
+    // kept (SHRS 5.6(ii)(a)(2) modification).
+    const applyA81OnPairs = (pairs, useExcluded) => {
+      let filtered = pairs.filter(
         (p) => p.scoreA !== null && p.scoreB !== null,
       );
-      if (validPairs.length === 0) return null;
-      const sortedA = [...validPairs.map((p) => p.scoreA)].sort(
-        (x, y) => x - y,
-      );
-      const sortedB = [...validPairs.map((p) => p.scoreB)].sort(
-        (x, y) => x - y,
-      );
-      for (let i = 0; i < sortedA.length; i++) {
+      if (!useExcluded) {
+        filtered = filtered.filter((p) => !p.excludedA && !p.excludedB);
+      }
+      if (filtered.length === 0) return null;
+      const sortedA = [...filtered.map((p) => p.scoreA)].sort((x, y) => x - y);
+      const sortedB = [...filtered.map((p) => p.scoreB)].sort((x, y) => x - y);
+      for (let i = 0; i < sortedA.length; i += 1) {
         if (sortedA[i] < sortedB[i])
           return {
             winner: boatA,
-            rule: 'RRS A8.1',
-            detail: `best score ${sortedA[i]} < ${sortedB[i]}`,
+            detail: `best-to-worst: ${sortedA[i]} vs ${sortedB[i]} at position ${i + 1}`,
           };
         if (sortedB[i] < sortedA[i])
           return {
             winner: boatB,
-            rule: 'RRS A8.1',
-            detail: `best score ${sortedB[i]} < ${sortedA[i]}`,
+            detail: `best-to-worst: ${sortedB[i]} vs ${sortedA[i]} at position ${i + 1}`,
           };
       }
       return null;
     };
 
-    // RRS A8.2: compare last race, then second-to-last, etc.
-    const a82 = (pairs) => {
-      if (pairs.length === 0) return null;
-      const validPairs = pairs.filter(
-        (p) => p.scoreA !== null && p.scoreB !== null,
-      );
-      if (validPairs.length === 0) return null;
-      for (let i = validPairs.length - 1; i >= 0; i--) {
-        const { scoreA, scoreB } = validPairs[i];
+    // A8.2: compare last race, then second-to-last, etc.
+    const applyA82OnPairs = (pairs) => {
+      const valid = pairs.filter((p) => p.scoreA !== null && p.scoreB !== null);
+      if (valid.length === 0) return null;
+      for (let i = valid.length - 1; i >= 0; i -= 1) {
+        const { scoreA, scoreB } = valid[i];
         if (scoreA < scoreB)
           return {
             winner: boatA,
-            rule: 'RRS A8.2',
-            detail: `last race ${scoreA} < ${scoreB}`,
+            detail: `last-race-backward: ${scoreA} vs ${scoreB}`,
           };
         if (scoreB < scoreA)
           return {
             winner: boatB,
-            rule: 'RRS A8.2',
-            detail: `last race ${scoreB} < ${scoreA}`,
+            detail: `last-race-backward: ${scoreB} vs ${scoreA}`,
           };
       }
       return null;
     };
 
+    // A8.1 / A8.2 on individual boat score arrays (for when boats have no
+    // shared heats and we must compare each boat's own race list).
+    const parseScoreEntry = (val) => ({
+      score: parseScore(val),
+      excluded: typeof val === 'string' && val.startsWith('('),
+    });
+
+    const applyA81Individual = (aEntries, bEntries, useExcluded) => {
+      const sA = useExcluded ? aEntries : aEntries.filter((s) => !s.excluded);
+      const sB = useExcluded ? bEntries : bEntries.filter((s) => !s.excluded);
+      const vA = sA
+        .filter((s) => s.score !== null)
+        .map((s) => s.score)
+        .sort((x, y) => x - y);
+      const vB = sB
+        .filter((s) => s.score !== null)
+        .map((s) => s.score)
+        .sort((x, y) => x - y);
+      if (vA.length === 0 || vB.length === 0) return null;
+      const maxLen = Math.max(vA.length, vB.length);
+      for (let i = 0; i < maxLen; i += 1) {
+        const a = i < vA.length ? vA[i] : Infinity;
+        const b = i < vB.length ? vB[i] : Infinity;
+        if (a < b)
+          return {
+            winner: boatA,
+            detail: `best-to-worst: ${a} vs ${b} at position ${i + 1}`,
+          };
+        if (b < a)
+          return {
+            winner: boatB,
+            detail: `best-to-worst: ${b} vs ${a} at position ${i + 1}`,
+          };
+      }
+      return null;
+    };
+
+    const applyA82Individual = (aEntries, bEntries) => {
+      const vA = aEntries.filter((s) => s.score !== null);
+      const vB = bEntries.filter((s) => s.score !== null);
+      const maxLen = Math.max(vA.length, vB.length);
+      for (let i = maxLen - 1; i >= 0; i -= 1) {
+        const a = vA[i]?.score;
+        const b = vB[i]?.score;
+        if (a != null && b != null) {
+          if (a < b)
+            return {
+              winner: boatA,
+              detail: `last-race-backward: ${a} vs ${b}`,
+            };
+          if (b < a)
+            return {
+              winner: boatB,
+              detail: `last-race-backward: ${b} vs ${a}`,
+            };
+        }
+      }
+      return null;
+    };
+
+    // ── Apply tie-breaking per SHRS 5.6 ──────────────────────────────────
     let tieBreak = null;
     if (tied) {
-      const allPairs = finalSeriesStarted
+      const steps = [];
+      let winner = null;
+
+      const allSharedPairs = finalSeriesStarted
         ? [...(sharedQualRacePairs || []), ...sharedRacePairs]
         : sharedRacePairs;
-      tieBreak = a81(allPairs) ||
-        a82(allPairs) || {
-          rule: 'RRS A8.1 & A8.2',
-          detail: 'No shared heats or all scores identical',
-          winner: null,
-        };
+
+      // Detect multi-heat: if boats don't share every race they're in
+      // different heats (at least partially).
+      const allUniqueIds = new Set([...boatA.race_ids, ...boatB.race_ids]);
+      const isMultiHeat = allSharedPairs.length < allUniqueIds.size;
+
+      if (!isMultiHeat) {
+        // ── SHRS 5.6(i): Single-heat event ───────────────────────────
+        steps.push({
+          rule: 'SHRS 5.6(i)',
+          note: 'Single-heat event — standard RRS A8.1 and A8.2 apply.',
+        });
+
+        // A8.1: excluded scores NOT used (standard rule)
+        const a81Res = applyA81OnPairs(allSharedPairs, false);
+        if (a81Res) {
+          steps.push({
+            rule: 'RRS A8.1',
+            note: `Excluded scores not used. ${a81Res.detail}`,
+            resolved: true,
+          });
+          winner = a81Res.winner;
+        } else {
+          steps.push({
+            rule: 'RRS A8.1',
+            note: 'Excluded scores not used. All non-excluded scores identical — still tied.',
+            resolved: false,
+          });
+
+          // A8.2: excluded scores ARE used
+          const a82Res = applyA82OnPairs(allSharedPairs);
+          if (a82Res) {
+            steps.push({
+              rule: 'RRS A8.2',
+              note: `Excluded scores used. ${a82Res.detail}`,
+              resolved: true,
+            });
+            winner = a82Res.winner;
+          } else {
+            steps.push({
+              rule: 'RRS A8.2',
+              note: 'Excluded scores used. All scores identical — still tied.',
+              resolved: false,
+            });
+          }
+        }
+      } else if (allSharedPairs.length > 0) {
+        // ── SHRS 5.6(ii)(a): Multi-heat, shared heats exist ──────────
+        steps.push({
+          rule: 'SHRS 5.6(ii)(a)',
+          note: `Multiple-heat event — ${allSharedPairs.length} shared-heat race(s) found.`,
+        });
+        steps.push({
+          rule: 'SHRS 5.6(ii)(a)(1)',
+          note: 'Only scores from races where both boats competed in the same heat are used.',
+        });
+
+        // A8.1 + SHRS 5.6(ii)(a)(2): excluded scores ARE used
+        const a81Res = applyA81OnPairs(allSharedPairs, true);
+        if (a81Res) {
+          steps.push({
+            rule: 'RRS A8.1 + SHRS 5.6(ii)(a)(2)',
+            note: `Excluded scores included (SHRS modification of A8.1). ${a81Res.detail}`,
+            resolved: true,
+          });
+          winner = a81Res.winner;
+        } else {
+          steps.push({
+            rule: 'RRS A8.1 + SHRS 5.6(ii)(a)(2)',
+            note: 'Excluded scores included (SHRS modification of A8.1). All scores identical — still tied.',
+            resolved: false,
+          });
+
+          const a82Res = applyA82OnPairs(allSharedPairs);
+          if (a82Res) {
+            steps.push({
+              rule: 'RRS A8.2',
+              note: `Shared-heat scores, last-race-backward. ${a82Res.detail}`,
+              resolved: true,
+            });
+            winner = a82Res.winner;
+          } else {
+            steps.push({
+              rule: 'RRS A8.2',
+              note: 'Shared-heat scores, last-race-backward. All identical — still tied.',
+              resolved: false,
+            });
+          }
+        }
+      } else {
+        // ── SHRS 5.6(ii)(b): Multi-heat, no shared heats ────────────
+        steps.push({
+          rule: 'SHRS 5.6(ii)(b)',
+          note: 'No shared heats — RRS A8.1 and A8.2 apply without modification on all scores.',
+        });
+
+        const boatAScores = (boatA.races || []).map(parseScoreEntry);
+        const boatBScores = (boatB.races || []).map(parseScoreEntry);
+
+        // Standard A8.1: excluded scores NOT used
+        const a81Res = applyA81Individual(boatAScores, boatBScores, false);
+        if (a81Res) {
+          steps.push({
+            rule: 'RRS A8.1',
+            note: `Excluded scores not used. ${a81Res.detail}`,
+            resolved: true,
+          });
+          winner = a81Res.winner;
+        } else {
+          steps.push({
+            rule: 'RRS A8.1',
+            note: 'Excluded scores not used. All non-excluded scores identical — still tied.',
+            resolved: false,
+          });
+
+          // Standard A8.2: excluded scores ARE used
+          const a82Res = applyA82Individual(boatAScores, boatBScores);
+          if (a82Res) {
+            steps.push({
+              rule: 'RRS A8.2',
+              note: `Excluded scores used. ${a82Res.detail}`,
+              resolved: true,
+            });
+            winner = a82Res.winner;
+          } else {
+            steps.push({
+              rule: 'RRS A8.2',
+              note: 'Excluded scores used. All scores identical — still tied.',
+              resolved: false,
+            });
+          }
+        }
+      }
+
+      const resolvedStep = steps.find((s) => s.resolved);
+      tieBreak = {
+        steps,
+        winner,
+        rule: resolvedStep?.rule || steps[0]?.rule || 'SHRS 5.6',
+        detail:
+          resolvedStep?.note ||
+          'Tie could not be broken after all applicable rules.',
+      };
     }
+
+    // How many other boats (besides A and B) share the same total score?
+    const getTotal = (e) =>
+      finalSeriesStarted
+        ? (e.total_points_combined ?? e.computed_total ?? 0)
+        : (e.computed_total ?? 0);
+    const otherTiedCount = allEntries.filter(
+      (e) =>
+        e.boat_id !== boatA.boat_id &&
+        e.boat_id !== boatB.boat_id &&
+        getTotal(e) === totalA &&
+        getTotal(e) === totalB,
+    ).length;
 
     return {
       boatA,
@@ -193,6 +410,7 @@ export default function useLeaderboard(eventId) {
       sharedRacePairs,
       sharedQualIds,
       sharedQualRacePairs,
+      otherTiedCount,
     };
   }, [selectedBoatIds, finalSeriesStarted, eventLeaderboard, leaderboard]);
 

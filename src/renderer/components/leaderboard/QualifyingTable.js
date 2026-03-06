@@ -134,22 +134,33 @@ function QualifyingTable({
               </th>
 
               {/* Race headers */}
-              {Array.from({ length: raceCount }, (_, i) => (
-                <th
-                  key={`qh-r${i + 1}`}
-                  style={{
-                    textAlign: 'center',
-                    padding: '7px 10px',
-                    fontWeight: 600,
-                    color: 'white',
-                    whiteSpace: 'nowrap',
-                    background: 'rgba(255,255,255,0.15)',
-                    borderLeft: '1px solid rgba(255,255,255,0.18)',
-                  }}
-                >
-                  Q{i + 1}
-                </th>
-              ))}
+              {Array.from({ length: raceCount }, (_, i) => {
+                const colRaceId = leaderboard[0]?.race_ids?.[i];
+                const colIsShared =
+                  compareMode &&
+                  selectedBoatIds.length === 2 &&
+                  (compareInfo?.sharedQualIds?.has(colRaceId) ||
+                    compareInfo?.sharedIds?.has(colRaceId) ||
+                    false);
+                return (
+                  <th
+                    key={`qh-r${i + 1}`}
+                    style={{
+                      textAlign: 'center',
+                      padding: '7px 10px',
+                      fontWeight: 600,
+                      color: 'white',
+                      whiteSpace: 'nowrap',
+                      background: colIsShared
+                        ? 'rgba(255, 210, 0, 0.55)'
+                        : 'rgba(255,255,255,0.15)',
+                      borderLeft: '1px solid rgba(255,255,255,0.18)',
+                    }}
+                  >
+                    Q{i + 1}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -244,7 +255,10 @@ function QualifyingTable({
                     const raceId = entry.race_ids?.[ri];
                     const isShared =
                       compareMode &&
-                      (compareInfo?.sharedQualIds?.has(raceId) ?? false);
+                      selectedBoatIds.includes(entry.boat_id) &&
+                      (compareInfo?.sharedQualIds?.has(raceId) ||
+                        compareInfo?.sharedIds?.has(raceId) ||
+                        false);
                     return (
                       <ScoreCell
                         key={`ev-${entry.boat_id}-${ri}`}

@@ -67,16 +67,17 @@ function ComparePanel({ show, compareInfo = null, selectedBoatIds }) {
     }
 
     const {
-    boatA,
-    boatB,
-    totalA,
-    totalB,
-    tied,
-    tieBreak,
-    sharedRacePairs,
-    sharedQualRacePairs,
-    sharedIds,
-  } = displayed;
+      boatA,
+      boatB,
+      totalA,
+      totalB,
+      tied,
+      tieBreak,
+      sharedRacePairs,
+      sharedQualRacePairs,
+      sharedIds,
+      otherTiedCount = 0,
+    } = displayed;
 
     return (
       <div
@@ -89,178 +90,253 @@ function ComparePanel({ show, compareInfo = null, selectedBoatIds }) {
           color: 'var(--navy)',
         }}
       >
-      {/* ── Header: names + totals ── */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          flexWrap: 'wrap',
-          marginBottom: '10px',
-        }}
-      >
-        <span
-          style={{
-            fontWeight: 700,
-            fontSize: '0.95rem',
-            color: 'var(--teal, #2a9d8f)',
-          }}
-        >
-          {boatA.name} {boatA.surname}
-        </span>
-        <span
-          style={{
-            padding: '1px 8px',
-            borderRadius: '4px',
-            background: 'var(--navy, #1d3557)',
-            color: '#fff',
-            fontWeight: 700,
-            fontSize: '0.92rem',
-          }}
-        >
-          {totalA}
-        </span>
-        <span style={{ color: '#aaa', fontWeight: 400 }}>vs</span>
-        <span
-          style={{
-            fontWeight: 700,
-            fontSize: '0.95rem',
-            color: 'var(--teal, #2a9d8f)',
-          }}
-        >
-          {boatB.name} {boatB.surname}
-        </span>
-        <span
-          style={{
-            padding: '1px 8px',
-            borderRadius: '4px',
-            background: 'var(--navy, #1d3557)',
-            color: '#fff',
-            fontWeight: 700,
-            fontSize: '0.92rem',
-          }}
-        >
-          {totalB}
-        </span>
-      </div>
-
-      {/* ── Not tied ── */}
-      {!tied && (
+        {/* ── Header: names + totals ── */}
         <div
           style={{
-            padding: '6px 10px',
-            borderRadius: '6px',
-            background: 'rgba(42,157,143,0.1)',
-            border: '1px solid rgba(42,157,143,0.25)',
-            marginBottom: '8px',
-          }}
-        >
-          <strong>
-            {totalA < totalB
-              ? `${boatA.name} ${boatA.surname}`
-              : `${boatB.name} ${boatB.surname}`}
-          </strong>{' '}
-          leads by{' '}
-          <strong>
-            {Math.abs(totalA - totalB)} pt
-            {Math.abs(totalA - totalB) !== 1 ? 's' : ''}
-          </strong>
-          . No tie — tie-breaking not required.
-        </div>
-      )}
-
-      {/* ── Tied ── */}
-      {tied && tieBreak && (
-        <div
-          style={{
-            padding: '6px 10px',
-            borderRadius: '6px',
-            background: 'rgba(255,150,0,0.08)',
-            border: '1px solid rgba(255,150,0,0.3)',
-            marginBottom: '8px',
-            lineHeight: 1.5,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            flexWrap: 'wrap',
+            marginBottom: '10px',
           }}
         >
           <span
-            style={{ fontWeight: 700, color: 'darkorange', marginRight: '6px' }}
+            style={{
+              fontWeight: 700,
+              fontSize: '0.95rem',
+              color: 'var(--teal, #2a9d8f)',
+            }}
           >
-            TIED — {tieBreak.rule}
+            {boatA.name} {boatA.surname}
           </span>
-          <span style={{ color: '#666', fontSize: '0.82rem' }}>
-            ({tieBreak.detail})
+          <span
+            style={{
+              padding: '1px 8px',
+              borderRadius: '4px',
+              background: 'var(--navy, #1d3557)',
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: '0.92rem',
+            }}
+          >
+            {totalA}
           </span>
-          <br />
-          {tieBreak.winner ? (
-            <span>
-              Tie broken in favour of{' '}
-              <strong>
-                {tieBreak.winner.name} {tieBreak.winner.surname}
-              </strong>
-              .
-            </span>
-          ) : (
-            <span style={{ color: '#888' }}>
-              Still tied after applying {tieBreak.rule}.
-            </span>
-          )}
+          <span style={{ color: '#aaa', fontWeight: 400 }}>vs</span>
+          <span
+            style={{
+              fontWeight: 700,
+              fontSize: '0.95rem',
+              color: 'var(--teal, #2a9d8f)',
+            }}
+          >
+            {boatB.name} {boatB.surname}
+          </span>
+          <span
+            style={{
+              padding: '1px 8px',
+              borderRadius: '4px',
+              background: 'var(--navy, #1d3557)',
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: '0.92rem',
+            }}
+          >
+            {totalB}
+          </span>
         </div>
-      )}
 
-      {/* ── Shared race badges ── */}
-      {sharedQualRacePairs?.length > 0 || sharedIds.size > 0 ? (
-        <div>
-          <span style={{ color: '#888', fontSize: '0.82rem' }}>
-            Shared heat races (highlighted):{' '}
-          </span>
-          {/* Qualifying */}
-          {sharedQualRacePairs?.map((pair, i) => (
+        {/* ── Not tied ── */}
+        {!tied && (
+          <div
+            style={{
+              padding: '6px 10px',
+              borderRadius: '6px',
+              background: 'rgba(42,157,143,0.1)',
+              border: '1px solid rgba(42,157,143,0.25)',
+              marginBottom: '8px',
+            }}
+          >
+            <strong>
+              {totalA < totalB
+                ? `${boatA.name} ${boatA.surname}`
+                : `${boatB.name} ${boatB.surname}`}
+            </strong>{' '}
+            leads by{' '}
+            <strong>
+              {Math.abs(totalA - totalB)} pt
+              {Math.abs(totalA - totalB) !== 1 ? 's' : ''}
+            </strong>
+            . No tie — tie-breaking not required.
+          </div>
+        )}
+
+        {/* ── Multi-boat tie warning ── */}
+        {tied && otherTiedCount > 0 && (
+          <div
+            style={{
+              padding: '6px 10px',
+              borderRadius: '6px',
+              background: 'rgba(180,0,0,0.06)',
+              border: '1px solid rgba(180,0,0,0.22)',
+              marginBottom: '8px',
+              fontSize: '0.82rem',
+              lineHeight: 1.5,
+              color: '#7a1010',
+            }}
+          >
+            <strong>
+              ⚠️ {otherTiedCount} other boat{' '}
+              {otherTiedCount !== 1 ? 's are' : 'is'} also tied at {totalA} pts.
+            </strong>{' '}
+            This pairwise comparison shows who wins the direct matchup, but the{' '}
+            <strong>
+              overall ranking sorts all {otherTiedCount + 2} tied boats together
+            </strong>
+            . In a 3-way (or more) tie with different shared heats, the pairwise
+            result can differ from the final standings if a cyclic dominance
+            exists (A beats B, B beats C, C beats A).
+          </div>
+        )}
+
+        {/* ── Tied ── */}
+        {tied && tieBreak && (
+          <div
+            style={{
+              padding: '6px 10px',
+              borderRadius: '6px',
+              background: 'rgba(255,150,0,0.08)',
+              border: '1px solid rgba(255,150,0,0.3)',
+              marginBottom: '8px',
+              lineHeight: 1.5,
+            }}
+          >
             <span
-              key={`q-${pair.raceId}`}
               style={{
-                display: 'inline-block',
-                margin: '2px 3px',
-                padding: '2px 8px',
-                borderRadius: '4px',
-                background: 'rgba(41,98,255,0.15)',
-                border: '1px solid rgba(41,98,255,0.3)',
-                fontWeight: 600,
-                fontSize: '0.83rem',
+                fontWeight: 700,
+                color: 'darkorange',
+                marginRight: '6px',
               }}
             >
-              Q{i + 1}: {pair.displayA}{' '}
-              <span style={{ color: '#aaa', fontWeight: 400 }}>vs</span>{' '}
-              {pair.displayB}
+              TIED
             </span>
-          ))}
-          {/* Final */}
-          {sharedRacePairs.map((pair, i) => (
-            <span
-              key={`f-${pair.raceId}`}
-              style={{
-                display: 'inline-block',
-                margin: '2px 3px',
-                padding: '2px 8px',
-                borderRadius: '4px',
-                background: 'rgba(255,210,0,0.35)',
-                border: '1px solid rgba(180,150,0,0.25)',
-                fontWeight: 600,
-                fontSize: '0.83rem',
-              }}
-            >
-              F{i + 1}: {pair.displayA}{' '}
-              <span style={{ color: '#aaa', fontWeight: 400 }}>vs</span>{' '}
-              {pair.displayB}
+            {tieBreak.winner ? (
+              <span>
+                — Tie broken in favour of{' '}
+                <strong>
+                  {tieBreak.winner.name} {tieBreak.winner.surname}
+                </strong>
+                .
+              </span>
+            ) : (
+              <span style={{ color: '#888' }}>— Tie could not be broken.</span>
+            )}
+
+            {/* Rule-by-rule breakdown */}
+            {tieBreak.steps && tieBreak.steps.length > 0 && (
+              <div style={{ marginTop: '8px', fontSize: '0.82rem' }}>
+                <div
+                  style={{
+                    fontWeight: 600,
+                    color: '#555',
+                    marginBottom: '4px',
+                  }}
+                >
+                  Rules applied:
+                </div>
+                {tieBreak.steps.map((step, idx) => {
+                  const stepColor =
+                    // eslint-disable-next-line no-nested-ternary
+                    step.resolved === true
+                      ? 'var(--teal, #2a9d8f)'
+                      : step.resolved === false
+                        ? '#c44'
+                        : '#666';
+                  const iconMap = { true: '\u2713', false: '\u2717' };
+                  const icon = iconMap[String(step.resolved)] || '\u2192';
+                  return (
+                    <div
+                      key={step.rule}
+                      style={{
+                        display: 'flex',
+                        gap: '6px',
+                        padding: '3px 0',
+                        borderTop:
+                          idx > 0 ? '1px solid rgba(0,0,0,0.05)' : 'none',
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontWeight: 600,
+                          color: stepColor,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {icon} {step.rule}
+                      </span>
+                      <span style={{ color: '#666' }}>{step.note}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Shared race badges ── */}
+        {sharedQualRacePairs?.length > 0 || sharedIds.size > 0 ? (
+          <div>
+            <span style={{ color: '#888', fontSize: '0.82rem' }}>
+              Shared heat races (highlighted):{' '}
             </span>
-          ))}
-        </div>
-      ) : (
-        <div style={{ color: '#888', fontSize: '0.82rem', marginTop: '2px' }}>
-          No shared heats found.
-          {tied
-            ? ' SHRS 5.6(ii)(b): full RRS A8.1 & A8.2 apply without modification.'
-            : ''}
-        </div>
-      )}
+            {/* Qualifying */}
+            {sharedQualRacePairs?.map((pair, i) => (
+              <span
+                key={`q-${pair.raceId}`}
+                style={{
+                  display: 'inline-block',
+                  margin: '2px 3px',
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  background: 'rgba(41,98,255,0.15)',
+                  border: '1px solid rgba(41,98,255,0.3)',
+                  fontWeight: 600,
+                  fontSize: '0.83rem',
+                }}
+              >
+                Q{i + 1}: {pair.displayA}{' '}
+                <span style={{ color: '#aaa', fontWeight: 400 }}>vs</span>{' '}
+                {pair.displayB}
+              </span>
+            ))}
+            {/* Final */}
+            {sharedRacePairs.map((pair, i) => (
+              <span
+                key={`f-${pair.raceId}`}
+                style={{
+                  display: 'inline-block',
+                  margin: '2px 3px',
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  background: 'rgba(255,210,0,0.35)',
+                  border: '1px solid rgba(180,150,0,0.25)',
+                  fontWeight: 600,
+                  fontSize: '0.83rem',
+                }}
+              >
+                F{i + 1}: {pair.displayA}{' '}
+                <span style={{ color: '#aaa', fontWeight: 400 }}>vs</span>{' '}
+                {pair.displayB}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <div style={{ color: '#888', fontSize: '0.82rem', marginTop: '2px' }}>
+            No shared heats found.
+            {tied
+              ? ' SHRS 5.6(ii)(b): full RRS A8.1 & A8.2 apply without modification.'
+              : ''}
+          </div>
+        )}
       </div>
     );
   })();
@@ -270,15 +346,16 @@ function ComparePanel({ show, compareInfo = null, selectedBoatIds }) {
       style={{
         display: 'grid',
         gridTemplateRows: show ? '1fr' : '0fr',
-        transition: 'grid-template-rows 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin-top 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        transition:
+          'grid-template-rows 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin-top 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         marginTop: show ? '10px' : '0px',
       }}
     >
       <div
         style={{
           overflow: 'hidden',
-          opacity: (show && !fading) ? 1 : 0,
-          transform: (show && !fading) ? 'translateY(0)' : 'translateY(-5px)',
+          opacity: show && !fading ? 1 : 0,
+          transform: show && !fading ? 'translateY(0)' : 'translateY(-5px)',
           transition: 'opacity 0.18s ease, transform 0.18s ease',
           minHeight: 0,
         }}

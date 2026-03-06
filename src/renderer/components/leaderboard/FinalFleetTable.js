@@ -165,22 +165,31 @@ function FinalFleetTable({
               </th>
 
               {/* Qualifying race headers */}
-              {Array.from({ length: qualRaceCount }, (_, i) => (
-                <th
-                  key={`qh-r${i + 1}`}
-                  style={{
-                    textAlign: 'center',
-                    padding: '7px 10px',
-                    fontWeight: 600,
-                    color: 'white',
-                    whiteSpace: 'nowrap',
-                    background: 'rgba(255,255,255,0.15)',
-                    borderLeft: '1px solid rgba(255,255,255,0.18)',
-                  }}
-                >
-                  Q{i + 1}
-                </th>
-              ))}
+              {Array.from({ length: qualRaceCount }, (_, i) => {
+                const colQRaceId = eventLeaderboard[0]?.race_ids?.[i];
+                const colQIsShared =
+                  compareMode &&
+                  selectedBoatIds.length === 2 &&
+                  (compareInfo?.sharedQualIds?.has(colQRaceId) ?? false);
+                return (
+                  <th
+                    key={`qh-r${i + 1}`}
+                    style={{
+                      textAlign: 'center',
+                      padding: '7px 10px',
+                      fontWeight: 600,
+                      color: 'white',
+                      whiteSpace: 'nowrap',
+                      background: colQIsShared
+                        ? 'rgba(255, 210, 0, 0.55)'
+                        : 'rgba(255,255,255,0.15)',
+                      borderLeft: '1px solid rgba(255,255,255,0.18)',
+                    }}
+                  >
+                    Q{i + 1}
+                  </th>
+                );
+              })}
 
               {/* Qualifying total */}
               {qualRaceCount > 0 && showTotals && (
@@ -201,22 +210,31 @@ function FinalFleetTable({
               )}
 
               {/* Final race headers */}
-              {Array.from({ length: finalRaceCount }, (_, i) => (
-                <th
-                  key={`fh-r${i + 1}`}
-                  style={{
-                    textAlign: 'center',
-                    padding: '7px 10px',
-                    fontWeight: 600,
-                    color: 'white',
-                    whiteSpace: 'nowrap',
-                    background: 'rgba(255,255,255,0.15)',
-                    borderLeft: '1px solid rgba(255,255,255,0.18)',
-                  }}
-                >
-                  F{i + 1}
-                </th>
-              ))}
+              {Array.from({ length: finalRaceCount }, (_, i) => {
+                const colFRaceId = entries[0]?.race_ids?.[i];
+                const colFIsShared =
+                  compareMode &&
+                  selectedBoatIds.length === 2 &&
+                  (compareInfo?.sharedIds?.has(colFRaceId) ?? false);
+                return (
+                  <th
+                    key={`fh-r${i + 1}`}
+                    style={{
+                      textAlign: 'center',
+                      padding: '7px 10px',
+                      fontWeight: 600,
+                      color: 'white',
+                      whiteSpace: 'nowrap',
+                      background: colFIsShared
+                        ? 'rgba(255, 210, 0, 0.55)'
+                        : 'rgba(255,255,255,0.15)',
+                      borderLeft: '1px solid rgba(255,255,255,0.18)',
+                    }}
+                  >
+                    F{i + 1}
+                  </th>
+                );
+              })}
 
               {/* Final total */}
               {finalRaceCount > 0 && showTotals && (
@@ -363,6 +381,7 @@ function FinalFleetTable({
                     const qRaceId = qualifyingEntry?.race_ids?.[ri];
                     const qIsShared =
                       compareMode &&
+                      selectedBoatIds.includes(entry.boat_id) &&
                       (compareInfo?.sharedQualIds?.has(qRaceId) ?? false);
 
                     return (
@@ -414,10 +433,11 @@ function FinalFleetTable({
                   {entry.races?.map((race, raceIndex) => {
                     const raceStatus =
                       entry.race_statuses?.[raceIndex] || 'FINISHED';
+                    const fRaceId = entry.race_ids?.[raceIndex];
                     const isShared =
                       compareMode &&
-                      selectedBoatIds.length === 2 &&
-                      selectedBoatIds.includes(entry.boat_id);
+                      selectedBoatIds.includes(entry.boat_id) &&
+                      (compareInfo?.sharedIds?.has(fRaceId) ?? false);
                     return (
                       <ScoreCell
                         key={`f-cell-${entry.boat_id}-${raceIndex}`}

@@ -230,3 +230,72 @@ ipcMain.handle('unlockEvent', async (event, event_id) => {
     throw error;
   }
 });
+
+ipcMain.handle(
+  'updateEvent',
+  async (event, event_id, event_name, event_location, start_date, end_date) => {
+    try {
+      db.prepare(
+        'UPDATE Events SET event_name = ?, event_location = ?, start_date = ?, end_date = ? WHERE event_id = ?',
+      ).run(event_name, event_location, start_date, end_date, event_id);
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating event:', error);
+      throw error;
+    }
+  },
+);
+
+ipcMain.handle('deleteEvent', async (event, event_id) => {
+  try {
+    db.transaction(() => {
+      // Remove GlobalLeaderboard entries for boats in this event before Boat_Event is deleted
+      db.prepare(
+        `DELETE FROM GlobalLeaderboard WHERE boat_id IN (
+          SELECT boat_id FROM Boat_Event WHERE event_id = ?
+        )`,
+      ).run(event_id);
+
+      // Delete Scores for all races belonging to heats of this event
+      db.prepare(
+        `DELETE FROM Scores WHERE race_id IN (
+          SELECT race_id FROM Races WHERE heat_id IN (
+            SELECT heat_id FROM Heats WHERE event_id = ?
+          )
+        )`,
+      ).run(event_id);
+
+      // Delete Races for heats of this event
+      db.prepare(
+        `DELETE FROM Races WHERE heat_id IN (
+          SELECT heat_id FROM Heats WHERE event_id = ?
+        )`,
+      ).run(event_id);
+
+      // Delete Heat_Boat associations for heats of this event
+      db.prepare(
+        `DELETE FROM Heat_Boat WHERE heat_id IN (
+          SELECT heat_id FROM Heats WHERE event_id = ?
+        )`,
+      ).run(event_id);
+
+      // Delete Heats for this event
+      db.prepare('DELETE FROM Heats WHERE event_id = ?').run(event_id);
+
+      // Delete Boat_Event associations
+      db.prepare('DELETE FROM Boat_Event WHERE event_id = ?').run(event_id);
+
+      // Delete Leaderboard and FinalLeaderboard entries
+      db.prepare('DELETE FROM Leaderboard WHERE event_id = ?').run(event_id);
+      db.prepare('DELETE FROM FinalLeaderboard WHERE event_id = ?').run(event_id);
+
+      // Finally delete the event itself
+      db.prepare('DELETE FROM Events WHERE event_id = ?').run(event_id);
+    })();
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting event:', error);
+    throw error;
+  }
+});
