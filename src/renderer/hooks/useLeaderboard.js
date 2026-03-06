@@ -12,6 +12,7 @@ import {
   applyExclusions,
   processLeaderboardEntry,
   getFlagCode,
+  getRaceCellDisplay,
 } from '../utils/leaderboardUtils';
 
 export default function useLeaderboard(eventId) {
@@ -822,7 +823,16 @@ export default function useLeaderboard(eventId) {
    * When qualifying only the layout mirrors QualifyingTable:
    *   Rank | Name | Country | Sail# | Type | R1…Rn | Total
    */
+  // Format a race value the same way ScoreCell / getRaceCellDisplay does.
+  const formatCell = (race, status) =>
+    getRaceCellDisplay(race, status || 'FINISHED').displayText;
+
   const buildExportData = () => {
+    const parseScore = (v) => {
+      const n = parseFloat(String(v ?? '').replace(/[()]/g, ''));
+      return Number.isNaN(n) ? 0 : n;
+    };
+
     if (!finalSeriesStarted) {
       // ── Qualifying-only view ────────────────────────────────────────────────
       const raceCount = eventLeaderboard[0]?.races?.length ?? 0;
@@ -832,18 +842,26 @@ export default function useLeaderboard(eventId) {
         'Country',
         'Sail #',
         'Type',
-        ...Array.from({ length: raceCount }, (_, i) => `R${i + 1}`),
-        'Total',
+        'Gross',
+        'Overall',
+        ...Array.from({ length: raceCount }, (_, i) => `Q${i + 1}`),
       ];
-      const rows = (eventLeaderboard ?? []).map((e, i) => [
-        i + 1,
-        `${e.name} ${e.surname}`,
-        e.country ?? '',
-        e.boat_number ?? '',
-        e.boat_type ?? '',
-        ...(e.races ?? []),
-        e.computed_total ?? e.total_points_event ?? '',
-      ]);
+      const rows = (eventLeaderboard ?? []).map((e, i) => {
+        const grossTotal = (e.races ?? []).reduce((s, r) => s + parseScore(r), 0);
+        const overall = e.computed_total ?? e.total_points_event;
+        return [
+          i + 1,
+          `${e.name} ${e.surname}`,
+          e.country ?? '',
+          e.boat_number ?? '',
+          e.boat_type ?? '',
+          grossTotal > 0 ? grossTotal : '–',
+          overall != null && !Number.isNaN(overall) ? overall : '–',
+          ...(e.races ?? []).map((r, ri) =>
+            formatCell(r, e.race_statuses?.[ri]),
+          ),
+        ];
+      });
       return { header, sections: [{ title: null, rows }] };
     }
 
@@ -873,11 +891,6 @@ export default function useLeaderboard(eventId) {
       (a, b) => GROUP_ORDER.indexOf(a) - GROUP_ORDER.indexOf(b),
     );
 
-    const parseScore = (v) => {
-      const n = parseFloat(String(v ?? '').replace(/[()]/g, ''));
-      return Number.isNaN(n) ? 0 : n;
-    };
-
     const sections = grpOrder.map((g) => ({
       title: `${g} Fleet`,
       rows: (grpMap[g] ?? []).map((entry, i) => {
@@ -905,8 +918,12 @@ export default function useLeaderboard(eventId) {
           entry.boat_type ?? '',
           gross > 0 ? gross : '–',
           overall,
-          ...qualRaces,
-          ...finalRaces,
+          ...qualRaces.map((r, ri) =>
+            formatCell(r, qualEntry?.race_statuses?.[ri]),
+          ),
+          ...finalRaces.map((r, ri) =>
+            formatCell(r, entry.race_statuses?.[ri]),
+          ),
         ];
       }),
     }));

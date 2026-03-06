@@ -108,10 +108,11 @@ export const getRaceCellDisplay = (race, raceStatus) => {
   let displayColor;
 
   if (isRdgCell && isExcluded) {
-    displayText = `(${race.replace(/[()]/g, '')}) ${raceStatus}`;
+    const clean = race.replace(/[()]/g, '');
+    displayText = `(RDG (${clean}))`;
     displayColor = '#888';
   } else if (isRdgCell) {
-    displayText = `${race} ${raceStatus}`;
+    displayText = `RDG (${race})`;
     displayColor = 'var(--teal, #2a9d8f)';
   } else if (isPenalty && isExcluded) {
     displayText = `(${raceStatus})`;
