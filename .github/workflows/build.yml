@@ -1,21 +1,21 @@
-name: Build
+name: Build Release Apps
 
 on:
   push:
     branches:
-      - main
-  workflow_dispatch:
+      - master
+  workflow_dispatch: # Allows you to trigger this manually from the Actions tab if needed
 
 jobs:
   build:
+    # This matrix creates one run with two parallel jobs (one for Mac, one for Windows)
     runs-on: ${{ matrix.os }}
-
     strategy:
       matrix:
         os: [macos-latest, windows-latest]
 
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -25,38 +25,37 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: |
-          set -eux
-          npm ci --ignore-scripts
+        run: npm ci --ignore-scripts
 
-      - name: Install electron-builder (for native app deps)
-        run: |
-          set -eux
-          npm install --no-save electron-builder@latest
+      - name: Install electron-builder
+        run: npm install --no-save electron-builder@latest
 
       - name: Install app native deps
-        run: |
-          set -eux
-          npx electron-builder install-app-deps
+        run: npx electron-builder install-app-deps
 
-      - name: Build (webpack)
+      - name: Build Webpack (React/Main Code)
         run: npm run build
 
-      - name: Package (electron-forge make)
-        run: npm run make
+      - name: Package macOS App (ZIP)
+        if: matrix.os == 'macos-latest'
+        run: npx electron-builder --mac --c.mac.target=zip
 
-      - name: Upload macOS artifact
+      - name: Package Windows App (ZIP)
+        if: matrix.os == 'windows-latest'
+        run: npx electron-builder --win --c.win.target=zip
+
+      - name: Upload macOS ZIP Artifact
         if: matrix.os == 'macos-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: ScoringApp-macOS
-          path: out/make/zip/darwin/**/*.zip
-          retention-days: 30
+          name: macOS-App
+          path: release/build/*.zip
+          retention-days: 7
 
-      - name: Upload Windows artifact
+      - name: Upload Windows ZIP Artifact
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: ScoringApp-Windows
-          path: out/make/squirrel.windows/**/*.exe
-          retention-days: 30
+          name: Windows-App
+          path: release/build/*.zip
+          retention-days: 7
