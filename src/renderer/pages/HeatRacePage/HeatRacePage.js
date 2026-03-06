@@ -15,6 +15,7 @@ function HeatRacePage() {
   const [isScoring, setIsScoring] = useState(false);
   const [finalSeriesStarted, setFinalSeriesStarted] = useState(false);
   const [heats, setHeats] = useState([]);
+  const [numQualifyingGroups, setNumQualifyingGroups] = useState(0);
 
   useEffect(() => {
     const fetchEvent = async () => {
@@ -151,7 +152,9 @@ function HeatRacePage() {
       setIsScoring(false);
       setSelectedHeat({ ...selectedHeat, raceNumber: nextRaceNumber });
     } catch (error) {
-      alert(`Error saving race scores:\n\n${error.message || 'Unknown error. Please try again.'}`);
+      alert(
+        `Error saving race scores:\n\n${error.message || 'Unknown error. Please try again.'}`,
+      );
     }
   };
 
@@ -183,7 +186,9 @@ function HeatRacePage() {
 
   const handleUndoLastScoredRace = async () => {
     if (!selectedHeat) {
-      alert('Please select a heat first by clicking on it, then click Undo Last Race.');
+      alert(
+        'Please select a heat first by clicking on it, then click Undo Last Race.',
+      );
       return;
     }
 
@@ -193,10 +198,13 @@ function HeatRacePage() {
     if (!confirmed) return;
 
     try {
-      const result = await window.electron.sqlite.heatRaceDB.undoLastScoredRaceForHeat(
-        selectedHeat.heat_id,
+      const result =
+        await window.electron.sqlite.heatRaceDB.undoLastScoredRaceForHeat(
+          selectedHeat.heat_id,
+        );
+      const updatedHeats = await window.electron.sqlite.heatRaceDB.readAllHeats(
+        event.event_id,
       );
-      const updatedHeats = await window.electron.sqlite.heatRaceDB.readAllHeats(event.event_id);
       setHeats(updatedHeats);
       alert(
         `Race ${result.raceNumber} in "${result.heatName}" has been undone.\n${result.removedScores} score(s) removed.`,
@@ -275,28 +283,44 @@ function HeatRacePage() {
             {/* ── Management actions ─── */}
             {!finalSeriesStarted && (
               <div className="heatrace-actions">
-                <button
-                  type="button"
-                  onClick={handleCreateNewHeatsBasedOnLeaderboard}
-                >
-                  Create New Heats from Leaderboard
-                </button>
+                {/* SHRS 1.1: redistribution (sections 2-4) only applies when there are 2+ heats */}
+                {numQualifyingGroups >= 2 && (
+                  <button
+                    type="button"
+                    onClick={handleCreateNewHeatsBasedOnLeaderboard}
+                  >
+                    Create New Heats from Leaderboard
+                  </button>
+                )}
                 <button
                   type="button"
                   className="btn-secondary"
                   onClick={handleUndoLastScoredRace}
-                  disabled={!selectedHeat}
-                  title={selectedHeat ? `Undo last race in ${selectedHeat.heat_name}` : 'Select a heat first'}
+                  disabled={!selectedHeat || !selectedHeat.raceNumber}
+                  title={
+                    selectedHeat
+                      ? selectedHeat.raceNumber
+                        ? `Delete Race ${selectedHeat.raceNumber} in ${selectedHeat.heat_name}`
+                        : `${selectedHeat.heat_name} has no races to undo`
+                      : 'Select a heat first'
+                  }
                 >
-                  Undo Last Race{selectedHeat ? ` — ${selectedHeat.heat_name}` : ''}
+                  Undo Last Race
+                  {selectedHeat && selectedHeat.raceNumber
+                    ? ` — ${selectedHeat.heat_name}, Race ${selectedHeat.raceNumber}`
+                    : selectedHeat
+                    ? ` — ${selectedHeat.heat_name} (no races)`
+                    : ''}
                 </button>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={handleUndoLatestHeatRedistribution}
-                >
-                  Undo Heat Redistribution
-                </button>
+                {numQualifyingGroups >= 2 && (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={handleUndoLatestHeatRedistribution}
+                  >
+                    Undo Heat Redistribution
+                  </button>
+                )}
               </div>
             )}
 
@@ -307,7 +331,9 @@ function HeatRacePage() {
                   aria-hidden="true"
                   style={{ marginRight: '8px' }}
                 />
-                Click on a heat below to select it — a <strong>Start Scoring</strong> button will appear inside the card.
+                Click on a heat below to select it — a{' '}
+                <strong>Start Scoring</strong> button will appear inside the
+                card.
               </div>
             )}
 
@@ -317,6 +343,7 @@ function HeatRacePage() {
               heats={heats}
               onHeatSelect={handleHeatSelect}
               onStartScoring={handleStartScoring}
+              onQualifyingGroupCountChange={setNumQualifyingGroups}
               clickable
             />
           </>

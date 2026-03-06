@@ -3,7 +3,13 @@ import PropTypes from 'prop-types';
 import Flag from 'react-world-flags';
 import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
 
-function HeatComponent({ event, onHeatSelect = () => {}, onStartScoring = null, clickable }) {
+function HeatComponent({
+  event,
+  onHeatSelect = () => {},
+  onStartScoring = null,
+  clickable,
+  onQualifyingGroupCountChange = null,
+}) {
   const [heats, setHeats] = useState([]);
   const [numHeats, setNumHeats] = useState(5); // Default number of heats
   const [selectedHeatId, setSelectedHeatId] = useState(null);
@@ -13,6 +19,7 @@ function HeatComponent({ event, onHeatSelect = () => {}, onStartScoring = null, 
   const [finalSeriesStarted, setFinalSeriesStarted] = useState(false);
   const [showFinalConfirm, setShowFinalConfirm] = useState(false);
   const [pendingFinalHeats, setPendingFinalHeats] = useState(0);
+  const [numQualifyingGroups, setNumQualifyingGroups] = useState(0);
 
   const handleDisplayHeats = useCallback(async () => {
     try {
@@ -38,12 +45,31 @@ function HeatComponent({ event, onHeatSelect = () => {}, onStartScoring = null, 
       // Check if any race has happened
       const anyRaceHappened = heatDetails.some((heat) => heat.raceNumber > 0);
       setRaceHappened(anyRaceHappened);
+
+      // SHRS 1.1: count unique qualifying heat letter groups to determine
+      // whether a Final Series is applicable (requires >= 2 groups).
+      const qualifyingGroups = new Set(
+        heatDetails
+          .filter((h) => h.heat_type === 'Qualifying')
+          .map((h) => {
+            const m = h.heat_name.match(/Heat ([A-Z])/);
+            return m ? m[1] : null;
+          })
+          .filter(Boolean),
+      );
+      setNumQualifyingGroups(qualifyingGroups.size);
     } catch (error) {
       // Handle error appropriately
       setHeats([]);
       setHeatsCreated(false);
     }
   }, [event.event_id]);
+
+  useEffect(() => {
+    if (onQualifyingGroupCountChange) {
+      onQualifyingGroupCountChange(numQualifyingGroups);
+    }
+  }, [numQualifyingGroups, onQualifyingGroupCountChange]);
 
   const checkFinalSeriesStarted = useCallback(async () => {
     try {
@@ -192,10 +218,12 @@ function HeatComponent({ event, onHeatSelect = () => {}, onStartScoring = null, 
       );
       const numFinalHeats = uniqueGroups.size;
       if (numFinalHeats < 2) {
+        // Should not be reachable because the button is hidden when numQualifyingGroups < 2,
+        // but guard just in case.
         alert(
           numFinalHeats === 0
-            ? 'No qualifying heats found. Please create and run at least 2 heats before starting the Final Series.'
-            : 'At least 2 qualifying heats are required before starting the Final Series.',
+            ? 'No qualifying heats found. Please create heats before starting the Final Series.'
+            : 'With only one heat the event is a single-fleet event (SHRS 1.1) — no Final Series applies.',
         );
         return;
       }
@@ -640,7 +668,11 @@ function HeatComponent({ event, onHeatSelect = () => {}, onStartScoring = null, 
                     }}
                     style={{ width: '100%' }}
                   >
-                    <i className="fa fa-play" aria-hidden="true" style={{ marginRight: '6px' }} />
+                    <i
+                      className="fa fa-play"
+                      aria-hidden="true"
+                      style={{ marginRight: '6px' }}
+                    />
                     Start Scoring
                   </button>
                 </div>
@@ -651,7 +683,8 @@ function HeatComponent({ event, onHeatSelect = () => {}, onStartScoring = null, 
       )}
 
       {/* ── Phase transition: Start Final Series ─── */}
-      {!finalSeriesStarted && (
+      {/* SHRS 1.1: only show Final Series controls when there are 2+ qualifying heat groups */}
+      {!finalSeriesStarted && numQualifyingGroups >= 2 && (
         <div
           style={{
             marginTop: '24px',
@@ -667,11 +700,16 @@ function HeatComponent({ event, onHeatSelect = () => {}, onStartScoring = null, 
             className="btn-success"
             onClick={handleStartFinalSeries}
           >
-            <i className="fa fa-flag-checkered" aria-hidden="true" style={{ marginRight: '6px' }} />
+            <i
+              className="fa fa-flag-checkered"
+              aria-hidden="true"
+              style={{ marginRight: '6px' }}
+            />
             Start Final Series
           </button>
           <span style={{ fontSize: '.85rem', color: '#6B849A' }}>
-            Advances the event to the final fleet stage based on current standings.
+            Advances the event to the final fleet stage based on current
+            standings.
           </span>
         </div>
       )}
@@ -686,6 +724,7 @@ HeatComponent.propTypes = {
   }).isRequired,
   onHeatSelect: PropTypes.func,
   onStartScoring: PropTypes.func,
+  onQualifyingGroupCountChange: PropTypes.func,
   clickable: PropTypes.bool.isRequired,
 };
 
