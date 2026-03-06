@@ -29,6 +29,16 @@ jobs:
           set -eux
           npm ci --ignore-scripts
 
+      - name: Install electron-builder (for native app deps)
+        run: |
+          set -eux
+          npm install --no-save electron-builder@latest
+
+      - name: Install app native deps
+        run: |
+          set -eux
+          npx electron-builder install-app-deps
+
       - name: Build (webpack)
         run: npm run build
 
