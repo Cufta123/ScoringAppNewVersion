@@ -35,15 +35,15 @@
     }
   ],
   "main": "./.erb/dll/main.bundle.dev.js",
-  "scripts": {
+"scripts": {
     "build": "concurrently \"npm run build:main\" \"npm run build:renderer\"",
     "build:dll": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack --config ./.erb/configs/webpack.config.renderer.dev.dll.ts",
     "build:main": "cross-env NODE_ENV=production TS_NODE_TRANSPILE_ONLY=true webpack --config ./.erb/configs/webpack.config.main.prod.ts",
     "build:renderer": "cross-env NODE_ENV=production TS_NODE_TRANSPILE_ONLY=true webpack --config ./.erb/configs/webpack.config.renderer.prod.ts",
-    "postinstall": "node_modules/.bin/electron-builder install-app-deps",
+    "postinstall": "npx electron-builder install-app-deps",
     "lint": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx --fix",
-    "package": "electron-forge package",
+    "package": "npm run build && electron-builder build --win --x64",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "prestart": "npm run build:dll",
     "start": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true ts-node ./.erb/scripts/check-port-in-use.js && npm run start:renderer",
@@ -52,8 +52,7 @@
     "start:renderer": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack serve --config ./.erb/configs/webpack.config.renderer.dev.ts",
     "test": "jest --config jest.unit.config.ts --no-coverage",
     "test:unit": "jest --config jest.unit.config.ts --no-coverage",
-    "test:full": "jest",
-    "make": "electron-forge make"
+    "test:full": "jest"
   },
   "browserslist": [
     "extends browserslist-config-erb"
@@ -160,6 +159,7 @@
     "css-minimizer-webpack-plugin": "^5.0.1",
     "detect-port": "^1.5.1",
     "electron": "^31.3.0",
+    "electron-builder": "^26.8.1",
     "electron-devtools-installer": "^4.0.0",
     "electron-rebuild": "^3.2.9",
     "electronmon": "^2.0.2",
@@ -202,7 +202,7 @@
     "webpack-merge": "^5.9.0"
   },
   "build": {
-    "productName": "ElectronReact",
+    "productName": "IOM Regatta Manager",
     "appId": "org.erb.ElectronReact",
     "asar": true,
     "asarUnpack": "**\\*.{node,dll}",

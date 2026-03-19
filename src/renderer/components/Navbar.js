@@ -36,7 +36,11 @@ function Navbar({
           style={navBtnBase}
           onClick={onBack}
         >
-          <i className="fa fa-arrow-left" aria-hidden="true" style={{ marginRight: '6px' }} />
+          <i
+            className="fa fa-arrow-left"
+            aria-hidden="true"
+            style={{ marginRight: '6px' }}
+          />
           {backLabel || 'Back'}
         </button>
       )}
@@ -62,13 +66,17 @@ function Navbar({
         }}
       >
         <i className="fa fa-anchor" aria-hidden="true" />
-        ScoringApp
+        IOM Regatta Manager
       </button>
 
       {/* Right: action buttons */}
       {onOpenLeaderboard && (
         <button type="button" style={navBtnBase} onClick={onOpenLeaderboard}>
-          <i className="fa fa-trophy" aria-hidden="true" style={{ marginRight: '6px' }} />
+          <i
+            className="fa fa-trophy"
+            aria-hidden="true"
+            style={{ marginRight: '6px' }}
+          />
           Leaderboard
         </button>
       )}
@@ -80,7 +88,11 @@ function Navbar({
           style={navBtnBase}
           onClick={onHeatRaceClick}
         >
-          <i className="fa fa-flag-checkered" aria-hidden="true" style={{ marginRight: '6px' }} />
+          <i
+            className="fa fa-flag-checkered"
+            aria-hidden="true"
+            style={{ marginRight: '6px' }}
+          />
           Go to Scoring
         </button>
       )}

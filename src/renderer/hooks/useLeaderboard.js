@@ -455,13 +455,14 @@ export default function useLeaderboard(eventId) {
         }
       }
 
-      const [finalResults, eventResults, overallResults] = await Promise.all([
+      const _results = await Promise.all([
         window.electron.sqlite.heatRaceDB.readFinalLeaderboard(eventId),
         window.electron.sqlite.heatRaceDB.readLeaderboard(eventId),
         finalSeriesStarted
           ? window.electron.sqlite.heatRaceDB.readOverallLeaderboard(eventId)
           : Promise.resolve([]),
       ]);
+      const [finalResults, eventResults, overallResults] = _results || [[], [], []];
 
       console.log('[Leaderboard] Data received from main process:', { finalResults, eventResults, overallResults });
 

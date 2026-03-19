@@ -12,22 +12,21 @@ function GlobalLeaderboardComponent() {
   useEffect(() => {
     const fetchGlobalLeaderboard = async () => {
       try {
-        const results =
-          await window.electron.sqlite.heatRaceDB.readGlobalLeaderboard();
-        console.log('Fetched global leaderboard:', results);
+          const results = await window.electron.sqlite.heatRaceDB.readGlobalLeaderboard();
+          console.log('Fetched global leaderboard:', results);
 
-        const mappedLeaderboard = results.map((entry) => ({
-          ...entry,
-          sailor: `${entry.name} ${entry.surname}`,
-          club: entry.club_name, // Map club_name
-          country: entry.country, // Map country
-          category: entry.category_name, // Map category_name
-        }));
+          const mappedLeaderboard = (results || []).map((entry) => ({
+            ...entry,
+            sailor: `${entry.name} ${entry.surname}`,
+            club: entry.club_name, // Map club_name
+            country: entry.country, // Map country
+            category: entry.category_name, // Map category_name
+          }));
 
-        // Sort the leaderboard by total_points in descending order
-        mappedLeaderboard.sort((a, b) => a.total_points_global - b.total_points_global);
+          // Sort the leaderboard by total_points in descending order
+          mappedLeaderboard.sort((a, b) => a.total_points_global - b.total_points_global);
 
-        setLeaderboard(mappedLeaderboard);
+          setLeaderboard(mappedLeaderboard);
       } catch (error) {
         console.error('Error fetching 1global leaderboard:', error.message);
       } finally {

@@ -1,17 +1,10 @@
-/* eslint-disable global-require */
 import path from 'path';
-import { app, BrowserWindow, shell, ipcMain } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, dialog } from 'electron';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
-import AppUpdater from './AppUpdater';
 import './ipcHandlers/SailorHandler';
 import './ipcHandlers/EventHandler';
 import './ipcHandlers/HeatRaceHandler';
-
-if (require('electron-squirrel-startup')) app.quit();
-
-// Suppress unimplemented Chrome DevTools Protocol warnings (e.g. Autofill)
-app.commandLine.appendSwitch('disable-features', 'AutofillServerCommunication');
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -28,15 +21,16 @@ if (isDebug) {
 }
 
 const installExtensions = async () => {
-  try {
-    const installer = require('electron-devtools-installer');
-    const forceDownload = !!process.env.UPGRADE_EXTENSIONS;
-    await installer.installExtension([installer.REACT_DEVELOPER_TOOLS], {
+  const installer = require('electron-devtools-installer');
+  const forceDownload = !!process.env.UPGRADE_EXTENSIONS;
+  const extensions = ['REACT_DEVELOPER_TOOLS'];
+
+  return installer
+    .default(
+      extensions.map((name: string) => installer[name]),
       forceDownload,
-    });
-  } catch (_) {
-    // DevTools extension install failures are non-fatal
-  }
+    )
+    .catch(console.log);
 };
 
 const createWindow = async () => {
@@ -56,13 +50,12 @@ const createWindow = async () => {
     show: false,
     width: 1024,
     height: 728,
-    icon: getAssetPath('icon.png'),
+    icon: getAssetPath('icon.ico'),
     webPreferences: {
       preload: app.isPackaged
         ? path.join(__dirname, 'preload.js')
         : path.join(__dirname, '../../.erb/dll/preload.js'),
       contextIsolation: true,
-      sandbox: false,
     },
   });
 
@@ -90,9 +83,12 @@ const createWindow = async () => {
     shell.openExternal(edata.url);
     return { action: 'deny' };
   });
-
-  new AppUpdater();
 };
+
+// Register the IPC handler for the file dialog
+ipcMain.handle('dialog:openFile', async (event, options) => {
+  return dialog.showOpenDialog(mainWindow!, options);
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -109,4 +105,3 @@ app
     });
   })
   .catch(console.log);
-

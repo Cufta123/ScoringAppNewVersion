@@ -1,11 +1,16 @@
+/* eslint-disable no-console */
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 const { app } = require('electron');
-// Store the database in the user data directory so it persists across app updates
-const dataDir = path.join(app.getPath('userData'), 'data');
-const dbFilename = 'scoring_app.db';
-const dbPath = path.join(dataDir, dbFilename);
+
+// Define the path for the database file
+const dbPath = app.isPackaged
+  ? path.join(app.getPath('userData'), 'scoring_app.db')
+  : path.join(__dirname, 'public', 'Database', 'data', 'scoring_app.db');
+
+// Define the directory that will contain the database file
+const dataDir = path.dirname(dbPath);
 
 console.log(`Database directory: ${dataDir}`);
 console.log(`Database path: ${dbPath}`);
