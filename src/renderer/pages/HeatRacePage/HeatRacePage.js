@@ -5,6 +5,11 @@ import HeatComponent from '../../components/HeatComponent';
 import ScoringInputComponent from '../../components/ScoringInputComponent';
 import Navbar from '../../components/Navbar';
 import './HeatRacePage.css';
+import {
+  confirmAction,
+  reportError,
+  reportInfo,
+} from '../../utils/userFeedback';
 
 function HeatRacePage() {
   const location = useLocation();
@@ -24,7 +29,7 @@ function HeatRacePage() {
           await window.electron.sqlite.eventDB.readEventById(event.event_id);
         setEventData(fetchedEventData);
       } catch (error) {
-        console.error(`Error fetching event: ${error.message}`);
+        reportError('Could not load event details.', error);
       }
     };
 
@@ -54,7 +59,7 @@ function HeatRacePage() {
       const latestHeats = results.reduce((acc, heat) => {
         const match = heat.heat_name.match(/Heat ([A-Z]+)(\d*)/);
         if (match) {
-          const [_, base, suffix] = match;
+          const [, base, suffix] = match;
           const numericSuffix = suffix ? parseInt(suffix, 10) : 0;
           acc[base] = acc[base] || { suffix: -1, heat: null }; // Initialize suffix to -1 for heats without a number
           if (numericSuffix > acc[base].suffix) {
@@ -80,10 +85,7 @@ function HeatRacePage() {
       // Ensure all latest heats have the same number of races
       return raceCounts.every((count) => count === raceCounts[0]);
     } catch (error) {
-      console.error(
-        'Error checking if all heats have the same number of races:',
-        error.message,
-      );
+      reportError('Could not validate race counts across heats.', error);
       return false;
     }
   };
@@ -103,10 +105,11 @@ function HeatRacePage() {
         numQualifyingGroups >= 2 &&
         races.length >= 1
       ) {
-        const proceed = window.confirm(
+        const proceed = confirmAction(
           `Warning: "${selectedHeat.heat_name}" has already completed Race ${races.length}.\n\n` +
             `According to SHRS 3.2 boats should be redistributed before racing again.\n\n` +
             `Press OK to score Race ${nextRaceNumber} anyway, or Cancel to go back and use "Create New Heats from Leaderboard" first.`,
+          'Scoring warning',
         );
         if (!proceed) return;
       }
@@ -168,22 +171,22 @@ function HeatRacePage() {
       setIsScoring(false);
       setSelectedHeat({ ...selectedHeat, raceNumber: nextRaceNumber });
     } catch (error) {
-      alert(
-        `Error saving race scores:\n\n${error.message || 'Unknown error. Please try again.'}`,
-      );
+      reportError('Could not save race scores.', error);
     }
   };
 
   const handleCreateNewHeatsBasedOnLeaderboard = async () => {
     if (finalSeriesStarted) {
-      alert(
+      reportInfo(
         'Cannot create new heats based on leaderboard after the final series has started.',
+        'Action blocked',
       );
       return;
     }
 
-    const confirmed = window.confirm(
+    const confirmed = confirmAction(
       'Create new heats based on the current leaderboard?\n\nAll heats in the current round must have the same number of races.',
+      'Create New Heats',
     );
     if (!confirmed) return;
 
@@ -196,20 +199,22 @@ function HeatRacePage() {
       );
       setHeats(updatedHeats);
     } catch (error) {
-      alert(`Could not create new heats:\n\n${error.message}`);
+      reportError('Could not create new heats from leaderboard.', error);
     }
   };
 
   const handleUndoLastScoredRace = async () => {
     if (!selectedHeat) {
-      alert(
+      reportInfo(
         'Please select a heat first by clicking on it, then click Undo Last Race.',
+        'No heat selected',
       );
       return;
     }
 
-    const confirmed = window.confirm(
+    const confirmed = confirmAction(
       `Undo the last scored race in "${selectedHeat.heat_name}"?\n\nThis will permanently delete that race's scores.`,
+      'Undo Last Race',
     );
     if (!confirmed) return;
 
@@ -222,17 +227,19 @@ function HeatRacePage() {
         event.event_id,
       );
       setHeats(updatedHeats);
-      alert(
+      reportInfo(
         `Race ${result.raceNumber} in "${result.heatName}" has been undone.\n${result.removedScores} score(s) removed.`,
+        'Success',
       );
     } catch (error) {
-      alert(`Could not undo race:\n\n${error.message}`);
+      reportError('Could not undo last race for selected heat.', error);
     }
   };
 
   const handleUndoLatestHeatRedistribution = async () => {
-    const confirmed = window.confirm(
+    const confirmed = confirmAction(
       'Undo latest heat redistribution?\n\nThis will delete the latest qualifying heats and all their boat assignments. This cannot be undone.',
+      'Undo Heat Redistribution',
     );
     if (!confirmed) {
       return;
@@ -247,17 +254,14 @@ function HeatRacePage() {
         event.event_id,
       );
       setHeats(updatedHeats);
-      alert(
+      reportInfo(
         `Heat redistribution undone. Removed ${result.removedHeats} heats and ${result.removedAssignments} assignments.`,
+        'Success',
       );
     } catch (error) {
-      alert(`Could not undo heat redistribution:\n\n${error.message}`);
+      reportError('Could not undo latest heat redistribution.', error);
     }
   };
-
-  useEffect(() => {
-    console.log('HeatComponent Props:', heats);
-  }, [heats]);
 
   const checkFinalSeriesStarted = useCallback(async () => {
     try {
@@ -269,13 +273,33 @@ function HeatRacePage() {
         setFinalSeriesStarted(true);
       }
     } catch (error) {
-      console.error('Error checking final series:', error);
+      reportError('Could not check final series status.', error);
     }
   }, [event.event_id]);
 
   useEffect(() => {
     checkFinalSeriesStarted();
   }, [checkFinalSeriesStarted]);
+
+  const undoButtonTitle = (() => {
+    if (!selectedHeat) {
+      return 'Select a heat first';
+    }
+    if (selectedHeat.raceNumber) {
+      return `Delete Race ${selectedHeat.raceNumber} in ${selectedHeat.heat_name}`;
+    }
+    return `${selectedHeat.heat_name} has no races to undo`;
+  })();
+
+  const undoButtonSuffix = (() => {
+    if (!selectedHeat) {
+      return '';
+    }
+    if (selectedHeat.raceNumber) {
+      return ` — ${selectedHeat.heat_name}, Race ${selectedHeat.raceNumber}`;
+    }
+    return ` — ${selectedHeat.heat_name} (no races)`;
+  })();
 
   return (
     <div>
@@ -313,20 +337,10 @@ function HeatRacePage() {
                   className="btn-secondary"
                   onClick={handleUndoLastScoredRace}
                   disabled={!selectedHeat || !selectedHeat.raceNumber}
-                  title={
-                    selectedHeat
-                      ? selectedHeat.raceNumber
-                        ? `Delete Race ${selectedHeat.raceNumber} in ${selectedHeat.heat_name}`
-                        : `${selectedHeat.heat_name} has no races to undo`
-                      : 'Select a heat first'
-                  }
+                  title={undoButtonTitle}
                 >
                   Undo Last Race
-                  {selectedHeat && selectedHeat.raceNumber
-                    ? ` — ${selectedHeat.heat_name}, Race ${selectedHeat.raceNumber}`
-                    : selectedHeat
-                      ? ` — ${selectedHeat.heat_name} (no races)`
-                      : ''}
+                  {undoButtonSuffix}
                 </button>
                 {numQualifyingGroups >= 2 && (
                   <button

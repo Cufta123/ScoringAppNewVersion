@@ -49,6 +49,55 @@ export type Channels =
   | 'getMaxHeatSize'
   | 'importSailors';
 
+const toErrorMessage = (error: unknown): string => {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  if (typeof error === 'string' && error.trim()) {
+    return error;
+  }
+  if (error && typeof error === 'object' && 'message' in error) {
+    const maybeMessage = (error as { message?: unknown }).message;
+    if (typeof maybeMessage === 'string' && maybeMessage.trim()) {
+      return maybeMessage;
+    }
+  }
+  return 'Unknown IPC error.';
+};
+
+const wrapSqliteApi = <T extends Record<string, any>>(api: T): T => {
+  const wrapped = {} as T;
+
+  Object.entries(api).forEach(([groupName, groupValue]) => {
+    if (!groupValue || typeof groupValue !== 'object') {
+      (wrapped as Record<string, any>)[groupName] = groupValue;
+      return;
+    }
+
+    const wrappedGroup: Record<string, any> = {};
+    Object.entries(groupValue as Record<string, any>).forEach(
+      ([methodName, methodValue]) => {
+        if (typeof methodValue !== 'function') {
+          wrappedGroup[methodName] = methodValue;
+          return;
+        }
+
+        wrappedGroup[methodName] = async (...args: unknown[]) => {
+          const result = await methodValue(...args);
+          if (result === false) {
+            throw new Error(`Operation failed: ${groupName}.${methodName}`);
+          }
+          return result;
+        };
+      },
+    );
+
+    (wrapped as Record<string, any>)[groupName] = wrappedGroup;
+  });
+
+  return wrapped;
+};
+
 const electronHandler = {
   ipcRenderer: {
     sendMessage(channel: Channels, ...args: unknown[]) {
@@ -144,15 +193,7 @@ const electronHandler = {
             sailor_id,
           );
         } catch (error) {
-          if (error === 'SQLITE_CONSTRAINT') {
-            console.error('Error: The sail number already exists.');
-            // eslint-disable-next-line no-alert
-            alert(
-              'The sail number already exists. Please use a different sail number.',
-            );
-          } else {
-            console.error('Error invoking insertBoat IPC:', error);
-          }
+          console.error('Error invoking insertBoat IPC:', error);
           return false;
         }
       },
@@ -558,13 +599,18 @@ const electronHandler = {
           );
         } catch (error) {
           console.error('Error invoking getMaxHeatSize IPC:', error);
-          return 0;
+          throw new Error(toErrorMessage(error));
         }
       },
     },
   },
 };
 
-contextBridge.exposeInMainWorld('electron', electronHandler);
+const wrappedElectronHandler = {
+  ...electronHandler,
+  sqlite: wrapSqliteApi(electronHandler.sqlite),
+};
 
-export type ElectronHandler = typeof electronHandler;
+contextBridge.exposeInMainWorld('electron', wrappedElectronHandler);
+
+export type ElectronHandler = typeof wrappedElectronHandler;

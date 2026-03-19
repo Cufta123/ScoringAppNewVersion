@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { reportError } from '../utils/userFeedback';
 
 function EventForm() {
   const [eventName, setEventName] = useState('');
@@ -25,7 +26,7 @@ function EventForm() {
       const allEvents = await window.electron.sqlite.eventDB.readAllEvents();
       setEvents(Array.isArray(allEvents) ? allEvents : []);
     } catch (error) {
-      console.error('Error fetching events:', error);
+      reportError('Could not load events.', error);
     }
   };
 
@@ -48,7 +49,7 @@ function EventForm() {
       setEventEndDate('');
       fetchEvents();
     } catch (error) {
-      console.error('Error inserting event:', error);
+      reportError('Could not create the event.', error);
     }
   };
 
@@ -83,7 +84,7 @@ function EventForm() {
       setEditingId(null);
       fetchEvents();
     } catch (error) {
-      console.error('Error updating event:', error);
+      reportError('Could not update the event.', error);
     }
   };
 
@@ -94,7 +95,7 @@ function EventForm() {
       setConfirmDeleteId(null);
       fetchEvents();
     } catch (error) {
-      console.error('Error deleting event:', error);
+      reportError('Could not delete the event.', error);
     }
   };
 

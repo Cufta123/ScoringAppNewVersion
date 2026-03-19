@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
+import { reportError } from '../utils/userFeedback';
 
 function ScoringInputComponent({ heat, onSubmit }) {
   const [inputValue, setInputValue] = useState('');
@@ -18,7 +19,7 @@ function ScoringInputComponent({ heat, onSubmit }) {
         );
         setValidBoats(boats.map((boat) => boat.sail_number));
       } catch (error) {
-        console.error('Error fetching boats:', error);
+        reportError('Could not load boats for selected heat.', error);
       }
     };
 

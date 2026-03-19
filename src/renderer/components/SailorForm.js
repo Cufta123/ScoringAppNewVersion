@@ -89,7 +89,6 @@ function SailorForm({ onAddSailor, eventId }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-
     if (raceHappened) {
       toast.error(
         'No more sailors can be added as a race has already happened.',
@@ -169,63 +168,25 @@ function SailorForm({ onAddSailor, eventId }) {
 
       const sailorBoats = boats.filter((b) => b.sailor_id === sailor_id);
       console.log(`Boats for sailor ID ${sailor_id}:`, sailorBoats);
-
-      const existingBoatForSailor = sailorBoats.find(
-        (b) => b.sail_number.toString().trim() === sailNumber.toString().trim(),
-      );
-      if (existingBoatForSailor) {
-        console.warn(
-          `Sailor ID ${sailor_id} already owns a boat with sail number ${sailNumber}`,
-        );
-        toast.error(
-          `This sailor already owns a boat with sail number ${sailNumber}.`,
-        );
-        return; // Exit the function gracefully
-      }
       const eventBoats =
         await window.electron.sqlite.eventDB.readBoatsByEvent(eventId);
       console.log(`Boats for event ID ${eventId}:`, eventBoats);
 
-      const existingBoatInEvent = eventBoats.find(
-        (b) => b.sail_number.toString().trim() === sailNumber.toString().trim(),
-      );
-
-      if (existingBoatInEvent) {
-        console.warn(
-          `Boat with sail number ${sailNumber} already exists in event ID ${eventId}`,
-        );
-        toast.error(
-          'A boat with the same sail number already exists in this event.',
-        );
-        return; // Exit the function gracefully
-      }
-
       let boat_id = null;
 
-      const existingBoat = sailorBoats.find(
-        (b) => b.sail_number === sailNumber,
-      );
-
-      if (existingBoat) {
-        boat_id = existingBoat.boat_id;
-        console.log(
-          `Using existing boat ID ${boat_id} for sail number ${sailNumber}`,
+      try {
+        const boatResult = await window.electron.sqlite.sailorDB.insertBoat(
+          sailNumber,
+          selectedCountry,
+          model,
+          sailor_id,
         );
-      } else {
-        try {
-          const boatResult = await window.electron.sqlite.sailorDB.insertBoat(
-            sailNumber,
-            selectedCountry,
-            model,
-            sailor_id,
-          );
-          boat_id = boatResult.lastInsertRowid;
-          console.log(`Boat inserted with ID: ${boat_id}`);
-        } catch (error) {
-          console.error('Error inserting boat:', error);
-          alert('There was an error inserting the boat.');
-          return; // Exit the function gracefully
-        }
+        boat_id = boatResult.lastInsertRowid;
+        console.log(`Boat inserted with ID: ${boat_id}`);
+      } catch (error) {
+        console.error('Error inserting boat:', error);
+        alert('There was an error inserting the boat.');
+        return; // Exit the function gracefully
       }
 
       const existingAssociation = eventBoats.find((b) => b.boat_id === boat_id);

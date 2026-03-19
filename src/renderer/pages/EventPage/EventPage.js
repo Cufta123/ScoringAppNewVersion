@@ -13,6 +13,7 @@ import SailorImport from '../../components/SailorImport';
 import Navbar from '../../components/Navbar';
 import './EventPage.css';
 import HeatComponent from '../../components/HeatComponent';
+import { reportError } from '../../utils/userFeedback';
 
 function EventPage() {
   const location = useLocation();
@@ -54,7 +55,7 @@ function EventPage() {
       }));
       setBoats(mappedBoats);
     } catch (error) {
-      alert('Error fetching boats with sailors. Please try again later.');
+      reportError('Could not load boats for this event.', error);
     }
   }, [event.event_id]);
 
@@ -63,7 +64,7 @@ function EventPage() {
       const fetchedBoats = await window.electron.sqlite.sailorDB.readAllBoats();
       setAllBoats(fetchedBoats);
     } catch (error) {
-      console.error('Error fetching all boats:', error);
+      reportError('Could not load all boats.', error);
     }
   }, []);
 
@@ -79,7 +80,7 @@ function EventPage() {
       const anyRaceHappened = races.some((raceArray) => raceArray.length > 0);
       setRaceHappened(anyRaceHappened);
     } catch (error) {
-      console.error('Error checking if race happened:', error);
+      reportError('Could not check race status.', error);
     }
   }, [event.event_id]);
 
@@ -89,7 +90,7 @@ function EventPage() {
       const currentEvent = events.find((e) => e.event_id === event.event_id);
       setIsEventLocked(currentEvent.is_locked === 1);
     } catch (error) {
-      console.error('Error fetching event lock status:', error);
+      reportError('Could not load event lock status.', error);
     }
   }, [event.event_id]);
 
@@ -149,7 +150,7 @@ function EventPage() {
       );
       setSelectedBoats([]); // Clear the selected boats
     } catch (error) {
-      console.error('Error associating boats with event:', error);
+      reportError('Could not add selected boats to the event.', error);
     }
   };
 
@@ -181,7 +182,7 @@ function EventPage() {
         setAllBoats((prevBoats) => [...prevBoats, removedBoat]);
       }
     } catch (error) {
-      console.error('Error removing boat from event:', error);
+      reportError('Could not remove boat from the event.', error);
     }
   };
 
@@ -197,8 +198,7 @@ function EventPage() {
         alert('Event locked successfully!');
       }
     } catch (error) {
-      console.error('Error locking/unlocking event:', error);
-      alert('Error locking/unlocking event. Please try again later.');
+      reportError('Could not change event lock status.', error);
     }
   };
   const handleLockEventClick = () => {

@@ -14,6 +14,7 @@ import {
   getFlagCode,
   getRaceCellDisplay,
 } from '../utils/leaderboardUtils';
+import { reportError } from '../utils/userFeedback';
 
 export default function useLeaderboard(eventId) {
   const [leaderboard, setLeaderboard] = useState([]);
@@ -32,6 +33,41 @@ export default function useLeaderboard(eventId) {
   const [rdgMeta, setRdgMeta] = useState({});
   // rdg2Picker: the open multi-race selector state for one specific cell
   const [rdg2Picker, setRdg2Picker] = useState(null);
+
+  const sanitizeFilenamePart = (value, fallback = 'event') => {
+    const raw = String(value ?? '').trim();
+    const safe = raw.replace(/[<>:"/\\|?*]+/g, '_').replace(/\s+/g, '_');
+    return safe || fallback;
+  };
+
+  const getExportMeta = async () => {
+    let eventName = `event_${eventId}`;
+    try {
+      const events = await window.electron.sqlite.eventDB.readAllEvents();
+      if (Array.isArray(events)) {
+        const match = events.find(
+          (event) => String(event.event_id) === String(eventId),
+        );
+        if (match?.event_name) {
+          eventName = match.event_name;
+        }
+      }
+    } catch (_) {
+      // keep fallback name
+    }
+
+    const raceNumber = finalSeriesStarted
+      ? (editableLeaderboard?.[0]?.races?.length ?? 0)
+      : (eventLeaderboard?.[0]?.races?.length ?? 0);
+
+    const safeEventName = sanitizeFilenamePart(eventName, `event_${eventId}`);
+    const seriesLabel = finalSeriesStarted ? 'final' : 'race';
+    return {
+      safeEventName,
+      raceNumber,
+      seriesLabel,
+    };
+  };
 
   // ─── Compare ────────────────────────────────────────────────────────────────
 
@@ -427,7 +463,7 @@ export default function useLeaderboard(eventId) {
         setActiveTab('final');
       }
     } catch (error) {
-      console.error('Error checking final series:', error);
+      reportError('Could not check final series status.', error);
     }
   }, [eventId]);
 
@@ -449,22 +485,26 @@ export default function useLeaderboard(eventId) {
       // before reading (matches the pattern used for the qualifying leaderboard).
       if (finalSeriesStarted) {
         try {
-          await window.electron.sqlite.heatRaceDB.updateFinalLeaderboard(eventId);
+          await window.electron.sqlite.heatRaceDB.updateFinalLeaderboard(
+            eventId,
+          );
         } catch (_) {
           // Event may be locked; continue with existing DB values
         }
       }
 
-      const _results = await Promise.all([
+      const resultsTuple = await Promise.all([
         window.electron.sqlite.heatRaceDB.readFinalLeaderboard(eventId),
         window.electron.sqlite.heatRaceDB.readLeaderboard(eventId),
         finalSeriesStarted
           ? window.electron.sqlite.heatRaceDB.readOverallLeaderboard(eventId)
           : Promise.resolve([]),
       ]);
-      const [finalResults, eventResults, overallResults] = _results || [[], [], []];
-
-      console.log('[Leaderboard] Data received from main process:', { finalResults, eventResults, overallResults });
+      const [finalResults, eventResults, overallResults] = resultsTuple || [
+        [],
+        [],
+        [],
+      ];
 
       const eventLeaderboardWithRaces = eventResults
         .map(processLeaderboardEntry)
@@ -512,7 +552,7 @@ export default function useLeaderboard(eventId) {
       setLeaderboard(mergedResults);
       setEditableLeaderboard(JSON.parse(JSON.stringify(mergedResults)));
     } catch (error) {
-      console.error('Error fetching leaderboard:', error.message);
+      reportError('Could not load leaderboard data.', error);
     } finally {
       setLoading(false);
     }
@@ -767,39 +807,71 @@ export default function useLeaderboard(eventId) {
 
       const originalSource =
         activeTab === 'event' ? eventLeaderboard : leaderboard;
-      for (const entry of updatedLeaderboard) {
-        const originalEntry = originalSource.find(
-          (e) => e.boat_id === entry.boat_id,
-        );
-        if (!originalEntry) continue;
 
-        for (let i = 0; i < entry.races.length; i++) {
-          const entryStatus = entry.race_statuses?.[i] || 'FINISHED';
-          const origStatus = originalEntry.race_statuses?.[i] || 'FINISHED';
-          // eslint-disable-next-line no-continue
-          if (
-            // eslint-disable-next-line eqeqeq
-            parseRaceNum(entry.races[i]) ===
-              parseRaceNum(originalEntry.races[i]) &&
-            entryStatus === origStatus
-          )
-            continue;
-          const race_id = entry.race_ids[i];
-          if (!race_id) {
-            console.error('Race ID is missing for entry:', entry);
-            continue;
-          }
-          const newPosition = parseRaceNum(entry.races[i]);
-          await window.electron.sqlite.heatRaceDB.updateRaceResult(
-            eventId,
-            race_id,
-            entry.boat_id,
-            newPosition,
-            shiftPositions,
-            entryStatus,
-          );
+      const updateOperations = updatedLeaderboard.flatMap((entry) => {
+        const originalEntry = originalSource.find(
+          (sourceEntry) => sourceEntry.boat_id === entry.boat_id,
+        );
+
+        if (!originalEntry) {
+          return [];
         }
+
+        return entry.races
+          .map((_race, raceIndex) => {
+            const entryStatus = entry.race_statuses?.[raceIndex] || 'FINISHED';
+            const origStatus =
+              originalEntry.race_statuses?.[raceIndex] || 'FINISHED';
+
+            const hasPositionChanged =
+              // eslint-disable-next-line eqeqeq
+              parseRaceNum(entry.races[raceIndex]) !=
+              parseRaceNum(originalEntry.races[raceIndex]);
+
+            if (!hasPositionChanged && entryStatus === origStatus) {
+              return null;
+            }
+
+            const raceId = entry.race_ids[raceIndex];
+            if (!raceId) {
+              return {
+                missingRaceId: true,
+                boatId: entry.boat_id,
+                raceIndex,
+              };
+            }
+
+            return {
+              raceId,
+              boatId: entry.boat_id,
+              newPosition: parseRaceNum(entry.races[raceIndex]),
+              entryStatus,
+            };
+          })
+          .filter(Boolean);
+      });
+
+      const missingRaceIdOperation = updateOperations.find(
+        (operation) => operation.missingRaceId,
+      );
+      if (missingRaceIdOperation) {
+        throw new Error(
+          `Cannot save race updates: missing race ID for boat ${missingRaceIdOperation.boatId}.`,
+        );
       }
+
+      await Promise.all(
+        updateOperations.map((operation) =>
+          window.electron.sqlite.heatRaceDB.updateRaceResult(
+            eventId,
+            operation.raceId,
+            operation.boatId,
+            operation.newPosition,
+            shiftPositions,
+            operation.entryStatus,
+          ),
+        ),
+      );
 
       await window.electron.sqlite.heatRaceDB.updateEventLeaderboard(eventId);
       if (finalSeriesStarted && activeTab !== 'event') {
@@ -809,7 +881,7 @@ export default function useLeaderboard(eventId) {
       await fetchLeaderboard();
       setEditMode(false);
     } catch (error) {
-      console.error('Error saving leaderboard:', error.message);
+      reportError('Could not save leaderboard changes.', error);
     }
   };
 
@@ -848,7 +920,10 @@ export default function useLeaderboard(eventId) {
         ...Array.from({ length: raceCount }, (_, i) => `Q${i + 1}`),
       ];
       const rows = (eventLeaderboard ?? []).map((e, i) => {
-        const grossTotal = (e.races ?? []).reduce((s, r) => s + parseScore(r), 0);
+        const grossTotal = (e.races ?? []).reduce(
+          (s, r) => s + parseScore(r),
+          0,
+        );
         const overall = e.computed_total ?? e.total_points_event;
         return [
           i + 1,
@@ -936,6 +1011,7 @@ export default function useLeaderboard(eventId) {
 
   const exportToExcel = async () => {
     const { header, sections } = buildExportData();
+    const { safeEventName, raceNumber, seriesLabel } = await getExportMeta();
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Leaderboard');
     worksheet.addRow(header);
@@ -947,13 +1023,17 @@ export default function useLeaderboard(eventId) {
     const blob = new Blob([buffer], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
-    saveAs(blob, 'leaderboard.xlsx');
+    saveAs(
+      blob,
+      `${safeEventName}_${seriesLabel}_${raceNumber}_leaderboard.xlsx`,
+    );
   };
 
   // ─── CSV export ──────────────────────────────────────────────────────────────
 
-  const exportToCSV = () => {
+  const exportToCSV = async () => {
     const { header, sections } = buildExportData();
+    const { safeEventName, raceNumber, seriesLabel } = await getExportMeta();
     const escape = (v) => {
       const s = String(v ?? '');
       return s.includes(',') || s.includes('"') || s.includes('\n')
@@ -968,13 +1048,17 @@ export default function useLeaderboard(eventId) {
     const blob = new Blob([lines.join('\n')], {
       type: 'text/csv;charset=utf-8;',
     });
-    saveAs(blob, 'leaderboard.csv');
+    saveAs(
+      blob,
+      `${safeEventName}_${seriesLabel}_${raceNumber}_leaderboard.csv`,
+    );
   };
 
   // ─── TXT export ──────────────────────────────────────────────────────────────
 
-  const exportToTXT = () => {
+  const exportToTXT = async () => {
     const { header, sections } = buildExportData();
+    const { safeEventName, raceNumber, seriesLabel } = await getExportMeta();
     const allRows = sections.flatMap(({ rows }) => rows);
     const colWidths = header.map((h, ci) =>
       Math.max(
@@ -998,13 +1082,17 @@ export default function useLeaderboard(eventId) {
     const blob = new Blob([lines.join('\n')], {
       type: 'text/plain;charset=utf-8;',
     });
-    saveAs(blob, 'leaderboard.txt');
+    saveAs(
+      blob,
+      `${safeEventName}_${seriesLabel}_${raceNumber}_leaderboard.txt`,
+    );
   };
 
   // ─── Markdown export ─────────────────────────────────────────────────────────
 
-  const exportToMarkdown = () => {
+  const exportToMarkdown = async () => {
     const { header, sections } = buildExportData();
+    const { safeEventName, raceNumber, seriesLabel } = await getExportMeta();
     const allRows = sections.flatMap(({ rows }) => rows);
     const colWidths = header.map((h, ci) =>
       Math.max(
@@ -1031,13 +1119,17 @@ export default function useLeaderboard(eventId) {
     const blob = new Blob([lines.join('\n')], {
       type: 'text/markdown;charset=utf-8;',
     });
-    saveAs(blob, 'leaderboard.md');
+    saveAs(
+      blob,
+      `${safeEventName}_${seriesLabel}_${raceNumber}_leaderboard.md`,
+    );
   };
 
   // ─── HTML export ─────────────────────────────────────────────────────────────
 
-  const exportToHTML = () => {
+  const exportToHTML = async () => {
     const { header, sections } = buildExportData();
+    const { safeEventName, raceNumber, seriesLabel } = await getExportMeta();
     const thCells = header.map((h) => `<th>${h}</th>`).join('');
     let tableBody = '';
     sections.forEach(({ title, rows }) => {
@@ -1072,13 +1164,17 @@ export default function useLeaderboard(eventId) {
 </body>
 </html>`;
     const blob = new Blob([html], { type: 'text/html;charset=utf-8;' });
-    saveAs(blob, 'leaderboard.html');
+    saveAs(
+      blob,
+      `${safeEventName}_${seriesLabel}_${raceNumber}_leaderboard.html`,
+    );
   };
 
   // ─── PDF export ──────────────────────────────────────────────────────────────
 
-  const exportToPDF = () => {
+  const exportToPDF = async () => {
     const { header, sections } = buildExportData();
+    const { safeEventName, raceNumber, seriesLabel } = await getExportMeta();
     // eslint-disable-next-line new-cap
     const doc = new jsPDF({ orientation: 'landscape' });
     doc.setFontSize(14);
@@ -1104,7 +1200,7 @@ export default function useLeaderboard(eventId) {
       });
       startY = doc.lastAutoTable.finalY + 10;
     });
-    doc.save('leaderboard.pdf');
+    doc.save(`${safeEventName}_${seriesLabel}_${raceNumber}_leaderboard.pdf`);
   };
 
   // ─── Unified export dispatcher ───────────────────────────────────────────────

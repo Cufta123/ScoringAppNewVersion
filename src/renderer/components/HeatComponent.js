@@ -2,13 +2,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import Flag from 'react-world-flags';
 import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
+import printStartingList from '../utils/printStartingList';
+import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
 
 function HeatComponent({
   event,
-  onHeatSelect = () => {},
-  onStartScoring = null,
+  onHeatSelect,
+  onStartScoring,
   clickable,
-  onQualifyingGroupCountChange = null,
+  onQualifyingGroupCountChange,
 }) {
   const [heats, setHeats] = useState([]);
   const [numHeats, setNumHeats] = useState(5); // Default number of heats
@@ -20,6 +22,7 @@ function HeatComponent({
   const [showFinalConfirm, setShowFinalConfirm] = useState(false);
   const [pendingFinalHeats, setPendingFinalHeats] = useState(0);
   const [numQualifyingGroups, setNumQualifyingGroups] = useState(0);
+  const [startingListFormat, setStartingListFormat] = useState('excel');
 
   const handleDisplayHeats = useCallback(async () => {
     try {
@@ -59,7 +62,7 @@ function HeatComponent({
       );
       setNumQualifyingGroups(qualifyingGroups.size);
     } catch (error) {
-      // Handle error appropriately
+      reportError('Could not load heats for this event.', error);
       setHeats([]);
       setHeatsCreated(false);
     }
@@ -81,7 +84,7 @@ function HeatComponent({
         setFinalSeriesStarted(true);
       }
     } catch (error) {
-      console.error('Error checking final series:', error);
+      reportError('Could not check final series status.', error);
     }
   }, [event.event_id]);
 
@@ -161,41 +164,48 @@ function HeatComponent({
       const extraBoats = adjustedLeaderboard.length % numFinalHeats;
 
       const fleetNames = ['Gold', 'Silver', 'Bronze', 'Copper'];
-      const fleetPromises = [];
+      const fleetDefinitions = Array.from(
+        { length: numFinalHeats },
+        (_value, index) => ({
+          index,
+          fleetName: fleetNames[index] || `Fleet ${index + 1}`,
+          boatsInThisFleet: boatsPerFleet + (index < extraBoats ? 1 : 0),
+        }),
+      );
+
+      const heatInsertResults = await Promise.all(
+        fleetDefinitions.map((fleetDefinition) =>
+          window.electron.sqlite.heatRaceDB.insertHeat(
+            event.event_id,
+            `Final ${fleetDefinition.fleetName}`,
+            'Final',
+          ),
+        ),
+      );
 
       let boatIndex = 0;
-      for (let i = 0; i < numFinalHeats; i += 1) {
-        const fleetName = fleetNames[i] || `Fleet ${i + 1}`;
-        const heatName = `Final ${fleetName}`;
-        const heatType = 'Final';
-
-        // Insert new heat for the final series
-        const { lastInsertRowid: newHeatId } =
-          await window.electron.sqlite.heatRaceDB.insertHeat(
-            event.event_id,
-            heatName,
-            heatType,
-          );
-
-        const boatsInThisFleet = boatsPerFleet + (i < extraBoats ? 1 : 0);
-        for (let j = 0; j < boatsInThisFleet; j += 1) {
-          fleetPromises.push(
-            window.electron.sqlite.heatRaceDB.insertHeatBoat(
-              newHeatId,
-              adjustedLeaderboard[boatIndex].boat_id,
-            ),
-          );
-          boatIndex += 1;
-        }
-      }
+      const fleetPromises = fleetDefinitions.flatMap((fleetDefinition) => {
+        const newHeatId =
+          heatInsertResults[fleetDefinition.index].lastInsertRowid;
+        const boatsSlice = adjustedLeaderboard.slice(
+          boatIndex,
+          boatIndex + fleetDefinition.boatsInThisFleet,
+        );
+        boatIndex += fleetDefinition.boatsInThisFleet;
+        return boatsSlice.map((boat) =>
+          window.electron.sqlite.heatRaceDB.insertHeatBoat(
+            newHeatId,
+            boat.boat_id,
+          ),
+        );
+      });
 
       await Promise.all(fleetPromises);
       setFinalSeriesStarted(true);
-      alert('Final Series started successfully!');
+      reportInfo('Final Series started successfully!', 'Success');
       handleDisplayHeats();
     } catch (error) {
-      console.error('Error starting final series:', error);
-      alert('Error starting final series. Please try again later.');
+      reportError('Could not start final series.', error);
     }
   };
 
@@ -220,10 +230,11 @@ function HeatComponent({
       if (numFinalHeats < 2) {
         // Should not be reachable because the button is hidden when numQualifyingGroups < 2,
         // but guard just in case.
-        alert(
+        reportInfo(
           numFinalHeats === 0
             ? 'No qualifying heats found. Please create heats before starting the Final Series.'
             : 'With only one heat the event is a single-fleet event (SHRS 1.1) — no Final Series applies.',
+          'Cannot start final series',
         );
         return;
       }
@@ -255,14 +266,16 @@ function HeatComponent({
         const breakdown = raceCounts
           .map((r) => `${r.name}: ${r.count} race(s)`)
           .join('\n');
-        alert(
+        reportInfo(
           `Cannot start the Final Series — not all heats have the same number of races:\n\n${breakdown}\n\nFinish the current round first.`,
+          'Cannot start final series',
         );
         return;
       }
       if (uniqueCounts[0] === 0) {
-        const proceed = window.confirm(
+        const proceed = confirmAction(
           'No qualifying races have been completed yet. Boats will be assigned to fleets based on their initial seeding only.\n\nStart the Final Series anyway?',
+          'Start Final Series',
         );
         if (!proceed) return;
       }
@@ -270,14 +283,19 @@ function HeatComponent({
       setPendingFinalHeats(numFinalHeats);
       setShowFinalConfirm(true);
     } catch (error) {
-      console.error('Error checking heats for final series:', error);
-      alert('Error checking heats. Please try again.');
+      reportError(
+        'Could not validate heats before starting final series.',
+        error,
+      );
     }
   };
 
   const handleCreateHeats = async () => {
     if (raceHappened || finalSeriesStarted) {
-      alert('Cannot create heats after a race has happened.');
+      reportInfo(
+        'Cannot create heats after a race has happened.',
+        'Action blocked',
+      );
       return;
     }
 
@@ -289,7 +307,7 @@ function HeatComponent({
         await window.electron.sqlite.heatRaceDB.readAllHeats(event.event_id);
 
       if (existingHeats.length > 0) {
-        alert('Heats already exist for this event.');
+        reportInfo('Heats already exist for this event.', 'Action blocked');
         setHeatsCreated(true);
         return;
       }
@@ -346,18 +364,20 @@ function HeatComponent({
 
       await Promise.all(heatBoatPromises);
 
-      alert('Heats created successfully!');
+      reportInfo('Heats created successfully!', 'Success');
       setHeatsCreated(true);
       handleDisplayHeats(); // Refresh the heats display
     } catch (error) {
-      console.error('Error creating heats:', error);
-      alert('Error creating heats. Please try again later.');
+      reportError('Could not create heats.', error);
     }
   };
 
   const handleRecreateHeats = async () => {
     if (raceHappened || finalSeriesStarted) {
-      alert('Cannot recreate heats after a race has happened.');
+      reportInfo(
+        'Cannot recreate heats after a race has happened.',
+        'Action blocked',
+      );
       return;
     }
 
@@ -367,8 +387,7 @@ function HeatComponent({
       );
       await handleCreateHeats();
     } catch (error) {
-      console.error('Error recreating heats:', error);
-      console.error('Error recreating heats. Please try again later.');
+      reportError('Could not recreate heats.', error);
     }
   };
 
@@ -399,7 +418,7 @@ function HeatComponent({
     const heatGroups = heatsList.reduce((acc, heat) => {
       const match = heat.heat_name.match(/([A-Z]+)(\d*)$/);
       if (match) {
-        const [_, group, suffix] = match;
+        const [, group, suffix] = match;
         const suffixNumber = suffix ? parseInt(suffix, 10) : 0;
         if (!acc[group] || acc[group] < suffixNumber) {
           acc[group] = suffixNumber;
@@ -411,7 +430,7 @@ function HeatComponent({
     return heats.filter((heat) => {
       const match = heat.heat_name.match(/([A-Z]+)(\d*)$/);
       if (match) {
-        const [_, group, suffix] = match;
+        const [, group, suffix] = match;
         const suffixNumber = suffix ? parseInt(suffix, 10) : 0;
         return suffixNumber === heatGroups[group];
       }
@@ -428,7 +447,10 @@ function HeatComponent({
 
   const handleBoatTransfer = async (boat, fromHeatId, toHeatId) => {
     if (raceHappened || finalSeriesStarted) {
-      alert('Cannot transfer boats after a race has happened.');
+      reportInfo(
+        'Cannot transfer boats after a race has happened.',
+        'Action blocked',
+      );
       return;
     }
 
@@ -438,11 +460,10 @@ function HeatComponent({
         toHeatId,
         boat.boat_id,
       );
-      alert('Boat transferred successfully!');
+      reportInfo('Boat transferred successfully!', 'Success');
       handleDisplayHeats(); // Refresh the heats display
     } catch (error) {
-      console.error('Error transferring boat:', error);
-      alert('Error transferring boat. Please try again later.');
+      reportError('Could not transfer boat between heats.', error);
     }
   };
 
@@ -462,6 +483,21 @@ function HeatComponent({
 
   const handleDragOver = (e) => {
     e.preventDefault();
+  };
+
+  const handleExportStartingList = async () => {
+    try {
+      const boats = await window.electron.sqlite.eventDB.readBoatsByEvent(
+        event.event_id,
+      );
+      await printStartingList(
+        event,
+        Array.isArray(boats) ? boats : [],
+        startingListFormat,
+      );
+    } catch (_) {
+      reportError('Could not export starting list.', _);
+    }
   };
 
   const heatsContainerStyle = {}; // handled by .heats-container CSS class
@@ -630,6 +666,31 @@ function HeatComponent({
             {displayLastHeats ? 'Show All Heats' : 'Show Last Heats'}
           </button>
         )}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
+          <select
+            aria-label="Starting list format"
+            value={startingListFormat}
+            onChange={(e) => setStartingListFormat(e.target.value)}
+            style={{ minWidth: '90px' }}
+          >
+            <option value="excel">Excel</option>
+            <option value="pdf">PDF</option>
+            <option value="html">HTML</option>
+          </select>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={handleExportStartingList}
+          >
+            Starting List
+          </button>
+        </div>
       </div>
 
       {heatsToDisplay.length > 0 && (
@@ -766,6 +827,12 @@ HeatComponent.propTypes = {
   onStartScoring: PropTypes.func,
   onQualifyingGroupCountChange: PropTypes.func,
   clickable: PropTypes.bool.isRequired,
+};
+
+HeatComponent.defaultProps = {
+  onHeatSelect: () => {},
+  onStartScoring: null,
+  onQualifyingGroupCountChange: null,
 };
 
 export default HeatComponent;

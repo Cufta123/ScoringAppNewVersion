@@ -4,6 +4,7 @@ import Flag from 'react-world-flags';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
+import { reportError } from '../utils/userFeedback';
 
 function GlobalLeaderboardComponent() {
   const [leaderboard, setLeaderboard] = useState([]);
@@ -28,7 +29,7 @@ function GlobalLeaderboardComponent() {
 
           setLeaderboard(mappedLeaderboard);
       } catch (error) {
-        console.error('Error fetching 1global leaderboard:', error.message);
+        reportError('Could not load global leaderboard.', error);
       } finally {
         setLoading(false);
       }

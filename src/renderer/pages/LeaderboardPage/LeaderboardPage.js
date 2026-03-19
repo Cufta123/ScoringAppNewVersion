@@ -133,7 +133,6 @@ function LeaderboardContent({ eventId }) {
           rdgMeta={rdgMeta}
         />
       )}
-
     </div>
   );
 }

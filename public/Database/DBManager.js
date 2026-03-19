@@ -60,13 +60,71 @@ const initializeSchema = () => {
   const createBoatsTable = `
     CREATE TABLE IF NOT EXISTS Boats (
       boat_id INTEGER PRIMARY KEY AUTOINCREMENT,
-      sail_number INTEGER NOT NULL UNIQUE,
+      sail_number INTEGER NOT NULL,
       country TEXT NOT NULL,
       model TEXT NOT NULL,
       sailor_id INTEGER,
       FOREIGN KEY (sailor_id) REFERENCES Sailors(sailor_id)
     );
   `;
+
+  const hasUniqueSailNumberConstraint = () => {
+    const indexList = db.prepare("PRAGMA index_list('Boats')").all();
+    return indexList.some((indexRow) => {
+      if (!indexRow.unique) return false;
+      const quotedIndexName = `"${String(indexRow.name).replace(/"/g, '""')}"`;
+      const indexInfo = db
+        .prepare(`PRAGMA index_info(${quotedIndexName})`)
+        .all();
+      return indexInfo.some((columnRow) => columnRow.name === 'sail_number');
+    });
+  };
+
+  const migrateBoatsTableToAllowDuplicateSailNumbers = () => {
+    if (!hasUniqueSailNumberConstraint()) {
+      return;
+    }
+
+    console.log(
+      'Migrating Boats table: removing UNIQUE constraint from sail_number...',
+    );
+
+    db.pragma('foreign_keys = OFF');
+    try {
+      const migration = db.transaction(() => {
+        db.exec(`
+          CREATE TABLE Boats_tmp (
+            boat_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sail_number INTEGER NOT NULL,
+            country TEXT NOT NULL,
+            model TEXT NOT NULL,
+            sailor_id INTEGER,
+            FOREIGN KEY (sailor_id) REFERENCES Sailors(sailor_id)
+          );
+        `);
+
+        db.exec(`
+          INSERT INTO Boats_tmp (boat_id, sail_number, country, model, sailor_id)
+          SELECT boat_id, sail_number, country, model, sailor_id
+          FROM Boats;
+        `);
+
+        db.exec('DROP TABLE Boats;');
+        db.exec('ALTER TABLE Boats_tmp RENAME TO Boats;');
+
+        db.exec(`
+          INSERT OR REPLACE INTO sqlite_sequence(name, seq)
+          VALUES ('Boats', COALESCE((SELECT MAX(boat_id) FROM Boats), 0));
+        `);
+      });
+
+      migration();
+    } finally {
+      db.pragma('foreign_keys = ON');
+    }
+
+    console.log('Boats table migration completed.');
+  };
 
   const createClubsTable = `
     CREATE TABLE IF NOT EXISTS Clubs (
@@ -188,6 +246,7 @@ const initializeSchema = () => {
     console.log('Creating Boats table...');
     db.exec(createBoatsTable);
     console.log('Boats table created or already exists.');
+    migrateBoatsTableToAllowDuplicateSailNumbers();
 
     console.log('Creating Clubs table...');
     db.exec(createClubsTable);
