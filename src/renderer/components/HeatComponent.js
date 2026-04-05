@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import Flag from 'react-world-flags';
 import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
-import printStartingList from '../utils/printStartingList';
+import printNewHeats from '../utils/printNewHeats';
 import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
 
 function HeatComponent({
@@ -22,7 +22,7 @@ function HeatComponent({
   const [showFinalConfirm, setShowFinalConfirm] = useState(false);
   const [pendingFinalHeats, setPendingFinalHeats] = useState(0);
   const [numQualifyingGroups, setNumQualifyingGroups] = useState(0);
-  const [startingListFormat, setStartingListFormat] = useState('excel');
+  const [newHeatsFormat, setNewHeatsFormat] = useState('excel');
 
   const handleDisplayHeats = useCallback(async () => {
     try {
@@ -440,6 +440,9 @@ function HeatComponent({
 
   const heatsToDisplay = displayLastHeats ? getLastHeats(heats) : heats;
   const hasMultipleRounds = heats.length > getLastHeats(heats).length;
+  const isFinalSeriesView =
+    heatsToDisplay.length > 0 &&
+    heatsToDisplay.every((heat) => heat.heat_type === 'Final');
 
   const getFlagCode = (iocCode) => {
     return iocToFlagCodeMap[iocCode] || iocCode;
@@ -485,18 +488,11 @@ function HeatComponent({
     e.preventDefault();
   };
 
-  const handleExportStartingList = async () => {
+  const handleExportNewHeats = async () => {
     try {
-      const boats = await window.electron.sqlite.eventDB.readBoatsByEvent(
-        event.event_id,
-      );
-      await printStartingList(
-        event,
-        Array.isArray(boats) ? boats : [],
-        startingListFormat,
-      );
-    } catch (_) {
-      reportError('Could not export starting list.', _);
+      await printNewHeats(event, heatsToDisplay, newHeatsFormat);
+    } catch (error) {
+      reportError('Could not export visible heats.', error);
     }
   };
 
@@ -674,10 +670,10 @@ function HeatComponent({
           }}
         >
           <select
-            aria-label="Starting list format"
-            value={startingListFormat}
-            onChange={(e) => setStartingListFormat(e.target.value)}
-            style={{ minWidth: '90px' }}
+            className="compact-select"
+            aria-label="New heats format"
+            value={newHeatsFormat}
+            onChange={(e) => setNewHeatsFormat(e.target.value)}
           >
             <option value="excel">Excel</option>
             <option value="pdf">PDF</option>
@@ -686,9 +682,10 @@ function HeatComponent({
           <button
             type="button"
             className="btn-ghost"
-            onClick={handleExportStartingList}
+            onClick={handleExportNewHeats}
+            disabled={heatsToDisplay.length === 0}
           >
-            Starting List
+            {isFinalSeriesView ? 'Print Final Series Heats' : 'Print New Heats'}
           </button>
         </div>
       </div>

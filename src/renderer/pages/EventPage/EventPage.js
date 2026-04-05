@@ -13,6 +13,7 @@ import SailorImport from '../../components/SailorImport';
 import Navbar from '../../components/Navbar';
 import './EventPage.css';
 import HeatComponent from '../../components/HeatComponent';
+import printStartingList from '../../utils/printStartingList';
 import { reportError } from '../../utils/userFeedback';
 
 function EventPage() {
@@ -40,6 +41,7 @@ function EventPage() {
   }, [addSailorMode]);
   const [raceHappened, setRaceHappened] = useState(false);
   const [isEventLocked, setIsEventLocked] = useState(event.is_locked === 1);
+  const [startingListFormat, setStartingListFormat] = useState('excel');
 
   const fetchBoatsWithSailors = useCallback(async () => {
     try {
@@ -160,6 +162,20 @@ function EventPage() {
 
   const handleOpenLeaderboard = () => {
     navigate(`/event/${event.event_name}/leaderboard`, { state: { event } });
+  };
+
+  const handlePrintStartingList = async () => {
+    try {
+      const boatsForEvent =
+        await window.electron.sqlite.eventDB.readBoatsByEvent(event.event_id);
+      await printStartingList(
+        event,
+        Array.isArray(boatsForEvent) ? boatsForEvent : [],
+        startingListFormat,
+      );
+    } catch (error) {
+      reportError('Could not export starting list.', error);
+    }
   };
 
   const handleRemoveBoat = async (boatId) => {
@@ -397,6 +413,34 @@ function EventPage() {
 
         {/* ── Sailors list ─── */}
         <div className="section-block">
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-start',
+              alignItems: 'center',
+              gap: '8px',
+              marginBottom: '12px',
+            }}
+          >
+            <select
+              className="compact-select"
+              aria-label="Starting list format"
+              value={startingListFormat}
+              onChange={(e) => setStartingListFormat(e.target.value)}
+            >
+              <option value="excel">Excel</option>
+              <option value="pdf">PDF</option>
+              <option value="html">HTML</option>
+            </select>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={handlePrintStartingList}
+              disabled={!Array.isArray(boats) || boats.length === 0}
+            >
+              Print Starting List
+            </button>
+          </div>
           <SailorList
             sailors={Array.isArray(boats) ? boats : []}
             onRemoveBoat={handleRemoveBoat}

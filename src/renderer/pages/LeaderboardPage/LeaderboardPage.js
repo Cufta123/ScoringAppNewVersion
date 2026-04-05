@@ -92,18 +92,36 @@ function LeaderboardContent({ eventId }) {
           <SectionDivider label="Final Series" marginTop="20px" />
 
           {!hasFinalData ? (
-            <div
-              style={{
-                padding: '24px',
-                color: '#666',
-                textAlign: 'center',
-                border: '1px solid var(--border,#dde3ea)',
-                borderRadius: '10px',
-              }}
-            >
-              The final series has been created but no races have been scored
-              yet.
-            </div>
+            <>
+              <div
+                style={{
+                  padding: '24px',
+                  color: '#666',
+                  textAlign: 'center',
+                  border: '1px solid var(--border,#dde3ea)',
+                  borderRadius: '10px',
+                  marginBottom: '16px',
+                }}
+              >
+                The final series has been created but no races have been scored
+                yet.
+              </div>
+
+              {/* Keep qualifying standings visible until first final race exists. */}
+              <QualifyingTable
+                leaderboard={eventLeaderboard}
+                editMode={false}
+                compareMode={false}
+                selectedBoatIds={[]}
+                compareInfo={null}
+                rdg2Picker={null}
+                setRdg2Picker={setRdg2Picker}
+                onCompareRowClick={() => {}}
+                onRaceChange={handleRaceChange}
+                confirmRdg2={confirmRdg2}
+                getFlagCode={getFlagCode}
+              />
+            </>
           ) : (
             sortedGroups.map((group) => (
               <FinalFleetTable

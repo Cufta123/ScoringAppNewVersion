@@ -230,7 +230,7 @@ describe('checkRaceCountForLatestHeats', () => {
     ];
     const db = makeDb({ 1: 5, 2: 6 });
     expect(() => checkRaceCountForLatestHeats(heats, db)).toThrow(
-      'Latest heats do not have the same number of races.',
+      'Not all heats have the same number of races yet',
     );
   });
 

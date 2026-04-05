@@ -184,6 +184,15 @@ input:focus, select:focus, textarea:focus {
 }
 input::placeholder { color: var(--text-muted); }
 
+/* Compact control variant for inline toolbar selects. */
+select.compact-select {
+  width: auto;
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+}
+
 label {
   display: block;
   font-size: .82rem;
