@@ -1,138 +1,85 @@
+# IOM Regatta Manager
 
+Desktop app for running and scoring IOM regattas (Electron + React).
 
----
+## Requirements
 
-```markdown
-# IOM SailScore (Electron + React)
+- Windows 10/11
+- Node.js 20.x or newer
+- npm 10.x or newer
 
-A modern, fast desktop application for managing and scoring International One Metre (IOM) sailing regattas.
+## Project Root
 
-## Prerequisites
+Run all commands from:
 
-- Node.js 20+
-- npm 10+
-- macOS / Linux / Windows
+```cmd
+C:\Users\anton\OneDrive\Documents\GitHub\ScoringAppNewVersion
+```
 
-## First-time setup (recommended)
+## Install Dependencies
 
-Run these commands from the project root (the folder that contains `package.json`):
+```cmd
+npm install
+```
 
-```bash
-npm install --ignore-scripts
-npm run postinstall
+## Run in Development
+
+```cmd
+npm start
+```
+
+If `npm start` fails because old build artifacts are missing/corrupt, run:
+
+```cmd
 npm run build:dll
-
-```
-
-Then start development:
-
-```bash
 npm start
-
 ```
 
-## Daily start
+## Build / Package for Windows
 
-From the project root:
+Standard build command:
 
-```bash
-npm start
-
-```
-
-> **Note:** Do not run `npm start` inside the `release/app` subfolder (that subfolder does not define a `start` script).
-
-## Building for Production
-
-To create a standalone executable (`.exe`) with your custom app name and icon, run the following command from the project root:
-
-```bash
+```cmd
 npm run package
-
 ```
 
-Once the build finishes, you can find your compiled application in the `release/build/` folder.
+This creates installers and unpacked app inside:
 
-* **Portable version:** Look inside the `win-unpacked` folder for your `.exe`.
-* **Installer:** Look for the generated `Setup.exe` file in the `release/build/` folder.
-*(Remember to move these files out of any cloud-synced folders like OneDrive before running them to prevent database lock errors).*
+- `release\\build`
+- `release\\build\\win-unpacked`
 
-## Testing
+## Build as Administrator (CMD)
 
-Run tests from the project root.
+If you want an elevated build every time, use:
 
-### Recommended (unit tests)
-
-```bash
-npm test
-
+```cmd
+scripts\\package-admin.cmd
 ```
 
-`npm test` runs the unit test configuration (`jest.unit.config.ts`) and does not require a full Electron build.
+What this script does:
 
-You can run the same suite explicitly with:
+1. Requests Administrator rights (UAC prompt) if not already elevated.
+2. Runs `npm install`.
+3. Removes old `release\\build` output.
+4. Runs `npm run package`.
 
-```bash
-npm run test:unit
+## Build Outputs
 
-```
+After a successful package run, check:
 
-### Run one test file
+- Installer: `release\\build\\IOM Regatta Manager Setup <version>.exe`
+- Unpacked app folder: `release\\build\\win-unpacked`
 
-```bash
-npx jest --config jest.unit.config.ts src/__tests__/calculateBoatScores.test.ts --no-coverage
-npx jest --config jest.unit.config.ts src/__tests__/calculateFinalBoatScores.test.ts --no-coverage
-npx jest --config jest.unit.config.ts src/__tests__/creatingNewHeatsUtils.test.ts --no-coverage
+If you also see old files like `Scoring App Setup ...`, they are leftovers from previous naming/builds. Delete `release\\build` and package again.
 
-```
+## Useful Commands
 
-## What is covered
+- `npm test` or `npm run test:unit`: run unit tests
+- `npm run lint`: lint source files
+- `npm run lint:fix`: auto-fix lint issues
 
-* **`calculateBoatScores`**:
-* Score exclusion thresholds
-* A81 and A82 tie-breaking rules
-* Ranking/place assignment
+## Troubleshooting
 
-
-* **`calculateFinalBoatScores`**:
-* Final-group ranking (Gold/Silver/Bronze)
-* A81 and A82 tie-breaking inside groups
-* Large-group stress tests
-
-
-* **`creatingNewHeatsUtls`**:
-* Zig-zag and round-robin heat assignment
-* Heat suffix parsing / next-heat name generation
-* Race-count consistency checks
-
-
-
-## Large group scenarios (20+ participants)
-
-The final leaderboard tests include high-participant scenarios to guard complex group logic:
-
-* 25 participants in each of Gold, Silver, and Bronze groups
-* 24 participants in Gold with tie-break verification under load
-
-These checks verify:
-
-* Stable sorting by points
-* Consecutive places (`1..N`) with no gaps
-* Correct A81/A82 tie resolution in large groups
-
-### Optional full Jest run
-
-```bash
-npm run test:full
-
-```
-
-This uses the default Jest config and may require extra build/transpile compatibility for renderer dependencies.
-
-```
-
-***
-
-Now that you have a working, branded executable, would you like to test building an actual installer (`Setup.exe`) so you can distribute it easily to other race committee members?
-
-```
+- `Missing script: start`: make sure you are in the project root (folder with this `README.md` and `package.json`).
+- Packaging errors on native modules: run `npm install` again, then `npm run package`.
+- Permission issues writing build files: use `scripts\\package-admin.cmd`.
