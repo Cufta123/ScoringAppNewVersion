@@ -186,6 +186,33 @@ describe('Tie-breaking A82 within final group', () => {
   });
 });
 
+describe('A8.1 regression in final group', () => {
+  it('does not use excluded scores in A8.1 for standard final-group ties', () => {
+    setupMockDb(
+      {
+        boatA: [10, 10, 3, 2, 2, 1, 1, 1],
+        boatB: [4, 4, 3, 2, 2, 1, 1, 1],
+      },
+      {
+        boatA: [1, 1, 1, 2, 2, 3, 10, 10],
+        boatB: [2, 1, 1, 2, 2, 3, 4, 4],
+      },
+    );
+
+    const groupTables = calculateFinalBoatScores(
+      [
+        makeResult('boatA', 'Final Gold'),
+        makeResult('boatB', 'Final Gold'),
+      ],
+      1,
+    );
+    const gold = groupTables.get('Gold')!;
+    const byBoat = Object.fromEntries(gold.map((b) => [b.boat_id, b.place]));
+    expect(byBoat.boatA).toBe(1);
+    expect(byBoat.boatB).toBe(2);
+  });
+});
+
 // ─── Total Points Stored ─────────────────────────────────────────────────────
 
 describe('totalPoints stored in group table', () => {

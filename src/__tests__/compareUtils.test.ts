@@ -19,7 +19,8 @@ describe('getOtherTiedCount', () => {
       totalA: 12,
       totalB: 12,
       finalSeriesStarted: true,
-      getTotal: (entry) => entry.total_points_combined,
+      getTotal: (entry: { total_points_combined: number }) =>
+        entry.total_points_combined,
     });
 
     expect(count).toBe(0);
@@ -40,7 +41,6 @@ describe('getNextCompareSelection', () => {
       compareMode: true,
       finalSeriesStarted: true,
       allEntries,
-      clickedPlacementGroup: 'Silver',
     });
 
     expect(next).toEqual([33]);

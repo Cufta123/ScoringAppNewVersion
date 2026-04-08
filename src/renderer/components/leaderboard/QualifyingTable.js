@@ -166,7 +166,8 @@ function QualifyingTable({
           <tbody>
             {leaderboard.map((entry, index) => {
               const isSelected = selectedBoatIds.includes(entry.boat_id);
-              const grossTotal = (entry.races || []).reduce((sum, r) => {
+              const grossSource = entry.race_points || entry.races || [];
+              const grossTotal = grossSource.reduce((sum, r) => {
                 const v = parseFloat(String(r).replace(/[()]/g, ''));
                 return sum + (Number.isNaN(v) ? 0 : v);
               }, 0);

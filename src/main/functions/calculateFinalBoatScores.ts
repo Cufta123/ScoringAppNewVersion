@@ -13,18 +13,57 @@ interface TemporaryTableEntry {
   place?: number;
 }
 
+interface TieCandidate {
+  boat_id: string;
+  heat_name: string;
+  keptScores: number[];
+}
+
+interface ScoreEntry {
+  race_id: number;
+  race_number: number;
+  points: number;
+  status: string;
+}
+
+const nonExcludableStatuses = new Set(['DNE', 'DGM']);
+
 function getScoresForA81(event_id: any, boat_id: any, heat_name: any) {
   const scoresQuery = db.prepare(`
-    SELECT points
-    FROM Scores
-    JOIN Races ON Scores.race_id = Races.race_id
-    JOIN Heats ON Races.heat_id = Heats.heat_id
-    WHERE Heats.event_id = ? AND Scores.boat_id = ? AND Heats.heat_type = 'Final' AND Heats.heat_name = ?
-    ORDER BY points DESC
+    SELECT s.points, COALESCE(s.status, 'FINISHED') as status, s.race_id, r.race_number
+    FROM Scores s
+    JOIN Races r ON s.race_id = r.race_id
+    JOIN Heats h ON r.heat_id = h.heat_id
+    WHERE h.event_id = ? AND s.boat_id = ? AND h.heat_type = 'Final' AND h.heat_name = ?
+    ORDER BY points DESC, r.race_number ASC, s.race_id ASC
   `);
-  return scoresQuery
-    .all(event_id, boat_id, heat_name)
-    .map((row: { points: any }) => row.points);
+  return scoresQuery.all(event_id, boat_id, heat_name) as ScoreEntry[];
+}
+
+function getKeptScores(entries: ScoreEntry[], excludeCount: number): number[] {
+  if (excludeCount <= 0) {
+    return entries.map((entry) => entry.points);
+  }
+
+  const candidates = entries
+    .map((entry, idx) => ({ entry, idx }))
+    .filter(
+      ({ entry }) => !nonExcludableStatuses.has(String(entry.status).toUpperCase()),
+    )
+    .sort(
+      (left, right) =>
+        right.entry.points - left.entry.points ||
+        left.entry.race_number - right.entry.race_number ||
+        left.entry.race_id - right.entry.race_id,
+    );
+
+  const excludedIndexes = new Set(
+    candidates.slice(0, excludeCount).map(({ idx }) => idx),
+  );
+
+  return entries
+    .filter((_entry, idx) => !excludedIndexes.has(idx))
+    .map((entry) => entry.points);
 }
 
 function getScoresForA82(event_id: any, boat_id: any, heat_name: any) {
@@ -80,12 +119,12 @@ export default function calculateFinalBoatScores(
     }
 
     // Fetch scores sorted DESC (worst first) and apply exclusions per SHRS 5.4
-    const scores = getScoresForA81(event_id, boat_id, heat_name);
-    const numberOfRaces = scores.length;
+    const scoreEntries = getScoresForA81(event_id, boat_id, heat_name);
+    const numberOfRaces = scoreEntries.length;
     const excludeCount = getExcludeCount(numberOfRaces);
 
-    // Exclude the worst scores (scores are already sorted DESC)
-    const scoresToInclude = scores.slice(excludeCount);
+    // Exclude worst excludable scores (DNE/DGM are never excluded)
+    const scoresToInclude = getKeptScores(scoreEntries, excludeCount);
     const totalPoints = scoresToInclude.reduce(
       (acc: number, score: number) => acc + score,
       0,
@@ -114,21 +153,29 @@ export default function calculateFinalBoatScores(
 
     Object.entries(boatsWithSamePoints).forEach(([totalPoints, boatIds]) => {
       if (boatIds.length > 1) {
-        const sortedScores = boatIds.map((boat_id) => {
+        const sortedScores: TieCandidate[] = boatIds.map((boat_id) => {
           const boatHeatName =
             results.find((row) => row.boat_id === boat_id)?.heat_name ??
             `Final ${groupName}`;
-          const scores = getScoresForA81(event_id, boat_id, boatHeatName);
+          const scoreEntries = getScoresForA81(event_id, boat_id, boatHeatName);
+          const excludeCount = getExcludeCount(scoreEntries.length);
+          const keptScores = getKeptScores(scoreEntries, excludeCount).sort(
+            (a: number, b: number) => a - b,
+          );
           return {
             boat_id,
             heat_name: boatHeatName,
-            scores: scores.sort((a: number, b: number) => a - b),
+            keptScores,
           };
         });
 
         // A8.1: Compare best individual scores, then A8.2 (last race backward)
         sortedScores.sort((a, b) => {
-          const initialComparison = compareA81Scores(a.scores, b.scores);
+          // Standard A8.1: excluded scores are NOT used.
+          const initialComparison = compareA81Scores(
+            a.keptScores,
+            b.keptScores,
+          );
 
           if (initialComparison !== 0) return initialComparison;
 
@@ -143,7 +190,7 @@ export default function calculateFinalBoatScores(
               return scoreA - scoreB;
             }
           }
-          return 0;
+          return String(a.boat_id).localeCompare(String(b.boat_id));
         });
 
         sortedScores.forEach((boat, index) => {

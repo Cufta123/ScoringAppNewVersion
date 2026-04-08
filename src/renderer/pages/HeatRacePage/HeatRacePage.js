@@ -122,6 +122,11 @@ function HeatRacePage() {
           heatType,
         );
       const penaltyPlace = (maxHeatSize || placeNumbers.length) + 1;
+      const scoringPenaltyPlaces = Math.max(
+        Math.floor((maxHeatSize || placeNumbers.length) * 0.2 + 0.5),
+        2,
+      );
+      const scoringPenaltyStatuses = new Set(['ZFP', 'SCP']);
 
       const { lastInsertRowid: raceId } =
         await window.electron.sqlite.heatRaceDB.insertRace(
@@ -129,22 +134,37 @@ function HeatRacePage() {
           nextRaceNumber,
         );
 
+      const boats = await window.electron.sqlite.heatRaceDB.readBoatsByHeat(
+        selectedHeat.heat_id,
+      );
+
       const scorePromises = placeNumbers.map(
         async ({ boatNumber, place, status }) => {
-          const boats = await window.electron.sqlite.heatRaceDB.readBoatsByHeat(
-            selectedHeat.heat_id,
-          );
           const boatDetails = boats.find(
             (boat) => boat.sail_number === boatNumber,
           );
           if (boatDetails) {
-            // For penalties, use SHRS 5.2 largest-heat-based place
-            const finalPlace = status !== 'FINISHED' ? penaltyPlace : place;
+            let finalPosition = place;
+            let finalPoints = place;
+
+            if (status !== 'FINISHED') {
+              if (scoringPenaltyStatuses.has(status)) {
+                finalPosition = place;
+                finalPoints = Math.min(
+                  place + scoringPenaltyPlaces,
+                  penaltyPlace,
+                );
+              } else {
+                finalPosition = penaltyPlace;
+                finalPoints = penaltyPlace;
+              }
+            }
+
             await window.electron.sqlite.heatRaceDB.insertScore(
               raceId,
               boatDetails.boat_id,
-              finalPlace,
-              finalPlace,
+              finalPosition,
+              finalPoints,
               status,
             );
           }

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { reportError } from '../utils/userFeedback';
 
+const POSITION_KEEPING_PENALTIES = new Set(['ZFP', 'SCP']);
+
 function ScoringInputComponent({ heat, onSubmit }) {
   const [inputValue, setInputValue] = useState('');
   const [boatNumbers, setBoatNumbers] = useState([]);
@@ -136,18 +138,23 @@ function ScoringInputComponent({ heat, onSubmit }) {
     setPenalties(newPenalties);
 
     // If this boat is already in the ranked list, reorder:
-    // non-penalized boats keep their relative order at the top,
-    // penalized boats move to the bottom.
+    // non-penalized and scoring-penalty boats keep their relative order,
+    // displacing penalties move to the bottom.
     if (boatNumbers.includes(boatNumber)) {
-      const withoutPenalty = boatNumbers.filter((n) => !newPenalties[n]);
-      const withPenalty = boatNumbers.filter((n) => newPenalties[n]);
-      const reordered = [...withoutPenalty, ...withPenalty];
+      const withPosition = boatNumbers.filter(
+        (n) =>
+          !newPenalties[n] || POSITION_KEEPING_PENALTIES.has(newPenalties[n]),
+      );
+      const displaced = boatNumbers.filter(
+        (n) => newPenalties[n] && !POSITION_KEEPING_PENALTIES.has(newPenalties[n]),
+      );
+      const reordered = [...withPosition, ...displaced];
       const newPlaceNumbers = {};
-      withoutPenalty.forEach((n, i) => {
+      withPosition.forEach((n, i) => {
         newPlaceNumbers[n] = i + 1;
       });
-      withPenalty.forEach((n) => {
-        newPlaceNumbers[n] = withoutPenalty.length + 1;
+      displaced.forEach((n) => {
+        newPlaceNumbers[n] = withPosition.length + 1;
       });
       setBoatNumbers(reordered);
       setPlaceNumbers(newPlaceNumbers);
@@ -156,30 +163,26 @@ function ScoringInputComponent({ heat, onSubmit }) {
 
   const handleSubmit = () => {
     const allBoats = [...new Set([...boatNumbers, ...validBoats])];
-    const boatsWithPenalties = allBoats.filter(
-      (boatNumber) => penalties[boatNumber],
-    );
-    const boatsWithoutPenalties = allBoats.filter(
-      (boatNumber) => !penalties[boatNumber],
-    );
+    const boatPlaces = [];
+    let finishingPlace = 1;
 
-    // Assign place numbers to boats without penalties
-    const boatPlaces = boatsWithoutPenalties.map((boatNumber, index) => {
-      const place = index + 1;
-      return {
-        boatNumber,
-        place,
-        status: 'FINISHED',
-      };
-    });
-
-    // Assign place numbers to boats with penalties
-    boatsWithPenalties.forEach((boatNumber) => {
+    boatNumbers.forEach((boatNumber) => {
       const penalty = penalties[boatNumber];
-      const place = allBoats.length + 1;
+      if (!penalty) {
+        boatPlaces.push({ boatNumber, place: finishingPlace, status: 'FINISHED' });
+        finishingPlace += 1;
+        return;
+      }
+
+      if (POSITION_KEEPING_PENALTIES.has(penalty)) {
+        boatPlaces.push({ boatNumber, place: finishingPlace, status: penalty });
+        finishingPlace += 1;
+        return;
+      }
+
       boatPlaces.push({
         boatNumber,
-        place,
+        place: allBoats.length + 1,
         status: penalty,
       });
     });
@@ -375,6 +378,8 @@ function ScoringInputComponent({ heat, onSubmit }) {
                         }}
                       >
                         <option value="">None</option>
+                        <option value="ZFP">ZFP</option>
+                        <option value="SCP">SCP</option>
                         <option value="DNS">DNS</option>
                         <option value="DNF">DNF</option>
                         <option value="RET">RET</option>
@@ -386,6 +391,8 @@ function ScoringInputComponent({ heat, onSubmit }) {
                         <option value="BFD">BFD</option>
                         <option value="DSQ">DSQ</option>
                         <option value="DNE">DNE</option>
+                        <option value="DGM">DGM</option>
+                        <option value="DPI">DPI</option>
                       </select>
                     </td>
                   </tr>

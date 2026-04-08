@@ -28,6 +28,8 @@ const config: Config = {
     '**/src/__tests__/HeatRaceHandler.createNewHeats.test.ts',
     '**/src/__tests__/SHRS_comprehensive.test.ts',
     '**/src/__tests__/compareUtils.test.ts',
+    '**/src/__tests__/leaderboardStatusCodes.test.ts',
+    '**/src/__tests__/HeatRaceHandler.overallTieBreak.test.ts',
   ],
 };
 

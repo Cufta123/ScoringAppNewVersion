@@ -19,18 +19,30 @@ interface RaceScoreEntry {
   points: number;
 }
 
+interface ScoreEntry {
+  race_id: number;
+  race_number: number;
+  points: number;
+  status: string;
+}
+
+interface TieCandidate {
+  boat_id: string;
+  keptScores: number[];
+}
+
+const nonExcludableStatuses = new Set(['DNE', 'DGM']);
+
 function getScoresForA81(event_id: any, boat_id: any) {
   const scoresQuery = db.prepare(`
-    SELECT points
-    FROM Scores
-    JOIN Races ON Scores.race_id = Races.race_id
-    JOIN Heats ON Races.heat_id = Heats.heat_id
-    WHERE Heats.event_id = ? AND Scores.boat_id = ? AND Heats.heat_type = 'Qualifying'
-    ORDER BY points DESC
+    SELECT s.points, COALESCE(s.status, 'FINISHED') as status, s.race_id, r.race_number
+    FROM Scores s
+    JOIN Races r ON s.race_id = r.race_id
+    JOIN Heats h ON r.heat_id = h.heat_id
+    WHERE h.event_id = ? AND s.boat_id = ? AND h.heat_type = 'Qualifying'
+    ORDER BY points DESC, r.race_number ASC, s.race_id ASC
   `);
-  return scoresQuery
-    .all(event_id, boat_id)
-    .map((row: { points: any }) => row.points);
+  return scoresQuery.all(event_id, boat_id) as ScoreEntry[];
 }
 
 function getScoresForA82(event_id: any, boat_id: any) {
@@ -133,6 +145,32 @@ function getSharedRaceScoresForTieBreak(
   return { a81A, a81B, a82A, a82B };
 }
 
+function getKeptScores(entries: ScoreEntry[], excludeCount: number): number[] {
+  if (excludeCount <= 0) {
+    return entries.map((entry) => entry.points);
+  }
+
+  const candidates = entries
+    .map((entry, idx) => ({ entry, idx }))
+    .filter(
+      ({ entry }) => !nonExcludableStatuses.has(String(entry.status).toUpperCase()),
+    )
+    .sort(
+      (left, right) =>
+        right.entry.points - left.entry.points ||
+        left.entry.race_number - right.entry.race_number ||
+        left.entry.race_id - right.entry.race_id,
+    );
+
+  const excludedIndexes = new Set(
+    candidates.slice(0, excludeCount).map(({ idx }) => idx),
+  );
+
+  return entries
+    .filter((_entry, idx) => !excludedIndexes.has(idx))
+    .map((entry) => entry.points);
+}
+
 // SHRS 5.4: after 4 races exclude 1, after 8 exclude 2, then +1 per 8 more
 function getExcludeCount(numberOfRaces: number): number {
   if (numberOfRaces < 4) return 0;
@@ -149,7 +187,7 @@ export default function calculateBoatScores(
     const { boat_id, number_of_races } = result;
 
     // Fetch all scores for the boat
-    const scores = getScoresForA81(event_id, boat_id);
+    const scoreEntries = getScoresForA81(event_id, boat_id);
 
     // Determine the number of scores to exclude per SHRS 5.4
     const excludeCount = getExcludeCount(number_of_races);
@@ -158,18 +196,14 @@ export default function calculateBoatScores(
     );
 
     // Exclude the worst scores
-    const initialTotalPoints = scores.reduce(
-      (acc: any, score: any) => acc + score,
+    const initialTotalPoints = scoreEntries.reduce(
+      (acc: number, score) => acc + score.points,
       0,
     );
-    const worstPlaces = scores.slice(0, excludeCount);
-    const scoresToInclude = scores.slice(excludeCount);
-    const totalPoints = scoresToInclude.reduce(
-      (acc: any, score: any) => acc + score,
-      0,
-    );
+    const scoresToInclude = getKeptScores(scoreEntries, excludeCount);
+    const totalPoints = scoresToInclude.reduce((acc, score) => acc + score, 0);
     console.log(
-      `Boat ID: ${boat_id}, Number of Races: ${number_of_races}, Initial Total Points: ${initialTotalPoints}, Worst Places: ${worstPlaces}`,
+      `Boat ID: ${boat_id}, Number of Races: ${number_of_races}, Initial Total Points: ${initialTotalPoints}, Included Scores: ${scoresToInclude}`,
     );
 
     console.log(
@@ -226,13 +260,22 @@ export default function calculateBoatScores(
   Object.entries(boatsWithSamePoints).forEach(([totalPoints, boatIds]) => {
     if (boatIds.length > 1) {
       console.log(`Boats with total points ${totalPoints}:`, boatIds);
-      // SHRS 5.6(ii)(a)(2): For the purposes of breaking ties excluded scores
-      // shall be used. This changes RRS A8.1 (which normally excludes them).
-      const sortedScores = boatIds.map((boat_id) => {
-        const scores = getScoresForA81(event_id, boat_id);
+      const raceCountByBoat = new Map<string, number>();
+      results.forEach((row) => {
+        raceCountByBoat.set(String(row.boat_id), Number(row.number_of_races));
+      });
+
+      const sortedScores: TieCandidate[] = boatIds.map((boat_id) => {
+        const scoreEntries = getScoresForA81(event_id, boat_id);
+        const raceCount =
+          raceCountByBoat.get(String(boat_id)) ?? scoreEntries.length;
+        const excludeCount = getExcludeCount(raceCount);
+        const keptScores = getKeptScores(scoreEntries, excludeCount).sort(
+          (a: number, b: number) => a - b,
+        );
         return {
           boat_id,
-          scores: scores.sort((a: number, b: number) => a - b),
+          keptScores,
         };
       });
 
@@ -253,10 +296,19 @@ export default function calculateBoatScores(
             return sharedA81Comparison;
           }
 
-          return compareA82LatestFirst(sharedScores.a82A, sharedScores.a82B);
+          const sharedA82Comparison = compareA82LatestFirst(
+            sharedScores.a82A,
+            sharedScores.a82B,
+          );
+          if (sharedA82Comparison !== 0) {
+            return sharedA82Comparison;
+          }
+
+          return String(a.boat_id).localeCompare(String(b.boat_id));
         }
 
-        const initialComparison = compareA81Scores(a.scores, b.scores);
+        // Standard A8.1: excluded scores are NOT used.
+        const initialComparison = compareA81Scores(a.keptScores, b.keptScores);
         if (initialComparison !== 0) {
           return initialComparison;
         }
@@ -282,7 +334,7 @@ export default function calculateBoatScores(
             return scoreA - scoreB; // Compare scores from the last race backward
           }
         }
-        return 0; // If all scores are the same, keep the original order
+        return String(a.boat_id).localeCompare(String(b.boat_id));
       });
 
       sortedScores.forEach((boat, index) => {

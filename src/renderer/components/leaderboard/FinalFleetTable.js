@@ -327,14 +327,19 @@ function FinalFleetTable({
 
                   {/* Gross total — sum of all races including discarded */}
                   {(() => {
-                    const qualGross = (qualifyingEntry?.races || []).reduce(
-                      (sum, r) => {
-                        const v = parseFloat(String(r).replace(/[()]/g, ''));
-                        return sum + (Number.isNaN(v) ? 0 : v);
-                      },
-                      0,
-                    );
-                    const finalGross = (entry.races || []).reduce((sum, r) => {
+                    const qualGross = (
+                      qualifyingEntry?.race_points ||
+                      qualifyingEntry?.races ||
+                      []
+                    ).reduce((sum, r) => {
+                      const v = parseFloat(String(r).replace(/[()]/g, ''));
+                      return sum + (Number.isNaN(v) ? 0 : v);
+                    }, 0);
+                    const finalGross = (
+                      entry.race_points ||
+                      entry.races ||
+                      []
+                    ).reduce((sum, r) => {
                       const v = parseFloat(String(r).replace(/[()]/g, ''));
                       return sum + (Number.isNaN(v) ? 0 : v);
                     }, 0);

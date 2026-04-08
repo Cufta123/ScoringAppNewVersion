@@ -1,3 +1,5 @@
+export {};
+
 type PrepareStatement = {
   get?: (...args: any[]) => any;
   all?: (...args: any[]) => any[];

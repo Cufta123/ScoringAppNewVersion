@@ -6,13 +6,17 @@ export const PENALTY_CODES = [
   'DNS',
   'DSQ',
   'OCS',
+  'ZFP',
   'RET',
+  'SCP',
   'BFD',
   'UFD',
   'DNC',
   'NSC',
   'WTH',
   'DNE',
+  'DGM',
+  'DPI',
   // RDG variants — all carry a numeric score (not penaltyPosition)
   'RDG1', // Redress: average of ALL series races
   'RDG2', // Redress: average of SELECTED races
@@ -20,6 +24,7 @@ export const PENALTY_CODES = [
 ];
 
 export const RDG_TYPES = ['RDG1', 'RDG2', 'RDG3'];
+const NON_EXCLUDABLE_STATUSES = new Set(['DNE', 'DGM']);
 
 /**
  * Strip exclusion parentheses and return 0 for any non-numeric value.
@@ -43,10 +48,14 @@ export const getExcludeCount = (numberOfRaces) => {
  * Apply score exclusions per SHRS 5.4: mark worst scores with parentheses,
  * return marked races array and the net total (sum of non-excluded scores).
  */
-export const applyExclusions = (rawPositions) => {
+export const applyExclusions = (
+  rawPositions,
+  raceStatuses = [],
+  scoreValues = rawPositions,
+) => {
   const n = rawPositions.length;
   const excludeCount = getExcludeCount(n);
-  const points = rawPositions.map((r) => {
+  const points = scoreValues.map((r) => {
     const v = parseFloat(String(r).replace(/[()]/g, ''));
     return Number.isNaN(v) ? 0 : v;
   });
@@ -56,16 +65,25 @@ export const applyExclusions = (rawPositions) => {
       total: points.reduce((a, b) => a + b, 0),
     };
   }
-  const sorted = [...points].sort((a, b) => b - a);
-  const toExclude = [...sorted.slice(0, excludeCount)];
+  const candidates = points
+    .map((point, index) => ({ point, index }))
+    .filter(
+      ({ index }) =>
+        !NON_EXCLUDABLE_STATUSES.has(
+          String(raceStatuses[index] || 'FINISHED').toUpperCase(),
+        ),
+    )
+    .sort((a, b) => b.point - a.point || a.index - b.index);
+  const excludedIndices = new Set(
+    candidates.slice(0, excludeCount).map(({ index }) => index),
+  );
+
   let total = 0;
   const markedRaces = rawPositions.map((race, i) => {
-    const p = points[i];
-    const idx = toExclude.indexOf(p);
-    if (idx !== -1) {
-      toExclude.splice(idx, 1);
+    if (excludedIndices.has(i)) {
       return `(${String(race).replace(/[()]/g, '')})`;
     }
+    const p = points[i];
     total += p;
     return String(race).replace(/[()]/g, '');
   });
@@ -77,14 +95,16 @@ export const applyExclusions = (rawPositions) => {
  */
 export const processLeaderboardEntry = (entry) => {
   const races = entry.race_positions ? entry.race_positions.split(',') : [];
+  const race_points = entry.race_points ? entry.race_points.split(',') : races;
   const race_ids = entry.race_ids ? entry.race_ids.split(',') : [];
   const race_statuses = entry.race_statuses
     ? entry.race_statuses.split(',')
     : races.map(() => 'FINISHED');
-  const { markedRaces } = applyExclusions(races);
+  const { markedRaces } = applyExclusions(races, race_statuses, race_points);
   return {
     ...entry,
     races: markedRaces,
+    race_points,
     race_ids,
     race_statuses,
     computed_total: entry.total_points_final ?? entry.total_points_event,

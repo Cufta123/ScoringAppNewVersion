@@ -545,3 +545,44 @@ describe('Edge cases', () => {
     expect(result.boatA.totalPoints).toBe(6);
   });
 });
+
+describe('A8.1 regression: excluded scores are not used in standard path', () => {
+  it('falls through to A8.2 when kept-score vectors are equal', () => {
+    setupMockDb(
+      {
+        boatA: [10, 10, 3, 2, 2, 1, 1, 1],
+        boatB: [4, 4, 3, 2, 2, 1, 1, 1],
+      },
+      {
+        boatA: [1, 1, 1, 2, 2, 3, 10, 10],
+        boatB: [2, 1, 1, 2, 2, 3, 4, 4],
+      },
+      {
+        boatA: [
+          { race_id: 1001, race_number: 8, points: 1 },
+          { race_id: 1002, race_number: 7, points: 1 },
+          { race_id: 1003, race_number: 6, points: 1 },
+          { race_id: 1004, race_number: 5, points: 2 },
+          { race_id: 1005, race_number: 4, points: 2 },
+          { race_id: 1006, race_number: 3, points: 3 },
+          { race_id: 1007, race_number: 2, points: 10 },
+          { race_id: 1008, race_number: 1, points: 10 },
+        ],
+        boatB: [
+          { race_id: 2001, race_number: 8, points: 2 },
+          { race_id: 2002, race_number: 7, points: 1 },
+          { race_id: 2003, race_number: 6, points: 1 },
+          { race_id: 2004, race_number: 5, points: 2 },
+          { race_id: 2005, race_number: 4, points: 2 },
+          { race_id: 2006, race_number: 3, points: 3 },
+          { race_id: 2007, race_number: 2, points: 4 },
+          { race_id: 2008, race_number: 1, points: 4 },
+        ],
+      },
+    );
+
+    const result = run([makeResult('boatA', 8), makeResult('boatB', 8)]);
+    expect(result.boatA.place).toBe(1);
+    expect(result.boatB.place).toBe(2);
+  });
+});

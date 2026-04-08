@@ -39,6 +39,10 @@ export default function useLeaderboard(eventId) {
   // rdg2Picker: the open multi-race selector state for one specific cell
   const [rdg2Picker, setRdg2Picker] = useState(null);
 
+  const roundToNearestTenthHalfUp = (value) =>
+    Math.round((value + Number.EPSILON) * 10) / 10;
+  const scoringPenaltyStatuses = new Set(['ZFP', 'SCP']);
+
   const sanitizeFilenamePart = (value, fallback = 'event') => {
     const raw = String(value ?? '').trim();
     const safe = raw.replace(/[<>:"/\\|?*]+/g, '_').replace(/\s+/g, '_');
@@ -609,7 +613,7 @@ export default function useLeaderboard(eventId) {
       (s, { val }) => s + (Number.isNaN(val) ? 0 : val),
       0,
     );
-    return Math.round((sum / candidates.length) * 10) / 10;
+    return roundToNearestTenthHalfUp(sum / candidates.length);
   };
 
   const handleRaceChange = (
@@ -618,21 +622,28 @@ export default function useLeaderboard(eventId) {
     newRaceValue,
     newStatus = 'FINISHED',
   ) => {
+    const cloned = JSON.parse(JSON.stringify(editableLeaderboard));
+    const targetEntry = cloned.find((e) => e.boat_id === boatId);
+    if (!targetEntry) return;
+
     const isRdgType = RDG_TYPES.includes(newStatus);
     const isPenalty = PENALTY_CODES.includes(newStatus);
-    const numericInput = parseFloat(newRaceValue);
+    const fallbackInput =
+      newRaceValue == null
+        ? parseRaceNum(targetEntry.races[raceIndex])
+        : parseFloat(newRaceValue);
 
     if (newStatus === 'RDG2') return;
 
-    if (!isPenalty && (Number.isNaN(numericInput) || numericInput < 0)) return;
+    if (!isPenalty && (Number.isNaN(fallbackInput) || fallbackInput < 0)) {
+      return;
+    }
     if (
       newStatus === 'RDG3' &&
       newRaceValue !== null &&
-      Number.isNaN(numericInput)
+      Number.isNaN(fallbackInput)
     )
       return;
-
-    const cloned = JSON.parse(JSON.stringify(editableLeaderboard));
     const penaltyPosition = cloned.length + 1;
 
     let newPosition;
@@ -652,15 +663,12 @@ export default function useLeaderboard(eventId) {
       }));
     } else if (newStatus === 'RDG3') {
       if (newRaceValue === null) {
-        const existingEntry = cloned.find((e) => e.boat_id === boatId);
-        const raw = existingEntry
-          ? parseFloat(
-              String(existingEntry.races[raceIndex]).replace(/[()]/g, ''),
-            )
-          : 0;
+        const raw = parseFloat(
+          String(targetEntry.races[raceIndex]).replace(/[()]/g, ''),
+        );
         newPosition = Number.isNaN(raw) ? 0 : raw;
       } else {
-        newPosition = numericInput;
+        newPosition = fallbackInput;
       }
       setRdgMeta((prev) => ({
         ...prev,
@@ -668,12 +676,14 @@ export default function useLeaderboard(eventId) {
       }));
     } else if (isRdgType) {
       newPosition = penaltyPosition;
+    } else if (isPenalty) {
+      newPosition = scoringPenaltyStatuses.has(newStatus)
+        ? fallbackInput
+        : penaltyPosition;
     } else {
-      newPosition = isPenalty ? penaltyPosition : numericInput;
+      newPosition = fallbackInput;
     }
 
-    const targetEntry = cloned.find((e) => e.boat_id === boatId);
-    if (!targetEntry) return;
     const oldPosition = parseRaceNum(targetEntry.races[raceIndex]);
 
     if (shiftPositions && !isPenalty) {
@@ -712,10 +722,11 @@ export default function useLeaderboard(eventId) {
         rawRaces[raceIndex] = String(newPosition);
         newStatuses[raceIndex] = newStatus;
       }
-      const { markedRaces, total } = applyExclusions(rawRaces);
+      const { markedRaces, total } = applyExclusions(rawRaces, newStatuses);
       return {
         ...entry,
         races: markedRaces,
+        race_points: rawRaces,
         race_statuses: newStatuses,
         total_points_event: total,
         total_points_final: total,
@@ -762,9 +773,9 @@ export default function useLeaderboard(eventId) {
     const allValues = [...qualValues, ...finalValues];
     const avg =
       allValues.length > 0
-        ? Math.round(
-            (allValues.reduce((s, v) => s + v, 0) / allValues.length) * 10,
-          ) / 10
+        ? roundToNearestTenthHalfUp(
+            allValues.reduce((s, v) => s + v, 0) / allValues.length,
+          )
         : penaltyPosition;
 
     const entryStatuses = [
@@ -774,10 +785,11 @@ export default function useLeaderboard(eventId) {
     rawRaces[raceIndex] = String(avg);
     entryStatuses[raceIndex] = 'RDG2';
 
-    const { markedRaces, total } = applyExclusions(rawRaces);
+    const { markedRaces, total } = applyExclusions(rawRaces, entryStatuses);
     const updatedEntry = {
       ...entry,
       races: markedRaces,
+      race_points: rawRaces,
       race_statuses: entryStatuses,
       total_points_event: total,
       total_points_final: total,
@@ -809,9 +821,12 @@ export default function useLeaderboard(eventId) {
 
       const updatedLeaderboard = editableLeaderboard.map((entry) => {
         const rawRaces = entry.races.map((r) => String(r).replace(/[()]/g, ''));
-        const { total } = applyExclusions(rawRaces);
+        const statuses =
+          entry.race_statuses || entry.races.map(() => 'FINISHED');
+        const { total } = applyExclusions(rawRaces, statuses);
         return {
           ...entry,
+          race_points: rawRaces,
           total_points_event: total,
           total_points_final: total,
           computed_total: total,
@@ -933,7 +948,7 @@ export default function useLeaderboard(eventId) {
         ...Array.from({ length: raceCount }, (_, i) => `Q${i + 1}`),
       ];
       const rows = (eventLeaderboard ?? []).map((e, i) => {
-        const grossTotal = (e.races ?? []).reduce(
+        const grossTotal = (e.race_points ?? e.races ?? []).reduce(
           (s, r) => s + parseScore(r),
           0,
         );
@@ -988,9 +1003,14 @@ export default function useLeaderboard(eventId) {
         );
         const qualRaces = qualEntry?.races ?? [];
         const finalRaces = entry.races ?? [];
+        const qualRacePoints = qualEntry?.race_points ?? qualRaces;
+        const finalRacePoints = entry.race_points ?? finalRaces;
 
-        const qualGross = qualRaces.reduce((s, r) => s + parseScore(r), 0);
-        const finalGross = finalRaces.reduce((s, r) => s + parseScore(r), 0);
+        const qualGross = qualRacePoints.reduce((s, r) => s + parseScore(r), 0);
+        const finalGross = finalRacePoints.reduce(
+          (s, r) => s + parseScore(r),
+          0,
+        );
         const gross = qualGross + finalGross;
 
         const overall =
