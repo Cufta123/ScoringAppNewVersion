@@ -32,7 +32,7 @@ const configuration: webpack.Configuration = {
 
   entry: {
     renderer: Object.keys(dependencies || {}).filter(
-      (dep) => !['font-awesome'].includes(dep),
+      (dep) => !['font-awesome', 'dejavu-fonts-ttf'].includes(dep),
     ),
   },
 

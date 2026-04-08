@@ -18,13 +18,33 @@ jest.mock('../../public/Database/DBManager', () => ({
 const mockPrepare = (db as unknown as { prepare: jest.Mock }).prepare;
 
 function setupMockDb(
-  scoresA81: Record<string, number[]>,
+  scoresA81: Record<
+    string,
+    Array<
+      number | { points: number; status?: string; race_id?: number; race_number?: number }
+    >
+  >,
   scoresA82: Record<string, number[]> = {},
 ) {
   mockPrepare.mockImplementation((sql: string) => ({
     all: (_eventId: unknown, boatId: string) => {
       if (sql.includes('ORDER BY points DESC')) {
-        return (scoresA81[boatId] ?? []).map((points) => ({ points }));
+        return (scoresA81[boatId] ?? []).map((row, index) => {
+          if (typeof row === 'number') {
+            return {
+              points: row,
+              status: 'FINISHED',
+              race_id: index + 1,
+              race_number: index + 1,
+            };
+          }
+          return {
+            points: row.points,
+            status: row.status ?? 'FINISHED',
+            race_id: row.race_id ?? index + 1,
+            race_number: row.race_number ?? index + 1,
+          };
+        });
       }
       if (sql.includes('ORDER BY r.race_number DESC')) {
         return (scoresA82[boatId] ?? []).map((points) => ({ points }));
@@ -321,5 +341,22 @@ describe('Large final groups', () => {
       .map((boat) => boat.place)
       .sort((a, b) => (a ?? 0) - (b ?? 0));
     expect(places).toEqual(Array.from({ length: 24 }, (_, idx) => idx + 1));
+  });
+});
+
+describe('Final-series non-excludable penalties', () => {
+  it('never discards DNE/DGM scores when applying SHRS 5.4 exclusions', () => {
+    setupMockDb({
+      g1: [
+        { points: 10, status: 'DNE', race_id: 1, race_number: 1 },
+        { points: 9, status: 'DGM', race_id: 2, race_number: 2 },
+        { points: 8, status: 'FINISHED', race_id: 3, race_number: 3 },
+        { points: 1, status: 'FINISHED', race_id: 4, race_number: 4 },
+      ],
+    });
+
+    const groups = calculateFinalBoatScores([makeResult('g1', 'Final Gold')], 1);
+    // 4 races => 1 discard; DNE/DGM cannot be discarded, so 8 is excluded.
+    expect(groups.get('Gold')![0].totalPoints).toBe(10 + 9 + 1);
   });
 });

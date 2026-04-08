@@ -30,7 +30,12 @@ const mockPrepare = (db as unknown as { prepare: jest.Mock }).prepare;
  *                   (i.e., most recent race first)
  */
 function setupMockDb(
-  scoresA81: Record<string, number[]>,
+  scoresA81: Record<
+    string,
+    Array<
+      number | { points: number; status?: string; race_id?: number; race_number?: number }
+    >
+  >,
   scoresA82: Record<string, number[]> = {},
   raceScores: Record<
     string,
@@ -51,7 +56,22 @@ function setupMockDb(
         }));
       }
       if (sql.includes('ORDER BY points DESC')) {
-        return (scoresA81[boatId] ?? []).map((points) => ({ points }));
+        return (scoresA81[boatId] ?? []).map((row, index) => {
+          if (typeof row === 'number') {
+            return {
+              points: row,
+              status: 'FINISHED',
+              race_id: index + 1,
+              race_number: index + 1,
+            };
+          }
+          return {
+            points: row.points,
+            status: row.status ?? 'FINISHED',
+            race_id: row.race_id ?? index + 1,
+            race_number: row.race_number ?? index + 1,
+          };
+        });
       }
       if (sql.includes('ORDER BY r.race_number DESC')) {
         return (scoresA82[boatId] ?? []).map((points) => ({ points }));
@@ -136,6 +156,36 @@ describe('Score exclusion thresholds', () => {
         .reduce((a, b) => a + b, 0);
       expect(result.boat1.totalPoints).toBe(expectedTotal);
     });
+  });
+
+  it('never excludes DNE/DGM even when they are worst scores', () => {
+    setupMockDb({
+      boatA: [
+        { points: 10, status: 'DNE', race_id: 1, race_number: 1 },
+        { points: 9, status: 'DGM', race_id: 2, race_number: 2 },
+        { points: 8, status: 'FINISHED', race_id: 3, race_number: 3 },
+        { points: 1, status: 'FINISHED', race_id: 4, race_number: 4 },
+      ],
+    });
+
+    const result = run([makeResult('boatA', 4)]);
+    // 1 discard at 4 races; worst excludable is 8 (DNE/DGM are non-excludable)
+    expect(result.boatA.totalPoints).toBe(10 + 9 + 1);
+  });
+
+  it('for equal worst excludable scores excludes the earliest race first', () => {
+    setupMockDb({
+      boatA: [
+        { points: 9, status: 'DNE', race_id: 1, race_number: 1 },
+        { points: 7, status: 'FINISHED', race_id: 2, race_number: 2 },
+        { points: 7, status: 'FINISHED', race_id: 3, race_number: 3 },
+        { points: 1, status: 'FINISHED', race_id: 4, race_number: 4 },
+      ],
+    });
+
+    const result = run([makeResult('boatA', 4)]);
+    // one discard: among excludable 7 and 7, earliest race_number=2 is excluded
+    expect(result.boatA.totalPoints).toBe(9 + 7 + 1);
   });
 });
 
