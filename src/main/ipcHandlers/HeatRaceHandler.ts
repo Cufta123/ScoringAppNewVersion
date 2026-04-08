@@ -399,10 +399,18 @@ ipcMain.handle('readBoatsByHeat', async (event, heat_id) => {
     const boats = db
       .prepare(
         `
-        SELECT b.boat_id, b.sail_number, b.country, b.model, s.name, s.surname
+        SELECT
+          b.boat_id,
+          b.sail_number,
+          b.country,
+          b.model,
+          s.name,
+          s.surname,
+          cat.category_name
         FROM Heat_Boat hb
         JOIN Boats b ON hb.boat_id = b.boat_id
         JOIN Sailors s ON b.sailor_id = s.sailor_id
+        LEFT JOIN Categories cat ON s.category_id = cat.category_id
         WHERE hb.heat_id = ?
       `,
       )

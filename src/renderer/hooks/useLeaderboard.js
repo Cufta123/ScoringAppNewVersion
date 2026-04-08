@@ -4,6 +4,7 @@ import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import registerPdfUnicodeFont from '../utils/registerPdfUnicodeFont';
 import {
   PENALTY_CODES,
   RDG_TYPES,
@@ -14,6 +15,10 @@ import {
   getFlagCode,
   getRaceCellDisplay,
 } from '../utils/leaderboardUtils';
+import {
+  getOtherTiedCount,
+  getNextCompareSelection,
+} from '../utils/compareUtils';
 import { reportError } from '../utils/userFeedback';
 
 export default function useLeaderboard(eventId) {
@@ -71,13 +76,19 @@ export default function useLeaderboard(eventId) {
 
   // ─── Compare ────────────────────────────────────────────────────────────────
 
-  const handleCompareRowClick = (boat_id) => {
+  const handleCompareRowClick = (boat_id, placementGroup = null) => {
     if (!compareMode) return;
-    setSelectedBoatIds((prev) => {
-      if (prev.includes(boat_id)) return prev.filter((id) => id !== boat_id);
-      if (prev.length >= 2) return [prev[1], boat_id];
-      return [...prev, boat_id];
-    });
+    const allEntries = finalSeriesStarted ? leaderboard : eventLeaderboard;
+    setSelectedBoatIds((prev) =>
+      getNextCompareSelection({
+        previousSelectedBoatIds: prev,
+        clickedBoatId: boat_id,
+        compareMode,
+        finalSeriesStarted,
+        allEntries,
+        clickedPlacementGroup: placementGroup,
+      }),
+    );
   };
 
   const compareInfo = useMemo(() => {
@@ -428,13 +439,15 @@ export default function useLeaderboard(eventId) {
       finalSeriesStarted
         ? (e.total_points_combined ?? e.computed_total ?? 0)
         : (e.computed_total ?? 0);
-    const otherTiedCount = allEntries.filter(
-      (e) =>
-        e.boat_id !== boatA.boat_id &&
-        e.boat_id !== boatB.boat_id &&
-        getTotal(e) === totalA &&
-        getTotal(e) === totalB,
-    ).length;
+    const otherTiedCount = getOtherTiedCount({
+      allEntries,
+      boatA,
+      boatB,
+      totalA,
+      totalB,
+      finalSeriesStarted,
+      getTotal,
+    });
 
     return {
       boatA,
@@ -1177,22 +1190,31 @@ export default function useLeaderboard(eventId) {
     const { safeEventName, raceNumber, seriesLabel } = await getExportMeta();
     // eslint-disable-next-line new-cap
     const doc = new jsPDF({ orientation: 'landscape' });
+    await registerPdfUnicodeFont(doc);
     doc.setFontSize(14);
+    doc.setFont('DejaVuSans', 'bold');
     doc.text('Leaderboard', 14, 16);
+    doc.setFont('DejaVuSans', 'normal');
 
     let startY = 22;
     sections.forEach(({ title, rows }) => {
       if (title) {
         doc.setFontSize(11);
+        doc.setFont('DejaVuSans', 'bold');
         doc.text(title, 14, startY + 4);
+        doc.setFont('DejaVuSans', 'normal');
         startY += 8;
       }
       autoTable(doc, {
         head: [header],
         body: rows.map((r) => r.map((v) => String(v ?? ''))),
         startY,
-        styles: { fontSize: 7, cellPadding: 2 },
-        headStyles: { fillColor: [27, 39, 64] },
+        styles: { fontSize: 7, cellPadding: 2, font: 'DejaVuSans' },
+        headStyles: {
+          fillColor: [27, 39, 64],
+          font: 'DejaVuSans',
+          fontStyle: 'bold',
+        },
         alternateRowStyles: { fillColor: [240, 244, 248] },
         didDrawPage: (data) => {
           startY = data.cursor.y + 6;

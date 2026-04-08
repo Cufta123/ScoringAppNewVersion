@@ -35,7 +35,7 @@
     }
   ],
   "main": "./.erb/dll/main.bundle.dev.js",
-"scripts": {
+  "scripts": {
     "build": "concurrently \"npm run build:main\" \"npm run build:renderer\"",
     "build:dll": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack --config ./.erb/configs/webpack.config.renderer.dev.dll.ts",
     "build:main": "cross-env NODE_ENV=production TS_NODE_TRANSPILE_ONLY=true webpack --config ./.erb/configs/webpack.config.main.prod.ts",
@@ -107,6 +107,7 @@
     "@electron/notarize": "^2.3.2",
     "@fortawesome/fontawesome-free": "^6.6.0",
     "better-sqlite3": "^11.3.0",
+    "dejavu-fonts-ttf": "^2.37.3",
     "electron-debug": "^3.2.0",
     "electron-log": "^4.4.8",
     "electron-squirrel-startup": "^1.0.1",

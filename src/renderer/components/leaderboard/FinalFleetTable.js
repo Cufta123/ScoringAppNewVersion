@@ -265,7 +265,9 @@ function FinalFleetTable({
               return (
                 <tr
                   key={`boat-${entry.boat_id}-${index}`}
-                  onClick={() => onCompareRowClick(entry.boat_id)}
+                  onClick={() =>
+                    onCompareRowClick(entry.boat_id, entry.placement_group)
+                  }
                   style={{
                     background: isSelected
                       ? 'rgba(42, 157, 143, 0.15)'
