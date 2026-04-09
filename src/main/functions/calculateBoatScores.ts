@@ -29,6 +29,7 @@ interface ScoreEntry {
 interface TieCandidate {
   boat_id: string;
   keptScores: number[];
+  totalRaceCount: number;
 }
 
 const nonExcludableStatuses = new Set(['DNE', 'DGM']);
@@ -273,9 +274,11 @@ export default function calculateBoatScores(
         const keptScores = getKeptScores(scoreEntries, excludeCount).sort(
           (a: number, b: number) => a - b,
         );
+        const totalRaceCount = getRaceScoresForTieBreak(event_id, boat_id).length;
         return {
           boat_id,
           keptScores,
+          totalRaceCount,
         };
       });
 
@@ -288,12 +291,30 @@ export default function calculateBoatScores(
         );
 
         if (sharedScores) {
-          const sharedA81Comparison = compareA81Scores(
-            sharedScores.a81A,
-            sharedScores.a81B,
-          );
-          if (sharedA81Comparison !== 0) {
-            return sharedA81Comparison;
+          const isSingleHeatEvent =
+            sharedScores.a82A.length === a.totalRaceCount &&
+            sharedScores.a82B.length === b.totalRaceCount;
+
+          if (isSingleHeatEvent) {
+            // SHRS 5.6(i): single-heat events use standard RRS A8.1
+            // where excluded scores are NOT used.
+            const singleHeatA81Comparison = compareA81Scores(
+              a.keptScores,
+              b.keptScores,
+            );
+            if (singleHeatA81Comparison !== 0) {
+              return singleHeatA81Comparison;
+            }
+          } else {
+            // SHRS 5.6(ii)(a): for shared-heat comparisons, excluded scores
+            // are used when applying A8.1.
+            const sharedA81Comparison = compareA81Scores(
+              sharedScores.a81A,
+              sharedScores.a81B,
+            );
+            if (sharedA81Comparison !== 0) {
+              return sharedA81Comparison;
+            }
           }
 
           const sharedA82Comparison = compareA82LatestFirst(

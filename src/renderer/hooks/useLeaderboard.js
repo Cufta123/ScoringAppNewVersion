@@ -194,11 +194,27 @@ export default function useLeaderboard(eventId) {
           return {
             winner: boatA,
             detail: `best-to-worst: ${sortedA[i]} vs ${sortedB[i]} at position ${i + 1}`,
+            comparison: {
+              mode: 'A8.1',
+              scoreA: sortedA[i],
+              scoreB: sortedB[i],
+              position: i + 1,
+              sortedA,
+              sortedB,
+            },
           };
         if (sortedB[i] < sortedA[i])
           return {
             winner: boatB,
-            detail: `best-to-worst: ${sortedB[i]} vs ${sortedA[i]} at position ${i + 1}`,
+            detail: `best-to-worst: ${sortedA[i]} vs ${sortedB[i]} at position ${i + 1}`,
+            comparison: {
+              mode: 'A8.1',
+              scoreA: sortedA[i],
+              scoreB: sortedB[i],
+              position: i + 1,
+              sortedA,
+              sortedB,
+            },
           };
       }
       return null;
@@ -209,16 +225,30 @@ export default function useLeaderboard(eventId) {
       const valid = pairs.filter((p) => p.scoreA !== null && p.scoreB !== null);
       if (valid.length === 0) return null;
       for (let i = valid.length - 1; i >= 0; i -= 1) {
-        const { scoreA, scoreB } = valid[i];
+        const { scoreA, scoreB, raceId } = valid[i];
         if (scoreA < scoreB)
           return {
             winner: boatA,
             detail: `last-race-backward: ${scoreA} vs ${scoreB}`,
+            comparison: {
+              mode: 'A8.2',
+              scoreA,
+              scoreB,
+              raceId,
+              validPairs: valid,
+            },
           };
         if (scoreB < scoreA)
           return {
             winner: boatB,
-            detail: `last-race-backward: ${scoreB} vs ${scoreA}`,
+            detail: `last-race-backward: ${scoreA} vs ${scoreB}`,
+            comparison: {
+              mode: 'A8.2',
+              scoreA,
+              scoreB,
+              raceId,
+              validPairs: valid,
+            },
           };
       }
       return null;
@@ -251,11 +281,27 @@ export default function useLeaderboard(eventId) {
           return {
             winner: boatA,
             detail: `best-to-worst: ${a} vs ${b} at position ${i + 1}`,
+            comparison: {
+              mode: 'A8.1',
+              scoreA: a,
+              scoreB: b,
+              position: i + 1,
+              sortedA: vA,
+              sortedB: vB,
+            },
           };
         if (b < a)
           return {
             winner: boatB,
-            detail: `best-to-worst: ${b} vs ${a} at position ${i + 1}`,
+            detail: `best-to-worst: ${a} vs ${b} at position ${i + 1}`,
+            comparison: {
+              mode: 'A8.1',
+              scoreA: a,
+              scoreB: b,
+              position: i + 1,
+              sortedA: vA,
+              sortedB: vB,
+            },
           };
       }
       return null;
@@ -273,11 +319,23 @@ export default function useLeaderboard(eventId) {
             return {
               winner: boatA,
               detail: `last-race-backward: ${a} vs ${b}`,
+              comparison: {
+                mode: 'A8.2',
+                scoreA: a,
+                scoreB: b,
+                raceIndex: i,
+              },
             };
           if (b < a)
             return {
               winner: boatB,
-              detail: `last-race-backward: ${b} vs ${a}`,
+              detail: `last-race-backward: ${a} vs ${b}`,
+              comparison: {
+                mode: 'A8.2',
+                scoreA: a,
+                scoreB: b,
+                raceIndex: i,
+              },
             };
         }
       }
@@ -286,6 +344,8 @@ export default function useLeaderboard(eventId) {
 
     // ── Apply tie-breaking per SHRS 5.6 ──────────────────────────────────
     let tieBreak = null;
+    let routeStep = null;
+    let raceGrid = [];
     if (tied) {
       const steps = [];
       let winner = null;
@@ -298,20 +358,23 @@ export default function useLeaderboard(eventId) {
       // different heats (at least partially).
       const allUniqueIds = new Set([...boatA.race_ids, ...boatB.race_ids]);
       const isMultiHeat = allSharedPairs.length < allUniqueIds.size;
+      const boatAScores = (boatA.races || []).map(parseScoreEntry);
+      const boatBScores = (boatB.races || []).map(parseScoreEntry);
 
       if (!isMultiHeat) {
-        // ── SHRS 5.6(i): Single-heat event ───────────────────────────
-        steps.push({
+        routeStep = {
           rule: 'SHRS 5.6(i)',
-          note: 'Single-heat event — standard RRS A8.1 and A8.2 apply.',
-        });
+          note: 'All compared races were sailed in the same heat. Standard RRS A8.1 then A8.2 apply.',
+        };
 
         // A8.1: excluded scores NOT used (standard rule)
-        const a81Res = applyA81OnPairs(allSharedPairs, false);
+        const a81Res = applyA81Individual(boatAScores, boatBScores, false);
         if (a81Res) {
           steps.push({
             rule: 'RRS A8.1',
             note: `Excluded scores not used. ${a81Res.detail}`,
+            subtitle: 'Compare non-excluded scores, best to worst.',
+            comparison: a81Res.comparison,
             resolved: true,
           });
           winner = a81Res.winner;
@@ -319,6 +382,7 @@ export default function useLeaderboard(eventId) {
           steps.push({
             rule: 'RRS A8.1',
             note: 'Excluded scores not used. All non-excluded scores identical — still tied.',
+            subtitle: 'Compare non-excluded scores, best to worst.',
             resolved: false,
           });
 
@@ -328,6 +392,8 @@ export default function useLeaderboard(eventId) {
             steps.push({
               rule: 'RRS A8.2',
               note: `Excluded scores used. ${a82Res.detail}`,
+              subtitle: 'Compare all scores from last race backward.',
+              comparison: a82Res.comparison,
               resolved: true,
             });
             winner = a82Res.winner;
@@ -335,20 +401,16 @@ export default function useLeaderboard(eventId) {
             steps.push({
               rule: 'RRS A8.2',
               note: 'Excluded scores used. All scores identical — still tied.',
+              subtitle: 'Compare all scores from last race backward.',
               resolved: false,
             });
           }
         }
       } else if (allSharedPairs.length > 0) {
-        // ── SHRS 5.6(ii)(a): Multi-heat, shared heats exist ──────────
-        steps.push({
+        routeStep = {
           rule: 'SHRS 5.6(ii)(a)',
-          note: `Multiple-heat event — ${allSharedPairs.length} shared-heat race(s) found.`,
-        });
-        steps.push({
-          rule: 'SHRS 5.6(ii)(a)(1)',
-          note: 'Only scores from races where both boats competed in the same heat are used.',
-        });
+          note: `Multiple-heat event. ${allSharedPairs.length} shared-heat race(s) are eligible for tie-break comparison.`,
+        };
 
         // A8.1 + SHRS 5.6(ii)(a)(2): excluded scores ARE used
         const a81Res = applyA81OnPairs(allSharedPairs, true);
@@ -356,6 +418,8 @@ export default function useLeaderboard(eventId) {
           steps.push({
             rule: 'RRS A8.1 + SHRS 5.6(ii)(a)(2)',
             note: `Excluded scores included (SHRS modification of A8.1). ${a81Res.detail}`,
+            subtitle: 'Compare shared-heat scores, including excluded scores.',
+            comparison: a81Res.comparison,
             resolved: true,
           });
           winner = a81Res.winner;
@@ -363,6 +427,7 @@ export default function useLeaderboard(eventId) {
           steps.push({
             rule: 'RRS A8.1 + SHRS 5.6(ii)(a)(2)',
             note: 'Excluded scores included (SHRS modification of A8.1). All scores identical — still tied.',
+            subtitle: 'Compare shared-heat scores, including excluded scores.',
             resolved: false,
           });
 
@@ -371,6 +436,8 @@ export default function useLeaderboard(eventId) {
             steps.push({
               rule: 'RRS A8.2',
               note: `Shared-heat scores, last-race-backward. ${a82Res.detail}`,
+              subtitle: 'Compare shared-heat scores from last race backward.',
+              comparison: a82Res.comparison,
               resolved: true,
             });
             winner = a82Res.winner;
@@ -378,19 +445,16 @@ export default function useLeaderboard(eventId) {
             steps.push({
               rule: 'RRS A8.2',
               note: 'Shared-heat scores, last-race-backward. All identical — still tied.',
+              subtitle: 'Compare shared-heat scores from last race backward.',
               resolved: false,
             });
           }
         }
       } else {
-        // ── SHRS 5.6(ii)(b): Multi-heat, no shared heats ────────────
-        steps.push({
+        routeStep = {
           rule: 'SHRS 5.6(ii)(b)',
-          note: 'No shared heats — RRS A8.1 and A8.2 apply without modification on all scores.',
-        });
-
-        const boatAScores = (boatA.races || []).map(parseScoreEntry);
-        const boatBScores = (boatB.races || []).map(parseScoreEntry);
+          note: 'No shared heats were found. Standard RRS A8.1 and A8.2 are applied without SHRS modification.',
+        };
 
         // Standard A8.1: excluded scores NOT used
         const a81Res = applyA81Individual(boatAScores, boatBScores, false);
@@ -398,6 +462,8 @@ export default function useLeaderboard(eventId) {
           steps.push({
             rule: 'RRS A8.1',
             note: `Excluded scores not used. ${a81Res.detail}`,
+            subtitle: 'Compare non-excluded scores, best to worst.',
+            comparison: a81Res.comparison,
             resolved: true,
           });
           winner = a81Res.winner;
@@ -405,6 +471,7 @@ export default function useLeaderboard(eventId) {
           steps.push({
             rule: 'RRS A8.1',
             note: 'Excluded scores not used. All non-excluded scores identical — still tied.',
+            subtitle: 'Compare non-excluded scores, best to worst.',
             resolved: false,
           });
 
@@ -414,6 +481,8 @@ export default function useLeaderboard(eventId) {
             steps.push({
               rule: 'RRS A8.2',
               note: `Excluded scores used. ${a82Res.detail}`,
+              subtitle: 'Compare all scores from last race backward.',
+              comparison: a82Res.comparison,
               resolved: true,
             });
             winner = a82Res.winner;
@@ -421,6 +490,7 @@ export default function useLeaderboard(eventId) {
             steps.push({
               rule: 'RRS A8.2',
               note: 'Excluded scores used. All scores identical — still tied.',
+              subtitle: 'Compare all scores from last race backward.',
               resolved: false,
             });
           }
@@ -428,6 +498,37 @@ export default function useLeaderboard(eventId) {
       }
 
       const resolvedStep = steps.find((s) => s.resolved);
+
+      if (allSharedPairs.length > 0) {
+        const breakerRaceId = resolvedStep?.comparison?.raceId ?? null;
+        raceGrid = allSharedPairs.map((pair, idx) => ({
+          key: String(pair.raceId),
+          label: `R${idx + 1}`,
+          scoreA: pair.displayA,
+          scoreB: pair.displayB,
+          excludedA: pair.excludedA,
+          excludedB: pair.excludedB,
+          shared: true,
+          isBreaker: breakerRaceId != null && pair.raceId === breakerRaceId,
+        }));
+      } else {
+        const maxLen = Math.max(boatAScores.length, boatBScores.length);
+        raceGrid = Array.from({ length: maxLen }, (_unused, idx) => {
+          const a = boatAScores[idx];
+          const b = boatBScores[idx];
+          return {
+            key: `ind-${idx}`,
+            label: `R${idx + 1}`,
+            scoreA: a?.score ?? '–',
+            scoreB: b?.score ?? '–',
+            excludedA: Boolean(a?.excluded),
+            excludedB: Boolean(b?.excluded),
+            shared: false,
+            isBreaker: false,
+          };
+        });
+      }
+
       tieBreak = {
         steps,
         winner,
@@ -460,6 +561,8 @@ export default function useLeaderboard(eventId) {
       totalB,
       tied,
       tieBreak,
+      routeStep,
+      raceGrid,
       sharedIds,
       sharedRacePairs,
       sharedQualIds,

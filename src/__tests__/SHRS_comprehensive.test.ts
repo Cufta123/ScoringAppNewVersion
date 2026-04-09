@@ -597,6 +597,53 @@ describe('SHRS 5.6(i) – Single heat event: standard A8', () => {
     expect(r.b.place).toBe(1);
     expect(r.a.place).toBe(2);
   });
+
+  it('A8.1 ignores excluded scores in single-heat ties (4 races, 1 exclusion)', () => {
+    // 4 races => exclude 1 worst score.
+    // a: [6,2,1,3] -> keep [2,1,3] sorted [1,2,3]
+    // b: [5,1,2,3] -> keep [1,2,3] sorted [1,2,3]
+    // A8.1 stays tied because excluded scores (6 and 5) must NOT be used.
+    // A8.2 latest->oldest:
+    //   a=[3,1,2,6], b=[3,2,1,5]
+    //   latest tie at 3, next race 1<2 -> a wins.
+    // If excluded scores leaked into A8.1, b would incorrectly win on 5<6.
+    setupQualifyingMockDb(
+      { a: [6, 2, 1, 3], b: [5, 1, 2, 3] },
+      { a: [3, 1, 2, 6], b: [3, 2, 1, 5] },
+    );
+    const r = runQualifying([makeQResult('a', 4), makeQResult('b', 4)]);
+    expect(r.a.totalPoints).toBe(6);
+    expect(r.b.totalPoints).toBe(6);
+    expect(r.a.place).toBe(1);
+    expect(r.b.place).toBe(2);
+  });
+
+  it('A8.1 tie on kept scores falls through to A8.2 (8 races, 2 exclusions)', () => {
+    // 8 races => exclude 2 worst scores.
+    // a raw: [10,9,1,1,1,1,1,1] -> keep six 1s (total 6)
+    // b raw: [11,8,1,1,1,1,1,1] -> keep six 1s (total 6)
+    // A8.1 on kept scores is tied; excluded 10/9 and 11/8 must not break A8.1.
+    // A8.2 latest->oldest:
+    //   a=[1,1,1,1,1,1,9,10]
+    //   b=[1,1,1,1,1,1,11,8]
+    // first difference near the end: 9<11 -> a wins.
+    // If excluded scores leaked into A8.1, b would incorrectly win on 8<9.
+    setupQualifyingMockDb(
+      {
+        a: [10, 9, 1, 1, 1, 1, 1, 1],
+        b: [11, 8, 1, 1, 1, 1, 1, 1],
+      },
+      {
+        a: [1, 1, 1, 1, 1, 1, 9, 10],
+        b: [1, 1, 1, 1, 1, 1, 11, 8],
+      },
+    );
+    const r = runQualifying([makeQResult('a', 8), makeQResult('b', 8)]);
+    expect(r.a.totalPoints).toBe(6);
+    expect(r.b.totalPoints).toBe(6);
+    expect(r.a.place).toBe(1);
+    expect(r.b.place).toBe(2);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════

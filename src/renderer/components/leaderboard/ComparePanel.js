@@ -1,64 +1,60 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 
-/**
- * Compare mode panel. Shows a hint when waiting for boat selection, or the
- * full side-by-side tie-breaking breakdown once two boats are selected.
- *
- * Uses a CSS grid-template-rows trick to animate height smoothly without
- * needing to know the content height in advance.
- * When the content changes (hint → full breakdown), it cross-fades so the
- * height swap happens while the panel is invisible.
- */
-function ComparePanel({ show, compareInfo = null, selectedBoatIds }) {
-  // `displayed` is what's actually rendered; it lags behind compareInfo
-  // by one fade-out cycle so the height change isn't visible.
+function getStepStatusClass(resolved) {
+  if (resolved === true) return 'compare-step-resolved';
+  if (resolved === false) return 'compare-step-unresolved';
+  return 'compare-step-neutral';
+}
+
+function getStepStatusText(resolved) {
+  if (resolved === true) return 'resolved';
+  if (resolved === false) return 'unresolved';
+  return 'info';
+}
+
+function ComparePanel({ show, compareInfo, selectedBoatIds }) {
   const [displayed, setDisplayed] = useState(compareInfo);
   const [fading, setFading] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
   const timerRef = useRef(null);
 
   useEffect(() => {
-    // When the panel is hidden, sync immediately with no animation.
     if (!show) {
       setDisplayed(compareInfo);
       setFading(false);
       return;
     }
-    // Don't animate if content hasn't changed.
+
     if (compareInfo === displayed) return;
 
-    // Expanding (hint → full comparison): swap immediately so the panel
-    // just grows — no fake close/reopen.
     if (!displayed && compareInfo) {
       setDisplayed(compareInfo);
       return;
     }
 
-    // Shrinking (full → hint, or different comparison): fade out first so
-    // the height change isn't jarring.
     clearTimeout(timerRef.current);
     setFading(true);
     timerRef.current = setTimeout(() => {
       setDisplayed(compareInfo);
       setFading(false);
     }, 160);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [compareInfo, show]);
+  }, [compareInfo, displayed, show]);
+
+  useEffect(() => {
+    setShowDetail(false);
+  }, [compareInfo]);
+
+  const renderScoreValue = (value, excluded) => {
+    if (value === undefined || value === null) return '–';
+    if (!excluded) return value;
+    return `(${value})`;
+  };
 
   const inner = (() => {
-    // Waiting for selection
     if (!displayed) {
       return (
-        <div
-          style={{
-            padding: '9px 14px',
-            borderRadius: '8px',
-            border: '1px solid var(--border, #dde3ea)',
-            background: 'var(--surface, #f5f7fa)',
-            fontSize: '0.9rem',
-            color: '#888',
-          }}
-        >
+        <div className="compare-hint">
           {selectedBoatIds.length === 0
             ? 'Click two rows to compare (SHRS 5.6 tie-breaking).'
             : 'Select one more competitor to compare.'}
@@ -73,268 +69,268 @@ function ComparePanel({ show, compareInfo = null, selectedBoatIds }) {
       totalB,
       tied,
       tieBreak,
+      routeStep,
+      raceGrid = [],
       sharedRacePairs,
       sharedQualRacePairs,
       sharedIds,
       otherTiedCount = 0,
     } = displayed;
 
+    const boatAName = `${boatA.name} ${boatA.surname}`;
+    const boatBName = `${boatB.name} ${boatB.surname}`;
+
+    const routeFallback =
+      tieBreak?.steps?.find((step) =>
+        String(step.rule || '').startsWith('SHRS'),
+      ) || null;
+
+    const visibleSteps =
+      tieBreak?.steps?.filter(
+        (step) => !String(step.rule || '').startsWith('SHRS'),
+      ) || [];
+
+    const route =
+      routeStep ||
+      (routeFallback
+        ? {
+            rule: routeFallback.rule,
+            note: routeFallback.note,
+          }
+        : null);
+
+    const boatAWins = tieBreak?.winner?.boat_id === boatA.boat_id;
+
     return (
-      <div
-        style={{
-          padding: '14px 16px',
-          borderRadius: '8px',
-          border: '1px solid var(--border, #dde3ea)',
-          background: 'var(--surface, #f5f7fa)',
-          fontSize: '0.85rem',
-          color: 'var(--navy)',
-        }}
-      >
-        {/* ── Header: names + totals ── */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            flexWrap: 'wrap',
-            marginBottom: '10px',
-          }}
-        >
-          <span
-            style={{
-              fontWeight: 700,
-              fontSize: '0.95rem',
-              color: 'var(--teal, #2a9d8f)',
-            }}
-          >
-            {boatA.name} {boatA.surname}
-          </span>
-          <span
-            style={{
-              padding: '1px 8px',
-              borderRadius: '4px',
-              background: 'var(--navy, #1d3557)',
-              color: '#fff',
-              fontWeight: 700,
-              fontSize: '0.92rem',
-            }}
-          >
-            {totalA}
-          </span>
-          <span style={{ color: '#aaa', fontWeight: 400 }}>vs</span>
-          <span
-            style={{
-              fontWeight: 700,
-              fontSize: '0.95rem',
-              color: 'var(--teal, #2a9d8f)',
-            }}
-          >
-            {boatB.name} {boatB.surname}
-          </span>
-          <span
-            style={{
-              padding: '1px 8px',
-              borderRadius: '4px',
-              background: 'var(--navy, #1d3557)',
-              color: '#fff',
-              fontWeight: 700,
-              fontSize: '0.92rem',
-            }}
-          >
-            {totalB}
-          </span>
+      <div className="compare-panel-card">
+        <div className="compare-header">
+          <span className="compare-boat-name">{boatAName}</span>
+          <span className="compare-total-pill">{totalA}</span>
+          <span className="compare-vs">vs</span>
+          <span className="compare-boat-name">{boatBName}</span>
+          <span className="compare-total-pill">{totalB}</span>
         </div>
 
-        {/* ── Not tied ── */}
         {!tied && (
-          <div
-            style={{
-              padding: '6px 10px',
-              borderRadius: '6px',
-              background: 'rgba(42,157,143,0.1)',
-              border: '1px solid rgba(42,157,143,0.25)',
-              marginBottom: '8px',
-            }}
-          >
-            <strong style={{ marginRight: '6px' }}>Status: NOT TIED.</strong>
-            <strong>
-              {totalA < totalB
-                ? `${boatA.name} ${boatA.surname}`
-                : `${boatB.name} ${boatB.surname}`}
-            </strong>{' '}
-            leads by{' '}
+          <div className="compare-status compare-status-ok">
+            <strong>Status: NOT TIED.</strong>{' '}
+            <strong>{totalA < totalB ? boatAName : boatBName}</strong> leads by{' '}
             <strong>
               {Math.abs(totalA - totalB)} pt
               {Math.abs(totalA - totalB) !== 1 ? 's' : ''}
             </strong>
-            . No tie — tie-breaking not required.
+            . No tie and no tie-break required.
           </div>
         )}
 
-        {/* ── Multi-boat tie warning ── */}
         {tied && otherTiedCount > 0 && (
-          <div
-            style={{
-              padding: '6px 10px',
-              borderRadius: '6px',
-              background: 'rgba(180,0,0,0.06)',
-              border: '1px solid rgba(180,0,0,0.22)',
-              marginBottom: '8px',
-              fontSize: '0.88rem',
-              lineHeight: 1.5,
-              color: '#7a1010',
-            }}
-          >
+          <div className="compare-status compare-status-warn">
             <strong>
-              ⚠️ {otherTiedCount} other boat{' '}
+              {otherTiedCount} other boat{' '}
               {otherTiedCount !== 1 ? 's are' : 'is'} also tied at {totalA} pts.
             </strong>{' '}
-            This pairwise comparison shows who wins the direct matchup, but the{' '}
-            <strong>
-              overall ranking sorts all {otherTiedCount + 2} tied boats together
-            </strong>
-            . In a 3-way (or more) tie with different shared heats, the pairwise
-            result can differ from the final standings if a cyclic dominance
-            exists (A beats B, B beats C, C beats A).
+            This pairwise comparison shows the direct matchup only. Overall
+            ranking still sorts all tied boats together.
           </div>
         )}
 
-        {/* ── Tied ── */}
         {tied && tieBreak && (
-          <div
-            style={{
-              padding: '6px 10px',
-              borderRadius: '6px',
-              background: 'rgba(255,150,0,0.08)',
-              border: '1px solid rgba(255,150,0,0.3)',
-              marginBottom: '8px',
-              lineHeight: 1.5,
-            }}
-          >
-            <span
-              style={{
-                fontWeight: 700,
-                color: 'darkorange',
-                marginRight: '6px',
-              }}
-            >
-              Status: TIED
-            </span>
+          <div className="compare-status compare-status-tied">
+            <span className="compare-status-title">Status: TIED</span>{' '}
             {tieBreak.winner ? (
               <span>
-                — Tie broken in favour of{' '}
+                Tie broken in favour of{' '}
                 <strong>
                   {tieBreak.winner.name} {tieBreak.winner.surname}
                 </strong>
                 .
               </span>
             ) : (
-              <span style={{ color: '#888' }}>— Tie could not be broken.</span>
+              <span className="compare-muted">Tie could not be broken.</span>
             )}
+            {route && (
+              <div className="compare-route-banner">
+                <span className="compare-route-rule">{route.rule}</span>
+                <span>{route.note}</span>
+              </div>
+            )}
+            {visibleSteps.length > 0 && (
+              <div className="compare-steps-wrap">
+                <div className="compare-steps-title">Rule resolution</div>
+                {visibleSteps.map((step) => {
+                  const statusClass = getStepStatusClass(step.resolved);
+                  const statusText = getStepStatusText(step.resolved);
 
-            {/* Rule-by-rule breakdown */}
-            {tieBreak.steps && tieBreak.steps.length > 0 && (
-              <div style={{ marginTop: '8px', fontSize: '0.88rem' }}>
-                <div
-                  style={{
-                    fontWeight: 600,
-                    color: '#555',
-                    marginBottom: '4px',
-                  }}
-                >
-                  Rules applied:
-                </div>
-                {tieBreak.steps.map((step, idx) => {
-                  const stepColor =
-                    // eslint-disable-next-line no-nested-ternary
-                    step.resolved === true
-                      ? 'var(--teal, #2a9d8f)'
-                      : step.resolved === false
-                        ? '#c44'
-                        : '#666';
-                  const iconMap = { true: '\u2713', false: '\u2717' };
-                  const icon = iconMap[String(step.resolved)] || '\u2192';
+                  let comparisonLine = null;
+                  if (step.comparison?.mode === 'A8.1') {
+                    comparisonLine = (
+                      <div className="compare-step-detail">
+                        <span
+                          className={
+                            boatAWins
+                              ? 'compare-name-winner'
+                              : 'compare-name-loser'
+                          }
+                        >
+                          {boatAName}
+                        </span>{' '}
+                        {step.comparison.scoreA} vs{' '}
+                        <span
+                          className={
+                            !boatAWins
+                              ? 'compare-name-winner'
+                              : 'compare-name-loser'
+                          }
+                        >
+                          {boatBName}
+                        </span>{' '}
+                        {step.comparison.scoreB} at sorted position{' '}
+                        {step.comparison.position}.
+                      </div>
+                    );
+                  }
+
+                  if (step.comparison?.mode === 'A8.2') {
+                    const breaker = raceGrid.find((race) => race.isBreaker);
+                    comparisonLine = (
+                      <div className="compare-step-detail">
+                        <span
+                          className={
+                            boatAWins
+                              ? 'compare-name-winner'
+                              : 'compare-name-loser'
+                          }
+                        >
+                          {boatAName}
+                        </span>{' '}
+                        {step.comparison.scoreA} vs{' '}
+                        <span
+                          className={
+                            !boatAWins
+                              ? 'compare-name-winner'
+                              : 'compare-name-loser'
+                          }
+                        >
+                          {boatBName}
+                        </span>{' '}
+                        {step.comparison.scoreB}
+                        {breaker ? ` at ${breaker.label}` : ''}.
+                      </div>
+                    );
+                  }
+
                   return (
                     <div
-                      key={step.rule}
-                      style={{
-                        display: 'flex',
-                        gap: '6px',
-                        padding: '3px 0',
-                        borderTop:
-                          idx > 0 ? '1px solid rgba(0,0,0,0.05)' : 'none',
-                      }}
+                      key={`${step.rule}-${String(step.resolved)}`}
+                      className={`compare-step-card ${statusClass}`}
                     >
-                      <span
-                        style={{
-                          fontWeight: 600,
-                          color: stepColor,
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {icon} {step.rule}
-                      </span>
-                      <span style={{ color: '#666' }}>{step.note}</span>
+                      <div className="compare-step-head">
+                        <span className="compare-step-rule">{step.rule}</span>
+                        <span className="compare-step-state">{statusText}</span>
+                      </div>
+                      {step.subtitle && (
+                        <div className="compare-step-subtitle">
+                          {step.subtitle}
+                        </div>
+                      )}
+                      {comparisonLine || (
+                        <div className="compare-step-note">{step.note}</div>
+                      )}
                     </div>
                   );
                 })}
               </div>
             )}
+            {raceGrid.length > 0 && (
+              <div className="compare-detail-section">
+                <button
+                  type="button"
+                  className="compare-detail-toggle"
+                  onClick={() => setShowDetail((prev) => !prev)}
+                  aria-expanded={showDetail}
+                >
+                  {showDetail
+                    ? 'Hide race-by-race detail'
+                    : 'Show race-by-race detail'}
+                </button>
+
+                <div
+                  className={`compare-grid-shell ${showDetail ? 'open' : ''}`}
+                >
+                  <div className="compare-grid-inner">
+                    <div className="compare-grid-header-cell compare-grid-row-label" />
+                    {raceGrid.map((race) => (
+                      <div
+                        key={`h-${race.key}`}
+                        className={`compare-grid-header-cell ${
+                          race.isBreaker ? 'compare-grid-breaker' : ''
+                        }`}
+                      >
+                        {race.label}
+                      </div>
+                    ))}
+
+                    <div className="compare-grid-row-label compare-grid-row-a">
+                      {boatAName}
+                    </div>
+                    {raceGrid.map((race) => (
+                      <div
+                        key={`a-${race.key}`}
+                        className={`compare-grid-score ${
+                          race.isBreaker ? 'compare-grid-breaker' : ''
+                        } ${race.excludedA ? 'compare-grid-excluded' : ''}`}
+                      >
+                        {renderScoreValue(race.scoreA, race.excludedA)}
+                      </div>
+                    ))}
+
+                    <div className="compare-grid-row-label compare-grid-row-b">
+                      {boatBName}
+                    </div>
+                    {raceGrid.map((race) => (
+                      <div
+                        key={`b-${race.key}`}
+                        className={`compare-grid-score ${
+                          race.isBreaker ? 'compare-grid-breaker' : ''
+                        } ${race.excludedB ? 'compare-grid-excluded' : ''}`}
+                      >
+                        {renderScoreValue(race.scoreB, race.excludedB)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* ── Shared race badges ── */}
         {sharedQualRacePairs?.length > 0 || sharedIds.size > 0 ? (
-          <div>
-            <span style={{ color: '#888', fontSize: '0.88rem' }}>
-              Shared heat races (highlighted):{' '}
-            </span>
-            {/* Qualifying */}
+          <div className="compare-badges-wrap">
+            <span className="compare-badges-label">Shared heat races:</span>
             {sharedQualRacePairs?.map((pair, i) => (
               <span
                 key={`q-${pair.raceId}`}
-                style={{
-                  display: 'inline-block',
-                  margin: '2px 3px',
-                  padding: '2px 8px',
-                  borderRadius: '4px',
-                  background: 'rgba(41,98,255,0.15)',
-                  border: '1px solid rgba(41,98,255,0.3)',
-                  fontWeight: 600,
-                  fontSize: '0.88rem',
-                }}
+                className="compare-badge compare-badge-qual"
               >
-                Q{i + 1}: {pair.displayA}{' '}
-                <span style={{ color: '#aaa', fontWeight: 400 }}>vs</span>{' '}
+                Q{i + 1}: {pair.displayA} <span className="compare-vs">vs</span>{' '}
                 {pair.displayB}
               </span>
             ))}
-            {/* Final */}
             {sharedRacePairs.map((pair, i) => (
               <span
                 key={`f-${pair.raceId}`}
-                style={{
-                  display: 'inline-block',
-                  margin: '2px 3px',
-                  padding: '2px 8px',
-                  borderRadius: '4px',
-                  background: 'rgba(255,210,0,0.35)',
-                  border: '1px solid rgba(180,150,0,0.25)',
-                  fontWeight: 600,
-                  fontSize: '0.88rem',
-                }}
+                className="compare-badge compare-badge-final"
               >
-                F{i + 1}: {pair.displayA}{' '}
-                <span style={{ color: '#aaa', fontWeight: 400 }}>vs</span>{' '}
+                F{i + 1}: {pair.displayA} <span className="compare-vs">vs</span>{' '}
                 {pair.displayB}
               </span>
             ))}
           </div>
         ) : (
-          <div style={{ color: '#888', fontSize: '0.88rem', marginTop: '2px' }}>
+          <div className="compare-muted compare-no-shared">
             No shared heats found.
             {tied
-              ? ' SHRS 5.6(ii)(b): full RRS A8.1 & A8.2 apply without modification.'
+              ? ' SHRS 5.6(ii)(b): full RRS A8.1 and A8.2 apply without modification.'
               : ''}
           </div>
         )}
@@ -370,20 +366,64 @@ function ComparePanel({ show, compareInfo = null, selectedBoatIds }) {
   );
 }
 
+const boatShape = PropTypes.shape({
+  boat_id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  name: PropTypes.string,
+  surname: PropTypes.string,
+});
+
+const tieStepShape = PropTypes.shape({
+  rule: PropTypes.string,
+  note: PropTypes.string,
+  subtitle: PropTypes.string,
+  resolved: PropTypes.bool,
+  comparison: PropTypes.shape({
+    mode: PropTypes.string,
+    scoreA: PropTypes.number,
+    scoreB: PropTypes.number,
+    position: PropTypes.number,
+    raceId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  }),
+});
+
 ComparePanel.propTypes = {
   show: PropTypes.bool.isRequired,
-  compareInfo: PropTypes.shape({
-    boatA: PropTypes.object,
-    boatB: PropTypes.object,
-    totalA: PropTypes.number,
-    totalB: PropTypes.number,
-    tied: PropTypes.bool,
-    tieBreak: PropTypes.object,
-    sharedIds: PropTypes.instanceOf(Set),
-    sharedRacePairs: PropTypes.array,
-    sharedQualRacePairs: PropTypes.array,
-  }),
-  selectedBoatIds: PropTypes.arrayOf(PropTypes.number).isRequired,
+  compareInfo: PropTypes.oneOfType([
+    PropTypes.shape({
+      boatA: boatShape,
+      boatB: boatShape,
+      totalA: PropTypes.number,
+      totalB: PropTypes.number,
+      tied: PropTypes.bool,
+      tieBreak: PropTypes.shape({
+        winner: boatShape,
+        steps: PropTypes.arrayOf(tieStepShape),
+      }),
+      routeStep: PropTypes.shape({
+        rule: PropTypes.string,
+        note: PropTypes.string,
+      }),
+      raceGrid: PropTypes.arrayOf(
+        PropTypes.shape({
+          key: PropTypes.string,
+          label: PropTypes.string,
+          scoreA: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+          scoreB: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+          excludedA: PropTypes.bool,
+          excludedB: PropTypes.bool,
+          isBreaker: PropTypes.bool,
+        }),
+      ),
+      sharedIds: PropTypes.instanceOf(Set),
+      sharedRacePairs: PropTypes.arrayOf(PropTypes.object),
+      sharedQualRacePairs: PropTypes.arrayOf(PropTypes.object),
+      otherTiedCount: PropTypes.number,
+    }),
+    PropTypes.oneOf([null]),
+  ]).isRequired,
+  selectedBoatIds: PropTypes.arrayOf(
+    PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  ).isRequired,
 };
 
 export default ComparePanel;
