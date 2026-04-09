@@ -1,3 +1,7 @@
+/* eslint-disable react/no-array-index-key */
+/* eslint-disable no-nested-ternary */
+/* eslint-disable react/forbid-prop-types */
+/* eslint-disable react/require-default-props */
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import Flag from 'react-world-flags';
@@ -75,7 +79,7 @@ function FinalFleetTable({
             display: 'flex',
             alignItems: 'center',
             gap: '5px',
-            fontSize: '0.8rem',
+            fontSize: '0.9rem',
             color: '#555',
             cursor: 'pointer',
             userSelect: 'none',
@@ -142,7 +146,7 @@ function FinalFleetTable({
                   background: fleetAccent.thead,
                   borderLeft: '1px solid rgba(255,255,255,0.2)',
                   borderRight: '1px solid rgba(255,255,255,0.1)',
-                  fontSize: '0.78rem',
+                  fontSize: '0.88rem',
                 }}
               >
                 Gross
@@ -174,6 +178,14 @@ function FinalFleetTable({
                 return (
                   <th
                     key={`qh-r${i + 1}`}
+                    aria-label={
+                      colQIsShared ? `Q${i + 1} shared race` : `Q${i + 1}`
+                    }
+                    title={
+                      colQIsShared
+                        ? 'Shared race with compared competitor'
+                        : undefined
+                    }
                     style={{
                       textAlign: 'center',
                       padding: '7px 10px',
@@ -219,6 +231,14 @@ function FinalFleetTable({
                 return (
                   <th
                     key={`fh-r${i + 1}`}
+                    aria-label={
+                      colFIsShared ? `F${i + 1} shared race` : `F${i + 1}`
+                    }
+                    title={
+                      colFIsShared
+                        ? 'Shared race with compared competitor'
+                        : undefined
+                    }
                     style={{
                       textAlign: 'center',
                       padding: '7px 10px',

@@ -5,7 +5,7 @@ const btnBase = {
   padding: '6px 14px',
   borderRadius: 'var(--radius, 6px)',
   fontWeight: 600,
-  fontSize: '0.85rem',
+  fontSize: '0.9rem',
   cursor: 'pointer',
 };
 
@@ -35,6 +35,7 @@ function ExportDropdown({ onExport }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-label="Open export format menu"
         style={{
           ...btnBase,
           border: '1px solid var(--border, #dde3ea)',
@@ -46,7 +47,7 @@ function ExportDropdown({ onExport }) {
         }}
       >
         Export
-        <span style={{ fontSize: '0.7rem' }}>{open ? '▲' : '▼'}</span>
+        <span style={{ fontSize: '0.85rem' }}>{open ? '▲' : '▼'}</span>
       </button>
 
       {open && (
@@ -72,6 +73,7 @@ function ExportDropdown({ onExport }) {
                 onExport(key);
                 setOpen(false);
               }}
+              aria-label={`Export leaderboard as ${label}`}
               style={{
                 display: 'block',
                 width: '100%',
@@ -79,7 +81,7 @@ function ExportDropdown({ onExport }) {
                 textAlign: 'left',
                 background: 'none',
                 border: 'none',
-                fontSize: '0.85rem',
+                fontSize: '0.9rem',
                 color: 'var(--navy)',
                 cursor: 'pointer',
               }}
@@ -174,7 +176,7 @@ function LeaderboardToolbar({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
-                fontSize: '0.85rem',
+                fontSize: '0.9rem',
                 color: 'var(--navy)',
                 cursor: 'pointer',
               }}

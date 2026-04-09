@@ -41,7 +41,7 @@ function Rdg2Picker({
       <div
         style={{
           fontWeight: 700,
-          fontSize: '0.82rem',
+          fontSize: '0.9rem',
           marginBottom: '8px',
           color: 'var(--teal,#2a9d8f)',
         }}
@@ -57,7 +57,7 @@ function Rdg2Picker({
           <>
             <div
               style={{
-                fontSize: '0.72rem',
+                fontSize: '0.85rem',
                 fontWeight: 700,
                 color: '#888',
                 marginBottom: '4px',
@@ -109,7 +109,7 @@ function Rdg2Picker({
             })}
             <div
               style={{
-                fontSize: '0.72rem',
+                fontSize: '0.85rem',
                 fontWeight: 700,
                 color: '#888',
                 margin: '6px 0 4px',
@@ -168,8 +168,8 @@ function Rdg2Picker({
           disabled={totalSelected === 0}
           style={{
             flex: 1,
-            fontSize: '0.8rem',
-            padding: '5px 8px',
+            fontSize: '0.9rem',
+            padding: '8px 10px',
             borderRadius: '5px',
             background: 'var(--teal,#2a9d8f)',
             color: '#fff',
@@ -186,8 +186,8 @@ function Rdg2Picker({
           onClick={() => setRdg2Picker(null)}
           style={{
             flex: 1,
-            fontSize: '0.8rem',
-            padding: '5px 8px',
+            fontSize: '0.9rem',
+            padding: '8px 10px',
             borderRadius: '5px',
             background: 'var(--surface,#f5f7fa)',
             border: '1px solid var(--border,#dde3ea)',

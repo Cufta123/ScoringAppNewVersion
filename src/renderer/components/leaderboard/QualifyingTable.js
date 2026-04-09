@@ -111,7 +111,7 @@ function QualifyingTable({
                   background: 'rgba(0,0,0,0.15)',
                   borderLeft: '1px solid rgba(255,255,255,0.2)',
                   borderRight: '1px solid rgba(255,255,255,0.1)',
-                  fontSize: '0.78rem',
+                  fontSize: '0.88rem',
                 }}
               >
                 Gross
@@ -145,6 +145,8 @@ function QualifyingTable({
                 return (
                   <th
                     key={`qh-r${i + 1}`}
+                    aria-label={colIsShared ? `Q${i + 1} shared race` : `Q${i + 1}`}
+                    title={colIsShared ? 'Shared race with compared competitor' : undefined}
                     style={{
                       textAlign: 'center',
                       padding: '7px 10px',

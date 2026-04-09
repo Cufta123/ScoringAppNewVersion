@@ -79,6 +79,7 @@ function SailorImport({ eventId, onImportComplete }) {
         ref={fileInputRef}
         type="file"
         accept=".csv"
+        aria-label="Choose sailors CSV file"
         style={{ display: 'none' }}
         onChange={handleFileChange}
       />
@@ -99,6 +100,7 @@ function SailorImport({ eventId, onImportComplete }) {
             fileInputRef.current?.click();
           }}
           disabled={busy}
+          aria-label="Choose CSV file for sailor import"
         >
           <i className="fa fa-upload" aria-hidden="true" />
           {busy ? ' Importing…' : ' Choose CSV File'}
@@ -108,8 +110,9 @@ function SailorImport({ eventId, onImportComplete }) {
         <button
           type="button"
           className="btn-ghost"
-          style={{ fontSize: '.82rem', padding: '4px 10px' }}
+          style={{ fontSize: '.88rem', padding: '6px 12px' }}
           onClick={downloadTemplate}
+          aria-label="Download CSV template"
         >
           <i className="fa fa-download" aria-hidden="true" /> template
         </button>
@@ -118,7 +121,7 @@ function SailorImport({ eventId, onImportComplete }) {
       {/* Column format hint */}
       <p
         style={{
-          fontSize: '.78rem',
+          fontSize: '.88rem',
           color: 'var(--text-muted)',
           margin: '8px 0 0',
         }}

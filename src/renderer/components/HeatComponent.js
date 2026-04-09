@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import Flag from 'react-world-flags';
 import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
 import printNewHeats from '../utils/printNewHeats';
+import AppModal from './shared/AppModal';
 import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
 
 function HeatComponent({
@@ -273,7 +274,7 @@ function HeatComponent({
         return;
       }
       if (uniqueCounts[0] === 0) {
-        const proceed = confirmAction(
+        const proceed = await confirmAction(
           'No qualifying races have been completed yet. Boats will be assigned to fleets based on their initial seeding only.\n\nStart the Final Series anyway?',
           'Start Final Series',
         );
@@ -519,84 +520,18 @@ function HeatComponent({
 
   return (
     <div className="section-block">
-      {/* ── Confirmation modal ─── */}
-      {showFinalConfirm && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 999,
-            background: 'rgba(10,24,38,.55)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <div
-            style={{
-              background: 'var(--surface)',
-              borderRadius: 'var(--radius)',
-              boxShadow: 'var(--shadow-md)',
-              padding: '32px 36px',
-              maxWidth: '420px',
-              width: '90%',
-            }}
-          >
-            <h3
-              style={{
-                marginTop: 0,
-                marginBottom: '12px',
-                color: 'var(--navy)',
-              }}
-            >
-              <i
-                className="fa fa-flag-checkered"
-                aria-hidden="true"
-                style={{ marginRight: '8px', color: 'var(--teal)' }}
-              />
-              Start Final Series?
-            </h3>
-            <p
-              style={{
-                color: 'var(--text-secondary)',
-                marginBottom: '24px',
-                lineHeight: 1.5,
-              }}
-            >
-              This will create <strong>{pendingFinalHeats}</strong> final fleet
-              {pendingFinalHeats > 1 ? 's' : ''} based on current standings.
-              This action <strong>cannot be undone</strong>.
-            </p>
-            <div
-              style={{
-                display: 'flex',
-                gap: '10px',
-                justifyContent: 'flex-end',
-              }}
-            >
-              <button
-                type="button"
-                className="btn-ghost"
-                onClick={() => setShowFinalConfirm(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn-success"
-                onClick={handleConfirmFinalSeries}
-              >
-                <i
-                  className="fa fa-check"
-                  aria-hidden="true"
-                  style={{ marginRight: '6px' }}
-                />
-                Yes, Start Final Series
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AppModal
+        open={showFinalConfirm}
+        title="Start Final Series?"
+        confirmLabel="Yes, Start Final Series"
+        cancelLabel="Cancel"
+        onCancel={() => setShowFinalConfirm(false)}
+        onConfirm={handleConfirmFinalSeries}
+      >
+        This will create <strong>{pendingFinalHeats}</strong> final fleet
+        {pendingFinalHeats > 1 ? 's' : ''} based on current standings. This
+        action <strong>cannot be undone</strong>.
+      </AppModal>
       <h2>
         <i
           className="fa fa-flag"

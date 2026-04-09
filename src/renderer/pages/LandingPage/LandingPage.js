@@ -4,6 +4,7 @@ import React, { useState, } from 'react';
 import EventForm from '../../components/EventForm';
 import GlobalLeaderboardComponent from '../../components/GlobalLeaderboard';
 import Navbar from '../../components/Navbar';
+import Breadcrumbs from '../../components/shared/Breadcrumbs';
 import './LandingPage.css';
 
 
@@ -17,15 +18,21 @@ function LandingPage() {
           onBack={() => setShowLeaderboard(false)}
           backLabel="Back to Home"
         />
-        <div className="page-wrapper">
+        <main id="main-content" className="page-wrapper" tabIndex={-1}>
+          <Breadcrumbs
+            items={[
+              { label: 'Home', onClick: () => setShowLeaderboard(false) },
+              { label: 'Global Leaderboard' },
+            ]}
+          />
           <GlobalLeaderboardComponent />
-        </div>
+        </main>
       </div>
     );
   }
 
   return (
-    <div className="landing-page">
+    <main id="main-content" className="landing-page" tabIndex={-1}>
       <Navbar />
 
       {/* ── Hero ─── */}
@@ -49,7 +56,7 @@ function LandingPage() {
         <EventForm />
       </div>
 
-    </div>
+    </main>
   );
 }
 

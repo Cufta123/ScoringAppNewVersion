@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { reportError } from '../utils/userFeedback';
+import { reportError, reportInfo } from '../utils/userFeedback';
 
 const POSITION_KEEPING_PENALTIES = new Set(['ZFP', 'SCP']);
 
@@ -108,6 +108,9 @@ function ScoringInputComponent({ heat, onSubmit }) {
   };
 
   const handleReorderBoat = (fromIndex, toIndex) => {
+    if (toIndex < 0 || toIndex >= boatNumbers.length || fromIndex === toIndex) {
+      return;
+    }
     const updatedBoatNumbers = [...boatNumbers];
     const [movedBoat] = updatedBoatNumbers.splice(fromIndex, 1);
     updatedBoatNumbers.splice(toIndex, 0, movedBoat);
@@ -194,8 +197,9 @@ function ScoringInputComponent({ heat, onSubmit }) {
     if (allBoatsAccountedFor) {
       onSubmit(boatPlaces);
     } else {
-      alert(
+      reportInfo(
         'All boats must be assigned a place or a penalty before submitting.',
+        'Incomplete scoring',
       );
     }
   };
@@ -229,7 +233,7 @@ function ScoringInputComponent({ heat, onSubmit }) {
         <p
           style={{
             margin: '0 0 12px 0',
-            fontSize: '0.82rem',
+            fontSize: '0.88rem',
             color: 'var(--text-muted, #666)',
           }}
         >
@@ -370,6 +374,7 @@ function ScoringInputComponent({ heat, onSubmit }) {
                           handlePenaltyChange(boat.sail_number, e.target.value)
                         }
                         onClick={(e) => e.stopPropagation()}
+                        aria-label={`Penalty for sail ${boat.sail_number}`}
                         style={{
                           padding: '4px 6px',
                           borderRadius: 'var(--radius, 6px)',
@@ -431,6 +436,7 @@ function ScoringInputComponent({ heat, onSubmit }) {
             onChange={handleInputChange}
             onKeyDown={handleInputKeyDown}
             placeholder="Type sail number and press Enter"
+            aria-label="Add sail numbers manually"
             style={{
               flex: 1,
               padding: '9px 12px',
@@ -443,6 +449,7 @@ function ScoringInputComponent({ heat, onSubmit }) {
           <button
             type="button"
             onClick={handleAddBoats}
+            aria-label="Add sail number to finish order"
             style={{
               padding: '9px 16px',
               borderRadius: 'var(--radius, 6px)',
@@ -510,7 +517,49 @@ function ScoringInputComponent({ heat, onSubmit }) {
                 </span>
                 <button
                   type="button"
+                  aria-label={`Move sail ${number} up`}
+                  onClick={() => handleReorderBoat(index, index - 1)}
+                  disabled={index === 0}
+                  style={{
+                    background: 'none',
+                    border: '1px solid var(--border, #dde3ea)',
+                    borderRadius: '4px',
+                    cursor: index === 0 ? 'not-allowed' : 'pointer',
+                    color: '#666',
+                    fontSize: '0.95rem',
+                    lineHeight: 1,
+                    padding: '4px 8px',
+                  }}
+                  title="Move up"
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Move sail ${number} down`}
+                  onClick={() => handleReorderBoat(index, index + 1)}
+                  disabled={index === boatNumbers.length - 1}
+                  style={{
+                    background: 'none',
+                    border: '1px solid var(--border, #dde3ea)',
+                    borderRadius: '4px',
+                    cursor:
+                      index === boatNumbers.length - 1
+                        ? 'not-allowed'
+                        : 'pointer',
+                    color: '#666',
+                    fontSize: '0.95rem',
+                    lineHeight: 1,
+                    padding: '4px 8px',
+                  }}
+                  title="Move down"
+                >
+                  ↓
+                </button>
+                <button
+                  type="button"
                   onClick={() => handleRemoveBoat(index)}
+                  aria-label={`Remove sail ${number} from finish order`}
                   style={{
                     background: 'none',
                     border: 'none',

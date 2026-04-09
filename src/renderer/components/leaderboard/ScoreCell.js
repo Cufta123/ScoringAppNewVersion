@@ -49,6 +49,11 @@ function ScoreCell({
   if (!editMode || !isEditable) {
     return (
       <td
+        aria-label={
+          isShared
+            ? `Shared race cell: ${displayText}`
+            : `Race cell: ${displayText}`
+        }
         style={{
           ...tdStyle,
           ...(isShared
@@ -74,6 +79,11 @@ function ScoreCell({
   // ── Edit mode ─────────────────────────────────────────────────────────────
   return (
     <td
+      aria-label={
+        isShared
+          ? 'Shared race editable cell'
+          : 'Editable race cell'
+      }
       style={{
         ...tdStyle,
         background: isShared ? 'rgba(255,210,0,0.3)' : 'var(--surface,#f5f7fa)',
@@ -101,12 +111,14 @@ function ScoreCell({
               raceStatus === 'RDG3' ? 'RDG3' : 'FINISHED',
             )
           }
+          aria-label={`Race ${raceIndex + 1} value`}
           style={{
-            width: '50px',
-            padding: '3px 5px',
+            width: '70px',
+            padding: '6px 8px',
             borderRadius: '4px',
             border: '1px solid var(--border,#dde3ea)',
             opacity: isPenalty && raceStatus !== 'RDG3' ? 0.35 : 1,
+            fontSize: '0.88rem',
           }}
         />
 
@@ -127,12 +139,13 @@ function ScoreCell({
               onRaceChange(boatId, raceIndex, null, e.target.value);
             }
           }}
+          aria-label={`Race ${raceIndex + 1} status`}
           style={{
-            width: '80px',
-            fontSize: '0.72rem',
+            width: '100px',
+            fontSize: '0.88rem',
             borderRadius: '4px',
             border: '1px solid var(--border,#dde3ea)',
-            padding: '2px',
+            padding: '4px 6px',
             // eslint-disable-next-line no-nested-ternary
             color: isRdgCell
               ? 'var(--teal,#2a9d8f)'
@@ -166,6 +179,19 @@ function ScoreCell({
             confirmRdg2={confirmRdg2}
             qualifyingEntry={qualifyingEntry}
           />
+        )}
+
+        {isShared && (
+          <span
+            style={{
+              marginTop: '2px',
+              fontSize: '0.78rem',
+              fontWeight: 700,
+              color: 'var(--navy)',
+            }}
+          >
+            Shared
+          </span>
         )}
       </div>
     </td>

@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import HeatComponent from '../../components/HeatComponent';
 import ScoringInputComponent from '../../components/ScoringInputComponent';
 import Navbar from '../../components/Navbar';
+import Breadcrumbs from '../../components/shared/Breadcrumbs';
 import './HeatRacePage.css';
 import {
   confirmAction,
@@ -105,7 +106,7 @@ function HeatRacePage() {
         numQualifyingGroups >= 2 &&
         races.length >= 1
       ) {
-        const proceed = confirmAction(
+        const proceed = await confirmAction(
           `Warning: "${selectedHeat.heat_name}" has already completed Race ${races.length}.\n\n` +
             `According to SHRS 3.2 boats should be redistributed before racing again.\n\n` +
             `Press OK to score Race ${nextRaceNumber} anyway, or Cancel to go back and use "Create New Heats from Leaderboard" first.`,
@@ -204,7 +205,7 @@ function HeatRacePage() {
       return;
     }
 
-    const confirmed = confirmAction(
+    const confirmed = await confirmAction(
       'Create new heats based on the current leaderboard?\n\nAll heats in the current round must have the same number of races.',
       'Create New Heats',
     );
@@ -232,7 +233,7 @@ function HeatRacePage() {
       return;
     }
 
-    const confirmed = confirmAction(
+    const confirmed = await confirmAction(
       `Undo the last scored race in "${selectedHeat.heat_name}"?\n\nThis will permanently delete that race's scores.`,
       'Undo Last Race',
     );
@@ -257,7 +258,7 @@ function HeatRacePage() {
   };
 
   const handleUndoLatestHeatRedistribution = async () => {
-    const confirmed = confirmAction(
+    const confirmed = await confirmAction(
       'Undo latest heat redistribution?\n\nThis will delete the latest qualifying heats and all their boat assignments. This cannot be undone.',
       'Undo Heat Redistribution',
     );
@@ -328,7 +329,18 @@ function HeatRacePage() {
         backLabel={isScoring ? 'Back to Heats' : 'Back to Event'}
       />
 
-      <div className="page-wrapper">
+      <main id="main-content" className="page-wrapper" tabIndex={-1}>
+        <Breadcrumbs
+          items={[
+            { label: 'Home', onClick: () => navigate('/') },
+            {
+              label: event?.event_name || 'Event',
+              onClick: () =>
+                navigate(`/event/${event.event_name}`, { state: { event } }),
+            },
+            { label: 'Heat Race' },
+          ]}
+        />
         {!isScoring ? (
           <>
             <h1 style={{ marginBottom: '20px' }}>
@@ -404,7 +416,7 @@ function HeatRacePage() {
             onBack={handleBackToHeats}
           />
         )}
-      </div>
+      </main>
     </div>
   );
 }

@@ -11,10 +11,15 @@ import SailorForm from '../../components/SailorForm';
 import SailorList from '../../components/SailorList';
 import SailorImport from '../../components/SailorImport';
 import Navbar from '../../components/Navbar';
+import Breadcrumbs from '../../components/shared/Breadcrumbs';
 import './EventPage.css';
 import HeatComponent from '../../components/HeatComponent';
 import printStartingList from '../../utils/printStartingList';
-import { reportError } from '../../utils/userFeedback';
+import {
+  confirmAction,
+  reportError,
+  reportInfo,
+} from '../../utils/userFeedback';
 
 function EventPage() {
   const location = useLocation();
@@ -47,7 +52,6 @@ function EventPage() {
     try {
       const boatsWithSailors =
         await window.electron.sqlite.eventDB.readBoatsByEvent(event.event_id);
-      console.log('Fetched boats with sailors:', boatsWithSailors);
       const mappedBoats = boatsWithSailors.map((boat) => ({
         ...boat,
         sailor: boat.name,
@@ -120,10 +124,6 @@ function EventPage() {
     fetchAllBoats();
   }, [fetchBoatsWithSailors, fetchAllBoats]);
 
-  const handleBackClick = () => {
-    navigate('/');
-  };
-
   const handleHeatRaceClick = () => {
     navigate(`/event/${event.event_name}/heat-race`, { state: { event } });
   };
@@ -132,7 +132,10 @@ function EventPage() {
     e.preventDefault();
 
     if (raceHappened) {
-      alert('No more boats can be added as a race has already happened.');
+      reportInfo(
+        'No more boats can be added as a race has already happened.',
+        'Action blocked',
+      );
       return;
     }
 
@@ -207,20 +210,25 @@ function EventPage() {
       if (isEventLocked) {
         await window.electron.sqlite.eventDB.unlockEvent(event.event_id);
         setIsEventLocked(false);
-        alert('Event unlocked successfully!');
+        reportInfo('Event unlocked successfully!', 'Success');
       } else {
         await window.electron.sqlite.eventDB.lockEvent(event.event_id);
         setIsEventLocked(true);
-        alert('Event locked successfully!');
+        reportInfo('Event locked successfully!', 'Success');
       }
     } catch (error) {
       reportError('Could not change event lock status.', error);
     }
   };
-  const handleLockEventClick = () => {
-    const userConfirmed = window.confirm('Do you want to lock the event?');
+  const handleLockEventClick = async () => {
+    const userConfirmed = await confirmAction(
+      isEventLocked
+        ? 'Do you want to unlock this event?'
+        : 'Do you want to lock this event?',
+      isEventLocked ? 'Unlock Event' : 'Lock Event',
+    );
     if (userConfirmed) {
-      handleLockEvent();
+      await handleLockEvent();
     }
   };
   useEffect(() => {
@@ -257,7 +265,13 @@ function EventPage() {
         onHeatRaceClick={handleHeatRaceClick}
       />
 
-      <div className="page-wrapper">
+      <main id="main-content" className="page-wrapper" tabIndex={-1}>
+        <Breadcrumbs
+          items={[
+            { label: 'Home', onClick: () => navigate('/') },
+            { label: event.event_name },
+          ]}
+        />
         {/* ── Event header ─── */}
         <div className="event-header">
           <div className="event-header-info">
@@ -284,7 +298,7 @@ function EventPage() {
                     color: '#fff',
                     borderRadius: '999px',
                     padding: '3px 12px',
-                    fontSize: '.78rem',
+                    fontSize: '.88rem',
                     fontWeight: 700,
                     letterSpacing: '.05em',
                     textTransform: 'uppercase',
@@ -361,17 +375,25 @@ function EventPage() {
               }}
             >
               <div ref={tabPanelInnerRef} className="tab-panel">
-                {addSailorMode === 'single' ? (
-                  <SailorForm
-                    onAddSailor={handleAddSailor}
-                    eventId={event.event_id}
-                  />
-                ) : addSailorMode === 'bulk' ? (
-                  <SailorImport
-                    eventId={event.event_id}
-                    onImportComplete={handleImportComplete}
-                  />
-                ) : null}
+                {(() => {
+                  if (addSailorMode === 'single') {
+                    return (
+                      <SailorForm
+                        onAddSailor={handleAddSailor}
+                        eventId={event.event_id}
+                      />
+                    );
+                  }
+                  if (addSailorMode === 'bulk') {
+                    return (
+                      <SailorImport
+                        eventId={event.event_id}
+                        onImportComplete={handleImportComplete}
+                      />
+                    );
+                  }
+                  return null;
+                })()}
               </div>
             </div>
 
@@ -466,7 +488,7 @@ function EventPage() {
             {isEventLocked ? 'Unlock Event' : 'Lock Event'}
           </button>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

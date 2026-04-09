@@ -1,4 +1,5 @@
-import React from 'react';
+/* eslint-disable react/require-default-props */
+import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Navbar from '../../components/Navbar';
@@ -8,9 +9,13 @@ import SectionDivider from '../../components/leaderboard/SectionDivider';
 import QualifyingTable from '../../components/leaderboard/QualifyingTable';
 import FinalFleetTable from '../../components/leaderboard/FinalFleetTable';
 import RdgLegend from '../../components/leaderboard/RdgLegend';
+import Breadcrumbs from '../../components/shared/Breadcrumbs';
+import EmptyState from '../../components/shared/EmptyState';
+import LoadingState from '../../components/shared/LoadingState';
+import { confirmAction } from '../../utils/userFeedback';
 import './LeaderboardPage.css';
 
-function LeaderboardContent({ eventId }) {
+function LeaderboardContent({ eventId, onUnsavedChange = null }) {
   const {
     eventLeaderboard,
     loading,
@@ -22,6 +27,7 @@ function LeaderboardContent({ eventId }) {
     selectedBoatIds,
     rdgMeta,
     rdg2Picker,
+    hasUnsavedChanges,
     hasEventData,
     hasFinalData,
     groupedLeaderboard,
@@ -39,23 +45,83 @@ function LeaderboardContent({ eventId }) {
     exportAs,
     getFlagCode,
   } = useLeaderboard(eventId);
+  const [liveMessage, setLiveMessage] = useState('Leaderboard loaded.');
+
+  useEffect(() => {
+    if (onUnsavedChange) {
+      onUnsavedChange(hasUnsavedChanges);
+    }
+  }, [hasUnsavedChanges, onUnsavedChange]);
+
+  useEffect(() => {
+    if (editMode) {
+      setLiveMessage('Edit mode enabled. You can now modify race results.');
+    } else {
+      setLiveMessage('Edit mode disabled. Leaderboard is read-only.');
+    }
+  }, [editMode]);
+
+  useEffect(() => {
+    if (!compareMode) {
+      setLiveMessage('Compare mode disabled.');
+      return;
+    }
+
+    if (selectedBoatIds.length === 0) {
+      setLiveMessage(
+        'Compare mode enabled. Select two competitors to compare.',
+      );
+      return;
+    }
+
+    if (selectedBoatIds.length === 1) {
+      setLiveMessage('One competitor selected. Select one more competitor.');
+      return;
+    }
+
+    if (compareInfo && compareInfo.tied && compareInfo.tieBreak?.winner) {
+      setLiveMessage(
+        `Tie detected. Winner by tie-break: ${compareInfo.tieBreak.winner.name} ${compareInfo.tieBreak.winner.surname}.`,
+      );
+      return;
+    }
+
+    if (compareInfo && !compareInfo.tied) {
+      const leader =
+        compareInfo.totalA < compareInfo.totalB
+          ? compareInfo.boatA
+          : compareInfo.boatB;
+      setLiveMessage(
+        `Comparison updated. ${leader.name} ${leader.surname} leads.`,
+      );
+    }
+  }, [compareMode, selectedBoatIds, compareInfo]);
+
+  useEffect(() => {
+    if (hasUnsavedChanges) {
+      setLiveMessage('You have unsaved leaderboard changes.');
+    }
+  }, [hasUnsavedChanges]);
 
   if (loading) {
-    return (
-      <div style={{ padding: '24px', color: 'var(--navy)' }}>Loading…</div>
-    );
+    return <LoadingState label="Loading leaderboard data..." />;
   }
 
   if (!hasEventData && !hasFinalData) {
     return (
-      <div style={{ padding: '24px', color: '#666' }}>
-        No results available for this event yet.
-      </div>
+      <EmptyState
+        title="No leaderboard data yet"
+        description="No race results are available for this event. Start scoring races to see standings here."
+      />
     );
   }
 
   return (
     <div className="leaderboard">
+      <div className="sr-only" aria-live="polite" aria-atomic="true">
+        {liveMessage}
+      </div>
+
       <LeaderboardToolbar
         finalSeriesStarted={finalSeriesStarted}
         editMode={editMode}
@@ -93,19 +159,10 @@ function LeaderboardContent({ eventId }) {
 
           {!hasFinalData ? (
             <>
-              <div
-                style={{
-                  padding: '24px',
-                  color: '#666',
-                  textAlign: 'center',
-                  border: '1px solid var(--border,#dde3ea)',
-                  borderRadius: '10px',
-                  marginBottom: '16px',
-                }}
-              >
-                The final series has been created but no races have been scored
-                yet.
-              </div>
+              <EmptyState
+                title="Final series ready"
+                description="The final series is created, but no final races have been scored yet."
+              />
 
               {/* Keep qualifying standings visible until first final race exists. */}
               <QualifyingTable
@@ -157,28 +214,69 @@ function LeaderboardContent({ eventId }) {
 
 LeaderboardContent.propTypes = {
   eventId: PropTypes.number.isRequired,
+  onUnsavedChange: PropTypes.func,
 };
 
 function LeaderboardPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { event } = location.state || {};
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   if (!event) {
     navigate('/');
     return null;
   }
 
-  const handleBack = () => {
-    navigate(`/event/${event.event_name}`, { state: { event } });
+  const navigateWithUnsavedCheck = async (target) => {
+    if (hasUnsavedChanges) {
+      const confirmed = await confirmAction(
+        'You have unsaved leaderboard changes. Leave this page and discard them?',
+        'Unsaved changes',
+      );
+      if (!confirmed) return;
+    }
+    navigate(target.path, target.options);
+  };
+
+  const handleBack = async () => {
+    await navigateWithUnsavedCheck({
+      path: `/event/${event.event_name}`,
+      options: { state: { event } },
+    });
   };
 
   return (
     <div>
       <Navbar onBack={handleBack} backLabel="Back to Event" />
-      <div className="leaderboard-page-content">
-        <LeaderboardContent eventId={event.event_id} />
-      </div>
+      <main
+        id="main-content"
+        className="leaderboard-page-content"
+        tabIndex={-1}
+      >
+        <Breadcrumbs
+          items={[
+            {
+              label: 'Home',
+              onClick: () =>
+                navigateWithUnsavedCheck({ path: '/', options: undefined }),
+            },
+            {
+              label: event.event_name,
+              onClick: () =>
+                navigateWithUnsavedCheck({
+                  path: `/event/${event.event_name}`,
+                  options: { state: { event } },
+                }),
+            },
+            { label: 'Leaderboard' },
+          ]}
+        />
+        <LeaderboardContent
+          eventId={event.event_id}
+          onUnsavedChange={setHasUnsavedChanges}
+        />
+      </main>
     </div>
   );
 }

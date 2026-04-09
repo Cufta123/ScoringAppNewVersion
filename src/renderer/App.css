@@ -28,7 +28,7 @@
   --border-strong:#91BDE0;
   --text:         #0D1F2D;
   --text-secondary:#3A5068;
-  --text-muted:   #6B849A;
+  --text-muted:   #5A7389;
   --radius-sm:    6px;
   --radius:       12px;
   --radius-lg:    18px;
@@ -42,6 +42,23 @@
 }
 
 html, body { height: 100%; }
+
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 16px;
+  z-index: 2100;
+  background: var(--navy);
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.skip-link:focus {
+  top: 16px;
+}
 
 body {
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -83,6 +100,8 @@ button {
   align-items: center;
   justify-content: center;
   gap: 7px;
+  min-height: 44px;
+  min-width: 44px;
   padding: 9px 22px;
   font-size: .9rem;
   font-weight: 700;
@@ -161,7 +180,18 @@ button.btn-ghost:hover {
 
 button.btn-sm {
   padding: 6px 14px;
-  font-size: .82rem;
+  font-size: .88rem;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible,
+[role='button']:focus-visible,
+th.sortable:focus-visible {
+  outline: 3px solid var(--ocean);
+  outline-offset: 2px;
 }
 
 /* ── Forms ────────────────────────────────────────────────── */
@@ -195,7 +225,7 @@ select.compact-select {
 
 label {
   display: block;
-  font-size: .82rem;
+  font-size: .88rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .06em;
@@ -216,7 +246,7 @@ thead { background: linear-gradient(90deg, var(--navy) 0%, #1A4D7A 100%); color:
 th {
   padding: 11px 16px;
   font-weight: 700;
-  font-size: .8rem;
+  font-size: .88rem;
   text-transform: uppercase;
   letter-spacing: .06em;
   text-align: left;
@@ -274,6 +304,85 @@ tbody tr:hover { background-color: var(--ocean-light); }
   padding: 20px 28px 40px;
 }
 
+/* ── Breadcrumbs ─────────────────────────────────────────── */
+.breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 14px;
+  color: var(--text-secondary);
+  font-size: .9rem;
+}
+
+.breadcrumbs-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.breadcrumbs-link {
+  background: none;
+  border: none;
+  box-shadow: none;
+  color: var(--ocean);
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.breadcrumbs-link:hover {
+  background: none;
+  box-shadow: none;
+  transform: none;
+  color: var(--ocean-hover);
+}
+
+.breadcrumbs-separator {
+  color: var(--text-muted);
+}
+
+/* ── Empty & Loading states ─────────────────────────────── */
+.loading-state,
+.empty-state {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 20px;
+}
+
+.loading-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--navy);
+  font-weight: 600;
+}
+
+.empty-state {
+  text-align: center;
+}
+
+.empty-state-icon {
+  font-size: 1.2rem;
+  color: var(--ocean);
+  margin-bottom: 8px;
+}
+
+.empty-state-title {
+  margin: 0 0 8px;
+  color: var(--navy);
+  font-size: 1.05rem;
+}
+
+.empty-state-description {
+  margin: 0 0 12px;
+  color: var(--text-secondary);
+}
+
 /* ── Utilities ────────────────────────────────────────────── */
 .mt-1 { margin-top:  8px; }
 .mt-2 { margin-top: 16px; }
@@ -285,6 +394,18 @@ tbody tr:hover { background-color: var(--ocean-light); }
 .gap-2 { gap: 12px; }
 .gap-3 { gap: 20px; }
 .items-center { align-items: center; }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 li { list-style: none; }
 a  { text-decoration: none; color: var(--ocean); }
@@ -504,12 +625,68 @@ th.sortable:hover {
 }
 
 .sailor-form-field label {
-  font-size: .78rem;
+  font-size: .85rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .06em;
   color: var(--text-muted);
   margin-bottom: 5px;
+}
+
+/* ── Feedback modal ───────────────────────────────────────── */
+.feedback-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(10, 24, 38, 0.56);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.feedback-modal {
+  width: min(520px, 96vw);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  padding: 22px;
+}
+
+.feedback-modal-title {
+  margin: 0 0 10px;
+  color: var(--navy);
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.feedback-modal-body {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+.feedback-modal-actions {
+  margin-top: 18px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  button:hover,
+  .event-list-item:hover {
+    transform: none;
+  }
 }
 
 /* Force every control inside to the same 42 px height */

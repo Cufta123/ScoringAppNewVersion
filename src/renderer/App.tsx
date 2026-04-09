@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import '@fortawesome/fontawesome-free/css/all.min.css';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import './App.css';
 import LandingPage from './pages/LandingPage/LandingPage';
 import EventPage from './pages/EventPage/EventPage';
@@ -29,6 +31,9 @@ function App() {
 
   return (
     <Router>
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/event/:name" element={<EventPage />} />
@@ -38,6 +43,16 @@ function App() {
           element={<LeaderboardPage />}
         />
       </Routes>
+      <ToastContainer
+        position="bottom-right"
+        autoClose={3500}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+      />
     </Router>
   );
 }

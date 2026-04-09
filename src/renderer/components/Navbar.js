@@ -2,8 +2,8 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const navBtnBase = {
-  fontSize: '.85rem',
-  padding: '8px 18px',
+  fontSize: '.9rem',
+  padding: '10px 20px',
 };
 
 function Navbar({
@@ -35,6 +35,7 @@ function Navbar({
           className="btn-secondary"
           style={navBtnBase}
           onClick={onBack}
+          aria-label={backLabel || 'Go back'}
         >
           <i
             className="fa fa-arrow-left"
@@ -49,6 +50,7 @@ function Navbar({
       <button
         type="button"
         onClick={() => navigate('/')}
+        aria-label="Go to home page"
         style={{
           background: 'none',
           border: 'none',
@@ -71,7 +73,12 @@ function Navbar({
 
       {/* Right: action buttons */}
       {onOpenLeaderboard && (
-        <button type="button" style={navBtnBase} onClick={onOpenLeaderboard}>
+        <button
+          type="button"
+          style={navBtnBase}
+          onClick={onOpenLeaderboard}
+          aria-label="Open leaderboard"
+        >
           <i
             className="fa fa-trophy"
             aria-hidden="true"
@@ -87,6 +94,7 @@ function Navbar({
           className="btn-success"
           style={navBtnBase}
           onClick={onHeatRaceClick}
+          aria-label="Go to scoring"
         >
           <i
             className="fa fa-flag-checkered"

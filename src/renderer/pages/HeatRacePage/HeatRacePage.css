@@ -51,5 +51,5 @@
 
 .heat-column table { box-shadow: none; border-radius: 8px; }
 .heat-column thead { background: linear-gradient(90deg,#1A6FBF 0%,#1259A5 100%); }
-.heat-column th  { padding: 7px 10px; font-size: .78rem; }
+.heat-column th  { padding: 7px 10px; font-size: .88rem; }
 .heat-column td  { padding: 7px 10px; font-size: .88rem; }

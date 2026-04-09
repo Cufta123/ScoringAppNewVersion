@@ -3,8 +3,7 @@ import PropTypes from 'prop-types';
 import 'font-awesome/css/font-awesome.min.css';
 import Flag from 'react-world-flags';
 import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
-
-const categoryOptions = ['KADET', 'SENIOR', 'JUNIOR', 'MASTER', 'CADET'];
+import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
 
 function SortTh({ col, label, sortCriteria, sortDirection, onSort }) {
   return (
@@ -70,7 +69,7 @@ function SailorList({ sailors, onRemoveBoat, onRefreshSailors }) {
       if (result) {
         setCategories(result);
       } else {
-        console.error('Failed to fetch categories');
+        reportError('Could not load category list.');
       }
     };
 
@@ -88,35 +87,48 @@ function SailorList({ sailors, onRemoveBoat, onRefreshSailors }) {
   };
 
   const handleSave = async () => {
-    const sailorData = {
-      originalName: editedSailor.originalName,
-      originalSurname: editedSailor.originalSurname,
-      name: editedSailor.name,
-      surname: editedSailor.surname,
-      category_name: editedSailor.category,
-      club_name: editedSailor.club,
-      originalClubName: editedSailor.originalClubName,
-      boat_id: editedSailor.boat_id,
-      sail_number: editedSailor.sail_number,
-      country: editedSailor.country,
-      model: editedSailor.model,
-    };
+    try {
+      const sailorData = {
+        originalName: editedSailor.originalName,
+        originalSurname: editedSailor.originalSurname,
+        name: editedSailor.name,
+        surname: editedSailor.surname,
+        category_name: editedSailor.category,
+        club_name: editedSailor.club,
+        originalClubName: editedSailor.originalClubName,
+        boat_id: editedSailor.boat_id,
+        sail_number: editedSailor.sail_number,
+        country: editedSailor.country,
+        model: editedSailor.model,
+      };
 
-    console.log('Saving sailor and boat:', sailorData); // Log the data being sent
+      const result =
+        await window.electron.sqlite.sailorDB.updateSailor(sailorData);
 
-    const result =
-      await window.electron.sqlite.sailorDB.updateSailor(sailorData);
-    if (result) {
-      console.log('Save successful:', result); // Log the result
-      // Reset editing state
+      if (!result) {
+        reportError('Could not save sailor changes.');
+        return;
+      }
+
       setEditingSailorId(null);
       setEditedSailor({});
-      // Refresh the list of sailors
       onRefreshSailors();
-    } else {
-      console.error('Save failed');
-      // Handle error
+      reportInfo('Sailor details saved successfully.', 'Saved');
+    } catch (error) {
+      reportError('Could not save sailor changes.', error);
     }
+  };
+
+  const handleRemoveWithConfirm = async (sailor) => {
+    const confirmed = await confirmAction(
+      `Remove boat ${sailor.sail_number} (${sailor.name} ${sailor.surname}) from this event?`,
+      'Remove boat',
+    );
+
+    if (!confirmed) return;
+
+    await onRemoveBoat(sailor.boat_id);
+    reportInfo('Boat removed from event.', 'Removed');
   };
 
   const handleInputChange = (e) => {
@@ -341,10 +353,10 @@ function SailorList({ sailors, onRemoveBoat, onRefreshSailors }) {
                       aria-label="Remove Boat"
                       role="button"
                       tabIndex="0"
-                      onClick={() => onRemoveBoat(sailor.boat_id)}
+                      onClick={() => handleRemoveWithConfirm(sailor)}
                       onKeyPress={(e) => {
                         if (e.key === 'Enter' || e.key === ' ')
-                          onRemoveBoat(sailor.boat_id);
+                          handleRemoveWithConfirm(sailor);
                       }}
                       style={{
                         color: 'var(--danger)',

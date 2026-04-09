@@ -4,6 +4,8 @@ import Flag from 'react-world-flags';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
+import EmptyState from './shared/EmptyState';
+import LoadingState from './shared/LoadingState';
 import { reportError } from '../utils/userFeedback';
 
 function GlobalLeaderboardComponent() {
@@ -39,11 +41,16 @@ function GlobalLeaderboardComponent() {
   }, []);
 
   if (loading) {
-    return <div>Loading...</div>;
+    return <LoadingState label="Loading global leaderboard..." />;
   }
 
   if (!leaderboard.length) {
-    return <div>No results available.</div>;
+    return (
+      <EmptyState
+        title="No global results"
+        description="No scored races are available yet across events."
+      />
+    );
   }
   const getFlagCode = (iocCode) => {
     return iocToFlagCodeMap[iocCode] || iocCode;
@@ -90,7 +97,11 @@ function GlobalLeaderboardComponent() {
   return (
     <div className="leaderboard">
       <h2>Global Leaderboard</h2>
-      <button type="button" onClick={exportToExcel}>
+      <button
+        type="button"
+        onClick={exportToExcel}
+        aria-label="Export global leaderboard to Excel"
+      >
         Export to Excel
       </button>
       <table>
@@ -116,6 +127,7 @@ function GlobalLeaderboardComponent() {
                <td>
                     <Flag
                       code={getFlagCode(entry.country)}
+                      alt={`${entry.country} flag`}
                       style={{ width: '30px', marginRight: '5px' }}
                     />
                     {entry.country}

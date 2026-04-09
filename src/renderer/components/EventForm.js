@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { reportError } from '../utils/userFeedback';
+import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
 
 function EventForm() {
   const [eventName, setEventName] = useState('');
@@ -15,9 +15,6 @@ function EventForm() {
   const [editLocation, setEditLocation] = useState('');
   const [editStartDate, setEditStartDate] = useState('');
   const [editEndDate, setEditEndDate] = useState('');
-
-  // Delete confirmation state
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
   const navigate = useNavigate();
 
@@ -64,7 +61,6 @@ function EventForm() {
     setEditLocation(event.event_location);
     setEditStartDate(event.start_date);
     setEditEndDate(event.end_date);
-    setConfirmDeleteId(null);
   };
 
   const cancelEdit = () => {
@@ -88,12 +84,20 @@ function EventForm() {
     }
   };
 
-  const handleDeleteConfirm = async (e) => {
+  const handleDeleteEvent = async (e, eventId) => {
     e.stopPropagation();
+
+    const confirmed = await confirmAction(
+      'Delete this event and all associated data?',
+      'Delete event',
+    );
+
+    if (!confirmed) return;
+
     try {
-      await window.electron.sqlite.eventDB.deleteEvent(confirmDeleteId);
-      setConfirmDeleteId(null);
+      await window.electron.sqlite.eventDB.deleteEvent(eventId);
       fetchEvents();
+      reportInfo('Event deleted successfully.', 'Success');
     } catch (error) {
       reportError('Could not delete the event.', error);
     }
@@ -301,60 +305,19 @@ function EventForm() {
                       <i className="fa fa-pencil" aria-hidden="true" />
                     </button>
 
-                    {/* Delete / confirm delete */}
-                    {confirmDeleteId === event.event_id ? (
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          flexShrink: 0,
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: '0.85rem',
-                            color: '#c0392b',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          Delete all data?
-                        </span>
-                        <button
-                          type="button"
-                          onClick={handleDeleteConfirm}
-                          className="btn-danger btn-sm"
-                        >
-                          <i className="fa fa-trash" aria-hidden="true" /> Yes,
-                          delete
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setConfirmDeleteId(null);
-                          }}
-                          className="btn-outline btn-sm"
-                        >
-                          No
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        aria-label="Delete event"
-                        title="Delete event"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setConfirmDeleteId(event.event_id);
-                          setEditingId(null);
-                        }}
-                        className="btn-danger btn-sm"
-                        style={{ flexShrink: 0 }}
-                      >
-                        <i className="fa fa-trash" aria-hidden="true" />
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      aria-label="Delete event"
+                      title="Delete event"
+                      onClick={(e) => {
+                        setEditingId(null);
+                        handleDeleteEvent(e, event.event_id);
+                      }}
+                      className="btn-danger btn-sm"
+                      style={{ flexShrink: 0 }}
+                    >
+                      <i className="fa fa-trash" aria-hidden="true" />
+                    </button>
                   </div>
                 )}
               </div>

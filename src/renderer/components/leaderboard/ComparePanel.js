@@ -55,7 +55,7 @@ function ComparePanel({ show, compareInfo = null, selectedBoatIds }) {
             borderRadius: '8px',
             border: '1px solid var(--border, #dde3ea)',
             background: 'var(--surface, #f5f7fa)',
-            fontSize: '0.83rem',
+            fontSize: '0.9rem',
             color: '#888',
           }}
         >
@@ -156,6 +156,7 @@ function ComparePanel({ show, compareInfo = null, selectedBoatIds }) {
               marginBottom: '8px',
             }}
           >
+            <strong style={{ marginRight: '6px' }}>Status: NOT TIED.</strong>
             <strong>
               {totalA < totalB
                 ? `${boatA.name} ${boatA.surname}`
@@ -179,7 +180,7 @@ function ComparePanel({ show, compareInfo = null, selectedBoatIds }) {
               background: 'rgba(180,0,0,0.06)',
               border: '1px solid rgba(180,0,0,0.22)',
               marginBottom: '8px',
-              fontSize: '0.82rem',
+              fontSize: '0.88rem',
               lineHeight: 1.5,
               color: '#7a1010',
             }}
@@ -217,7 +218,7 @@ function ComparePanel({ show, compareInfo = null, selectedBoatIds }) {
                 marginRight: '6px',
               }}
             >
-              TIED
+              Status: TIED
             </span>
             {tieBreak.winner ? (
               <span>
@@ -233,7 +234,7 @@ function ComparePanel({ show, compareInfo = null, selectedBoatIds }) {
 
             {/* Rule-by-rule breakdown */}
             {tieBreak.steps && tieBreak.steps.length > 0 && (
-              <div style={{ marginTop: '8px', fontSize: '0.82rem' }}>
+              <div style={{ marginTop: '8px', fontSize: '0.88rem' }}>
                 <div
                   style={{
                     fontWeight: 600,
@@ -285,7 +286,7 @@ function ComparePanel({ show, compareInfo = null, selectedBoatIds }) {
         {/* ── Shared race badges ── */}
         {sharedQualRacePairs?.length > 0 || sharedIds.size > 0 ? (
           <div>
-            <span style={{ color: '#888', fontSize: '0.82rem' }}>
+            <span style={{ color: '#888', fontSize: '0.88rem' }}>
               Shared heat races (highlighted):{' '}
             </span>
             {/* Qualifying */}
@@ -300,7 +301,7 @@ function ComparePanel({ show, compareInfo = null, selectedBoatIds }) {
                   background: 'rgba(41,98,255,0.15)',
                   border: '1px solid rgba(41,98,255,0.3)',
                   fontWeight: 600,
-                  fontSize: '0.83rem',
+                  fontSize: '0.88rem',
                 }}
               >
                 Q{i + 1}: {pair.displayA}{' '}
@@ -320,7 +321,7 @@ function ComparePanel({ show, compareInfo = null, selectedBoatIds }) {
                   background: 'rgba(255,210,0,0.35)',
                   border: '1px solid rgba(180,150,0,0.25)',
                   fontWeight: 600,
-                  fontSize: '0.83rem',
+                  fontSize: '0.88rem',
                 }}
               >
                 F{i + 1}: {pair.displayA}{' '}
@@ -330,7 +331,7 @@ function ComparePanel({ show, compareInfo = null, selectedBoatIds }) {
             ))}
           </div>
         ) : (
-          <div style={{ color: '#888', fontSize: '0.82rem', marginTop: '2px' }}>
+          <div style={{ color: '#888', fontSize: '0.88rem', marginTop: '2px' }}>
             No shared heats found.
             {tied
               ? ' SHRS 5.6(ii)(b): full RRS A8.1 & A8.2 apply without modification.'
@@ -350,6 +351,9 @@ function ComparePanel({ show, compareInfo = null, selectedBoatIds }) {
           'grid-template-rows 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin-top 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         marginTop: show ? '10px' : '0px',
       }}
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
     >
       <div
         style={{

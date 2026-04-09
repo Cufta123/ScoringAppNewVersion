@@ -19,7 +19,7 @@ import {
   getOtherTiedCount,
   getNextCompareSelection,
 } from '../utils/compareUtils';
-import { reportError } from '../utils/userFeedback';
+import { confirmAction, reportError } from '../utils/userFeedback';
 
 export default function useLeaderboard(eventId) {
   const [leaderboard, setLeaderboard] = useState([]);
@@ -579,9 +579,41 @@ export default function useLeaderboard(eventId) {
     fetchLeaderboard();
   }, [fetchLeaderboard]);
 
+  const hasUnsavedChanges = useMemo(() => {
+    if (!editMode) return false;
+    const source = finalSeriesStarted ? leaderboard : eventLeaderboard;
+    if (!Array.isArray(source) || source.length === 0) return false;
+    return JSON.stringify(editableLeaderboard) !== JSON.stringify(source);
+  }, [
+    editMode,
+    editableLeaderboard,
+    leaderboard,
+    eventLeaderboard,
+    finalSeriesStarted,
+  ]);
+
+  useEffect(() => {
+    const onBeforeUnload = (event) => {
+      if (!hasUnsavedChanges) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [hasUnsavedChanges]);
+
   // ─── Edit mode ───────────────────────────────────────────────────────────────
 
-  const toggleEditMode = () => {
+  const toggleEditMode = async () => {
+    if (editMode && hasUnsavedChanges) {
+      const shouldDiscard = await confirmAction(
+        'You have unsaved leaderboard changes. Cancel editing and discard them?',
+        'Discard changes',
+      );
+      if (!shouldDiscard) return;
+    }
+
     const source = finalSeriesStarted ? leaderboard : eventLeaderboard;
     setEditableLeaderboard(JSON.parse(JSON.stringify(source)));
     setRdgMeta({});
@@ -1305,6 +1337,7 @@ export default function useLeaderboard(eventId) {
     selectedBoatIds,
     rdgMeta,
     rdg2Picker,
+    hasUnsavedChanges,
     // Derived
     hasEventData,
     hasFinalData,

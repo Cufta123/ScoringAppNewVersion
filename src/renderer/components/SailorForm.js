@@ -1,8 +1,11 @@
+/* eslint-disable no-console */
+/* eslint-disable jsx-a11y/label-has-associated-control */
 /* eslint-disable camelcase */
 import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import Autosuggest from 'react-autosuggest';
 import { toast } from 'react-toastify';
+import { reportError, reportInfo } from '../utils/userFeedback';
 
 import iocCountries from '../constants/iocCountries.json';
 
@@ -131,7 +134,7 @@ function SailorForm({ onAddSailor, eventId }) {
             }
           } else {
             console.error('Error inserting club:', error);
-            alert('There was an error inserting the club.');
+            reportError('There was an error inserting the club.', error);
             return; // Exit the function gracefully
           }
         }
@@ -159,7 +162,7 @@ function SailorForm({ onAddSailor, eventId }) {
           console.log(`Sailor inserted with ID: ${sailor_id}`);
         } catch (error) {
           console.error('Error inserting sailor:', error);
-          alert('There was an error inserting the sailor.');
+          reportError('There was an error inserting the sailor.', error);
           return; // Exit the function gracefully
         }
       } else {
@@ -185,7 +188,7 @@ function SailorForm({ onAddSailor, eventId }) {
         console.log(`Boat inserted with ID: ${boat_id}`);
       } catch (error) {
         console.error('Error inserting boat:', error);
-        alert('There was an error inserting the boat.');
+        reportError('There was an error inserting the boat.', error);
         return; // Exit the function gracefully
       }
 
@@ -204,7 +207,10 @@ function SailorForm({ onAddSailor, eventId }) {
           console.log(`Boat ID ${boat_id} associated with event ID ${eventId}`);
         } catch (error) {
           console.error('Error associating boat with event:', error);
-          alert('There was an error associating the boat with the event.');
+          reportError(
+            'There was an error associating the boat with the event.',
+            error,
+          );
           return; // Exit the function gracefully
         }
       }
@@ -228,9 +234,10 @@ function SailorForm({ onAddSailor, eventId }) {
       fetchSailors();
       fetchBoats();
       onAddSailor();
+      reportInfo('Sailor and boat added successfully.', 'Success');
     } catch (error) {
       console.error('Unexpected error during submission:', error);
-      alert('An unexpected error occurred.');
+      reportError('An unexpected error occurred.', error);
     }
   };
   const getSuggestions = (value) => {
@@ -251,14 +258,6 @@ function SailorForm({ onAddSailor, eventId }) {
       {suggestion.club_name} ({suggestion.country})
     </div>
   );
-
-  const onSuggestionsFetchRequested = ({ value }) => {
-    setSuggestions(getSuggestions(value));
-  };
-
-  const onSuggestionsClearRequested = () => {
-    setSuggestions([]);
-  };
 
   const onClubChange = (event, { newValue }) => {
     setClub(newValue);

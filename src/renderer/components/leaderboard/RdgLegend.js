@@ -30,7 +30,7 @@ function RdgLegend({ editableLeaderboard, rdgMeta }) {
       <div
         style={{
           fontWeight: 700,
-          fontSize: '0.78rem',
+          fontSize: '0.88rem',
           marginBottom: '6px',
           color: 'var(--teal,#2a9d8f)',
         }}
@@ -58,7 +58,7 @@ function RdgLegend({ editableLeaderboard, rdgMeta }) {
         return (
           <div
             key={key}
-            style={{ fontSize: '0.82rem', color: '#444', marginBottom: '3px' }}
+            style={{ fontSize: '0.88rem', color: '#444', marginBottom: '3px' }}
           >
             <strong style={{ color: 'var(--teal,#2a9d8f)' }}>{status}</strong>{' '}
             {entry.name} {entry.surname} — R{ri + 1}: {desc} ={' '}
