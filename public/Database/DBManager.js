@@ -126,6 +126,53 @@ const initializeSchema = () => {
     console.log('Boats table migration completed.');
   };
 
+  const hasUniqueRaceBoatScoreConstraint = () => {
+    const indexList = db.prepare("PRAGMA index_list('Scores')").all();
+    return indexList.some((indexRow) => {
+      if (!indexRow.unique) return false;
+      const quotedIndexName = `"${String(indexRow.name).replace(/"/g, '""')}"`;
+      const indexInfo = db
+        .prepare(`PRAGMA index_info(${quotedIndexName})`)
+        .all();
+      const indexedColumns = indexInfo.map((columnRow) => columnRow.name);
+      return (
+        indexedColumns.length === 2 &&
+        indexedColumns[0] === 'race_id' &&
+        indexedColumns[1] === 'boat_id'
+      );
+    });
+  };
+
+  const ensureUniqueRaceBoatScores = () => {
+    if (hasUniqueRaceBoatScoreConstraint()) {
+      return;
+    }
+
+    console.log(
+      'Migrating Scores table: enforcing unique (race_id, boat_id)...',
+    );
+
+    const migration = db.transaction(() => {
+      // Keep the latest row when historical duplicates exist.
+      db.exec(`
+        DELETE FROM Scores
+        WHERE score_id NOT IN (
+          SELECT MAX(score_id)
+          FROM Scores
+          GROUP BY race_id, boat_id
+        );
+      `);
+
+      db.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_scores_race_boat_unique
+        ON Scores (race_id, boat_id);
+      `);
+    });
+
+    migration();
+    console.log('Scores uniqueness migration completed.');
+  };
+
   const createClubsTable = `
     CREATE TABLE IF NOT EXISTS Clubs (
       club_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -271,6 +318,7 @@ const initializeSchema = () => {
     console.log('Creating Scores table...');
     db.exec(createScoresTable);
     console.log('Scores table created or already exists.');
+    ensureUniqueRaceBoatScores();
 
     console.log('Creating Heat_Boat table...');
     db.exec(createHeatBoatTable);

@@ -284,4 +284,44 @@ describe('HeatRaceHandler createNewHeatsBasedOnLeaderboard', () => {
     expect(insertedHeats).toHaveLength(0);
     expect(insertedHeatBoats).toHaveLength(0);
   });
+
+  it('orders non-finish penalties with DGM before DPI during seeding', async () => {
+    currentScenario.rankedRowsByHeatId[20] = [
+      {
+        boat_id: 'B_DGM',
+        position: null,
+        status: 'DGM',
+        country: 'CRO',
+        sail_number: 1,
+      },
+      {
+        boat_id: 'B_DPI',
+        position: null,
+        status: 'DPI',
+        country: 'CRO',
+        sail_number: 2,
+      },
+      {
+        boat_id: 'B_DNS',
+        position: null,
+        status: 'DNS',
+        country: 'CRO',
+        sail_number: 3,
+      },
+    ];
+
+    const handler = handlerRegistry.createNewHeatsBasedOnLeaderboard;
+    await handler({}, 555);
+
+    const bHeatAssignments = insertedHeatBoats.filter((entry) =>
+      ['B_DNS', 'B_DGM', 'B_DPI'].includes(entry.boat_id),
+    );
+
+    // For source B heat movement table in 3 fleets: rank1->B, rank2->C, rank3->A.
+    expect(bHeatAssignments).toEqual([
+      { heat_id: 201, boat_id: 'B_DNS' },
+      { heat_id: 202, boat_id: 'B_DGM' },
+      { heat_id: 200, boat_id: 'B_DPI' },
+    ]);
+  });
 });

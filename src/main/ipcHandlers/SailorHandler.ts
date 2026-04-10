@@ -296,8 +296,10 @@ ipcMain.handle('importSailors', (_event, rows: ImportRow[]) => {
         // Upsert boat
         let boat_id: number;
         const existingBoat = db
-          .prepare('SELECT boat_id FROM Boats WHERE sail_number = ?')
-          .get(String(sail_number)) as { boat_id: number } | undefined;
+          .prepare(
+            'SELECT boat_id FROM Boats WHERE CAST(sail_number AS TEXT) = ? AND UPPER(country) = UPPER(?)',
+          )
+          .get(String(sail_number), country) as { boat_id: number } | undefined;
         if (existingBoat) {
           boat_id = existingBoat.boat_id;
         } else {

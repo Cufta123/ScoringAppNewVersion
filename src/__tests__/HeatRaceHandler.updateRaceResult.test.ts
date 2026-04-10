@@ -21,6 +21,7 @@ type Scenario = {
   maxBoats: number;
   currentPosition: number;
   currentStatus: string;
+  finishedRows: Array<{ score_id: number; position: number }>;
 };
 
 let currentScenario: Scenario;
@@ -50,6 +51,15 @@ const dbMock = {
           position: currentScenario.currentPosition,
           status: currentScenario.currentStatus,
         })),
+      };
+    }
+
+    if (
+      sqlContains(sql, 'SELECT score_id, position') &&
+      sqlContains(sql, "WHERE race_id = ? AND status = 'FINISHED'")
+    ) {
+      return {
+        all: jest.fn(() => currentScenario.finishedRows),
       };
     }
 
@@ -97,6 +107,7 @@ function baseScenario(): Scenario {
     maxBoats: 10,
     currentPosition: 3,
     currentStatus: 'FINISHED',
+    finishedRows: [],
   };
 }
 
@@ -174,5 +185,42 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
       sqlContains(call.sql, 'WHERE race_id = ? AND status = \'FINISHED\' AND position > ?'),
     );
     expect(shiftCall).toBeUndefined();
+  });
+
+  it('applies A7 tie points by averaging tied places', async () => {
+    currentScenario.currentPosition = 1;
+    currentScenario.currentStatus = 'FINISHED';
+    currentScenario.finishedRows = [
+      { score_id: 11, position: 1 },
+      { score_id: 12, position: 1 },
+      { score_id: 13, position: 3 },
+    ];
+
+    const handler = handlerRegistry.updateRaceResult;
+    await handler({}, 99, 500, 'B1', 1, false, 'FINISHED');
+
+    const tieUpdateCalls = runCalls.filter((call) =>
+      sqlContains(call.sql, 'UPDATE Scores SET position = ?, points = ? WHERE score_id = ?'),
+    );
+
+    expect(tieUpdateCalls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ args: [1, 1.5, 11] }),
+        expect.objectContaining({ args: [1, 1.5, 12] }),
+        expect.objectContaining({ args: [3, 3, 13] }),
+      ]),
+    );
+  });
+
+  it('reads latest score row deterministically when duplicate race/boat rows exist', async () => {
+    const handler = handlerRegistry.updateRaceResult;
+    await handler({}, 99, 500, 'B1', 2, false, 'FINISHED');
+
+    const selectSql = dbMock.prepare.mock.calls
+      .map((call) => String(call[0]))
+      .find((sql) => sqlContains(sql, 'SELECT position, COALESCE(status'));
+
+    expect(selectSql).toContain('ORDER BY score_id DESC');
+    expect(selectSql).toContain('LIMIT 1');
   });
 });

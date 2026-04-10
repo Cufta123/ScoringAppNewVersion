@@ -41,6 +41,7 @@ export type Channels =
   | 'updateFinalLeaderboard'
   | 'readFinalLeaderboard'
   | 'readOverallLeaderboard'
+  | 'startFinalSeriesAtomic'
   | 'lockEvent'
   | 'unlockEvent'
   | 'updateEvent'
@@ -126,24 +127,9 @@ const electronHandler = {
           return false;
         }
       },
-      async updateSailor(
-        sailor_id: string,
-        name: string,
-        surname: string,
-        birthday: string,
-        category_id: string,
-        club_id: string,
-      ) {
+      async updateSailor(sailorData: Record<string, unknown>) {
         try {
-          return await ipcRenderer.invoke(
-            'updateSailor',
-            sailor_id,
-            name,
-            surname,
-            birthday,
-            category_id,
-            club_id,
-          );
+          return await ipcRenderer.invoke('updateSailor', sailorData);
         } catch (error) {
           console.error('Error invoking updateSailor IPC:', error);
           return false;
@@ -588,6 +574,13 @@ const electronHandler = {
         } catch (error) {
           console.error('Error invoking readOverallLeaderboard IPC:', error);
           return false;
+        }
+      },
+      async startFinalSeriesAtomic(event_id: string) {
+        try {
+          return await ipcRenderer.invoke('startFinalSeriesAtomic', event_id);
+        } catch (error) {
+          throw error;
         }
       },
       async getMaxHeatSize(event_id: string, heat_type?: string) {

@@ -235,4 +235,45 @@ describe('HeatRaceHandler readOverallLeaderboard tie-break stress tests', () => 
 
     expect(rows.map((r: any) => r.boat_id)).toEqual(['A1', 'M5', 'Z9']);
   });
+
+  it('uses latest shared race by race_number for A8.2, not by race_id', async () => {
+    currentScenario.overallRows = [
+      {
+        boat_id: 'A',
+        qualifying_points: 5,
+        final_points: 5,
+        overall_points: 10,
+        placement_group: 'Gold',
+        final_place: 1,
+      },
+      {
+        boat_id: 'B',
+        qualifying_points: 5,
+        final_points: 5,
+        overall_points: 10,
+        placement_group: 'Gold',
+        final_place: 2,
+      },
+    ];
+
+    // Shared races have inverted race_id/race_number ordering intentionally.
+    currentScenario.tieScoresByBoatId = {
+      A: [
+        { race_id: 200, race_number: 1, points: 1, heat_type: 'Qualifying', heat_name: 'Heat A1' },
+        { race_id: 100, race_number: 2, points: 3, heat_type: 'Qualifying', heat_name: 'Heat A1' },
+        { race_id: 300, race_number: 3, points: 6, heat_type: 'Final', heat_name: 'Final Gold' },
+      ],
+      B: [
+        { race_id: 200, race_number: 1, points: 3, heat_type: 'Qualifying', heat_name: 'Heat A1' },
+        { race_id: 100, race_number: 2, points: 1, heat_type: 'Qualifying', heat_name: 'Heat A1' },
+        { race_id: 301, race_number: 3, points: 6, heat_type: 'Final', heat_name: 'Final Gold' },
+      ],
+    };
+
+    const handler = handlerRegistry.readOverallLeaderboard;
+    const rows = await handler({}, 3);
+
+    // In latest shared race (race_number=2), B has fewer points (1 vs 3), so B wins tie.
+    expect(rows.map((r: any) => r.boat_id)).toEqual(['B', 'A']);
+  });
 });

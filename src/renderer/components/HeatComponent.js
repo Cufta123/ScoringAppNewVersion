@@ -6,6 +6,80 @@ import printNewHeats from '../utils/printNewHeats';
 import AppModal from './shared/AppModal';
 import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
 
+const nonExcludableFleetAssignmentStatuses = new Set(['DNE', 'DGM']);
+
+function parseNumberCsv(value) {
+  if (!value) return [];
+  return String(value)
+    .split(',')
+    .map((entry) => Number(entry))
+    .filter((entry) => !Number.isNaN(entry));
+}
+
+function parseStatusCsv(value, expectedLength) {
+  const statuses = value
+    ? String(value)
+        .split(',')
+        .map((entry) => entry.trim().toUpperCase())
+    : [];
+
+  // Keep status and points arrays aligned for exclusion logic.
+  while (statuses.length < expectedLength) {
+    statuses.push('FINISHED');
+  }
+
+  return statuses.slice(0, expectedLength);
+}
+
+function getExcludeCount(racesCount) {
+  if (racesCount < 4) return 0;
+  if (racesCount < 8) return 1;
+  return 2 + Math.floor((racesCount - 8) / 8);
+}
+
+export function buildAdjustedFleetLeaderboard(leaderboard) {
+  return leaderboard.map((boat) => {
+    const rawPoints = parseNumberCsv(boat.race_points);
+    const rawStatuses = parseStatusCsv(boat.race_statuses, rawPoints.length);
+    const raceEntries = rawPoints.map((points, idx) => ({
+      points,
+      status: rawStatuses[idx] || 'FINISHED',
+      raceIndex: idx,
+    }));
+
+    const n = raceEntries.length;
+    let excludeCount = getExcludeCount(n);
+
+    // SHRS 4.2: additionally exclude second-worst when 5 < n < 8.
+    if (n > 5 && n < 8) {
+      excludeCount += 1;
+    }
+
+    const excludableCandidates = raceEntries
+      .map((entry, idx) => ({ ...entry, idx }))
+      .filter(
+        (entry) =>
+          !nonExcludableFleetAssignmentStatuses.has(
+            String(entry.status || 'FINISHED'),
+          ),
+      )
+      .sort(
+        (left, right) =>
+          right.points - left.points || right.raceIndex - left.raceIndex,
+      );
+
+    const excludedIndexes = new Set(
+      excludableCandidates.slice(0, excludeCount).map((entry) => entry.idx),
+    );
+
+    const totalPoints = raceEntries.reduce((sum, entry, idx) => {
+      return excludedIndexes.has(idx) ? sum : sum + entry.points;
+    }, 0);
+
+    return { boat_id: boat.boat_id, totalPoints };
+  });
+}
+
 function HeatComponent({
   event,
   onHeatSelect,
@@ -95,113 +169,10 @@ function HeatComponent({
 
   const handleConfirmFinalSeries = async () => {
     setShowFinalConfirm(false);
-    const numFinalHeats = pendingFinalHeats;
     try {
-      // Fetch leaderboard to rank boats
-      const leaderboard =
-        await window.electron.sqlite.heatRaceDB.readLeaderboard(event.event_id);
-
-      // Build adjusted totals for fleet assignment per SHRS 4.2.
-      // Recalculate from raw scores to avoid double-counting exclusions.
-      // SHRS 5.4: after 4 races exclude 1 worst, after 8 exclude 2, etc.
-      // SHRS 4.2: when 5 < n < 8 completed races, additionally temporarily
-      // exclude the second-worst score solely for purposes of assigning boats to fleets.
-      const getExcludeCount = (races) => {
-        if (races < 4) return 0;
-        if (races < 8) return 1;
-        return 2 + Math.floor((races - 8) / 8);
-      };
-
-      const adjustedLeaderboard = leaderboard.map((boat) => {
-        const racePosStr = boat.race_positions || '';
-        const rawScores = racePosStr
-          ? racePosStr
-              .split(',')
-              .map(Number)
-              .filter((n) => !Number.isNaN(n))
-          : [];
-        const n = rawScores.length;
-
-        // Sort worst-first (descending) for exclusion
-        const sorted = [...rawScores].sort((a, b) => b - a);
-        let excludeCount = getExcludeCount(n);
-
-        // SHRS 4.2: additionally exclude second-worst when 5 < n < 8
-        if (n > 5 && n < 8) {
-          excludeCount += 1;
-        }
-
-        // Exclude the worst scores and sum the rest
-        const scoresToInclude = sorted.slice(excludeCount);
-        const totalPoints = scoresToInclude.reduce((acc, s) => acc + s, 0);
-
-        return { boat_id: boat.boat_id, totalPoints };
-      });
-
-      // SHRS 4.1: boats withdrawn from the event at the time of division
-      // shall be placed in the lowest fleet.
-      const withdrawnBoatIds = new Set(
-        leaderboard
-          .filter((boat) => {
-            const statuses = boat.race_statuses
-              ? boat.race_statuses.split(',')
-              : [];
-            return statuses.some((s) => s.trim().toUpperCase() === 'WTH');
-          })
-          .map((boat) => boat.boat_id),
+      await window.electron.sqlite.heatRaceDB.startFinalSeriesAtomic(
+        event.event_id,
       );
-
-      // Sort: non-withdrawn by adjusted total, then withdrawn boats at the end
-      adjustedLeaderboard.sort((a, b) => {
-        const aWithdrawn = withdrawnBoatIds.has(a.boat_id);
-        const bWithdrawn = withdrawnBoatIds.has(b.boat_id);
-        if (aWithdrawn !== bWithdrawn) return aWithdrawn ? 1 : -1;
-        return a.totalPoints - b.totalPoints;
-      });
-      // Determine fleet sizes
-      const boatsPerFleet = Math.floor(
-        adjustedLeaderboard.length / numFinalHeats,
-      );
-      const extraBoats = adjustedLeaderboard.length % numFinalHeats;
-
-      const fleetNames = ['Gold', 'Silver', 'Bronze', 'Copper'];
-      const fleetDefinitions = Array.from(
-        { length: numFinalHeats },
-        (_value, index) => ({
-          index,
-          fleetName: fleetNames[index] || `Fleet ${index + 1}`,
-          boatsInThisFleet: boatsPerFleet + (index < extraBoats ? 1 : 0),
-        }),
-      );
-
-      const heatInsertResults = await Promise.all(
-        fleetDefinitions.map((fleetDefinition) =>
-          window.electron.sqlite.heatRaceDB.insertHeat(
-            event.event_id,
-            `Final ${fleetDefinition.fleetName}`,
-            'Final',
-          ),
-        ),
-      );
-
-      let boatIndex = 0;
-      const fleetPromises = fleetDefinitions.flatMap((fleetDefinition) => {
-        const newHeatId =
-          heatInsertResults[fleetDefinition.index].lastInsertRowid;
-        const boatsSlice = adjustedLeaderboard.slice(
-          boatIndex,
-          boatIndex + fleetDefinition.boatsInThisFleet,
-        );
-        boatIndex += fleetDefinition.boatsInThisFleet;
-        return boatsSlice.map((boat) =>
-          window.electron.sqlite.heatRaceDB.insertHeatBoat(
-            newHeatId,
-            boat.boat_id,
-          ),
-        );
-      });
-
-      await Promise.all(fleetPromises);
       setFinalSeriesStarted(true);
       reportInfo('Final Series started successfully!', 'Success');
       handleDisplayHeats();
