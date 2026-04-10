@@ -14,18 +14,33 @@ function ScoringInputComponent({ heat, onSubmit }) {
   const [dropIndex, setDropIndex] = useState(null);
 
   useEffect(() => {
+    let isActive = true;
+
+    setInputValue('');
+    setBoatNumbers([]);
+    setPlaceNumbers({});
+    setPenalties({});
+    setDraggingIndex(null);
+    setDropIndex(null);
+
     const fetchBoats = async () => {
       try {
         const boats = await window.electron.sqlite.heatRaceDB.readBoatsByHeat(
           heat.heat_id,
         );
+        if (!isActive) return;
         setValidBoats(boats.map((boat) => boat.sail_number));
       } catch (error) {
+        if (!isActive) return;
         reportError('Could not load boats for selected heat.', error);
       }
     };
 
     fetchBoats();
+
+    return () => {
+      isActive = false;
+    };
   }, [heat.heat_id]);
 
   const handleInputChange = (e) => {
@@ -96,15 +111,19 @@ function ScoringInputComponent({ heat, onSubmit }) {
     const updatedPlaceNumbers = { ...placeNumbers };
     delete updatedPlaceNumbers[removedBoat];
 
+    const updatedPenalties = { ...penalties };
+    delete updatedPenalties[removedBoat];
+
     // Update place numbers for remaining boats
     updatedBoatNumbers.forEach((boat, idx) => {
-      if (!penalties[boat]) {
+      if (!updatedPenalties[boat]) {
         updatedPlaceNumbers[boat] = idx + 1;
       }
     });
 
     setBoatNumbers(updatedBoatNumbers);
     setPlaceNumbers(updatedPlaceNumbers);
+    setPenalties(updatedPenalties);
   };
 
   const handleReorderBoat = (fromIndex, toIndex) => {
@@ -136,6 +155,10 @@ function ScoringInputComponent({ heat, onSubmit }) {
   };
 
   const handlePenaltyChange = (boatNumber, penalty) => {
+    if (penalty && !boatNumbers.includes(boatNumber)) {
+      addBoatsToList([boatNumber]);
+    }
+
     const newPenalties = { ...penalties, [boatNumber]: penalty };
     if (!penalty) delete newPenalties[boatNumber];
     setPenalties(newPenalties);
@@ -149,7 +172,8 @@ function ScoringInputComponent({ heat, onSubmit }) {
           !newPenalties[n] || POSITION_KEEPING_PENALTIES.has(newPenalties[n]),
       );
       const displaced = boatNumbers.filter(
-        (n) => newPenalties[n] && !POSITION_KEEPING_PENALTIES.has(newPenalties[n]),
+        (n) =>
+          newPenalties[n] && !POSITION_KEEPING_PENALTIES.has(newPenalties[n]),
       );
       const reordered = [...withPosition, ...displaced];
       const newPlaceNumbers = {};
@@ -167,12 +191,18 @@ function ScoringInputComponent({ heat, onSubmit }) {
   const handleSubmit = () => {
     const allBoats = [...new Set([...boatNumbers, ...validBoats])];
     const boatPlaces = [];
+    const includedBoats = new Set();
     let finishingPlace = 1;
 
     boatNumbers.forEach((boatNumber) => {
+      includedBoats.add(boatNumber);
       const penalty = penalties[boatNumber];
       if (!penalty) {
-        boatPlaces.push({ boatNumber, place: finishingPlace, status: 'FINISHED' });
+        boatPlaces.push({
+          boatNumber,
+          place: finishingPlace,
+          status: 'FINISHED',
+        });
         finishingPlace += 1;
         return;
       }
@@ -187,6 +217,17 @@ function ScoringInputComponent({ heat, onSubmit }) {
         boatNumber,
         place: allBoats.length + 1,
         status: penalty,
+      });
+    });
+
+    // Defensive safety net: if a penalty exists for a valid boat that is not in
+    // the ordered list, still include it in the submitted payload.
+    validBoats.forEach((boatNumber) => {
+      if (includedBoats.has(boatNumber) || !penalties[boatNumber]) return;
+      boatPlaces.push({
+        boatNumber,
+        place: allBoats.length + 1,
+        status: penalties[boatNumber],
       });
     });
 
@@ -237,7 +278,7 @@ function ScoringInputComponent({ heat, onSubmit }) {
             color: 'var(--text-muted, #666)',
           }}
         >
-          Click a row to add the boat to the finish order
+          Click a row or select a penalty to include the boat in scoring
         </p>
         <div
           style={{
@@ -316,16 +357,18 @@ function ScoringInputComponent({ heat, onSubmit }) {
             <tbody>
               {heat.boats.map((boat, i) => {
                 const added = boatNumbers.includes(boat.sail_number);
+                let rowBackground = 'var(--surface, #f5f7fa)';
+                if (added) {
+                  rowBackground = 'var(--teal-light, #e8f5f1)';
+                } else if (i % 2 === 0) {
+                  rowBackground = '#fff';
+                }
                 return (
                   <tr
                     key={boat.boat_id}
                     onClick={() => handleBoatClick(boat.sail_number)}
                     style={{
-                      background: added
-                        ? 'var(--teal-light, #e8f5f1)'
-                        : i % 2 === 0
-                          ? '#fff'
-                          : 'var(--surface, #f5f7fa)',
+                      background: rowBackground,
                       borderBottom: '1px solid var(--border, #dde3ea)',
                       cursor: added ? 'default' : 'pointer',
                       transition: 'background 0.15s',

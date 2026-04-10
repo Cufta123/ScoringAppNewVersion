@@ -22,6 +22,16 @@ const config: Config = {
   },
   // Run only unit tests (scoring logic + utilities)
   testMatch: [
+    '**/src/__tests__/App.routing.test.tsx',
+    '**/src/__tests__/LandingPage.test.jsx',
+    '**/src/__tests__/EventPage.test.jsx',
+    '**/src/__tests__/LeaderboardPage.test.jsx',
+    '**/src/__tests__/SailorForm.test.jsx',
+    '**/src/__tests__/useLeaderboard.scoring.test.jsx',
+    '**/src/__tests__/useLeaderboard.rdg.property.test.jsx',
+    '**/src/__tests__/leaderboard.property.test.jsx',
+    '**/src/__tests__/backendUiTieBreak.property.test.jsx',
+    '**/src/__tests__/ScoringInputComponent.test.jsx',
     '**/src/__tests__/calculateBoatScores.test.ts',
     '**/src/__tests__/calculateFinalBoatScores.test.ts',
     '**/src/__tests__/creatingNewHeatsUtils.test.ts',

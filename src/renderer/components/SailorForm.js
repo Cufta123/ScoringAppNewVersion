@@ -9,6 +9,14 @@ import { reportError, reportInfo } from '../utils/userFeedback';
 
 import iocCountries from '../constants/iocCountries.json';
 
+const SUBGROUP_OPTIONS = [
+  { value: 'M', label: 'M', categoryId: 4 },
+  { value: 'GM', label: 'GM', categoryId: 5 },
+  { value: 'L', label: 'L', categoryId: 3 },
+  { value: 'U25', label: 'U25', categoryId: 2 },
+  { value: 'U16', label: 'U16', categoryId: 1 },
+];
+
 function SailorForm({ onAddSailor, eventId }) {
   SailorForm.propTypes = {
     onAddSailor: PropTypes.func.isRequired,
@@ -17,7 +25,7 @@ function SailorForm({ onAddSailor, eventId }) {
 
   const [name, setName] = useState('');
   const [surname, setSurname] = useState('');
-  const [birthday, setBirthday] = useState('');
+  const [subgroup, setSubgroup] = useState('');
   const [club, setClub] = useState('');
   const [clubs, setClubs] = useState([]);
   const [selectedCountry, setSelectedCountry] = useState('');
@@ -77,18 +85,6 @@ function SailorForm({ onAddSailor, eventId }) {
     checkIfRaceHappened();
   }, [checkIfRaceHappened]);
 
-  const calculateCategory = () => {
-    const birthYear = new Date(birthday).getFullYear();
-    const currentYear = new Date().getFullYear();
-    const age = currentYear - birthYear;
-
-    if (age <= 12) return 1; // Kadet
-    if (age <= 18) return 2; // Junior
-    if (age <= 35) return 3; // Senior
-    if (age <= 50) return 4; // Master
-    return 5; // Grand Master
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -99,7 +95,17 @@ function SailorForm({ onAddSailor, eventId }) {
       return;
     }
     try {
-      const category_id = calculateCategory(birthday);
+      const selectedSubgroup = SUBGROUP_OPTIONS.find(
+        (option) => option.value === subgroup,
+      );
+
+      if (!selectedSubgroup) {
+        reportError('Please select a subgroup.');
+        return;
+      }
+
+      const category_id = selectedSubgroup.categoryId;
+      const birthday = '';
       console.log(`Category ID calculated: ${category_id}`);
 
       // Check if the club already exists
@@ -217,7 +223,7 @@ function SailorForm({ onAddSailor, eventId }) {
       await onAddSailor({
         name,
         surname,
-        birthday,
+        subgroup,
         club_id,
         selectedCountry,
         sailNumber,
@@ -225,7 +231,7 @@ function SailorForm({ onAddSailor, eventId }) {
       });
       setName('');
       setSurname('');
-      setBirthday('');
+      setSubgroup('');
       setClub('');
       setSelectedCountry('');
       setSailNumber('');
@@ -292,14 +298,22 @@ function SailorForm({ onAddSailor, eventId }) {
               />
             </div>
             <div className="sailor-form-field">
-              <label htmlFor="sf-birthday">Date of Birth</label>
-              <input
-                id="sf-birthday"
-                type="date"
-                value={birthday}
-                onChange={(e) => setBirthday(e.target.value)}
+              <label htmlFor="sf-subgroup">Subgroup</label>
+              <select
+                id="sf-subgroup"
+                value={subgroup}
+                onChange={(e) => setSubgroup(e.target.value)}
                 required
-              />
+              >
+                <option value="" disabled>
+                  Select subgroup...
+                </option>
+                {SUBGROUP_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="sailor-form-field">
               <label htmlFor="sf-sail">Sail Number</label>

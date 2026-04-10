@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
-import jsPDF from 'jspdf';
+import { jsPDF as JsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import registerPdfUnicodeFont from '../utils/registerPdfUnicodeFont';
 import {
@@ -76,6 +76,32 @@ export default function useLeaderboard(eventId) {
       raceNumber,
       seriesLabel,
     };
+  };
+
+  const toPdfText = (value) => {
+    const source = String(value ?? '').normalize('NFC');
+
+    // Repair common mojibake patterns (UTF-8 bytes read as latin1/cp1252).
+    if (!/[ÃÅÄÐÆØ]/.test(source)) {
+      return source;
+    }
+
+    try {
+      const bytes = Uint8Array.from(
+        Array.from(source).map((char) => char.charCodeAt(0) % 256),
+      );
+      const decoded = new TextDecoder('utf-8').decode(bytes).normalize('NFC');
+
+      const hasReplacementChar = decoded.includes('\uFFFD');
+      const gainedDiacritics = /[čćđšžČĆĐŠŽ]/.test(decoded);
+      if (!hasReplacementChar && gainedDiacritics) {
+        return decoded;
+      }
+    } catch (_) {
+      // Keep source text when repair cannot be safely applied.
+    }
+
+    return source;
   };
 
   // ─── Compare ────────────────────────────────────────────────────────────────
@@ -1298,20 +1324,29 @@ export default function useLeaderboard(eventId) {
   const exportToHTML = async () => {
     const { header, sections } = buildExportData();
     const { safeEventName, raceNumber, seriesLabel } = await getExportMeta();
-    const thCells = header.map((h) => `<th>${h}</th>`).join('');
+    const escapeHtml = (value) =>
+      String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    const thCells = header.map((h) => `<th>${escapeHtml(h)}</th>`).join('');
     let tableBody = '';
     sections.forEach(({ title, rows }) => {
       if (title) {
-        tableBody += `<tr><td colspan="${header.length}" class="group-header">${title}</td></tr>`;
+        tableBody += `<tr><td colspan="${header.length}" class="group-header">${escapeHtml(title)}</td></tr>`;
       }
       rows.forEach((r) => {
-        tableBody += `<tr>${r.map((v) => `<td>${v ?? ''}</td>`).join('')}</tr>`;
+        tableBody += `<tr>${r.map((v) => `<td>${escapeHtml(v)}</td>`).join('')}</tr>`;
       });
     });
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
   <title>Leaderboard</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 24px; color: #1b2740; }
@@ -1331,7 +1366,10 @@ export default function useLeaderboard(eventId) {
   </table>
 </body>
 </html>`;
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8;' });
+    // Prefix with UTF-8 BOM so Windows apps consistently decode diacritics.
+    const blob = new Blob(['\uFEFF', html], {
+      type: 'text/html;charset=utf-8;',
+    });
     saveAs(
       blob,
       `${safeEventName}_${seriesLabel}_${raceNumber}_leaderboard.html`,
@@ -1343,8 +1381,7 @@ export default function useLeaderboard(eventId) {
   const exportToPDF = async () => {
     const { header, sections } = buildExportData();
     const { safeEventName, raceNumber, seriesLabel } = await getExportMeta();
-    // eslint-disable-next-line new-cap
-    const doc = new jsPDF({ orientation: 'landscape' });
+    const doc = new JsPDF({ orientation: 'landscape' });
     await registerPdfUnicodeFont(doc);
     doc.setFontSize(14);
     doc.setFont('DejaVuSans', 'bold');
@@ -1361,8 +1398,8 @@ export default function useLeaderboard(eventId) {
         startY += 8;
       }
       autoTable(doc, {
-        head: [header],
-        body: rows.map((r) => r.map((v) => String(v ?? ''))),
+        head: [header.map((cell) => toPdfText(cell))],
+        body: rows.map((r) => r.map((v) => toPdfText(v))),
         startY,
         styles: { fontSize: 7, cellPadding: 2, font: 'DejaVuSans' },
         headStyles: {

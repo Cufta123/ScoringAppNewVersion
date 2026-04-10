@@ -1,0 +1,102 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`useLeaderboard scoring/edit flow keeps full leaderboard payload contract stable across multiple sequential edits 1`] = `
+[
+  {
+    "boat_id": "b1",
+    "computed_total": 9,
+    "race_points": [
+      "5",
+      "2",
+      "3",
+      "4",
+    ],
+    "race_statuses": [
+      "DSQ",
+      "FINISHED",
+      "FINISHED",
+      "FINISHED",
+    ],
+    "races": [
+      "(5)",
+      "2",
+      "3",
+      "4",
+    ],
+    "total_points_event": 9,
+    "total_points_final": 9,
+  },
+  {
+    "boat_id": "b2",
+    "computed_total": 7,
+    "race_points": [
+      "3",
+      "1",
+      "4",
+      "3",
+    ],
+    "race_statuses": [
+      "FINISHED",
+      "ZFP",
+      "FINISHED",
+      "FINISHED",
+    ],
+    "races": [
+      "3",
+      "1",
+      "(4)",
+      "3",
+    ],
+    "total_points_event": 7,
+    "total_points_final": 7,
+  },
+  {
+    "boat_id": "b3",
+    "computed_total": 7.5,
+    "race_points": [
+      "4",
+      "4",
+      "1.5",
+      "2",
+    ],
+    "race_statuses": [
+      "FINISHED",
+      "FINISHED",
+      "RDG3",
+      "FINISHED",
+    ],
+    "races": [
+      "(4)",
+      "4",
+      "1.5",
+      "2",
+    ],
+    "total_points_event": 7.5,
+    "total_points_final": 7.5,
+  },
+  {
+    "boat_id": "b4",
+    "computed_total": 4,
+    "race_points": [
+      "1",
+      "3",
+      "2",
+      "1",
+    ],
+    "race_statuses": [
+      "FINISHED",
+      "FINISHED",
+      "FINISHED",
+      "FINISHED",
+    ],
+    "races": [
+      "1",
+      "(3)",
+      "2",
+      "1",
+    ],
+    "total_points_event": 4,
+    "total_points_final": 4,
+  },
+]
+`;

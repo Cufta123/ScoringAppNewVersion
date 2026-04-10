@@ -25,6 +25,7 @@ function EventPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { event } = location.state || {};
+  const eventId = event?.event_id;
 
   useEffect(() => {
     if (!event) {
@@ -45,13 +46,15 @@ function EventPage() {
     }
   }, [addSailorMode]);
   const [raceHappened, setRaceHappened] = useState(false);
-  const [isEventLocked, setIsEventLocked] = useState(event.is_locked === 1);
+  const [isEventLocked, setIsEventLocked] = useState(event?.is_locked === 1);
   const [startingListFormat, setStartingListFormat] = useState('excel');
 
   const fetchBoatsWithSailors = useCallback(async () => {
+    if (!eventId) return;
+
     try {
       const boatsWithSailors =
-        await window.electron.sqlite.eventDB.readBoatsByEvent(event.event_id);
+        await window.electron.sqlite.eventDB.readBoatsByEvent(eventId);
       const mappedBoats = boatsWithSailors.map((boat) => ({
         ...boat,
         sailor: boat.name,
@@ -63,7 +66,7 @@ function EventPage() {
     } catch (error) {
       reportError('Could not load boats for this event.', error);
     }
-  }, [event.event_id]);
+  }, [eventId]);
 
   const fetchAllBoats = useCallback(async () => {
     try {
@@ -75,9 +78,11 @@ function EventPage() {
   }, []);
 
   const checkIfRaceHappened = useCallback(async () => {
+    if (!eventId) return;
+
     try {
       const heats = await window.electron.sqlite.heatRaceDB.readAllHeats(
-        event.event_id,
+        eventId,
       );
       const racePromises = heats.map((heat) =>
         window.electron.sqlite.heatRaceDB.readAllRaces(heat.heat_id),
@@ -88,17 +93,19 @@ function EventPage() {
     } catch (error) {
       reportError('Could not check race status.', error);
     }
-  }, [event.event_id]);
+  }, [eventId]);
 
   const fetchEventLockStatus = useCallback(async () => {
+    if (!eventId) return;
+
     try {
       const events = await window.electron.sqlite.eventDB.readAllEvents();
-      const currentEvent = events.find((e) => e.event_id === event.event_id);
-      setIsEventLocked(currentEvent.is_locked === 1);
+      const currentEvent = events.find((e) => e.event_id === eventId);
+      setIsEventLocked(currentEvent?.is_locked === 1);
     } catch (error) {
       reportError('Could not load event lock status.', error);
     }
-  }, [event.event_id]);
+  }, [eventId]);
 
   useEffect(() => {
     if (event) {
