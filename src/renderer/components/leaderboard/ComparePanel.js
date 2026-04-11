@@ -75,6 +75,7 @@ function ComparePanel({ show, compareInfo, selectedBoatIds }) {
       sharedQualRacePairs,
       sharedIds,
       otherTiedCount = 0,
+      tiedGroupEntries = [],
     } = displayed;
 
     const boatAName = `${boatA.name} ${boatA.surname}`;
@@ -129,8 +130,30 @@ function ComparePanel({ show, compareInfo, selectedBoatIds }) {
               {otherTiedCount} other boat{' '}
               {otherTiedCount !== 1 ? 's are' : 'is'} also tied at {totalA} pts.
             </strong>{' '}
-            This pairwise comparison shows the direct matchup only. Overall
-            ranking still sorts all tied boats together.
+            Pairwise detail is shown below, while final ordering for this tie
+            group is resolved winner-first and then recalculated for remaining
+            tied boats (SHRS 5.7(ii)(3)).
+            {tiedGroupEntries.length > 2 && (
+              <div className="compare-tied-group-wrap">
+                <div className="compare-tied-group-title">
+                  Current order of this tied group:
+                </div>
+                <div className="compare-tied-group-list">
+                  {tiedGroupEntries.map((entry) => {
+                    const rank = entry.overall_rank ?? entry.place ?? '–';
+                    return (
+                      <span
+                        key={`tg-${entry.boat_id}`}
+                        className="compare-tied-group-chip"
+                      >
+                        #{rank} {entry.name} {entry.surname}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
           </div>
         )}
 
@@ -257,7 +280,12 @@ function ComparePanel({ show, compareInfo, selectedBoatIds }) {
                 <div
                   className={`compare-grid-shell ${showDetail ? 'open' : ''}`}
                 >
-                  <div className="compare-grid-inner">
+                  <div
+                    className="compare-grid-inner"
+                    style={{
+                      gridTemplateColumns: `120px repeat(${raceGrid.length}, minmax(52px, auto))`,
+                    }}
+                  >
                     <div className="compare-grid-header-cell compare-grid-row-label" />
                     {raceGrid.map((race) => (
                       <div
@@ -418,6 +446,7 @@ ComparePanel.propTypes = {
       sharedRacePairs: PropTypes.arrayOf(PropTypes.object),
       sharedQualRacePairs: PropTypes.arrayOf(PropTypes.object),
       otherTiedCount: PropTypes.number,
+      tiedGroupEntries: PropTypes.arrayOf(boatShape),
     }),
     PropTypes.oneOf([null]),
   ]).isRequired,

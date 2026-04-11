@@ -551,6 +551,34 @@ function compareOverallTiePackets(
   return String(leftBoatId).localeCompare(String(rightBoatId));
 }
 
+function resolveOverallTieGroupSequentially<T extends { boat_id: any }>(
+  rows: T[],
+  getTiePacket: (boatId: any) => OverallTiePacket,
+): T[] {
+  const remaining = [...rows];
+  const resolved: T[] = [];
+
+  // SHRS 2026 5.7(ii)(3): resolve the highest-place tie first,
+  // then re-apply tie-break on the remaining tied boats.
+  while (remaining.length > 0) {
+    remaining.sort((left, right) => {
+      const leftPacket = getTiePacket(left.boat_id);
+      const rightPacket = getTiePacket(right.boat_id);
+      return compareOverallTiePackets(
+        left.boat_id,
+        right.boat_id,
+        leftPacket,
+        rightPacket,
+      );
+    });
+
+    const [winner] = remaining.splice(0, 1);
+    resolved.push(winner);
+  }
+
+  return resolved;
+}
+
 function normalizeStatus(status: unknown): string {
   if (typeof status !== 'string') {
     return '';
@@ -2376,15 +2404,34 @@ ipcMain.handle('readOverallLeaderboard', async (event, event_id) => {
         return left.overall_points - right.overall_points;
       }
 
-      const leftPacket = getTiePacket(left.boat_id);
-      const rightPacket = getTiePacket(right.boat_id);
-      return compareOverallTiePackets(
-        left.boat_id,
-        right.boat_id,
-        leftPacket,
-        rightPacket,
-      );
+      return 0;
     });
+
+    const groupedAndResolved: any[] = [];
+    for (let i = 0; i < results.length; ) {
+      const fleet = results[i].placement_group;
+      const points = results[i].overall_points;
+      const tieGroup: any[] = [];
+
+      while (
+        i < results.length &&
+        results[i].placement_group === fleet &&
+        results[i].overall_points === points
+      ) {
+        tieGroup.push(results[i]);
+        i += 1;
+      }
+
+      if (tieGroup.length <= 1) {
+        groupedAndResolved.push(...tieGroup);
+      } else {
+        groupedAndResolved.push(
+          ...resolveOverallTieGroupSequentially(tieGroup, getTiePacket),
+        );
+      }
+    }
+
+    results.splice(0, results.length, ...groupedAndResolved);
 
     // Assign overall rank: Gold before Silver before Bronze before Copper
     let rank = 1;

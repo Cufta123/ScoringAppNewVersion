@@ -111,7 +111,9 @@ describe('useLeaderboard scoring/edit flow', () => {
       result.current.handleRaceChange('b2', 0, null, 'DSQ');
     });
 
-    const edited = result.current.editableLeaderboard.find((e) => e.boat_id === 'b2');
+    const edited = result.current.editableLeaderboard.find(
+      (e) => e.boat_id === 'b2',
+    );
     expect(edited.races[0]).toBe('4');
     expect(edited.race_statuses[0]).toBe('DSQ');
     expect(edited.computed_total).toBe(4);
@@ -280,8 +282,9 @@ describe('useLeaderboard scoring/edit flow', () => {
   });
 
   it('reverts editable leaderboard when atomic save fails', async () => {
-    window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic
-      .mockRejectedValueOnce(new Error('Simulated failure'));
+    window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic.mockRejectedValueOnce(
+      new Error('Simulated failure'),
+    );
 
     const { result } = renderHook(() => useLeaderboard(1));
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -290,7 +293,9 @@ describe('useLeaderboard scoring/edit flow', () => {
       await result.current.toggleEditMode();
     });
 
-    const beforeSave = JSON.parse(JSON.stringify(result.current.eventLeaderboard));
+    const beforeSave = JSON.parse(
+      JSON.stringify(result.current.eventLeaderboard),
+    );
 
     act(() => {
       result.current.handleRaceChange('b2', 0, null, 'DSQ');
@@ -305,5 +310,84 @@ describe('useLeaderboard scoring/edit flow', () => {
       'Could not save leaderboard changes.',
       expect.any(Error),
     );
+  });
+
+  it('exposes ordered tied-group entries in compare info for multi-boat ties', async () => {
+    window.electron.sqlite.heatRaceDB.readLeaderboard.mockResolvedValueOnce([
+      {
+        boat_id: 'b1',
+        name: 'Ana',
+        surname: 'A',
+        country: 'CRO',
+        boat_number: '101',
+        boat_type: 'IOM',
+        place: 1,
+        total_points_event: 7,
+        race_positions: '1,2,4',
+        race_points: '1,2,4',
+        race_ids: '101,102,103',
+        race_statuses: 'FINISHED,FINISHED,FINISHED',
+      },
+      {
+        boat_id: 'b2',
+        name: 'Bruno',
+        surname: 'B',
+        country: 'CRO',
+        boat_number: '102',
+        boat_type: 'IOM',
+        place: 2,
+        total_points_event: 7,
+        race_positions: '2,1,4',
+        race_points: '2,1,4',
+        race_ids: '101,102,103',
+        race_statuses: 'FINISHED,FINISHED,FINISHED',
+      },
+      {
+        boat_id: 'b3',
+        name: 'Cedo',
+        surname: 'C',
+        country: 'CRO',
+        boat_number: '103',
+        boat_type: 'IOM',
+        place: 3,
+        total_points_event: 7,
+        race_positions: '3,3,1',
+        race_points: '3,3,1',
+        race_ids: '101,102,103',
+        race_statuses: 'FINISHED,FINISHED,FINISHED',
+      },
+      {
+        boat_id: 'b4',
+        name: 'Dora',
+        surname: 'D',
+        country: 'CRO',
+        boat_number: '104',
+        boat_type: 'IOM',
+        place: 4,
+        total_points_event: 9,
+        race_positions: '4,4,1',
+        race_points: '4,4,1',
+        race_ids: '101,102,103',
+        race_statuses: 'FINISHED,FINISHED,FINISHED',
+      },
+    ]);
+
+    const { result } = renderHook(() => useLeaderboard(88));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => {
+      result.current.setCompareMode(true);
+    });
+
+    act(() => {
+      result.current.handleCompareRowClick('b1');
+      result.current.handleCompareRowClick('b2');
+    });
+
+    expect(result.current.compareInfo.tied).toBe(true);
+    expect(result.current.compareInfo.otherTiedCount).toBe(1);
+    expect(
+      result.current.compareInfo.tiedGroupEntries.map((row) => row.boat_id),
+    ).toEqual(['b1', 'b2', 'b3']);
   });
 });

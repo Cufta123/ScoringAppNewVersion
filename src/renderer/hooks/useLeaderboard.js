@@ -580,6 +580,36 @@ export default function useLeaderboard(eventId) {
       getTotal,
     });
 
+    const scopedPlacementGroup =
+      finalSeriesStarted &&
+      boatA?.placement_group &&
+      boatB?.placement_group &&
+      boatA.placement_group === boatB.placement_group
+        ? boatA.placement_group
+        : null;
+
+    const tiedGroupEntries = allEntries
+      .filter((entry) => {
+        if (
+          scopedPlacementGroup &&
+          (entry.placement_group || 'General') !== scopedPlacementGroup
+        ) {
+          return false;
+        }
+        return getTotal(entry) === totalA && getTotal(entry) === totalB;
+      })
+      .slice()
+      .sort((a, b) => {
+        const rankA = finalSeriesStarted
+          ? (a.overall_rank ?? Infinity)
+          : (a.place ?? Infinity);
+        const rankB = finalSeriesStarted
+          ? (b.overall_rank ?? Infinity)
+          : (b.place ?? Infinity);
+        if (rankA !== rankB) return rankA - rankB;
+        return String(a.boat_id).localeCompare(String(b.boat_id));
+      });
+
     return {
       boatA,
       boatB,
@@ -594,6 +624,7 @@ export default function useLeaderboard(eventId) {
       sharedQualIds,
       sharedQualRacePairs,
       otherTiedCount,
+      tiedGroupEntries,
     };
   }, [selectedBoatIds, finalSeriesStarted, eventLeaderboard, leaderboard]);
 
