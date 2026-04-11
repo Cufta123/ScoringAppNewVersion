@@ -1,5 +1,9 @@
 /* eslint-disable camelcase */
 import { db } from '../../../public/Database/DBManager';
+import {
+  getEventDiscardConfig,
+  getExcludeCountForConfig,
+} from './discardConfig';
 
 interface Result {
   boat_id: any;
@@ -173,17 +177,13 @@ function getKeptScores(entries: ScoreEntry[], excludeCount: number): number[] {
 }
 
 // SHRS 5.4: after 4 races exclude 1, after 8 exclude 2, then +1 per 8 more
-function getExcludeCount(numberOfRaces: number): number {
-  if (numberOfRaces < 4) return 0;
-  if (numberOfRaces < 8) return 1;
-  return 2 + Math.floor((numberOfRaces - 8) / 8);
-}
-
 export default function calculateBoatScores(
   results: Result[],
   event_id: any,
   pointsMap: Map<number, string[]>,
 ): TemporaryTableEntry[] {
+  const discardConfig = getEventDiscardConfig(event_id, 'qualifying');
+
   results.forEach((result) => {
     const { boat_id, number_of_races } = result;
 
@@ -191,7 +191,7 @@ export default function calculateBoatScores(
     const scoreEntries = getScoresForA81(event_id, boat_id);
 
     // Determine the number of scores to exclude per SHRS 5.4
-    const excludeCount = getExcludeCount(number_of_races);
+    const excludeCount = getExcludeCountForConfig(number_of_races, discardConfig);
     console.log(
       `Boat ID: ${boat_id}, Number of Races: ${number_of_races}, Places to Exclude: ${excludeCount}`,
     );
@@ -270,7 +270,7 @@ export default function calculateBoatScores(
         const scoreEntries = getScoresForA81(event_id, boat_id);
         const raceCount =
           raceCountByBoat.get(String(boat_id)) ?? scoreEntries.length;
-        const excludeCount = getExcludeCount(raceCount);
+        const excludeCount = getExcludeCountForConfig(raceCount, discardConfig);
         const keptScores = getKeptScores(scoreEntries, excludeCount).sort(
           (a: number, b: number) => a - b,
         );
@@ -283,7 +283,7 @@ export default function calculateBoatScores(
       });
 
       // A8.1 + SHRS 5.6: Compare shared-heat A81 scores first, then A82 (last race backward)
-      sortedScores.sort((a, b) => {
+      const compareTieCandidates = (a: TieCandidate, b: TieCandidate) => {
         const sharedScores = getSharedRaceScoresForTieBreak(
           event_id,
           a.boat_id,
@@ -356,9 +356,18 @@ export default function calculateBoatScores(
           }
         }
         return String(a.boat_id).localeCompare(String(b.boat_id));
-      });
+      };
 
-      sortedScores.forEach((boat, index) => {
+      // SHRS 2026 5.7(ii)(3): resolve higher-place tie before lower ties.
+      const remaining = [...sortedScores];
+      const resolvedOrder: TieCandidate[] = [];
+      while (remaining.length > 0) {
+        remaining.sort(compareTieCandidates);
+        const [winner] = remaining.splice(0, 1);
+        resolvedOrder.push(winner);
+      }
+
+      resolvedOrder.forEach((boat, index) => {
         const boatIndex = temporaryTable.findIndex(
           (b) => b.boat_id === boat.boat_id,
         );
@@ -380,7 +389,7 @@ export default function calculateBoatScores(
 
       console.log(
         `After tie-breaking for total points ${totalPoints}:`,
-        sortedScores,
+        resolvedOrder,
       );
     }
   });

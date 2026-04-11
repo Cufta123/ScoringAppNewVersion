@@ -1,12 +1,35 @@
 /* eslint-disable camelcase */
 import { ipcMain } from 'electron';
 import { db } from '../../../public/Database/DBManager';
+import { normalizeDiscardConfigString } from '../functions/discardConfig';
 
 interface SqliteError extends Error {
   code: string;
 }
 const log = (message: string) => {
   console.log(message);
+};
+
+const allowedAssignmentModes = new Set(['progressive', 'pre-assigned']);
+const allowedHeatOverflowPolicies = new Set([
+  'auto-increase',
+  'confirm-allow-oversize',
+]);
+
+const normalizeAssignmentMode = (value: unknown): string => {
+  const normalized = String(value ?? 'progressive').trim().toLowerCase();
+  if (!allowedAssignmentModes.has(normalized)) {
+    return 'progressive';
+  }
+  return normalized;
+};
+
+const normalizeHeatOverflowPolicy = (value: unknown): string => {
+  const normalized = String(value ?? 'auto-increase').trim().toLowerCase();
+  if (!allowedHeatOverflowPolicies.has(normalized)) {
+    return 'auto-increase';
+  }
+  return normalized;
 };
 
 console.log('EventHandler.ts loaded');
@@ -36,7 +59,17 @@ ipcMain.handle('readAllEvents', async () => {
 
 ipcMain.handle(
   'insertEvent',
-  async (event, event_name, event_location, start_date, end_date) => {
+  async (
+    event,
+    event_name,
+    event_location,
+    start_date,
+    end_date,
+    shrs_qualifying_assignment_mode = 'progressive',
+    shrs_discard_profile_qualifying = 'standard',
+    shrs_discard_profile_final = 'standard',
+    shrs_heat_overflow_policy = 'auto-increase',
+  ) => {
     const maxRetries = 5;
     const delay = (ms: number) =>
       new Promise((resolve) => {
@@ -48,9 +81,28 @@ ipcMain.handle(
       try {
         const result = db
           .prepare(
-            'INSERT INTO Events (event_name, event_location, start_date, end_date) VALUES (?, ?, ?, ?)',
+            `INSERT INTO Events (
+              event_name,
+              event_location,
+              start_date,
+              end_date,
+              shrs_version,
+              shrs_qualifying_assignment_mode,
+              shrs_discard_profile_qualifying,
+              shrs_discard_profile_final,
+              shrs_heat_overflow_policy
+            ) VALUES (?, ?, ?, ?, '2026-1', ?, ?, ?, ?)`,
           )
-          .run(event_name, event_location, start_date, end_date);
+          .run(
+            event_name,
+            event_location,
+            start_date,
+            end_date,
+            normalizeAssignmentMode(shrs_qualifying_assignment_mode),
+            normalizeDiscardConfigString(shrs_discard_profile_qualifying),
+            normalizeDiscardConfigString(shrs_discard_profile_final),
+            normalizeHeatOverflowPolicy(shrs_heat_overflow_policy),
+          );
         return { lastInsertRowid: result.lastInsertRowid };
       } catch (error) {
         const sqliteError = error as SqliteError;
@@ -233,11 +285,97 @@ ipcMain.handle('unlockEvent', async (event, event_id) => {
 
 ipcMain.handle(
   'updateEvent',
-  async (event, event_id, event_name, event_location, start_date, end_date) => {
+  async (
+    event,
+    event_id,
+    event_name,
+    event_location,
+    start_date,
+    end_date,
+    shrs_qualifying_assignment_mode = 'progressive',
+    shrs_discard_profile_qualifying = 'standard',
+    shrs_discard_profile_final = 'standard',
+    shrs_heat_overflow_policy = 'auto-increase',
+  ) => {
     try {
+      const existingEvent = db
+        .prepare(
+          `SELECT
+            shrs_discard_profile_qualifying,
+            shrs_discard_profile_final,
+            shrs_discard_locked_qualifying,
+            shrs_discard_locked_final
+           FROM Events
+           WHERE event_id = ?`,
+        )
+        .get(event_id) as
+        | {
+            shrs_discard_profile_qualifying: string;
+            shrs_discard_profile_final: string;
+            shrs_discard_locked_qualifying: number;
+            shrs_discard_locked_final: number;
+          }
+        | undefined;
+
+      if (!existingEvent) {
+        throw new Error('Event not found.');
+      }
+
+      const normalizedQualifyingDiscardProfile = normalizeDiscardConfigString(
+        shrs_discard_profile_qualifying,
+      );
+      const normalizedFinalDiscardProfile = normalizeDiscardConfigString(
+        shrs_discard_profile_final,
+      );
+
+      const existingQualifyingDiscardProfile = normalizeDiscardConfigString(
+        existingEvent.shrs_discard_profile_qualifying,
+      );
+      const existingFinalDiscardProfile = normalizeDiscardConfigString(
+        existingEvent.shrs_discard_profile_final,
+      );
+
+      if (
+        existingEvent.shrs_discard_locked_qualifying === 1 &&
+        existingQualifyingDiscardProfile !== normalizedQualifyingDiscardProfile
+      ) {
+        throw new Error(
+          'Qualifying discard profile is locked after the first qualifying race.',
+        );
+      }
+
+      if (
+        existingEvent.shrs_discard_locked_final === 1 &&
+        existingFinalDiscardProfile !== normalizedFinalDiscardProfile
+      ) {
+        throw new Error(
+          'Final discard profile is locked after the first final race.',
+        );
+      }
+
       db.prepare(
-        'UPDATE Events SET event_name = ?, event_location = ?, start_date = ?, end_date = ? WHERE event_id = ?',
-      ).run(event_name, event_location, start_date, end_date, event_id);
+        `UPDATE Events
+         SET event_name = ?,
+             event_location = ?,
+             start_date = ?,
+             end_date = ?,
+             shrs_version = '2026-1',
+             shrs_qualifying_assignment_mode = ?,
+             shrs_discard_profile_qualifying = ?,
+             shrs_discard_profile_final = ?,
+             shrs_heat_overflow_policy = ?
+         WHERE event_id = ?`,
+      ).run(
+        event_name,
+        event_location,
+        start_date,
+        end_date,
+        normalizeAssignmentMode(shrs_qualifying_assignment_mode),
+        normalizedQualifyingDiscardProfile,
+        normalizedFinalDiscardProfile,
+        normalizeHeatOverflowPolicy(shrs_heat_overflow_policy),
+        event_id,
+      );
       return { success: true };
     } catch (error) {
       console.error('Error updating event:', error);

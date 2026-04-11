@@ -98,6 +98,9 @@ describe('Property-based: RDG1/RDG2/RDG3 random stress', () => {
           readLeaderboard: jest.fn(),
           readOverallLeaderboard: jest.fn().mockResolvedValue([]),
           updateRaceResult: jest.fn().mockResolvedValue(true),
+          saveLeaderboardRaceResultsAtomic: jest
+            .fn()
+            .mockResolvedValue({ success: true, updatedCount: 0 }),
         },
       },
     };

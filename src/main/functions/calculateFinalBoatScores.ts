@@ -1,5 +1,9 @@
 /* eslint-disable camelcase */
 import { db } from '../../../public/Database/DBManager';
+import {
+  getEventDiscardConfig,
+  getExcludeCountForConfig,
+} from './discardConfig';
 
 interface Result {
   boat_id: any;
@@ -94,16 +98,11 @@ function compareA81Scores(scoresA: number[], scoresB: number[]) {
 }
 
 // SHRS 5.4: after 4 races exclude 1, after 8 exclude 2, then +1 per 8 more
-function getExcludeCount(numberOfRaces: number): number {
-  if (numberOfRaces < 4) return 0;
-  if (numberOfRaces < 8) return 1;
-  return 2 + Math.floor((numberOfRaces - 8) / 8);
-}
-
 export default function calculateFinalBoatScores(
   results: Result[],
   event_id: any,
 ): Map<string, TemporaryTableEntry[]> {
+  const discardConfig = getEventDiscardConfig(event_id, 'final');
   const groupTables = new Map<string, TemporaryTableEntry[]>();
 
   results.forEach((result) => {
@@ -121,7 +120,7 @@ export default function calculateFinalBoatScores(
     // Fetch scores sorted DESC (worst first) and apply exclusions per SHRS 5.4
     const scoreEntries = getScoresForA81(event_id, boat_id, heat_name);
     const numberOfRaces = scoreEntries.length;
-    const excludeCount = getExcludeCount(numberOfRaces);
+    const excludeCount = getExcludeCountForConfig(numberOfRaces, discardConfig);
 
     // Exclude worst excludable scores (DNE/DGM are never excluded)
     const scoresToInclude = getKeptScores(scoreEntries, excludeCount);
@@ -158,7 +157,10 @@ export default function calculateFinalBoatScores(
             results.find((row) => row.boat_id === boat_id)?.heat_name ??
             `Final ${groupName}`;
           const scoreEntries = getScoresForA81(event_id, boat_id, boatHeatName);
-          const excludeCount = getExcludeCount(scoreEntries.length);
+          const excludeCount = getExcludeCountForConfig(
+            scoreEntries.length,
+            discardConfig,
+          );
           const keptScores = getKeptScores(scoreEntries, excludeCount).sort(
             (a: number, b: number) => a - b,
           );
@@ -170,7 +172,7 @@ export default function calculateFinalBoatScores(
         });
 
         // A8.1: Compare best individual scores, then A8.2 (last race backward)
-        sortedScores.sort((a, b) => {
+        const compareTieCandidates = (a: TieCandidate, b: TieCandidate) => {
           // Standard A8.1: excluded scores are NOT used.
           const initialComparison = compareA81Scores(
             a.keptScores,
@@ -191,9 +193,18 @@ export default function calculateFinalBoatScores(
             }
           }
           return String(a.boat_id).localeCompare(String(b.boat_id));
-        });
+        };
 
-        sortedScores.forEach((boat, index) => {
+        // SHRS 2026 5.7(ii)(3): resolve higher-place tie before lower ties.
+        const remaining = [...sortedScores];
+        const resolvedOrder: TieCandidate[] = [];
+        while (remaining.length > 0) {
+          remaining.sort(compareTieCandidates);
+          const [winner] = remaining.splice(0, 1);
+          resolvedOrder.push(winner);
+        }
+
+        resolvedOrder.forEach((boat, index) => {
           const boatIndex = table.findIndex((b) => b.boat_id === boat.boat_id);
           if (boatIndex !== -1) {
             table[boatIndex].place = index + 1;

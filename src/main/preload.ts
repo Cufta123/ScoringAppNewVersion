@@ -47,7 +47,10 @@ export type Channels =
   | 'updateEvent'
   | 'deleteEvent'
   | 'updateRaceResult'
+  | 'saveLeaderboardRaceResultsAtomic'
   | 'getMaxHeatSize'
+  | 'exportEventSnapshotToFile'
+  | 'restoreEventSnapshotFromFile'
   | 'importSailors';
 
 const toErrorMessage = (error: unknown): string => {
@@ -230,6 +233,10 @@ const electronHandler = {
         event_location: string,
         start_date: string,
         end_date: string,
+        shrs_qualifying_assignment_mode = 'progressive',
+        shrs_discard_profile_qualifying = 'standard',
+        shrs_discard_profile_final = 'standard',
+        shrs_heat_overflow_policy = 'auto-increase',
       ) {
         try {
           return await ipcRenderer.invoke(
@@ -238,6 +245,10 @@ const electronHandler = {
             event_location,
             start_date,
             end_date,
+            shrs_qualifying_assignment_mode,
+            shrs_discard_profile_qualifying,
+            shrs_discard_profile_final,
+            shrs_heat_overflow_policy,
           );
         } catch (error) {
           console.error('Error invoking insertEvent IPC:', error);
@@ -298,6 +309,10 @@ const electronHandler = {
         event_location: string,
         start_date: string,
         end_date: string,
+        shrs_qualifying_assignment_mode = 'progressive',
+        shrs_discard_profile_qualifying = 'standard',
+        shrs_discard_profile_final = 'standard',
+        shrs_heat_overflow_policy = 'auto-increase',
       ) {
         try {
           return await ipcRenderer.invoke(
@@ -307,6 +322,10 @@ const electronHandler = {
             event_location,
             start_date,
             end_date,
+            shrs_qualifying_assignment_mode,
+            shrs_discard_profile_qualifying,
+            shrs_discard_profile_final,
+            shrs_heat_overflow_policy,
           );
         } catch (error) {
           console.error('Error invoking updateEvent IPC:', error);
@@ -560,6 +579,33 @@ const electronHandler = {
           return false;
         }
       },
+      async saveLeaderboardRaceResultsAtomic(
+        event_id: string,
+        operations: Array<{
+          raceId: string;
+          boatId: string;
+          newPosition: number;
+          entryStatus: string;
+        }>,
+        shift_positions: boolean,
+        updateFinalLeaderboard = false,
+      ) {
+        try {
+          return await ipcRenderer.invoke(
+            'saveLeaderboardRaceResultsAtomic',
+            event_id,
+            operations,
+            shift_positions,
+            updateFinalLeaderboard,
+          );
+        } catch (error) {
+          console.error(
+            'Error invoking saveLeaderboardRaceResultsAtomic IPC:',
+            error,
+          );
+          return false;
+        }
+      },
       async readFinalLeaderboard(event_id: string) {
         try {
           return await ipcRenderer.invoke('readFinalLeaderboard', event_id);
@@ -576,9 +622,16 @@ const electronHandler = {
           return false;
         }
       },
-      async startFinalSeriesAtomic(event_id: string) {
+      async startFinalSeriesAtomic(
+        event_id: string,
+        allow_oversize_confirm = false,
+      ) {
         try {
-          return await ipcRenderer.invoke('startFinalSeriesAtomic', event_id);
+          return await ipcRenderer.invoke(
+            'startFinalSeriesAtomic',
+            event_id,
+            allow_oversize_confirm,
+          );
         } catch (error) {
           throw error;
         }
@@ -592,6 +645,22 @@ const electronHandler = {
           );
         } catch (error) {
           console.error('Error invoking getMaxHeatSize IPC:', error);
+          throw new Error(toErrorMessage(error));
+        }
+      },
+      async exportEventSnapshotToFile(event_id: string) {
+        try {
+          return await ipcRenderer.invoke('exportEventSnapshotToFile', event_id);
+        } catch (error) {
+          console.error('Error invoking exportEventSnapshotToFile IPC:', error);
+          throw new Error(toErrorMessage(error));
+        }
+      },
+      async restoreEventSnapshotFromFile(event_id: string) {
+        try {
+          return await ipcRenderer.invoke('restoreEventSnapshotFromFile', event_id);
+        } catch (error) {
+          console.error('Error invoking restoreEventSnapshotFromFile IPC:', error);
           throw new Error(toErrorMessage(error));
         }
       },

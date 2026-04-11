@@ -98,6 +98,49 @@ function HeatComponent({
   const [pendingFinalHeats, setPendingFinalHeats] = useState(0);
   const [numQualifyingGroups, setNumQualifyingGroups] = useState(0);
   const [newHeatsFormat, setNewHeatsFormat] = useState('excel');
+  const [snapshotHistory, setSnapshotHistory] = useState([]);
+
+  const snapshotStorageKey = `eventSnapshotHistory:${event.event_id}`;
+
+  const loadSnapshotHistory = useCallback(() => {
+    try {
+      const raw = window.localStorage.getItem(snapshotStorageKey);
+      if (!raw) {
+        setSnapshotHistory([]);
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        setSnapshotHistory([]);
+        return;
+      }
+      setSnapshotHistory(
+        parsed.filter(
+          (entry) =>
+            entry &&
+            typeof entry.fileName === 'string' &&
+            typeof entry.savedAt === 'string',
+        ),
+      );
+    } catch (_error) {
+      setSnapshotHistory([]);
+    }
+  }, [snapshotStorageKey]);
+
+  const rememberSnapshot = useCallback(
+    (filePath) => {
+      const fileName = String(filePath || '').split(/[\\/]/).pop() || 'snapshot.json';
+      const entry = {
+        fileName,
+        savedAt: new Date().toISOString(),
+      };
+
+      const next = [entry, ...snapshotHistory].slice(0, 5);
+      setSnapshotHistory(next);
+      window.localStorage.setItem(snapshotStorageKey, JSON.stringify(next));
+    },
+    [snapshotHistory, snapshotStorageKey],
+  );
 
   const handleDisplayHeats = useCallback(async () => {
     try {
@@ -167,16 +210,44 @@ function HeatComponent({
     checkFinalSeriesStarted();
   }, [checkFinalSeriesStarted]);
 
-  const handleConfirmFinalSeries = async () => {
+  useEffect(() => {
+    loadSnapshotHistory();
+  }, [loadSnapshotHistory]);
+
+  const handleConfirmFinalSeries = async (allowOversizeConfirm = false) => {
+    const allowOversize = allowOversizeConfirm === true;
     setShowFinalConfirm(false);
     try {
-      await window.electron.sqlite.heatRaceDB.startFinalSeriesAtomic(
-        event.event_id,
-      );
+      if (allowOversize) {
+        await window.electron.sqlite.heatRaceDB.startFinalSeriesAtomic(
+          event.event_id,
+          true,
+        );
+      } else {
+        await window.electron.sqlite.heatRaceDB.startFinalSeriesAtomic(
+          event.event_id,
+        );
+      }
       setFinalSeriesStarted(true);
       reportInfo('Final Series started successfully!', 'Success');
       handleDisplayHeats();
     } catch (error) {
+      const message =
+        error && typeof error.message === 'string' ? error.message : '';
+      if (
+        !allowOversize &&
+        message.includes('Final fleets would exceed 20 boats')
+      ) {
+        const proceed = await confirmAction(
+          'Final fleets would exceed 20 boats. Continue anyway with oversize fleets for this final-series split?',
+          'Confirm oversize final fleets',
+        );
+        if (!proceed) {
+          return;
+        }
+        await handleConfirmFinalSeries(true);
+        return;
+      }
       reportError('Could not start final series.', error);
     }
   };
@@ -250,6 +321,37 @@ function HeatComponent({
           'Start Final Series',
         );
         if (!proceed) return;
+      }
+
+      const canSnapshot =
+        typeof window?.electron?.sqlite?.heatRaceDB?.exportEventSnapshotToFile ===
+        'function';
+      if (canSnapshot) {
+        const saveSnapshotNow = await confirmAction(
+          'Before starting the Final Series, do you want to save a recovery snapshot file now?\n\nThis allows you to restore the event state later if needed.',
+          'Save recovery snapshot?',
+        );
+
+        if (saveSnapshotNow) {
+          const snapshotResult =
+            await window.electron.sqlite.heatRaceDB.exportEventSnapshotToFile(
+              event.event_id,
+            );
+
+          if (snapshotResult?.canceled) {
+            const proceedWithoutSnapshot = await confirmAction(
+              'Snapshot save was canceled. Continue starting the Final Series without a snapshot?',
+              'Continue without snapshot?',
+            );
+            if (!proceedWithoutSnapshot) return;
+          } else {
+            rememberSnapshot(snapshotResult.filePath);
+            reportInfo(
+              'Recovery snapshot saved successfully.',
+              'Snapshot saved',
+            );
+          }
+        }
       }
 
       setPendingFinalHeats(numFinalHeats);
@@ -465,6 +567,43 @@ function HeatComponent({
       await printNewHeats(event, heatsToDisplay, newHeatsFormat);
     } catch (error) {
       reportError('Could not export visible heats.', error);
+    }
+  };
+
+  const handleSaveSnapshot = async () => {
+    try {
+      const result = await window.electron.sqlite.heatRaceDB.exportEventSnapshotToFile(
+        event.event_id,
+      );
+      if (result?.canceled) return;
+      rememberSnapshot(result?.filePath);
+      reportInfo('Recovery snapshot saved successfully.', 'Snapshot saved');
+    } catch (error) {
+      reportError('Could not save recovery snapshot.', error);
+    }
+  };
+
+  const handleRestoreSnapshot = async () => {
+    const confirmed = await confirmAction(
+      'Restore event state from a saved snapshot file?\n\nCurrent heats, races and scores for this event will be replaced.',
+      'Restore snapshot',
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const result = await window.electron.sqlite.heatRaceDB.restoreEventSnapshotFromFile(
+        event.event_id,
+      );
+      if (result?.canceled) return;
+
+      setFinalSeriesStarted(false);
+      await checkFinalSeriesStarted();
+      await handleDisplayHeats();
+
+      reportInfo('Event state restored from snapshot.', 'Snapshot restored');
+    } catch (error) {
+      reportError('Could not restore snapshot.', error);
     }
   };
 
@@ -695,26 +834,89 @@ function HeatComponent({
             paddingTop: '20px',
             borderTop: '2px solid #e8f0f8',
             display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-start',
+            gap: '10px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button
+              type="button"
+              className="btn-success"
+              onClick={handleStartFinalSeries}
+            >
+              <i
+                className="fa fa-flag-checkered"
+                aria-hidden="true"
+                style={{ marginRight: '6px' }}
+              />
+              Start Final Series
+            </button>
+            <span
+              style={{
+                fontSize: '1rem',
+                fontWeight: 700,
+                color: '#0B5CAB',
+              }}
+            >
+              RO MODE: Save snapshot first, then start Final Series.
+            </span>
+          </div>
+          <span style={{ fontSize: '.85rem', color: '#6B849A' }}>
+            Advances the event to the final fleet stage based on current standings.
+          </span>
+        </div>
+      )}
+
+      {numQualifyingGroups >= 2 && (
+        <div
+          style={{
+            marginTop: '12px',
+            display: 'flex',
             alignItems: 'center',
-            gap: '12px',
+            gap: '10px',
           }}
         >
           <button
             type="button"
-            className="btn-success"
-            onClick={handleStartFinalSeries}
+            className="btn-ghost"
+            onClick={handleSaveSnapshot}
           >
-            <i
-              className="fa fa-flag-checkered"
-              aria-hidden="true"
-              style={{ marginRight: '6px' }}
-            />
-            Start Final Series
+            Save Snapshot
           </button>
-          <span style={{ fontSize: '.85rem', color: '#6B849A' }}>
-            Advances the event to the final fleet stage based on current
-            standings.
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={handleRestoreSnapshot}
+          >
+            Restore Snapshot
+          </button>
+          <span style={{ fontSize: '.82rem', color: '#6B849A' }}>
+            Recommended before major actions (for example before final split).
           </span>
+        </div>
+      )}
+
+      {numQualifyingGroups >= 2 && snapshotHistory.length > 0 && (
+        <div
+          style={{
+            marginTop: '10px',
+            padding: '10px 12px',
+            border: '1px solid #D6E2EE',
+            borderRadius: '8px',
+            background: '#F7FBFF',
+          }}
+        >
+          <div style={{ fontSize: '.88rem', fontWeight: 700, marginBottom: '6px' }}>
+            Last snapshots
+          </div>
+          <ul style={{ margin: 0, paddingLeft: '18px' }}>
+            {snapshotHistory.map((item) => (
+              <li key={`${item.fileName}-${item.savedAt}`} style={{ fontSize: '.82rem', color: '#4D6276' }}>
+                {item.fileName} - {new Date(item.savedAt).toLocaleString()}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

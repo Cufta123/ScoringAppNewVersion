@@ -1,5 +1,7 @@
 /* eslint-disable camelcase */
 import { ipcMain } from 'electron';
+import { dialog } from 'electron';
+import fs from 'fs';
 import { db } from '../../../public/Database/DBManager';
 import calculateBoatScores from '../functions/calculateBoatScores';
 
@@ -21,7 +23,269 @@ const isEventLocked = (event_id: any) => {
   return result.is_locked === 1;
 };
 
-const statusOrder = [
+const getEventQualifyingAssignmentMode = (event_id: any): string => {
+  const row = db
+    .prepare(
+      'SELECT shrs_qualifying_assignment_mode FROM Events WHERE event_id = ?',
+    )
+    .get(event_id) as
+    | { shrs_qualifying_assignment_mode?: string }
+    | undefined;
+  const value = row?.shrs_qualifying_assignment_mode;
+  if (value === 'pre-assigned') {
+    return 'pre-assigned';
+  }
+  return 'progressive';
+};
+
+const getEventHeatOverflowPolicy = (event_id: any): string => {
+  const row = db
+    .prepare('SELECT shrs_heat_overflow_policy FROM Events WHERE event_id = ?')
+    .get(event_id) as { shrs_heat_overflow_policy?: string } | undefined;
+  if (row?.shrs_heat_overflow_policy === 'confirm-allow-oversize') {
+    return 'confirm-allow-oversize';
+  }
+  return 'auto-increase';
+};
+
+const SHRS_MAX_BOATS_PER_HEAT = 20;
+const raceAssignmentSnapshots = new Map<number, string[]>();
+
+function buildEventSnapshot(event_id: number) {
+  const eventRow = db
+    .prepare('SELECT * FROM Events WHERE event_id = ?')
+    .get(event_id);
+
+  if (!eventRow) {
+    throw new Error('Event not found for snapshot export.');
+  }
+
+  return {
+    schemaVersion: 1,
+    exportedAt: new Date().toISOString(),
+    event_id,
+    tables: {
+      Events: [eventRow],
+      Boat_Event: db
+        .prepare('SELECT * FROM Boat_Event WHERE event_id = ?')
+        .all(event_id),
+      Heats: db.prepare('SELECT * FROM Heats WHERE event_id = ?').all(event_id),
+      Races: db
+        .prepare(
+          `SELECT r.*
+           FROM Races r
+           JOIN Heats h ON h.heat_id = r.heat_id
+           WHERE h.event_id = ?`,
+        )
+        .all(event_id),
+      Scores: db
+        .prepare(
+          `SELECT s.*
+           FROM Scores s
+           JOIN Races r ON r.race_id = s.race_id
+           JOIN Heats h ON h.heat_id = r.heat_id
+           WHERE h.event_id = ?`,
+        )
+        .all(event_id),
+      Heat_Boat: db
+        .prepare(
+          `SELECT hb.*
+           FROM Heat_Boat hb
+           JOIN Heats h ON h.heat_id = hb.heat_id
+           WHERE h.event_id = ?`,
+        )
+        .all(event_id),
+      Leaderboard: db
+        .prepare('SELECT * FROM Leaderboard WHERE event_id = ?')
+        .all(event_id),
+      FinalLeaderboard: db
+        .prepare('SELECT * FROM FinalLeaderboard WHERE event_id = ?')
+        .all(event_id),
+    },
+  };
+}
+
+function restoreEventSnapshot(
+  event_id: number,
+  snapshot: {
+    event_id: number;
+    tables: Record<string, any[]>;
+  },
+) {
+  if (!snapshot || typeof snapshot !== 'object') {
+    throw new Error('Invalid snapshot payload.');
+  }
+
+  if (Number(snapshot.event_id) !== Number(event_id)) {
+    throw new Error('Snapshot does not belong to this event.');
+  }
+
+  const tables = snapshot.tables || {};
+  const eventRows = Array.isArray(tables.Events) ? tables.Events : [];
+  if (eventRows.length !== 1) {
+    throw new Error('Snapshot is missing event metadata.');
+  }
+
+  const tx = db.transaction(() => {
+    db.prepare(
+      `DELETE FROM Scores WHERE race_id IN (
+        SELECT r.race_id
+        FROM Races r
+        JOIN Heats h ON h.heat_id = r.heat_id
+        WHERE h.event_id = ?
+      )`,
+    ).run(event_id);
+
+    db.prepare(
+      `DELETE FROM Races WHERE heat_id IN (
+        SELECT heat_id FROM Heats WHERE event_id = ?
+      )`,
+    ).run(event_id);
+
+    db.prepare(
+      `DELETE FROM Heat_Boat WHERE heat_id IN (
+        SELECT heat_id FROM Heats WHERE event_id = ?
+      )`,
+    ).run(event_id);
+
+    db.prepare('DELETE FROM Heats WHERE event_id = ?').run(event_id);
+    db.prepare('DELETE FROM Leaderboard WHERE event_id = ?').run(event_id);
+    db.prepare('DELETE FROM FinalLeaderboard WHERE event_id = ?').run(event_id);
+    db.prepare('DELETE FROM Boat_Event WHERE event_id = ?').run(event_id);
+
+    const eventRow = eventRows[0];
+    db.prepare(
+      `UPDATE Events
+       SET event_name = ?,
+           event_location = ?,
+           start_date = ?,
+           end_date = ?,
+           is_locked = ?,
+           shrs_version = ?,
+           shrs_qualifying_assignment_mode = ?,
+           shrs_discard_profile_qualifying = ?,
+           shrs_discard_profile_final = ?,
+           shrs_discard_locked_qualifying = ?,
+           shrs_discard_locked_final = ?,
+           shrs_heat_overflow_policy = ?
+       WHERE event_id = ?`,
+    ).run(
+      eventRow.event_name,
+      eventRow.event_location,
+      eventRow.start_date,
+      eventRow.end_date,
+      eventRow.is_locked,
+      eventRow.shrs_version,
+      eventRow.shrs_qualifying_assignment_mode,
+      eventRow.shrs_discard_profile_qualifying,
+      eventRow.shrs_discard_profile_final,
+      eventRow.shrs_discard_locked_qualifying,
+      eventRow.shrs_discard_locked_final,
+      eventRow.shrs_heat_overflow_policy,
+      event_id,
+    );
+
+    const insertBoatEvent = db.prepare(
+      'INSERT INTO Boat_Event (boat_event_id, boat_id, event_id) VALUES (?, ?, ?)',
+    );
+    (tables.Boat_Event || []).forEach((row) => {
+      insertBoatEvent.run(row.boat_event_id, row.boat_id, row.event_id);
+    });
+
+    const insertHeat = db.prepare(
+      'INSERT INTO Heats (heat_id, event_id, heat_name, heat_type) VALUES (?, ?, ?, ?)',
+    );
+    (tables.Heats || []).forEach((row) => {
+      insertHeat.run(row.heat_id, row.event_id, row.heat_name, row.heat_type);
+    });
+
+    const insertHeatBoat = db.prepare(
+      'INSERT INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)',
+    );
+    (tables.Heat_Boat || []).forEach((row) => {
+      insertHeatBoat.run(row.heat_id, row.boat_id);
+    });
+
+    const insertRace = db.prepare(
+      'INSERT INTO Races (race_id, heat_id, race_number) VALUES (?, ?, ?)',
+    );
+    (tables.Races || []).forEach((row) => {
+      insertRace.run(row.race_id, row.heat_id, row.race_number);
+    });
+
+    const insertScore = db.prepare(
+      'INSERT INTO Scores (score_id, race_id, boat_id, position, points, status) VALUES (?, ?, ?, ?, ?, ?)',
+    );
+    (tables.Scores || []).forEach((row) => {
+      insertScore.run(
+        row.score_id,
+        row.race_id,
+        row.boat_id,
+        row.position,
+        row.points,
+        row.status,
+      );
+    });
+
+    const insertLeaderboard = db.prepare(
+      'INSERT INTO Leaderboard (boat_id, total_points_event, event_id, place) VALUES (?, ?, ?, ?)',
+    );
+    (tables.Leaderboard || []).forEach((row) => {
+      insertLeaderboard.run(
+        row.boat_id,
+        row.total_points_event,
+        row.event_id,
+        row.place,
+      );
+    });
+
+    const insertFinalLeaderboard = db.prepare(
+      'INSERT INTO FinalLeaderboard (boat_id, total_points_final, event_id, placement_group, place) VALUES (?, ?, ?, ?, ?)',
+    );
+    (tables.FinalLeaderboard || []).forEach((row) => {
+      insertFinalLeaderboard.run(
+        row.boat_id,
+        row.total_points_final,
+        row.event_id,
+        row.placement_group,
+        row.place,
+      );
+    });
+  });
+
+  tx();
+}
+
+const lockDiscardProfileForRace = (race_id: number) => {
+  const row = db
+    .prepare(
+      `SELECT h.event_id, h.heat_type
+       FROM Races r
+       JOIN Heats h ON h.heat_id = r.heat_id
+       WHERE r.race_id = ?`,
+    )
+    .get(race_id) as { event_id: number; heat_type: string } | undefined;
+
+  if (!row) {
+    return;
+  }
+
+  if (row.heat_type === 'Qualifying') {
+    db.prepare(
+      'UPDATE Events SET shrs_discard_locked_qualifying = 1 WHERE event_id = ?',
+    ).run(row.event_id);
+  }
+
+  if (row.heat_type === 'Final') {
+    db.prepare('UPDATE Events SET shrs_discard_locked_final = 1 WHERE event_id = ?').run(
+      row.event_id,
+    );
+  }
+};
+
+// SHRS 2023 (5.3) is source-of-truth for displacement order.
+// Appendix-only statuses are appended as fallback when SHRS text is silent.
+const shrsPrimaryStatusOrder = [
   'DNF',
   'RET',
   'NSC',
@@ -33,8 +297,14 @@ const statusOrder = [
   'BFD',
   'DSQ',
   'DNE',
+];
+const appendixFallbackStatusOrder = [
   'DGM',
   'DPI',
+];
+const statusOrder = [
+  ...shrsPrimaryStatusOrder,
+  ...appendixFallbackStatusOrder,
 ];
 
 const statusRankMap = new Map<string, number>(
@@ -42,7 +312,7 @@ const statusRankMap = new Map<string, number>(
 );
 
 const rdgStatuses = ['RDG1', 'RDG2', 'RDG3'];
-const scoringPenaltyStatuses = new Set(['ZFP', 'SCP']);
+const scoringPenaltyStatuses = new Set(['ZFP', 'SCP', 'T1']);
 const nonExcludableStatuses = new Set(['DNE', 'DGM']);
 const mandatoryDisplaceStatuses = new Set(['DSQ', 'RET']);
 const penaltyStatuses = [
@@ -51,6 +321,7 @@ const penaltyStatuses = [
   'DSQ',
   'OCS',
   'ZFP',
+  'T1',
   'RET',
   'SCP',
   'BFD',
@@ -73,6 +344,9 @@ function normalizeScoreStatus(status: unknown): string {
     return 'FINISHED';
   }
   const normalized = status.trim().toUpperCase();
+  if (normalized === 'RAF') {
+    return 'RET';
+  }
   if (normalized === 'FINISHED') {
     return 'FINISHED';
   }
@@ -281,7 +555,8 @@ function normalizeStatus(status: unknown): string {
   if (typeof status !== 'string') {
     return '';
   }
-  return status.trim().toUpperCase();
+  const normalized = status.trim().toUpperCase();
+  return normalized === 'RAF' ? 'RET' : normalized;
 }
 
 function buildAlphanumericKey(country: unknown, sail_number: unknown): string {
@@ -345,8 +620,7 @@ function getLatestRaceRowsForHeats(
 }
 
 function recomputeEventLeaderboard(event_id: any) {
-  db.prepare('DELETE FROM Leaderboard WHERE event_id = ?').run(event_id);
-
+  const deleteStmt = db.prepare('DELETE FROM Leaderboard WHERE event_id = ?');
   const query = `
     SELECT boat_id, SUM(points) as total_points_event, COUNT(DISTINCT Races.race_id) as number_of_races
     FROM Scores
@@ -357,22 +631,27 @@ function recomputeEventLeaderboard(event_id: any) {
     ORDER BY total_points_event ASC
   `;
   const readQuery = db.prepare(query);
-  const results = readQuery.all(event_id);
-  if (results.length === 0) {
-    return;
-  }
-
-  const updateQuery = db.prepare(
+  const insertStmt = db.prepare(
     `INSERT INTO Leaderboard (boat_id, total_points_event, event_id, place)
      VALUES (?, ?, ?, ?)
      ON CONFLICT(boat_id, event_id) DO UPDATE SET total_points_event = excluded.total_points_event, place = excluded.place`,
   );
 
-  const pointsMap = new Map<number, any[]>();
-  const temporaryTable = calculateBoatScores(results, event_id, pointsMap);
-  temporaryTable.forEach((boat) => {
-    updateQuery.run(boat.boat_id, boat.totalPoints, event_id, boat.place);
+  const tx = db.transaction(() => {
+    deleteStmt.run(event_id);
+    const results = readQuery.all(event_id);
+    if (results.length === 0) {
+      return;
+    }
+
+    const pointsMap = new Map<number, any[]>();
+    const temporaryTable = calculateBoatScores(results, event_id, pointsMap);
+    temporaryTable.forEach((boat) => {
+      insertStmt.run(boat.boat_id, boat.totalPoints, event_id, boat.place);
+    });
   });
+
+  tx();
 }
 
 function recomputeFinalLeaderboard(event_id: any) {
@@ -390,23 +669,117 @@ function recomputeFinalLeaderboard(event_id: any) {
 
   const groupTables = calculateFinalBoatScores(results, event_id);
 
+  const deleteStmt = db.prepare('DELETE FROM FinalLeaderboard WHERE event_id = ?');
   const updateQuery = db.prepare(
     `INSERT INTO FinalLeaderboard (boat_id, total_points_final, event_id, placement_group, place)
      VALUES (?, ?, ?, ?, ?)
      ON CONFLICT(boat_id, event_id) DO UPDATE SET total_points_final = excluded.total_points_final, placement_group = excluded.placement_group,  place = excluded.place`,
   );
 
-  groupTables.forEach((table, groupName) => {
-    table.forEach((boat) => {
-      updateQuery.run(
-        boat.boat_id,
-        boat.totalPoints,
-        event_id,
-        groupName,
-        boat.place,
-      );
+  const tx = db.transaction(() => {
+    deleteStmt.run(event_id);
+    groupTables.forEach((table, groupName) => {
+      table.forEach((boat) => {
+        updateQuery.run(
+          boat.boat_id,
+          boat.totalPoints,
+          event_id,
+          groupName,
+          boat.place,
+        );
+      });
     });
   });
+
+  tx();
+}
+
+function applyRaceResultUpdate(
+  event_id: any,
+  race_id: any,
+  boat_id: any,
+  new_position: any,
+  shift_positions: boolean,
+  new_status: any,
+) {
+  const status = normalizeScoreStatus(new_status);
+  const isRdg = rdgStatuses.includes(status);
+  const isScoringPenalty = scoringPenaltyStatuses.has(status);
+
+  // Determine heat info used by SHRS 5.2 / 44.3(c) scoring.
+  const heatRow = db
+    .prepare(
+      `SELECT h.heat_id, h.heat_type FROM Heats h
+       JOIN Races r ON r.heat_id = h.heat_id
+       WHERE r.race_id = ?`,
+    )
+    .get(race_id) as { heat_id: number; heat_type: string } | undefined;
+  const heatType = heatRow?.heat_type ?? 'Qualifying';
+  const maxBoats = getMaxHeatSize(event_id, heatType);
+
+  if (heatRow?.heat_id != null) {
+    captureRaceAssignmentSnapshotIfMissing(heatRow.heat_id, Number(race_id));
+  }
+
+  // For RDG statuses keep frontend-provided value;
+  // for ZFP/SCP apply scoring penalty on finishing place;
+  // for other penalties use largest-heat size + 1 per SHRS 5.2.
+  let finalPosition = Number(new_position);
+  let points = finalPosition;
+  if (!isRdg && penaltyStatuses.includes(status)) {
+    if (isScoringPenalty) {
+      finalPosition = Number(new_position);
+      points = getScoringPenaltyPoints(finalPosition, maxBoats);
+    } else {
+      finalPosition = maxBoats + 1;
+      points = finalPosition;
+    }
+  } else {
+    points = finalPosition;
+  }
+
+  const currentResult = db
+    .prepare(`SELECT position, COALESCE(status, 'FINISHED') as status
+              FROM Scores
+              WHERE race_id = ? AND boat_id = ?
+              ORDER BY score_id DESC
+              LIMIT 1`)
+    .get(race_id, boat_id) as { position: number; status: string } | undefined;
+
+  if (!currentResult) {
+    throw new Error(`Current result not found for race_id: ${race_id}, boat_id: ${boat_id}`);
+  }
+  const currentPosition = currentResult.position;
+  const previousStatus = normalizeScoreStatus(currentResult.status);
+
+  db.prepare('UPDATE Scores SET position = ?, points = ?, status = ? WHERE race_id = ? AND boat_id = ?')
+    .run(finalPosition, points, status, race_id, boat_id);
+
+  if (
+    previousStatus === 'FINISHED' &&
+    mandatoryDisplaceStatuses.has(status)
+  ) {
+    db.prepare(
+      `UPDATE Scores SET position = position - 1, points = position - 1
+       WHERE race_id = ? AND status = 'FINISHED' AND position > ?`,
+    ).run(race_id, currentPosition);
+  }
+
+  if (shift_positions && status === 'FINISHED') {
+    if (currentPosition > finalPosition) {
+      db.prepare(
+        `UPDATE Scores SET position = position + 1, points = position + 1
+         WHERE race_id = ? AND status = 'FINISHED' AND position >= ? AND position < ? AND boat_id != ?`,
+      ).run(race_id, finalPosition, currentPosition, boat_id);
+    } else if (currentPosition < finalPosition) {
+      db.prepare(
+        `UPDATE Scores SET position = position - 1, points = position - 1
+         WHERE race_id = ? AND status = 'FINISHED' AND position <= ? AND position > ? AND boat_id != ?`,
+      ).run(race_id, finalPosition, currentPosition, boat_id);
+    }
+  }
+
+  applyRaceTieScoring(race_id);
 }
 
 /**
@@ -646,6 +1019,21 @@ function getSeedingResultsFromLastRace(
   return seedingRows.map((row) => ({ boat_id: row.boat_id }));
 }
 
+function getOddEvenMovementAdvisory(
+  numberOfHeats: number,
+  totalBoats: number,
+): string | null {
+  // SHRS 2026 end-note advisory: with 2 heats and odd/even movement,
+  // fleet totals where N mod 4 = 2 can temporarily produce a 2-boat imbalance.
+  if (numberOfHeats === 2 && totalBoats >= 14 && totalBoats % 4 === 2) {
+    return (
+      `SHRS advisory: with odd/even movement tables and ${totalBoats} boats in 2 heats, ` +
+      'a temporary 2-boat imbalance between heats can occur and is expected.'
+    );
+  }
+  return null;
+}
+
 function getRankedBoatsInHeatForRace(heat_id: number, race_id: number) {
   const rowsByRaceQuery = db.prepare(
     `SELECT
@@ -713,6 +1101,35 @@ function getRankedBoatsInHeatForRace(heat_id: number, race_id: number) {
   });
 
   return rows;
+}
+
+function captureRaceAssignmentSnapshotIfMissing(
+  heat_id: number,
+  race_id: number,
+) {
+  if (raceAssignmentSnapshots.has(race_id)) {
+    return;
+  }
+
+  const rankedRows = getRankedBoatsInHeatForRace(heat_id, race_id);
+  raceAssignmentSnapshots.set(
+    race_id,
+    rankedRows.map((row) => row.boat_id),
+  );
+}
+
+function getAssignmentRowsForHeatRace(heat_id: number, race_id: number) {
+  const snapshotBoatIds = raceAssignmentSnapshots.get(race_id);
+  if (snapshotBoatIds && snapshotBoatIds.length > 0) {
+    return snapshotBoatIds.map((boat_id) => ({ boat_id }));
+  }
+
+  const rankedRows = getRankedBoatsInHeatForRace(heat_id, race_id);
+  raceAssignmentSnapshots.set(
+    race_id,
+    rankedRows.map((row) => row.boat_id),
+  );
+  return rankedRows.map((row) => ({ boat_id: row.boat_id }));
 }
 
 function parseNumberCsv(value: unknown): number[] {
@@ -794,6 +1211,67 @@ ipcMain.handle('readAllHeats', async (event, event_id) => {
   }
 });
 
+ipcMain.handle('exportEventSnapshotToFile', async (_event, event_id) => {
+  try {
+    const snapshot = buildEventSnapshot(Number(event_id));
+    const eventNameSafe = String(snapshot.tables.Events?.[0]?.event_name || 'event')
+      .replace(/[^a-z0-9_-]/gi, '_')
+      .slice(0, 60);
+
+    const saveResult = await dialog.showSaveDialog({
+      title: 'Save Event Snapshot',
+      defaultPath: `${eventNameSafe}_snapshot.json`,
+      filters: [{ name: 'JSON files', extensions: ['json'] }],
+    });
+
+    if (saveResult.canceled || !saveResult.filePath) {
+      return { canceled: true };
+    }
+
+    fs.writeFileSync(
+      saveResult.filePath,
+      JSON.stringify(snapshot, null, 2),
+      'utf-8',
+    );
+
+    return {
+      success: true,
+      filePath: saveResult.filePath,
+    };
+  } catch (error) {
+    console.error('Error exporting event snapshot:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('restoreEventSnapshotFromFile', async (_event, event_id) => {
+  try {
+    const openResult = await dialog.showOpenDialog({
+      title: 'Load Event Snapshot',
+      properties: ['openFile'],
+      filters: [{ name: 'JSON files', extensions: ['json'] }],
+    });
+
+    if (openResult.canceled || openResult.filePaths.length === 0) {
+      return { canceled: true };
+    }
+
+    const filePath = openResult.filePaths[0];
+    const snapshotRaw = fs.readFileSync(filePath, 'utf-8');
+    const parsed = JSON.parse(snapshotRaw);
+
+    restoreEventSnapshot(Number(event_id), parsed);
+
+    return {
+      success: true,
+      filePath,
+    };
+  } catch (error) {
+    console.error('Error restoring event snapshot:', error);
+    throw error;
+  }
+});
+
 ipcMain.handle('insertHeat', async (event, event_id, heat_name, heat_type) => {
   if (isEventLocked(event_id)) {
     throw new Error('Cannot insert heat for locked event.');
@@ -813,9 +1291,32 @@ ipcMain.handle('insertHeat', async (event, event_id, heat_name, heat_type) => {
 
 ipcMain.handle('insertHeatBoat', async (event, heat_id, boat_id) => {
   try {
+    const heatRow = db
+      .prepare(
+        `SELECT h.event_id
+         FROM Heats h
+         WHERE h.heat_id = ?`,
+      )
+      .get(heat_id) as { event_id: number } | undefined;
+
+    if (!heatRow) {
+      throw new Error('Heat not found.');
+    }
+
+    const boatsInHeat = db
+      .prepare('SELECT COUNT(*) as count FROM Heat_Boat WHERE heat_id = ?')
+      .get(heat_id) as { count: number };
+
+    if (boatsInHeat.count >= SHRS_MAX_BOATS_PER_HEAT) {
+      throw new Error(
+        `Cannot assign more than ${SHRS_MAX_BOATS_PER_HEAT} boats to one heat.`,
+      );
+    }
+
     const result = db
       .prepare('INSERT INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)')
       .run(heat_id, boat_id);
+    return { lastInsertRowid: result.lastInsertRowid };
   } catch (error) {
     console.error('Error inserting heat boat:', error);
     throw error;
@@ -955,6 +1456,7 @@ ipcMain.handle(
       if (normalizedStatus === 'FINISHED') {
         applyRaceTieScoring(race_id);
       }
+      lockDiscardProfileForRace(Number(race_id));
       return { lastInsertRowid: result.lastInsertRowid };
     } catch (error) {
       console.error('Error inserting score:', error);
@@ -977,11 +1479,17 @@ ipcMain.handle(
   async (event, score_id, position, points, status) => {
     try {
       const normalizedStatus = normalizeScoreStatus(status);
+      const row = db
+        .prepare('SELECT race_id FROM Scores WHERE score_id = ?')
+        .get(score_id) as { race_id?: number } | undefined;
       const result = db
         .prepare(
           'UPDATE Scores SET position = ?, points = ?, status = ? WHERE score_id = ?',
         )
         .run(position, points, normalizedStatus, score_id);
+      if (row?.race_id != null) {
+        lockDiscardProfileForRace(Number(row.race_id));
+      }
       return { changes: result.changes };
     } catch (error) {
       console.error('Error updating score:', error);
@@ -1045,7 +1553,9 @@ ipcMain.handle('deleteScore', async (event, score_id) => {
   }
 });
 
-ipcMain.handle('startFinalSeriesAtomic', async (_event, event_id) => {
+ipcMain.handle(
+  'startFinalSeriesAtomic',
+  async (_event, event_id, allow_oversize_confirm = false) => {
   if (isEventLocked(event_id)) {
     throw new Error('Cannot start final series for locked event.');
   }
@@ -1143,13 +1653,27 @@ ipcMain.handle('startFinalSeriesAtomic', async (_event, event_id) => {
       return left.totalPoints - right.totalPoints;
     });
 
-    const boatsPerFleet = Math.floor(adjustedLeaderboard.length / numFinalHeats);
-    const extraBoats = adjustedLeaderboard.length % numFinalHeats;
+    const overflowPolicy = getEventHeatOverflowPolicy(event_id);
+    let finalHeatCount = numFinalHeats;
+    if (adjustedLeaderboard.length > finalHeatCount * SHRS_MAX_BOATS_PER_HEAT) {
+      if (overflowPolicy === 'auto-increase') {
+        finalHeatCount = Math.ceil(
+          adjustedLeaderboard.length / SHRS_MAX_BOATS_PER_HEAT,
+        );
+      } else if (!allow_oversize_confirm) {
+        throw new Error(
+          `Final fleets would exceed ${SHRS_MAX_BOATS_PER_HEAT} boats. Confirm oversize to continue or switch event policy to auto-increase heats.`,
+        );
+      }
+    }
+
+    const boatsPerFleet = Math.floor(adjustedLeaderboard.length / finalHeatCount);
+    const extraBoats = adjustedLeaderboard.length % finalHeatCount;
     const fleetNames = ['Gold', 'Silver', 'Bronze', 'Copper'];
 
     const transaction = db.transaction(() => {
       const insertedFinalHeatIds: number[] = [];
-      for (let i = 0; i < numFinalHeats; i += 1) {
+      for (let i = 0; i < finalHeatCount; i += 1) {
         const fleetName = fleetNames[i] || `Fleet ${i + 1}`;
         const insertResult = db
           .prepare('INSERT INTO Heats (event_id, heat_name, heat_type) VALUES (?, ?, ?)')
@@ -1178,6 +1702,7 @@ ipcMain.handle('startFinalSeriesAtomic', async (_event, event_id) => {
         success: true,
         createdHeats: insertedFinalHeatIds.length,
         assignedBoats: adjustedLeaderboard.length,
+        overflowPolicy,
       };
     });
 
@@ -1186,7 +1711,8 @@ ipcMain.handle('startFinalSeriesAtomic', async (_event, event_id) => {
     console.error('Error starting final series atomically:', error);
     throw error;
   }
-});
+  },
+);
 
 ipcMain.handle('createNewHeatsBasedOnLeaderboard', async (event, event_id) => {
   if (isEventLocked(event_id)) {
@@ -1239,28 +1765,51 @@ ipcMain.handle('createNewHeatsBasedOnLeaderboard', async (event, event_id) => {
     }
 
     // Assign boats to new heats
+    const assignmentMode = getEventQualifyingAssignmentMode(event_id);
     const assignments: { heatId: number; boatId: string }[] = [];
-    sortedLatestHeats.forEach((heat) => {
-      const sourceIndex = heatIndexById.get(heat.heat_id);
-      const raceForHeat = raceByHeatId.get(heat.heat_id);
-      if (sourceIndex === undefined || !raceForHeat) {
-        return;
-      }
+    if (assignmentMode === 'pre-assigned') {
+      sortedLatestHeats.forEach((heat) => {
+        const sourceIndex = heatIndexById.get(heat.heat_id);
+        if (sourceIndex === undefined) {
+          return;
+        }
 
-      const rankedBoats = getRankedBoatsInHeatForRace(
-        heat.heat_id,
-        raceForHeat.race_id,
-      );
-      rankedBoats.forEach((boat, rankIndex) => {
-        const targetHeatIndex = getNextHeatIndexByMovementTable(
-          sourceIndex,
-          rankIndex + 1,
-          sortedLatestHeats.length,
-        );
-        assignments.push({ heatId: targetHeatIndex, boatId: boat.boat_id });
+        const boatsInHeat = db
+          .prepare(
+            `SELECT hb.boat_id
+             FROM Heat_Boat hb
+             JOIN Boats b ON b.boat_id = hb.boat_id
+             WHERE hb.heat_id = ?
+             ORDER BY b.country ASC, b.sail_number ASC, hb.boat_id ASC`,
+          )
+          .all(heat.heat_id) as { boat_id: string }[];
+
+        boatsInHeat.forEach((boat) => {
+          assignments.push({ heatId: sourceIndex, boatId: boat.boat_id });
       });
     });
+    } else {
+      sortedLatestHeats.forEach((heat) => {
+        const sourceIndex = heatIndexById.get(heat.heat_id);
+        const raceForHeat = raceByHeatId.get(heat.heat_id);
+        if (sourceIndex === undefined || !raceForHeat) {
+          return;
+        }
 
+        const rankedBoats = getAssignmentRowsForHeatRace(
+          heat.heat_id,
+          raceForHeat.race_id,
+        );
+        rankedBoats.forEach((boat, rankIndex) => {
+          const targetHeatIndex = getNextHeatIndexByMovementTable(
+            sourceIndex,
+            rankIndex + 1,
+            sortedLatestHeats.length,
+          );
+          assignments.push({ heatId: targetHeatIndex, boatId: boat.boat_id });
+        });
+      });
+    }
     if (assignments.length === 0) {
       const leaderboardResults = getSeedingResultsFromLastRace(
         event_id,
@@ -1280,6 +1829,16 @@ ipcMain.handle('createNewHeatsBasedOnLeaderboard', async (event, event_id) => {
         boatId,
       );
     });
+
+    const advisory = getOddEvenMovementAdvisory(
+      sortedLatestHeats.length,
+      assignments.length,
+    );
+
+    if (advisory) {
+      console.warn(advisory);
+      return { success: true, advisory };
+    }
 
     console.log('New heats created based on leaderboard.');
     return { success: true };
@@ -1495,92 +2054,63 @@ ipcMain.handle(
   'updateRaceResult',
   async (event, event_id, race_id, boat_id, new_position, shift_positions, new_status) => {
     try {
-      const status = normalizeScoreStatus(new_status);
-      const isRdg = rdgStatuses.includes(status);
-      const isScoringPenalty = scoringPenaltyStatuses.has(status);
-
-      // Determine heat info used by SHRS 5.2 / 44.3(c) scoring.
-      const heatRow = db
-        .prepare(
-          `SELECT h.heat_type FROM Heats h
-           JOIN Races r ON r.heat_id = h.heat_id
-           WHERE r.race_id = ?`,
-        )
-        .get(race_id) as { heat_type: string } | undefined;
-      const heatType = heatRow?.heat_type ?? 'Qualifying';
-      const maxBoats = getMaxHeatSize(event_id, heatType);
-
-      // For RDG statuses keep frontend-provided value;
-      // for ZFP/SCP apply scoring penalty on finishing place;
-      // for other penalties use largest-heat size + 1 per SHRS 5.2.
-      let finalPosition = Number(new_position);
-      let points = finalPosition;
-      if (!isRdg && penaltyStatuses.includes(status)) {
-        if (isScoringPenalty) {
-          finalPosition = Number(new_position);
-          points = getScoringPenaltyPoints(finalPosition, maxBoats);
-        } else {
-          finalPosition = maxBoats + 1;
-          points = finalPosition;
-        }
-      } else {
-        points = finalPosition;
-      }
-
-      // Step 1: Get the current position for shift logic
-      const currentResult = db
-        .prepare(`SELECT position, COALESCE(status, 'FINISHED') as status
-                  FROM Scores
-                  WHERE race_id = ? AND boat_id = ?
-                  ORDER BY score_id DESC
-                  LIMIT 1`)
-        .get(race_id, boat_id) as { position: number; status: string } | undefined;
-
-      if (!currentResult) {
-        throw new Error(`Current result not found for race_id: ${race_id}, boat_id: ${boat_id}`);
-      }
-      const currentPosition = currentResult.position;
-      const previousStatus = normalizeScoreStatus(currentResult.status);
-
-      // Step 2: Update position, points and status
-      db.prepare(`UPDATE Scores SET position = ?, points = ?, status = ? WHERE race_id = ? AND boat_id = ?`)
-        .run(finalPosition, points, status, race_id, boat_id);
-
-      // Step 2b (A6.1): DSQ/RET after finishing moves all worse finishers up one place.
-      if (
-        previousStatus === 'FINISHED' &&
-        mandatoryDisplaceStatuses.has(status)
-      ) {
-        db.prepare(
-          `UPDATE Scores SET position = position - 1, points = position - 1
-           WHERE race_id = ? AND status = 'FINISHED' AND position > ?`,
-        ).run(race_id, currentPosition);
-      }
-
-      // Step 3: Optionally shift other finishers
-      if (shift_positions && status === 'FINISHED') {
-        if (currentPosition > finalPosition) {
-          db.prepare(
-            `UPDATE Scores SET position = position + 1, points = position + 1
-             WHERE race_id = ? AND status = 'FINISHED' AND position >= ? AND position < ? AND boat_id != ?`,
-          ).run(race_id, finalPosition, currentPosition, boat_id);
-        } else if (currentPosition < finalPosition) {
-          db.prepare(
-            `UPDATE Scores SET position = position - 1, points = position - 1
-             WHERE race_id = ? AND status = 'FINISHED' AND position <= ? AND position > ? AND boat_id != ?`,
-          ).run(race_id, finalPosition, currentPosition, boat_id);
-        }
-      }
-
-      applyRaceTieScoring(race_id);
-
-      // Step 4: Recompute event leaderboard with correct exclusion logic
+      applyRaceResultUpdate(
+        event_id,
+        race_id,
+        boat_id,
+        new_position,
+        Boolean(shift_positions),
+        new_status,
+      );
+      lockDiscardProfileForRace(Number(race_id));
       recomputeEventLeaderboard(event_id);
 
       return { success: true };
     } catch (err) {
       console.error('Error updating race result:', (err as Error).message);
       throw err;
+    }
+  },
+);
+
+ipcMain.handle(
+  'saveLeaderboardRaceResultsAtomic',
+  async (
+    _event,
+    event_id,
+    operations,
+    shift_positions,
+    updateFinalLeaderboard = false,
+  ) => {
+    try {
+      const safeOperations = Array.isArray(operations) ? operations : [];
+      const tx = db.transaction(() => {
+        safeOperations.forEach((operation) => {
+          applyRaceResultUpdate(
+            event_id,
+            operation.raceId,
+            operation.boatId,
+            operation.newPosition,
+            Boolean(shift_positions),
+            operation.entryStatus,
+          );
+          lockDiscardProfileForRace(Number(operation.raceId));
+        });
+
+        recomputeEventLeaderboard(event_id);
+        if (updateFinalLeaderboard) {
+          recomputeFinalLeaderboard(event_id);
+        }
+      });
+
+      tx();
+      return { success: true, updatedCount: safeOperations.length };
+    } catch (error) {
+      console.error(
+        'Error saving leaderboard race results atomically:',
+        (error as Error).message,
+      );
+      throw error;
     }
   },
 );
@@ -1592,34 +2122,39 @@ ipcMain.handle('readLeaderboard', async (event, event_id) => {
       recomputeEventLeaderboard(event_id);
     }
 
-    const query = `
-      SELECT
-        lb.boat_id,
-        lb.total_points_event,
-        lb.place,
-        b.sail_number AS boat_number,
-        b.model AS boat_type,
-        s.name,
-        s.surname,
-        b.country,
-        GROUP_CONCAT(sc.position ORDER BY r.race_number) AS race_positions,
-        GROUP_CONCAT(sc.points ORDER BY r.race_number) AS race_points,
-        GROUP_CONCAT(r.race_id ORDER BY r.race_number) AS race_ids,
-        GROUP_CONCAT(COALESCE(sc.status, 'DNS') ORDER BY r.race_number) AS race_statuses
-      FROM Leaderboard lb
-      LEFT JOIN Boats b ON lb.boat_id = b.boat_id
-      LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id
-      LEFT JOIN Scores sc ON sc.boat_id = b.boat_id
-      LEFT JOIN Races r ON sc.race_id = r.race_id
-      LEFT JOIN Heats h ON r.heat_id = h.heat_id
-      WHERE lb.event_id = ? AND h.event_id = ? AND h.heat_type = 'Qualifying'
-        AND sc.race_id IS NOT NULL
-      GROUP BY lb.boat_id
-      ORDER BY lb.place ASC
-    `;
+    const query =
+      'SELECT ' +
+      'lb.boat_id, ' +
+      'lb.total_points_event, ' +
+      'lb.place, ' +
+      'b.sail_number AS boat_number, ' +
+      'b.model AS boat_type, ' +
+      's.name, ' +
+      's.surname, ' +
+      'b.country, ' +
+      'GROUP_CONCAT(sc.position ORDER BY r.race_number) AS race_positions, ' +
+      'GROUP_CONCAT(sc.points ORDER BY r.race_number) AS race_points, ' +
+      'GROUP_CONCAT(r.race_id ORDER BY r.race_number) AS race_ids, ' +
+      "GROUP_CONCAT(COALESCE(sc.status, 'DNS') ORDER BY r.race_number) AS race_statuses " +
+      'FROM Leaderboard lb ' +
+      'LEFT JOIN Boats b ON lb.boat_id = b.boat_id ' +
+      'LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id ' +
+      'LEFT JOIN Scores sc ON sc.boat_id = b.boat_id ' +
+      'LEFT JOIN Races r ON sc.race_id = r.race_id ' +
+      'LEFT JOIN Heats h ON r.heat_id = h.heat_id ' +
+      "WHERE lb.event_id = ? AND h.event_id = ? AND h.heat_type = 'Qualifying' " +
+      'AND sc.race_id IS NOT NULL ' +
+      'GROUP BY lb.boat_id ' +
+      'ORDER BY lb.place ASC';
     const readQuery = db.prepare(query);
     const results = readQuery.all(event_id, event_id);
-    console.log(`[IPC → Renderer] readLeaderboard (event_id=${event_id}): ${results.length} entries`);
+    console.log(
+      '[IPC -> Renderer] readLeaderboard (event_id=' +
+        event_id +
+        '): ' +
+        results.length +
+        ' entries',
+    );
     return results;
   } catch (error) {
     console.error('Error reading leaderboard:', error);
@@ -1677,44 +2212,48 @@ ipcMain.handle('readFinalLeaderboard', async (event, event_id) => {
       recomputeFinalLeaderboard(event_id);
     }
 
-    const query = `
-      SELECT
-        fl.boat_id,
-        fl.total_points_final,
-        fl.event_id,
-        fl.placement_group,
-        b.sail_number AS boat_number,
-        b.model AS boat_type,
-        s.name,
-        s.surname,
-        b.country,
-        GROUP_CONCAT(sc.position ORDER BY r.race_number) AS race_positions,
-        GROUP_CONCAT(sc.points ORDER BY r.race_number) AS race_points,
-        GROUP_CONCAT(r.race_id ORDER BY r.race_number) AS race_ids,
-        GROUP_CONCAT(COALESCE(sc.status, 'DNS') ORDER BY r.race_number) AS race_statuses
-      FROM FinalLeaderboard fl
-      LEFT JOIN Boats b ON fl.boat_id = b.boat_id
-      LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id
-      LEFT JOIN Scores sc ON sc.boat_id = b.boat_id
-      LEFT JOIN Races r ON sc.race_id = r.race_id
-      LEFT JOIN Heats h ON r.heat_id = h.heat_id
-      WHERE fl.event_id = ? AND h.event_id = ? AND h.heat_type = 'Final'
-        AND sc.race_id IS NOT NULL
-      GROUP BY fl.boat_id
-      ORDER BY
-        CASE fl.placement_group
-          WHEN 'Gold' THEN 1
-          WHEN 'Silver' THEN 2
-          WHEN 'Bronze' THEN 3
-          WHEN 'Copper' THEN 4
-          ELSE 5
-        END,
-        fl.total_points_final ASC
-    `;
+    const query =
+      'SELECT ' +
+      'fl.boat_id, ' +
+      'fl.total_points_final, ' +
+      'fl.event_id, ' +
+      'fl.placement_group, ' +
+      'b.sail_number AS boat_number, ' +
+      'b.model AS boat_type, ' +
+      's.name, ' +
+      's.surname, ' +
+      'b.country, ' +
+      'GROUP_CONCAT(sc.position ORDER BY r.race_number) AS race_positions, ' +
+      'GROUP_CONCAT(sc.points ORDER BY r.race_number) AS race_points, ' +
+      'GROUP_CONCAT(r.race_id ORDER BY r.race_number) AS race_ids, ' +
+      "GROUP_CONCAT(COALESCE(sc.status, 'DNS') ORDER BY r.race_number) AS race_statuses " +
+      'FROM FinalLeaderboard fl ' +
+      'LEFT JOIN Boats b ON fl.boat_id = b.boat_id ' +
+      'LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id ' +
+      'LEFT JOIN Scores sc ON sc.boat_id = b.boat_id ' +
+      'LEFT JOIN Races r ON sc.race_id = r.race_id ' +
+      'LEFT JOIN Heats h ON r.heat_id = h.heat_id ' +
+      "WHERE fl.event_id = ? AND h.event_id = ? AND h.heat_type = 'Final' " +
+      'AND sc.race_id IS NOT NULL ' +
+      'GROUP BY fl.boat_id ' +
+      'ORDER BY CASE fl.placement_group ' +
+      "WHEN 'Gold' THEN 1 " +
+      "WHEN 'Silver' THEN 2 " +
+      "WHEN 'Bronze' THEN 3 " +
+      "WHEN 'Copper' THEN 4 " +
+      'ELSE 5 END, ' +
+      'fl.total_points_final ASC';
     const readQuery = db.prepare(query);
     const results = readQuery.all(event_id, event_id);
+    const entrySuffix = results.length === 1 ? 'y' : 'ies';
     console.log(
-      `[IPC → Renderer] readFinalLeaderboard (event_id=${event_id}): sending ${results.length} entr${results.length === 1 ? 'y' : 'ies'} to frontend`,
+      '[IPC -> Renderer] readFinalLeaderboard (event_id=' +
+        event_id +
+        '): sending ' +
+        results.length +
+        ' entr' +
+        entrySuffix +
+        ' to frontend',
       results,
     );
     return results;
@@ -1854,7 +2393,13 @@ ipcMain.handle('readOverallLeaderboard', async (event, event_id) => {
       rank += 1;
     });
 
-    console.log(`[IPC → Renderer] readOverallLeaderboard (event_id=${event_id}): ${results.length} entries`);
+    console.log(
+      '[IPC -> Renderer] readOverallLeaderboard (event_id=' +
+        event_id +
+        '): ' +
+        results.length +
+        ' entries',
+    );
     return results;
   } catch (error) {
     console.error('Error reading overall leaderboard:', (error as Error).message);

@@ -25,8 +25,19 @@ function setupMockDb(
     >
   >,
   scoresA82: Record<string, number[]> = {},
+  discardConfig: { firstDiscardAt: number; secondDiscardAt: number; additionalEvery: number } = {
+    firstDiscardAt: 4,
+    secondDiscardAt: 8,
+    additionalEvery: 8,
+  },
 ) {
   mockPrepare.mockImplementation((sql: string) => ({
+    get: (_eventId: unknown) => {
+      if (sql.includes('SELECT shrs_discard_profile_final as discard_profile')) {
+        return { discard_profile: JSON.stringify(discardConfig) };
+      }
+      return undefined;
+    },
     all: (_eventId: unknown, boatId: string) => {
       if (sql.includes('ORDER BY points DESC')) {
         return (scoresA81[boatId] ?? []).map((row, index) => {
@@ -245,6 +256,20 @@ describe('totalPoints stored in group table', () => {
     const entry = groupTables.get('Gold')![0];
     expect(entry.totalPoints).toBe(9);
   });
+
+  it('uses custom final-series discard thresholds from event settings', () => {
+    setupMockDb(
+      {
+        boatA: [9, 8, 7, 6, 5, 4],
+      },
+      {},
+      { firstDiscardAt: 3, secondDiscardAt: 6, additionalEvery: 6 },
+    );
+
+    const groups = calculateFinalBoatScores([makeResult('boatA', 'Final Gold')], 1);
+    // At 6 races => 2 discards -> remove 9 and 8
+    expect(groups.get('Gold')![0].totalPoints).toBe(7 + 6 + 5 + 4);
+  });
 });
 
 // ─── Single Group / Single Boat Edge Cases ────────────────────────────────────
@@ -341,6 +366,37 @@ describe('Large final groups', () => {
       .map((boat) => boat.place)
       .sort((a, b) => (a ?? 0) - (b ?? 0));
     expect(places).toEqual(Array.from({ length: 24 }, (_, idx) => idx + 1));
+  });
+
+  it('applies SHRS 2026 tie cascade for 3 tied boats in one final fleet', () => {
+    setupMockDb(
+      {
+        tieA: [3, 1],
+        tieB: [3, 1],
+        tieC: [3, 1],
+      },
+      {
+        tieA: [1, 3],
+        tieB: [2, 2],
+        tieC: [2, 3],
+      },
+    );
+
+    const groups = calculateFinalBoatScores(
+      [
+        makeResult('tieA', 'Final Gold'),
+        makeResult('tieB', 'Final Gold'),
+        makeResult('tieC', 'Final Gold'),
+      ],
+      1,
+    );
+
+    const byBoat = Object.fromEntries(
+      groups.get('Gold')!.map((boat) => [boat.boat_id, boat.place]),
+    );
+    expect(byBoat.tieA).toBe(1);
+    expect(byBoat.tieB).toBe(2);
+    expect(byBoat.tieC).toBe(3);
   });
 });
 

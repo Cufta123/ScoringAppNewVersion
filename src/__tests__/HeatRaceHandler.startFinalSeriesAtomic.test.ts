@@ -23,6 +23,8 @@ const insertedHeats: Array<{ eventId: number; name: string; type: string; newId:
 const insertedHeatBoats: Array<{ heatId: number; boatId: number }> = [];
 let qualifyingHeats: Array<{ heat_id: number; heat_name: string; heat_type: string }> = [];
 let leaderboardRows: Array<{ boat_id: number; race_points: string; race_statuses: string }> = [];
+let heatOverflowPolicy: 'auto-increase' | 'confirm-allow-oversize' =
+  'auto-increase';
 
 const LEADERBOARD_COLUMNS = [
   'Rank',
@@ -64,6 +66,10 @@ const dbMock = {
   prepare: jest.fn((sql: string): PrepareStatement => {
     if (sqlContains(sql, 'SELECT is_locked FROM Events WHERE event_id = ?')) {
       return { get: jest.fn(() => ({ is_locked: 0 })) };
+    }
+
+    if (sqlContains(sql, 'SELECT shrs_heat_overflow_policy FROM Events WHERE event_id = ?')) {
+      return { get: jest.fn(() => ({ shrs_heat_overflow_policy: heatOverflowPolicy })) };
     }
 
     if (
@@ -133,6 +139,7 @@ describe('HeatRaceHandler startFinalSeriesAtomic', () => {
       { boat_id: 3, race_points: '1,4', race_statuses: 'FINISHED,FINISHED' },
       { boat_id: 4, race_points: '1,1', race_statuses: 'WTH,FINISHED' },
     ];
+    heatOverflowPolicy = 'auto-increase';
     dbMock.prepare.mockClear();
     dbMock.transaction.mockClear();
   });
@@ -141,7 +148,12 @@ describe('HeatRaceHandler startFinalSeriesAtomic', () => {
     const handler = handlerRegistry.startFinalSeriesAtomic;
     const result = await handler({}, 77);
 
-    expect(result).toEqual({ success: true, createdHeats: 2, assignedBoats: 4 });
+    expect(result).toEqual({
+      success: true,
+      createdHeats: 2,
+      assignedBoats: 4,
+      overflowPolicy: 'auto-increase',
+    });
     expect(dbMock.transaction).toHaveBeenCalledTimes(1);
 
     expect(insertedHeats).toEqual([
@@ -284,7 +296,12 @@ describe('HeatRaceHandler startFinalSeriesAtomic', () => {
     const handler = handlerRegistry.startFinalSeriesAtomic;
     const result = await handler({}, 77);
 
-    expect(result).toEqual({ success: true, createdHeats: 4, assignedBoats: 77 });
+    expect(result).toEqual({
+      success: true,
+      createdHeats: 4,
+      assignedBoats: 77,
+      overflowPolicy: 'auto-increase',
+    });
     expect(insertedHeats).toEqual([
       { eventId: 77, name: 'Final Gold', type: 'Final', newId: 901 },
       { eventId: 77, name: 'Final Silver', type: 'Final', newId: 902 },
@@ -336,6 +353,36 @@ describe('HeatRaceHandler startFinalSeriesAtomic', () => {
 
     fs.mkdirSync(path.dirname(REPORT_PATH), { recursive: true });
     fs.writeFileSync(REPORT_PATH, reportLines.join('\n'), 'utf8');
+  });
+
+  it('auto-increases final fleets when 20-boat cap would be exceeded', async () => {
+    qualifyingHeats = [
+      { heat_id: 11, heat_name: 'Heat A1', heat_type: 'Qualifying' },
+      { heat_id: 12, heat_name: 'Heat B1', heat_type: 'Qualifying' },
+    ];
+    heatOverflowPolicy = 'auto-increase';
+
+    leaderboardRows = Array.from({ length: 50 }, (_, idx) => ({
+      boat_id: idx + 1,
+      race_points: `${idx + 1}`,
+      race_statuses: 'FINISHED',
+    }));
+
+    const handler = handlerRegistry.startFinalSeriesAtomic;
+    const result = await handler({}, 77);
+
+    expect(result).toEqual({
+      success: true,
+      createdHeats: 3,
+      assignedBoats: 50,
+      overflowPolicy: 'auto-increase',
+    });
+
+    const fleetSizes = insertedHeats.map((heat) =>
+      insertedHeatBoats.filter((assignment) => assignment.heatId === heat.newId).length,
+    );
+    expect(fleetSizes).toEqual([17, 17, 16]);
+    fleetSizes.forEach((size) => expect(size).toBeLessThanOrEqual(20));
   });
 
   it('rejects leaderboard input when required table column is missing', () => {

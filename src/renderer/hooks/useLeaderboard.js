@@ -975,6 +975,7 @@ export default function useLeaderboard(eventId) {
   };
 
   const handleSave = async () => {
+    let originalSourceSnapshot = [];
     try {
       if (!editableLeaderboard || !leaderboard) {
         throw new Error('Leaderboard data is not initialized');
@@ -996,6 +997,7 @@ export default function useLeaderboard(eventId) {
 
       const originalSource =
         activeTab === 'event' ? eventLeaderboard : leaderboard;
+      originalSourceSnapshot = JSON.parse(JSON.stringify(originalSource || []));
 
       const updateOperations = updatedLeaderboard.flatMap((entry) => {
         const originalEntry = originalSource.find(
@@ -1049,27 +1051,19 @@ export default function useLeaderboard(eventId) {
         );
       }
 
-      await Promise.all(
-        updateOperations.map((operation) =>
-          window.electron.sqlite.heatRaceDB.updateRaceResult(
-            eventId,
-            operation.raceId,
-            operation.boatId,
-            operation.newPosition,
-            shiftPositions,
-            operation.entryStatus,
-          ),
-        ),
+      await window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic(
+        eventId,
+        updateOperations,
+        shiftPositions,
+        finalSeriesStarted && activeTab !== 'event',
       );
-
-      await window.electron.sqlite.heatRaceDB.updateEventLeaderboard(eventId);
-      if (finalSeriesStarted && activeTab !== 'event') {
-        await window.electron.sqlite.heatRaceDB.updateFinalLeaderboard(eventId);
-      }
 
       await fetchLeaderboard();
       setEditMode(false);
     } catch (error) {
+      setEditableLeaderboard(originalSourceSnapshot);
+      setRdgMeta({});
+      setRdg2Picker(null);
       reportError('Could not save leaderboard changes.', error);
     }
   };

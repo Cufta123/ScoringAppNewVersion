@@ -41,8 +41,19 @@ function setupMockDb(
     string,
     Array<{ race_id: number; race_number: number; points: number }>
   > = {},
+  discardConfig: { firstDiscardAt: number; secondDiscardAt: number; additionalEvery: number } = {
+    firstDiscardAt: 4,
+    secondDiscardAt: 8,
+    additionalEvery: 8,
+  },
 ) {
   mockPrepare.mockImplementation((sql: string) => ({
+    get: (_eventId: unknown) => {
+      if (sql.includes('SELECT shrs_discard_profile_qualifying as discard_profile')) {
+        return { discard_profile: JSON.stringify(discardConfig) };
+      }
+      return undefined;
+    },
     all: (_eventId: unknown, boatId: string) => {
       if (sql.includes('SELECT s.race_id, r.race_number, s.points')) {
         if (raceScores[boatId]) {
@@ -186,6 +197,22 @@ describe('Score exclusion thresholds', () => {
     const result = run([makeResult('boatA', 4)]);
     // one discard: among excludable 7 and 7, earliest race_number=2 is excluded
     expect(result.boatA.totalPoints).toBe(9 + 7 + 1);
+  });
+
+  it('applies custom discard thresholds from event settings', () => {
+    // Custom: first discard at 3, second at 6, then +1 every 6 races.
+    setupMockDb(
+      {
+        boatA: [9, 8, 7, 6, 5, 4],
+      },
+      {},
+      {},
+      { firstDiscardAt: 3, secondDiscardAt: 6, additionalEvery: 6 },
+    );
+
+    const result = run([makeResult('boatA', 6)]);
+    // At 6 races => 2 discards -> remove 9 and 8
+    expect(result.boatA.totalPoints).toBe(7 + 6 + 5 + 4);
   });
 });
 
@@ -358,6 +385,31 @@ describe('Tie-breaking A82 (compare latest race backward)', () => {
     expect(result2.boatA.place).toBe(1);
     expect(result2.boatB.place).toBe(2);
     expect(result2.boatC.place).toBe(3);
+  });
+
+  it('resolves 3-boat cascade by ranking winner first then remaining tie', () => {
+    setupMockDb(
+      {
+        boatA: [3, 1],
+        boatB: [3, 1],
+        boatC: [3, 1],
+      },
+      {
+        boatA: [1, 3],
+        boatB: [2, 2],
+        boatC: [2, 3],
+      },
+    );
+
+    const result = run([
+      makeResult('boatA', 2),
+      makeResult('boatB', 2),
+      makeResult('boatC', 2),
+    ]);
+
+    expect(result.boatA.place).toBe(1);
+    expect(result.boatB.place).toBe(2);
+    expect(result.boatC.place).toBe(3);
   });
 });
 

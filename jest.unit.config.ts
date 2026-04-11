@@ -43,6 +43,7 @@ const config: Config = {
     '**/src/__tests__/HeatComponent.startFinalSeries.integration.test.jsx',
     '**/src/__tests__/HeatRaceHandler.startFinalSeriesAtomic.test.ts',
     '**/src/__tests__/HeatRaceHandler.insertScoreUpsert.test.ts',
+    '**/src/__tests__/EventHandler.updateEventLock.test.ts',
     '**/src/__tests__/Scores.uniqueIndex.migration.test.ts',
     '**/src/__tests__/SailorHandler.importLookup.test.ts',
     '**/src/__tests__/SHRS_comprehensive.test.ts',

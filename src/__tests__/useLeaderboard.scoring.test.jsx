@@ -3,6 +3,7 @@
 import '@testing-library/jest-dom';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import useLeaderboard from '../renderer/hooks/useLeaderboard';
+import { reportError } from '../renderer/utils/userFeedback';
 
 jest.mock('exceljs', () => {
   return function ExcelJS() {
@@ -89,6 +90,9 @@ describe('useLeaderboard scoring/edit flow', () => {
             .mockResolvedValue(JSON.parse(JSON.stringify(baseLeaderboardRows))),
           readOverallLeaderboard: jest.fn().mockResolvedValue([]),
           updateRaceResult: jest.fn().mockResolvedValue(true),
+          saveLeaderboardRaceResultsAtomic: jest
+            .fn()
+            .mockResolvedValue({ success: true, updatedCount: 1 }),
         },
       },
     };
@@ -157,15 +161,21 @@ describe('useLeaderboard scoring/edit flow', () => {
       await result.current.handleSave();
     });
 
-    expect(window.electron.sqlite.heatRaceDB.updateRaceResult).toHaveBeenCalledWith(
+    expect(
+      window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic,
+    ).toHaveBeenCalledWith(
       1,
-      '101',
-      'b2',
-      4,
+      [
+        {
+          raceId: '101',
+          boatId: 'b2',
+          newPosition: 4,
+          entryStatus: 'DSQ',
+        },
+      ],
       false,
-      'DSQ',
+      false,
     );
-    expect(window.electron.sqlite.heatRaceDB.updateEventLeaderboard).toHaveBeenCalled();
   });
 
   it('keeps full leaderboard payload contract stable across multiple sequential edits', async () => {
@@ -267,5 +277,33 @@ describe('useLeaderboard scoring/edit flow', () => {
     }));
 
     expect(payloadContract).toMatchSnapshot();
+  });
+
+  it('reverts editable leaderboard when atomic save fails', async () => {
+    window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic
+      .mockRejectedValueOnce(new Error('Simulated failure'));
+
+    const { result } = renderHook(() => useLeaderboard(1));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.toggleEditMode();
+    });
+
+    const beforeSave = JSON.parse(JSON.stringify(result.current.eventLeaderboard));
+
+    act(() => {
+      result.current.handleRaceChange('b2', 0, null, 'DSQ');
+    });
+
+    await act(async () => {
+      await result.current.handleSave();
+    });
+
+    expect(result.current.editableLeaderboard).toEqual(beforeSave);
+    expect(reportError).toHaveBeenCalledWith(
+      'Could not save leaderboard changes.',
+      expect.any(Error),
+    );
   });
 });

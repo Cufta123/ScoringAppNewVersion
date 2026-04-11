@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { reportError, reportInfo } from '../utils/userFeedback';
 
-const POSITION_KEEPING_PENALTIES = new Set(['ZFP', 'SCP']);
+const POSITION_KEEPING_PENALTIES = new Set(['ZFP', 'SCP', 'T1']);
+// SHRS 2023 (5.3) is the primary order used by this app.
 const SHRS_PENALTY_ORDER = [
   'DNF',
   'RET',
@@ -15,11 +16,14 @@ const SHRS_PENALTY_ORDER = [
   'BFD',
   'DSQ',
   'DNE',
-  'DGM',
-  'DPI',
+];
+const APPENDIX_FALLBACK_PENALTY_ORDER = ['DGM', 'DPI'];
+const EFFECTIVE_PENALTY_ORDER = [
+  ...SHRS_PENALTY_ORDER,
+  ...APPENDIX_FALLBACK_PENALTY_ORDER,
 ];
 const penaltyOrderIndex = new Map(
-  SHRS_PENALTY_ORDER.map((status, index) => [status, index]),
+  EFFECTIVE_PENALTY_ORDER.map((status, index) => [status, index]),
 );
 
 function ScoringInputComponent({ heat, onSubmit }) {
@@ -41,7 +45,7 @@ function ScoringInputComponent({ heat, onSubmit }) {
   const getPenaltyRank = (status) =>
     penaltyOrderIndex.has(status)
       ? penaltyOrderIndex.get(status)
-      : SHRS_PENALTY_ORDER.length;
+      : EFFECTIVE_PENALTY_ORDER.length;
   const buildPlaceNumbers = (orderedBoats) => {
     const newPlaceNumbers = {};
     orderedBoats.forEach((boat, index) => {
@@ -490,6 +494,7 @@ function ScoringInputComponent({ heat, onSubmit }) {
                         <option value="">None</option>
                         <option value="ZFP">ZFP</option>
                         <option value="SCP">SCP</option>
+                        <option value="T1">T1</option>
                         <option value="DNS">DNS</option>
                         <option value="DNF">DNF</option>
                         <option value="RET">RET</option>

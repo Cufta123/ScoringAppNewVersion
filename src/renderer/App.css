@@ -438,7 +438,8 @@ a:hover { text-decoration: underline; }
 .event-list-item .event-item-meta {
   color: var(--text-muted);
   font-size: .85rem;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 /* ── Tab toggle (sliding pill) ───────────────────────────── */

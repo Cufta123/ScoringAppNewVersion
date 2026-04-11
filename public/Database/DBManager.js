@@ -40,9 +40,64 @@ const initializeSchema = () => {
       event_location TEXT NOT NULL,
       start_date TEXT NOT NULL,
       end_date TEXT NOT NULL,
-      is_locked INTEGER DEFAULT 0
+      is_locked INTEGER DEFAULT 0,
+      shrs_version TEXT NOT NULL DEFAULT '2026-1',
+      shrs_qualifying_assignment_mode TEXT NOT NULL DEFAULT 'progressive',
+      shrs_discard_profile_qualifying TEXT NOT NULL DEFAULT 'standard',
+      shrs_discard_profile_final TEXT NOT NULL DEFAULT 'standard',
+      shrs_discard_locked_qualifying INTEGER NOT NULL DEFAULT 0,
+      shrs_discard_locked_final INTEGER NOT NULL DEFAULT 0,
+      shrs_heat_overflow_policy TEXT NOT NULL DEFAULT 'auto-increase'
     );
   `;
+
+  const ensureEventsColumns = () => {
+    const existingColumns = new Set(
+      db
+        .prepare("PRAGMA table_info('Events')")
+        .all()
+        .map((columnRow) => columnRow.name),
+    );
+
+    const requiredColumns = [
+      {
+        name: 'shrs_version',
+        sql: "ALTER TABLE Events ADD COLUMN shrs_version TEXT NOT NULL DEFAULT '2026-1';",
+      },
+      {
+        name: 'shrs_qualifying_assignment_mode',
+        sql: "ALTER TABLE Events ADD COLUMN shrs_qualifying_assignment_mode TEXT NOT NULL DEFAULT 'progressive';",
+      },
+      {
+        name: 'shrs_discard_profile_qualifying',
+        sql: "ALTER TABLE Events ADD COLUMN shrs_discard_profile_qualifying TEXT NOT NULL DEFAULT 'standard';",
+      },
+      {
+        name: 'shrs_discard_profile_final',
+        sql: "ALTER TABLE Events ADD COLUMN shrs_discard_profile_final TEXT NOT NULL DEFAULT 'standard';",
+      },
+      {
+        name: 'shrs_discard_locked_qualifying',
+        sql: 'ALTER TABLE Events ADD COLUMN shrs_discard_locked_qualifying INTEGER NOT NULL DEFAULT 0;',
+      },
+      {
+        name: 'shrs_discard_locked_final',
+        sql: 'ALTER TABLE Events ADD COLUMN shrs_discard_locked_final INTEGER NOT NULL DEFAULT 0;',
+      },
+      {
+        name: 'shrs_heat_overflow_policy',
+        sql: "ALTER TABLE Events ADD COLUMN shrs_heat_overflow_policy TEXT NOT NULL DEFAULT 'auto-increase';",
+      },
+    ];
+
+    requiredColumns.forEach(({ name, sql }) => {
+      if (existingColumns.has(name)) {
+        return;
+      }
+      console.log(`Migrating Events table: adding ${name}...`);
+      db.exec(sql);
+    });
+  };
 
   const createSailorsTable = `
     CREATE TABLE IF NOT EXISTS Sailors (
@@ -285,6 +340,7 @@ const initializeSchema = () => {
     console.log('Creating Events table...');
     db.exec(createEventsTable);
     console.log('Events table created or already exists.');
+    ensureEventsColumns();
 
     console.log('Creating Sailors table...');
     db.exec(createSailorsTable);

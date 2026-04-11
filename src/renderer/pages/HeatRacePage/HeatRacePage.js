@@ -249,9 +249,12 @@ function HeatRacePage() {
     if (!confirmed) return;
 
     try {
-      await window.electron.sqlite.heatRaceDB.createNewHeatsBasedOnLeaderboard(
+      const result = await window.electron.sqlite.heatRaceDB.createNewHeatsBasedOnLeaderboard(
         event.event_id,
       );
+      if (result?.advisory) {
+        reportInfo(result.advisory, 'SHRS advisory');
+      }
       const updatedHeats = await window.electron.sqlite.heatRaceDB.readAllHeats(
         event.event_id,
       );

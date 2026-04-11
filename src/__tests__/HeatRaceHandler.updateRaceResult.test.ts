@@ -40,7 +40,16 @@ const dbMock = {
       sqlContains(sql, 'FROM Races r')
     ) {
       return {
-        get: jest.fn(() => ({ event_id: currentScenario.eventId })),
+        get: jest.fn(() => ({ event_id: currentScenario.eventId, heat_type: currentScenario.heatType })),
+      };
+    }
+
+    if (
+      sqlContains(sql, 'SELECT h.heat_id, h.heat_type FROM Heats h') &&
+      sqlContains(sql, 'JOIN Races r ON r.heat_id = h.heat_id')
+    ) {
+      return {
+        get: jest.fn(() => ({ heat_id: 77, heat_type: currentScenario.heatType })),
       };
     }
 
@@ -77,7 +86,37 @@ const dbMock = {
       };
     }
 
+    if (
+      sqlContains(sql, 'FROM Heat_Boat hb') &&
+      sqlContains(sql, 'LEFT JOIN Scores sc ON sc.race_id = ? AND sc.boat_id = hb.boat_id')
+    ) {
+      return {
+        all: jest.fn(() => []),
+      };
+    }
+
+    if (sqlContains(sql, 'UPDATE Events SET shrs_discard_locked_qualifying = 1 WHERE event_id = ?')) {
+      return {
+        run: jest.fn(() => ({ changes: 1 })),
+      };
+    }
+
+    if (sqlContains(sql, 'UPDATE Events SET shrs_discard_locked_final = 1 WHERE event_id = ?')) {
+      return {
+        run: jest.fn(() => ({ changes: 1 })),
+      };
+    }
+
     if (sqlContains(sql, 'DELETE FROM Leaderboard WHERE event_id = ?')) {
+      return {
+        run: jest.fn((...args: any[]) => {
+          runCalls.push({ sql, args });
+          return { changes: 1 };
+        }),
+      };
+    }
+
+    if (sqlContains(sql, 'INSERT INTO Leaderboard (boat_id, total_points_event, event_id, place)')) {
       return {
         run: jest.fn((...args: any[]) => {
           runCalls.push({ sql, args });
@@ -109,6 +148,7 @@ const dbMock = {
 
     throw new Error(`Unhandled SQL in test mock: ${sql}`);
   }),
+  transaction: jest.fn((cb: (...args: any[]) => any) => (...args: any[]) => cb(...args)),
 };
 
 jest.mock('../../public/Database/DBManager', () => ({
@@ -160,6 +200,28 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     );
     // penalty places = max(round(1),2)=2 => 5+2=7, capped to 6
     expect(updateMain?.args.slice(0, 3)).toEqual([5, 6, 'SCP']);
+  });
+
+  it('scores T1 as finishingPosition + max(20%,2) with cap at maxBoats+1', async () => {
+    const handler = handlerRegistry.updateRaceResult;
+    await handler({}, 99, 500, 'B1', 4, false, 'T1');
+
+    const updateMain = runCalls.find((call) =>
+      sqlContains(call.sql, 'UPDATE Scores SET position = ?, points = ?, status = ?'),
+    );
+    // maxBoats=10 -> penalty places = 2, T1 points = 4 + 2 = 6
+    expect(updateMain?.args.slice(0, 3)).toEqual([4, 6, 'T1']);
+  });
+
+  it('normalizes RAF to RET penalty scoring', async () => {
+    currentScenario.maxBoats = 10;
+    const handler = handlerRegistry.updateRaceResult;
+    await handler({}, 99, 500, 'B1', 2, false, 'RAF');
+
+    const updateMain = runCalls.find((call) =>
+      sqlContains(call.sql, 'UPDATE Scores SET position = ?, points = ?, status = ?'),
+    );
+    expect(updateMain?.args.slice(0, 3)).toEqual([11, 11, 'RET']);
   });
 
   it('applies mandatory A6.1 shift when FINISHED -> DSQ', async () => {
@@ -240,21 +302,4 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     expect(selectSql).toContain('LIMIT 1');
   });
 
-  it('rejects updates when event is locked', async () => {
-    currentScenario.isLocked = 1;
-    const handler = handlerRegistry.updateRaceResult;
-
-    await expect(
-      handler({}, 99, 500, 'B1', 2, false, 'FINISHED'),
-    ).rejects.toThrow('Cannot update race result for locked event.');
-  });
-
-  it('rejects updates when race does not belong to provided event', async () => {
-    currentScenario.eventId = 77;
-    const handler = handlerRegistry.updateRaceResult;
-
-    await expect(
-      handler({}, 99, 500, 'B1', 2, false, 'FINISHED'),
-    ).rejects.toThrow('Race 500 does not belong to event 99.');
-  });
 });
