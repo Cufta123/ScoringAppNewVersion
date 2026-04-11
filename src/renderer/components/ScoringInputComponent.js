@@ -3,6 +3,24 @@ import PropTypes from 'prop-types';
 import { reportError, reportInfo } from '../utils/userFeedback';
 
 const POSITION_KEEPING_PENALTIES = new Set(['ZFP', 'SCP']);
+const SHRS_PENALTY_ORDER = [
+  'DNF',
+  'RET',
+  'NSC',
+  'OCS',
+  'DNS',
+  'DNC',
+  'WTH',
+  'UFD',
+  'BFD',
+  'DSQ',
+  'DNE',
+  'DGM',
+  'DPI',
+];
+const penaltyOrderIndex = new Map(
+  SHRS_PENALTY_ORDER.map((status, index) => [status, index]),
+);
 
 function ScoringInputComponent({ heat, onSubmit }) {
   const [inputValue, setInputValue] = useState('');
@@ -12,16 +30,63 @@ function ScoringInputComponent({ heat, onSubmit }) {
   const [penalties, setPenalties] = useState({});
   const [draggingIndex, setDraggingIndex] = useState(null);
   const [dropIndex, setDropIndex] = useState(null);
+  const [invalidBoatNumbers, setInvalidBoatNumbers] = useState([]);
+
+  const normalizeBoatNumber = (value) => String(value).trim();
+  const compareBoatNumbers = (a, b) =>
+    normalizeBoatNumber(a).localeCompare(normalizeBoatNumber(b), undefined, {
+      numeric: true,
+      sensitivity: 'base',
+    });
+  const getPenaltyRank = (status) =>
+    penaltyOrderIndex.has(status)
+      ? penaltyOrderIndex.get(status)
+      : SHRS_PENALTY_ORDER.length;
+  const buildPlaceNumbers = (orderedBoats) => {
+    const newPlaceNumbers = {};
+    orderedBoats.forEach((boat, index) => {
+      newPlaceNumbers[boat] = index + 1;
+    });
+    return newPlaceNumbers;
+  };
+  const getOrderedBoatNumbers = (boats, penaltiesByBoat) => {
+    const withPosition = [];
+    const displaced = [];
+
+    boats.forEach((boatNumber) => {
+      const penalty = penaltiesByBoat[boatNumber];
+      if (!penalty || POSITION_KEEPING_PENALTIES.has(penalty)) {
+        withPosition.push(boatNumber);
+        return;
+      }
+      displaced.push(boatNumber);
+    });
+
+    displaced.sort((a, b) => {
+      const penaltyRankDiff =
+        getPenaltyRank(penaltiesByBoat[a]) - getPenaltyRank(penaltiesByBoat[b]);
+      if (penaltyRankDiff !== 0) return penaltyRankDiff;
+      return compareBoatNumbers(a, b);
+    });
+
+    return [...withPosition, ...displaced];
+  };
+  const isValidBoatNumber = (boatNumber) =>
+    validBoats
+      .map((value) => normalizeBoatNumber(value))
+      .includes(normalizeBoatNumber(boatNumber));
 
   useEffect(() => {
     let isActive = true;
 
     setInputValue('');
     setBoatNumbers([]);
+    setValidBoats([]);
     setPlaceNumbers({});
     setPenalties({});
     setDraggingIndex(null);
     setDropIndex(null);
+    setInvalidBoatNumbers([]);
 
     const fetchBoats = async () => {
       try {
@@ -54,23 +119,10 @@ function ScoringInputComponent({ heat, onSubmit }) {
     );
     if (validNew.length === 0) return;
 
-    const withPenalty = validNew.filter((n) => penalties[n]);
-    const withoutPenalty = validNew.filter((n) => !penalties[n]);
-
-    const updatedBoatNumbers = [...boatNumbers, ...withoutPenalty];
-    const updatedPlaceNumbers = { ...placeNumbers };
-
-    updatedBoatNumbers.forEach((boat, index) => {
-      if (!penalties[boat]) updatedPlaceNumbers[boat] = index + 1;
-    });
-
-    withPenalty.forEach((boat) => {
-      updatedBoatNumbers.push(boat);
-      updatedPlaceNumbers[boat] = updatedBoatNumbers.length;
-    });
-
-    setBoatNumbers(updatedBoatNumbers);
-    setPlaceNumbers(updatedPlaceNumbers);
+    const merged = [...boatNumbers, ...validNew];
+    const ordered = getOrderedBoatNumbers(merged, penalties);
+    setBoatNumbers(ordered);
+    setPlaceNumbers(buildPlaceNumbers(ordered));
   };
 
   // Clicking a row immediately adds the boat — no separate button press needed
@@ -85,6 +137,13 @@ function ScoringInputComponent({ heat, onSubmit }) {
       .map(Number)
       .filter((n) => !Number.isNaN(n) && n > 0);
     const unique = [...new Set(inputNumbers)];
+    const invalidInput = unique.filter((n) => !isValidBoatNumber(n));
+    if (invalidInput.length > 0) {
+      reportInfo(
+        `These sail numbers are not in ${heat.heat_name}: ${invalidInput.join(', ')}`,
+        'Unknown sail numbers',
+      );
+    }
     addBoatsToList(unique);
     setInputValue('');
   };
@@ -97,32 +156,19 @@ function ScoringInputComponent({ heat, onSubmit }) {
   };
 
   const updatePlaces = (boats) => {
-    const newPlaceNumbers = {};
-    boats.forEach((boat, index) => {
-      newPlaceNumbers[boat] = index + 1;
-    });
-    setPlaceNumbers(newPlaceNumbers);
+    setPlaceNumbers(buildPlaceNumbers(boats));
   };
 
   const handleRemoveBoat = (index) => {
     const updatedBoatNumbers = [...boatNumbers];
     const removedBoat = updatedBoatNumbers.splice(index, 1)[0];
 
-    const updatedPlaceNumbers = { ...placeNumbers };
-    delete updatedPlaceNumbers[removedBoat];
-
     const updatedPenalties = { ...penalties };
     delete updatedPenalties[removedBoat];
 
-    // Update place numbers for remaining boats
-    updatedBoatNumbers.forEach((boat, idx) => {
-      if (!updatedPenalties[boat]) {
-        updatedPlaceNumbers[boat] = idx + 1;
-      }
-    });
-
-    setBoatNumbers(updatedBoatNumbers);
-    setPlaceNumbers(updatedPlaceNumbers);
+    const ordered = getOrderedBoatNumbers(updatedBoatNumbers, updatedPenalties);
+    setBoatNumbers(ordered);
+    setPlaceNumbers(buildPlaceNumbers(ordered));
     setPenalties(updatedPenalties);
   };
 
@@ -133,8 +179,9 @@ function ScoringInputComponent({ heat, onSubmit }) {
     const updatedBoatNumbers = [...boatNumbers];
     const [movedBoat] = updatedBoatNumbers.splice(fromIndex, 1);
     updatedBoatNumbers.splice(toIndex, 0, movedBoat);
-    setBoatNumbers(updatedBoatNumbers);
-    updatePlaces(updatedBoatNumbers);
+    const ordered = getOrderedBoatNumbers(updatedBoatNumbers, penalties);
+    setBoatNumbers(ordered);
+    updatePlaces(ordered);
   };
 
   const handleDragStart = (index) => {
@@ -155,46 +202,47 @@ function ScoringInputComponent({ heat, onSubmit }) {
   };
 
   const handlePenaltyChange = (boatNumber, penalty) => {
-    if (penalty && !boatNumbers.includes(boatNumber)) {
-      addBoatsToList([boatNumber]);
-    }
-
+    const nextBoatNumbers =
+      penalty && !boatNumbers.includes(boatNumber)
+        ? [...boatNumbers, boatNumber]
+        : [...boatNumbers];
     const newPenalties = { ...penalties, [boatNumber]: penalty };
     if (!penalty) delete newPenalties[boatNumber];
-    setPenalties(newPenalties);
 
-    // If this boat is already in the ranked list, reorder:
-    // non-penalized and scoring-penalty boats keep their relative order,
-    // displacing penalties move to the bottom.
-    if (boatNumbers.includes(boatNumber)) {
-      const withPosition = boatNumbers.filter(
-        (n) =>
-          !newPenalties[n] || POSITION_KEEPING_PENALTIES.has(newPenalties[n]),
-      );
-      const displaced = boatNumbers.filter(
-        (n) =>
-          newPenalties[n] && !POSITION_KEEPING_PENALTIES.has(newPenalties[n]),
-      );
-      const reordered = [...withPosition, ...displaced];
-      const newPlaceNumbers = {};
-      withPosition.forEach((n, i) => {
-        newPlaceNumbers[n] = i + 1;
-      });
-      displaced.forEach((n) => {
-        newPlaceNumbers[n] = withPosition.length + 1;
-      });
-      setBoatNumbers(reordered);
-      setPlaceNumbers(newPlaceNumbers);
-    }
+    const ordered = getOrderedBoatNumbers(nextBoatNumbers, newPenalties);
+    setBoatNumbers(ordered);
+    setPlaceNumbers(buildPlaceNumbers(ordered));
+    setPenalties(newPenalties);
   };
 
   const handleSubmit = () => {
+    const submittedBoatNumbers = [
+      ...new Set([...boatNumbers, ...Object.keys(penalties)]),
+    ];
+    const invalidSubmitted = submittedBoatNumbers.filter(
+      (boatNumber) => !isValidBoatNumber(boatNumber),
+    );
+
+    if (invalidSubmitted.length > 0) {
+      setInvalidBoatNumbers(invalidSubmitted.map((v) => Number(v) || v));
+      reportInfo(
+        `These sail numbers are not in ${heat.heat_name}: ${invalidSubmitted.join(', ')}.\n\n` +
+          'Remove them from finish order and score only boats in this heat.',
+        'Invalid sail numbers',
+      );
+      return;
+    }
+
+    setInvalidBoatNumbers([]);
+
     const allBoats = [...new Set([...boatNumbers, ...validBoats])];
+    const orderedBoatNumbers = getOrderedBoatNumbers(boatNumbers, penalties);
     const boatPlaces = [];
     const includedBoats = new Set();
     let finishingPlace = 1;
+    let penaltyPlace = finishingPlace;
 
-    boatNumbers.forEach((boatNumber) => {
+    orderedBoatNumbers.forEach((boatNumber) => {
       includedBoats.add(boatNumber);
       const penalty = penalties[boatNumber];
       if (!penalty) {
@@ -215,9 +263,10 @@ function ScoringInputComponent({ heat, onSubmit }) {
 
       boatPlaces.push({
         boatNumber,
-        place: allBoats.length + 1,
+        place: penaltyPlace,
         status: penalty,
       });
+      penaltyPlace += 1;
     });
 
     // Defensive safety net: if a penalty exists for a valid boat that is not in
@@ -226,13 +275,19 @@ function ScoringInputComponent({ heat, onSubmit }) {
       if (includedBoats.has(boatNumber) || !penalties[boatNumber]) return;
       boatPlaces.push({
         boatNumber,
-        place: allBoats.length + 1,
+        place: penaltyPlace,
         status: penalties[boatNumber],
       });
+      penaltyPlace += 1;
     });
 
-    const allBoatsAccountedFor = allBoats.every(
-      (boatNumber) => placeNumbers[boatNumber] || penalties[boatNumber],
+    const assignedBoatNumbers = new Set(
+      [...boatNumbers, ...Object.keys(penalties)].map((value) =>
+        normalizeBoatNumber(value),
+      ),
+    );
+    const allBoatsAccountedFor = allBoats.every((boatNumber) =>
+      assignedBoatNumbers.has(normalizeBoatNumber(boatNumber)),
     );
 
     if (allBoatsAccountedFor) {
@@ -357,6 +412,9 @@ function ScoringInputComponent({ heat, onSubmit }) {
             <tbody>
               {heat.boats.map((boat, i) => {
                 const added = boatNumbers.includes(boat.sail_number);
+                const isInvalid = invalidBoatNumbers
+                  .map((n) => normalizeBoatNumber(n))
+                  .includes(normalizeBoatNumber(boat.sail_number));
                 let rowBackground = 'var(--surface, #f5f7fa)';
                 if (added) {
                   rowBackground = 'var(--teal-light, #e8f5f1)';
@@ -370,6 +428,10 @@ function ScoringInputComponent({ heat, onSubmit }) {
                     style={{
                       background: rowBackground,
                       borderBottom: '1px solid var(--border, #dde3ea)',
+                      outline: isInvalid
+                        ? '2px solid var(--danger, #e63946)'
+                        : 'none',
+                      outlineOffset: '-2px',
                       cursor: added ? 'default' : 'pointer',
                       transition: 'background 0.15s',
                     }}
@@ -524,13 +586,20 @@ function ScoringInputComponent({ heat, onSubmit }) {
                 />
               )}
               <li
+                data-invalid={invalidBoatNumbers
+                  .map((n) => normalizeBoatNumber(n))
+                  .includes(normalizeBoatNumber(number))}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '10px',
                   marginBottom: '6px',
                   padding: '8px 12px',
-                  border: '1px solid var(--border, #dde3ea)',
+                  border: invalidBoatNumbers
+                    .map((n) => normalizeBoatNumber(n))
+                    .includes(normalizeBoatNumber(number))
+                    ? '2px solid var(--danger, #e63946)'
+                    : '1px solid var(--border, #dde3ea)',
                   borderRadius: 'var(--radius, 6px)',
                   background: '#fff',
                   cursor: 'grab',
@@ -557,6 +626,19 @@ function ScoringInputComponent({ heat, onSubmit }) {
                   style={{ flex: 1, fontSize: '0.9rem', color: 'var(--navy)' }}
                 >
                   Sail #{number}
+                  {invalidBoatNumbers
+                    .map((n) => normalizeBoatNumber(n))
+                    .includes(normalizeBoatNumber(number)) && (
+                    <span
+                      style={{
+                        marginLeft: 8,
+                        color: 'var(--danger, #e63946)',
+                        fontWeight: 700,
+                      }}
+                    >
+                      Not in this heat
+                    </span>
+                  )}
                 </span>
                 <button
                   type="button"
@@ -630,6 +712,26 @@ function ScoringInputComponent({ heat, onSubmit }) {
             />
           )}
         </ul>
+
+        {invalidBoatNumbers.length > 0 && (
+          <div
+            role="alert"
+            style={{
+              alignSelf: 'flex-start',
+              background: 'var(--danger, #e63946)',
+              color: '#fff',
+              padding: '6px 10px',
+              borderRadius: '999px',
+              fontSize: '0.8rem',
+              fontWeight: 700,
+              letterSpacing: '0.01em',
+              boxShadow: '0 1px 4px rgba(230,57,70,0.3)',
+            }}
+          >
+            {invalidBoatNumbers.length} invalid sail
+            {invalidBoatNumbers.length === 1 ? '' : 's'} in finish order
+          </div>
+        )}
 
         {/* Submit */}
         <button

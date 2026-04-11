@@ -17,6 +17,8 @@ jest.mock('electron', () => ({
 }));
 
 type Scenario = {
+  eventId: number;
+  isLocked: number;
   heatType: string;
   maxBoats: number;
   currentPosition: number;
@@ -33,9 +35,21 @@ function sqlContains(sql: string, fragment: string) {
 
 const dbMock = {
   prepare: jest.fn((sql: string): PrepareStatement => {
+    if (
+      sqlContains(sql, 'SELECT h.event_id') &&
+      sqlContains(sql, 'FROM Races r')
+    ) {
+      return {
+        get: jest.fn(() => ({ event_id: currentScenario.eventId })),
+      };
+    }
+
     if (sqlContains(sql, 'SELECT h.heat_type FROM Heats h')) {
       return {
-        get: jest.fn(() => ({ heat_type: currentScenario.heatType })),
+        get: jest.fn(() => ({
+          heat_type: currentScenario.heatType,
+          event_id: currentScenario.eventId,
+        })),
       };
     }
 
@@ -89,7 +103,7 @@ const dbMock = {
 
     if (sqlContains(sql, 'SELECT is_locked FROM Events WHERE event_id = ?')) {
       return {
-        get: jest.fn(() => ({ is_locked: 0 })),
+        get: jest.fn(() => ({ is_locked: currentScenario.isLocked })),
       };
     }
 
@@ -103,6 +117,8 @@ jest.mock('../../public/Database/DBManager', () => ({
 
 function baseScenario(): Scenario {
   return {
+    eventId: 99,
+    isLocked: 0,
     heatType: 'Qualifying',
     maxBoats: 10,
     currentPosition: 3,
@@ -222,5 +238,23 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
 
     expect(selectSql).toContain('ORDER BY score_id DESC');
     expect(selectSql).toContain('LIMIT 1');
+  });
+
+  it('rejects updates when event is locked', async () => {
+    currentScenario.isLocked = 1;
+    const handler = handlerRegistry.updateRaceResult;
+
+    await expect(
+      handler({}, 99, 500, 'B1', 2, false, 'FINISHED'),
+    ).rejects.toThrow('Cannot update race result for locked event.');
+  });
+
+  it('rejects updates when race does not belong to provided event', async () => {
+    currentScenario.eventId = 77;
+    const handler = handlerRegistry.updateRaceResult;
+
+    await expect(
+      handler({}, 99, 500, 'B1', 2, false, 'FINISHED'),
+    ).rejects.toThrow('Race 500 does not belong to event 99.');
   });
 });

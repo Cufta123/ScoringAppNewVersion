@@ -1,0 +1,168 @@
+SHRS Final Fleet Detailed Analysis (7 qualifying races)
+Rule used for fleet split: SHRS 4.2 temporary second worst score excluded (total 2 exclusions at 7 races).
+Penalty status points used in this reconstruction: 21.
+
+Marco Bagnara: original #35, adjusted #38, fleet Silver, movement down 3.
+Marco dropped scores for split: Q3=11, Q5=(13).
+
+Per-boat movement (original rank -> adjusted rank):
+1. Robert Matulja (CRO 33) => 1 [Gold] | overall=7 | splitPoints=5 | move=0 | dropped=Q2=2, Q5=(5)
+2. Zvonko Jelacic (CRO 35) => 2 [Gold] | overall=9 | splitPoints=6 | move=0 | dropped=Q1=3, Q6=(4)
+3. Ante Kovacevic (CRO 30) => 3 [Gold] | overall=10 | splitPoints=7 | move=0 | dropped=Q1=(6), Q4=3
+4. Springer Jan (POL 100) => 4 [Gold] | overall=12 | splitPoints=8 | move=0 | dropped=Q5=4, Q6=(8)
+5. Marko Matic (CRO 04) => 5 [Gold] | overall=14 | splitPoints=10 | move=0 | dropped=Q3=(5), Q6=4
+6. Peter Feldman (USA 41) => 6 [Gold] | overall=15 | splitPoints=11 | move=0 | dropped=Q4=4, Q7=(6)
+7. Luningning Chen (CHN 912) => 7 [Gold] | overall=17 | splitPoints=11 | move=0 | dropped=Q5=6, Q6=(9)
+8. Tonko Puljiz (CRO 40) => 9 [Gold] | overall=17 | splitPoints=13 | move=-1 | dropped=Q5=4, Q6=4
+9. Torsten Fildebrandt (GER 87) => 8 [Gold] | overall=18 | splitPoints=12 | move=+1 | dropped=Q1=6, Q6=(9)
+10. Cavallo Elio (ITA 13) => 11 [Gold] | overall=19 | splitPoints=14 | move=-1 | dropped=Q3=(8), Q7=5
+11. Samson Jonas (SWE 60) => 10 [Gold] | overall=20 | splitPoints=13 | move=+1 | dropped=Q6=7, Q7=(9)
+12. Odd Stray (NOR 90) => 12 [Gold] | overall=21 | splitPoints=15 | move=0 | dropped=Q3=6, Q4=(9)
+13. Matteo Longhi (SUI 111) => 15 [Gold] | overall=24 | splitPoints=19 | move=-2 | dropped=Q3=(15), Q5=5
+14. Sven Forense (CRO 142) => 16 [Gold] | overall=26 | splitPoints=19 | move=-2 | dropped=Q1=(9), Q2=7
+15. Vedran Vesanovic (CRO 144) => 13 [Gold] | overall=29 | splitPoints=18 | move=+2 | dropped=Q5=11, Q7=(15)
+16. Robert Grubisa (CRO 68) => 14 [Gold] | overall=31 | splitPoints=18 | move=+2 | dropped=Q1=13, Q2=(14)
+17. Barindelli Fabio (ITA 54) => 17 [Gold] | overall=33 | splitPoints=23 | move=0 | dropped=Q6=10, Q7=(12)
+18. Davor Duzevic (CRO 28) => 19 [Gold] | overall=34 | splitPoints=25 | move=-1 | dropped=Q1=(9), Q7=9
+19. Zhao Su (CHN 727) => 18 [Gold] | overall=35 | splitPoints=24 | move=+1 | dropped=Q1=(16), Q2=11
+20. Cappa Paolo (ITA 130) => 20 [Gold] | overall=35 | splitPoints=27 | move=0 | dropped=Q5=8, Q7=(10)
+21. Tomislav Bezic (CRO 150) => 21 [Silver] | overall=38 | splitPoints=29 | move=0 | dropped=Q2=(14), Q6=9
+22. Matthias Patzer (GER 188) => 23 [Silver] | overall=40 | splitPoints=31 | move=-1 | dropped=Q5=9, Q6=(15)
+23. Zoltan Illes (HUN 77) => 22 [Silver] | overall=40 | splitPoints=30 | move=+1 | dropped=Q2=(14), Q7=10
+24. Fabianko Biocic (CRO 10) => 24 [Silver] | overall=41 | splitPoints=31 | move=0 | dropped=Q5=10, Q7=(11)
+25. Paolo Patrini (ITA 114) => 25 [Silver] | overall=42 | splitPoints=31 | move=0 | dropped=Q4=(16), Q6=11
+26. Enwall Thomas (SWE 50) => 27 [Silver] | overall=45 | splitPoints=36 | move=-1 | dropped=Q2=(17), Q7=9
+27. Grant Larry (USA 185) => 45 [Bronze] | overall=47 | splitPoints=47 | move=-18 | dropped=Q1=RDG, Q7=(NSC)
+28. Franco Rizzo (ITA 113) => 26 [Silver] | overall=47 | splitPoints=33 | move=+2 | dropped=Q3=(17), Q7=14
+29. Tian Qin (CHN 217) => 30 [Silver] | overall=48 | splitPoints=38 | move=-1 | dropped=Q6=(12), Q7=10
+30. Kristina Jakelic (CRO 15) => 28 [Silver] | overall=49 | splitPoints=37 | move=+2 | dropped=Q4=12, Q5=(13)
+31. Hrvoje Duvancic (CRO 171) => 29 [Silver] | overall=49 | splitPoints=37 | move=+2 | dropped=Q2=(16), Q7=12
+32. Chuck Millican (BER 21) => 31 [Silver] | overall=50 | splitPoints=38 | move=+1 | dropped=Q3=(14), Q7=12
+33. Jan Heiskanene (SWE 9) => 34 [Silver] | overall=51 | splitPoints=39 | move=-1 | dropped=Q2=12, Q7=(DNC)
+34. Tibor Orszagh (HUN 777) => 32 [Silver] | overall=51 | splitPoints=38 | move=+2 | dropped=Q2=(17), Q6=13
+35. Marco Bagnara (ITA 6) => 38 [Silver] | overall=53 | splitPoints=42 | move=-3 | dropped=Q3=11, Q5=(13)
+36. Sergio Renato Naschold Richter (BRA 961) => 37 [Silver] | overall=54 | splitPoints=41 | move=-1 | dropped=Q2=13, Q5=(16)
+37. Yang Jiangjun (CHN 158) => 39 [Silver] | overall=54 | splitPoints=42 | move=-2 | dropped=Q6=(16), Q7=12
+38. Max Lehman (GER 25) => 33 [Silver] | overall=55 | splitPoints=38 | move=+5 | dropped=Q4=17, Q6=(18)
+39. Bartolomie j Jereczek (POL 96) => 35 [Silver] | overall=55 | splitPoints=40 | move=+4 | dropped=Q1=(17), Q3=15
+40. Krisztian Foro (HUN 74) => 41 [Bronze] | overall=56 | splitPoints=44 | move=-1 | dropped=Q4=(DNC), Q6=12
+41. Marin Bizjak (CRO 05) => 40 [Bronze] | overall=56 | splitPoints=42 | move=+1 | dropped=Q3=(BFD), Q7=14
+42. Zhang Zhenkun (CHN 3) => 36 [Silver] | overall=57 | splitPoints=40 | move=+6 | dropped=Q5=(18), Q6=17
+43. Rohner Ernst (SUI 20) => 42 [Bronze] | overall=59 | splitPoints=44 | move=+1 | dropped=Q2=(18), Q5=15
+44. Marko Vuksanovic (CRO 174) => 43 [Bronze] | overall=59 | splitPoints=45 | move=+1 | dropped=Q4=14, Q6=(DNF)
+45. Dante Dalla Torre (ITA 17) => 44 [Bronze] | overall=62 | splitPoints=46 | move=+1 | dropped=Q6=(18), Q7=16
+46. Piotr Klejszla (POL 212) => 47 [Bronze] | overall=63 | splitPoints=48 | move=-1 | dropped=Q6=15, Q7=(16)
+47. Hongyu Liu (CHN 72) => 46 [Bronze] | overall=64 | splitPoints=47 | move=+1 | dropped=Q1=17, Q4=(DNF)
+48. Olsson Per (SWE 177) => 49 [Bronze] | overall=64 | splitPoints=51 | move=-1 | dropped=Q5=(15), Q7=13
+49. Csaba Forrai (HUN 31) => 50 [Bronze] | overall=65 | splitPoints=52 | move=-1 | dropped=Q1=(16), Q3=13
+50. Scott Gazelle (USA 8) => 48 [Bronze] | overall=65 | splitPoints=50 | move=+2 | dropped=Q4=15, Q5=(18)
+51. Marino Koceic (CRO 85) => 57 [Bronze] | overall=72 | splitPoints=57 | move=-6 | dropped=Q1=(15), Q4=15
+52. Janos Schulek (HUN 147) => 52 [Bronze] | overall=72 | splitPoints=55 | move=0 | dropped=Q1=(18), Q3=17
+53. Kacper Konkol (POL 115) => 53 [Bronze] | overall=72 | splitPoints=56 | move=0 | dropped=Q4=(DNF), Q6=16
+54. Miljenko Bezic (CRO 59) => 54 [Bronze] | overall=73 | splitPoints=56 | move=0 | dropped=Q1=17, Q4=(19)
+55. Gyula Ferencz (ROU 152) => 58 [Bronze] | overall=73 | splitPoints=57 | move=-3 | dropped=Q3=16, Q7=(17)
+56. Ozren Marusic (CRO 52) => 59 [Copper] | overall=74 | splitPoints=58 | move=-3 | dropped=Q1=(18), Q4=16
+57. Marco Signorelli (SUI 121) => 51 [Bronze] | overall=74 | splitPoints=53 | move=+6 | dropped=Q6=(DNC), Q7=DNC
+58. Sandor Kunvari (HUN 105) => 63 [Copper] | overall=76 | splitPoints=61 | move=-5 | dropped=Q1=(18), Q5=15
+59. Haoyu HU (CHN 51) => 55 [Bronze] | overall=77 | splitPoints=56 | move=+4 | dropped=Q6=(DNC), Q7=DNC
+60. Renato Buzzi (SUI 22) => 61 [Copper] | overall=77 | splitPoints=60 | move=-1 | dropped=Q6=(17), Q7=17
+61. Lindberg Ulf (SWE 112) => 56 [Bronze] | overall=77 | splitPoints=56 | move=+5 | dropped=Q5=DNF, Q7=DNC
+62. Robert Genader (USA 36) => 64 [Copper] | overall=78 | splitPoints=62 | move=-2 | dropped=Q3=16, Q5=(17)
+63. Udo Ropke (GER 11) => 62 [Copper] | overall=78 | splitPoints=60 | move=+1 | dropped=Q3=(19), Q4=18
+64. Posmik Carsten (GER 07) => 60 [Copper] | overall=78 | splitPoints=59 | move=+4 | dropped=Q3=(19), Q5=19
+65. Claes Nordin (SWE 99) => 65 [Copper] | overall=80 | splitPoints=63 | move=0 | dropped=Q2=(17), Q3=17
+66. Graham Lewis (GBR 24) => 66 [Copper] | overall=83 | splitPoints=66 | move=0 | dropped=Q2=(18), Q5=17
+67. Claus Lindstrom (SWE 14) => 67 [Copper] | overall=85 | splitPoints=68 | move=0 | dropped=Q4=17, Q7=(DNC)
+68. Alexandre Ferreira Salgado (BRA 42) => 68 [Copper] | overall=87 | splitPoints=69 | move=0 | dropped=Q3=18, Q7=(DNC)
+69. Jakub Rempel (POL 228) => 69 [Copper] | overall=87 | splitPoints=72 | move=0 | dropped=Q6=15, Q7=15
+70. Zampicinini Flavio (ITA 162) => 70 [Copper] | overall=90 | splitPoints=73 | move=0 | dropped=Q4=(19), Q5=17
+71. Per Boymo (NOR 269) => 71 [Copper] | overall=91 | splitPoints=74 | move=0 | dropped=Q4=17, Q6=(19)
+72. Andrzej Becker (POL 122) => 72 [Copper] | overall=94 | splitPoints=76 | move=0 | dropped=Q2=(19), Q5=18
+73. Janette Nemcova (SVK 196) => 73 [Copper] | overall=99 | splitPoints=80 | move=0 | dropped=Q2=19, Q3=19
+74. Angelo Simonelli (ITA 169) => 74 [Copper] | overall=100 | splitPoints=82 | move=0 | dropped=Q3=18, Q4=18
+75. Eugeniusz Ginter (POL 16) => 75 [Copper] | overall=107 | splitPoints=86 | move=0 | dropped=Q2=DNC, Q3=DNC
+76. Jozsef Jankovic (SVK 116) => 76 [Copper] | overall=111 | splitPoints=92 | move=0 | dropped=Q4=19, Q6=19
+77. Andrej Hinic (CRO 135) => 77 [Copper] | overall=113 | splitPoints=92 | move=0 | dropped=Q1=(DNF), Q5=RET
+
+Fleet groups by adjusted rank:
+Gold (20):
+  #1 Robert Matulja (CRO 33) [orig 1] pts=5
+  #2 Zvonko Jelacic (CRO 35) [orig 2] pts=6
+  #3 Ante Kovacevic (CRO 30) [orig 3] pts=7
+  #4 Springer Jan (POL 100) [orig 4] pts=8
+  #5 Marko Matic (CRO 04) [orig 5] pts=10
+  #6 Peter Feldman (USA 41) [orig 6] pts=11
+  #7 Luningning Chen (CHN 912) [orig 7] pts=11
+  #8 Torsten Fildebrandt (GER 87) [orig 9] pts=12
+  #9 Tonko Puljiz (CRO 40) [orig 8] pts=13
+  #10 Samson Jonas (SWE 60) [orig 11] pts=13
+  #11 Cavallo Elio (ITA 13) [orig 10] pts=14
+  #12 Odd Stray (NOR 90) [orig 12] pts=15
+  #13 Vedran Vesanovic (CRO 144) [orig 15] pts=18
+  #14 Robert Grubisa (CRO 68) [orig 16] pts=18
+  #15 Matteo Longhi (SUI 111) [orig 13] pts=19
+  #16 Sven Forense (CRO 142) [orig 14] pts=19
+  #17 Barindelli Fabio (ITA 54) [orig 17] pts=23
+  #18 Zhao Su (CHN 727) [orig 19] pts=24
+  #19 Davor Duzevic (CRO 28) [orig 18] pts=25
+  #20 Cappa Paolo (ITA 130) [orig 20] pts=27
+Silver (19):
+  #21 Tomislav Bezic (CRO 150) [orig 21] pts=29
+  #22 Zoltan Illes (HUN 77) [orig 23] pts=30
+  #23 Matthias Patzer (GER 188) [orig 22] pts=31
+  #24 Fabianko Biocic (CRO 10) [orig 24] pts=31
+  #25 Paolo Patrini (ITA 114) [orig 25] pts=31
+  #26 Franco Rizzo (ITA 113) [orig 28] pts=33
+  #27 Enwall Thomas (SWE 50) [orig 26] pts=36
+  #28 Kristina Jakelic (CRO 15) [orig 30] pts=37
+  #29 Hrvoje Duvancic (CRO 171) [orig 31] pts=37
+  #30 Tian Qin (CHN 217) [orig 29] pts=38
+  #31 Chuck Millican (BER 21) [orig 32] pts=38
+  #32 Tibor Orszagh (HUN 777) [orig 34] pts=38
+  #33 Max Lehman (GER 25) [orig 38] pts=38
+  #34 Jan Heiskanene (SWE 9) [orig 33] pts=39
+  #35 Bartolomie j Jereczek (POL 96) [orig 39] pts=40
+  #36 Zhang Zhenkun (CHN 3) [orig 42] pts=40
+  #37 Sergio Renato Naschold Richter (BRA 961) [orig 36] pts=41
+  #38 Marco Bagnara (ITA 6) [orig 35] pts=42
+  #39 Yang Jiangjun (CHN 158) [orig 37] pts=42
+Bronze (19):
+  #40 Marin Bizjak (CRO 05) [orig 41] pts=42
+  #41 Krisztian Foro (HUN 74) [orig 40] pts=44
+  #42 Rohner Ernst (SUI 20) [orig 43] pts=44
+  #43 Marko Vuksanovic (CRO 174) [orig 44] pts=45
+  #44 Dante Dalla Torre (ITA 17) [orig 45] pts=46
+  #45 Grant Larry (USA 185) [orig 27] pts=47
+  #46 Hongyu Liu (CHN 72) [orig 47] pts=47
+  #47 Piotr Klejszla (POL 212) [orig 46] pts=48
+  #48 Scott Gazelle (USA 8) [orig 50] pts=50
+  #49 Olsson Per (SWE 177) [orig 48] pts=51
+  #50 Csaba Forrai (HUN 31) [orig 49] pts=52
+  #51 Marco Signorelli (SUI 121) [orig 57] pts=53
+  #52 Janos Schulek (HUN 147) [orig 52] pts=55
+  #53 Kacper Konkol (POL 115) [orig 53] pts=56
+  #54 Miljenko Bezic (CRO 59) [orig 54] pts=56
+  #55 Haoyu HU (CHN 51) [orig 59] pts=56
+  #56 Lindberg Ulf (SWE 112) [orig 61] pts=56
+  #57 Marino Koceic (CRO 85) [orig 51] pts=57
+  #58 Gyula Ferencz (ROU 152) [orig 55] pts=57
+Copper (19):
+  #59 Ozren Marusic (CRO 52) [orig 56] pts=58
+  #60 Posmik Carsten (GER 07) [orig 64] pts=59
+  #61 Renato Buzzi (SUI 22) [orig 60] pts=60
+  #62 Udo Ropke (GER 11) [orig 63] pts=60
+  #63 Sandor Kunvari (HUN 105) [orig 58] pts=61
+  #64 Robert Genader (USA 36) [orig 62] pts=62
+  #65 Claes Nordin (SWE 99) [orig 65] pts=63
+  #66 Graham Lewis (GBR 24) [orig 66] pts=66
+  #67 Claus Lindstrom (SWE 14) [orig 67] pts=68
+  #68 Alexandre Ferreira Salgado (BRA 42) [orig 68] pts=69
+  #69 Jakub Rempel (POL 228) [orig 69] pts=72
+  #70 Zampicinini Flavio (ITA 162) [orig 70] pts=73
+  #71 Per Boymo (NOR 269) [orig 71] pts=74
+  #72 Andrzej Becker (POL 122) [orig 72] pts=76
+  #73 Janette Nemcova (SVK 196) [orig 73] pts=80
+  #74 Angelo Simonelli (ITA 169) [orig 74] pts=82
+  #75 Eugeniusz Ginter (POL 16) [orig 75] pts=86
+  #76 Jozsef Jankovic (SVK 116) [orig 76] pts=92
+  #77 Andrej Hinic (CRO 135) [orig 77] pts=92

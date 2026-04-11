@@ -25,6 +25,7 @@ const config: Config = {
     '**/src/__tests__/App.routing.test.tsx',
     '**/src/__tests__/LandingPage.test.jsx',
     '**/src/__tests__/EventPage.test.jsx',
+    '**/src/__tests__/HeatRacePage.test.jsx',
     '**/src/__tests__/LeaderboardPage.test.jsx',
     '**/src/__tests__/SailorForm.test.jsx',
     '**/src/__tests__/useLeaderboard.scoring.test.jsx',

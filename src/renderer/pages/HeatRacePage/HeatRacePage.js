@@ -129,46 +129,71 @@ function HeatRacePage() {
       );
       const scoringPenaltyStatuses = new Set(['ZFP', 'SCP']);
 
+      const boats = await window.electron.sqlite.heatRaceDB.readBoatsByHeat(
+        selectedHeat.heat_id,
+      );
+
+      const normalizeSailNumber = (value) => String(value).trim();
+      const boatsBySail = new Map(
+        boats.map((boat) => [normalizeSailNumber(boat.sail_number), boat]),
+      );
+
+      const unmatchedBoatNumbers = placeNumbers
+        .map(({ boatNumber }) => boatNumber)
+        .filter(
+          (boatNumber) => !boatsBySail.has(normalizeSailNumber(boatNumber)),
+        );
+
+      if (unmatchedBoatNumbers.length > 0) {
+        reportInfo(
+          `Cannot save scores because these sail numbers are not in ${selectedHeat.heat_name}: ${unmatchedBoatNumbers.join(', ')}.\n\n` +
+            'What to do:\n' +
+            '1) Go back to heats and re-open scoring for this heat.\n' +
+            '2) Check that each sail number belongs to the selected heat.\n' +
+            '3) Re-enter the race results and submit again.',
+          'Invalid sail number mapping',
+        );
+        return;
+      }
+
       const { lastInsertRowid: raceId } =
         await window.electron.sqlite.heatRaceDB.insertRace(
           selectedHeat.heat_id,
           nextRaceNumber,
         );
 
-      const boats = await window.electron.sqlite.heatRaceDB.readBoatsByHeat(
-        selectedHeat.heat_id,
-      );
-
       const scorePromises = placeNumbers.map(
         async ({ boatNumber, place, status }) => {
-          const boatDetails = boats.find(
-            (boat) => boat.sail_number === boatNumber,
-          );
-          if (boatDetails) {
-            let finalPosition = place;
-            let finalPoints = place;
-
-            if (status !== 'FINISHED') {
-              if (scoringPenaltyStatuses.has(status)) {
-                finalPosition = place;
-                finalPoints = Math.min(
-                  place + scoringPenaltyPlaces,
-                  penaltyPlace,
-                );
-              } else {
-                finalPosition = penaltyPlace;
-                finalPoints = penaltyPlace;
-              }
-            }
-
-            await window.electron.sqlite.heatRaceDB.insertScore(
-              raceId,
-              boatDetails.boat_id,
-              finalPosition,
-              finalPoints,
-              status,
+          const boatDetails = boatsBySail.get(normalizeSailNumber(boatNumber));
+          if (!boatDetails) {
+            throw new Error(
+              `Boat with sail number ${boatNumber} is not assigned to selected heat.`,
             );
           }
+
+          let finalPosition = place;
+          let finalPoints = place;
+
+          if (status !== 'FINISHED') {
+            if (scoringPenaltyStatuses.has(status)) {
+              finalPosition = place;
+              finalPoints = Math.min(
+                place + scoringPenaltyPlaces,
+                penaltyPlace,
+              );
+            } else {
+              finalPosition = place || penaltyPlace;
+              finalPoints = penaltyPlace;
+            }
+          }
+
+          await window.electron.sqlite.heatRaceDB.insertScore(
+            raceId,
+            boatDetails.boat_id,
+            finalPosition,
+            finalPoints,
+            status,
+          );
         },
       );
 
@@ -192,6 +217,18 @@ function HeatRacePage() {
       setIsScoring(false);
       setSelectedHeat({ ...selectedHeat, raceNumber: nextRaceNumber });
     } catch (error) {
+      const message = String(error?.message || '');
+      if (message.includes('not assigned to selected heat')) {
+        reportInfo(
+          `${message}\n\n` +
+            'What to do:\n' +
+            '1) Return to the heat list and open scoring again.\n' +
+            '2) Verify sail numbers in the selected heat.\n' +
+            '3) Submit the race once more.',
+          'Invalid sail number mapping',
+        );
+        return;
+      }
       reportError('Could not save race scores.', error);
     }
   };

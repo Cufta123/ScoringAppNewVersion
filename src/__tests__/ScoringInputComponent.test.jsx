@@ -114,7 +114,7 @@ describe('ScoringInputComponent', () => {
     expect(onSubmit).toHaveBeenCalledWith([
       {
         boatNumber: 101,
-        place: 2,
+        place: 1,
         status: 'DNC',
       },
     ]);
@@ -307,5 +307,93 @@ describe('ScoringInputComponent', () => {
         expect.any(Error),
       );
     });
+  });
+
+  it('clears valid boats after heat change when next fetch fails', async () => {
+    const heatA = makeHeat(31, 'Heat A1', [makeBoat(1, 101, 'Ana')]);
+    const heatB = makeHeat(32, 'Heat B1', [makeBoat(2, 201, 'Ivo')]);
+
+    readBoatsByHeat
+      .mockResolvedValueOnce(heatA.boats)
+      .mockRejectedValueOnce(new Error('fetch failed for heat B'));
+
+    const { rerender } = render(
+      <ScoringInputComponent heat={heatA} onSubmit={jest.fn()} />,
+    );
+
+    await waitFor(() => expect(readBoatsByHeat).toHaveBeenCalledWith(31));
+
+    rerender(<ScoringInputComponent heat={heatB} onSubmit={jest.fn()} />);
+
+    await waitFor(() => expect(readBoatsByHeat).toHaveBeenCalledWith(32));
+
+    fireEvent.change(screen.getByLabelText('Add sail numbers manually'), {
+      target: { value: '101' },
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Add sail number to finish order' }),
+    );
+
+    expect(screen.queryByText('Sail #101')).not.toBeInTheDocument();
+    expect(reportInfo).toHaveBeenCalledWith(
+      'These sail numbers are not in Heat B1: 101',
+      'Unknown sail numbers',
+    );
+  });
+
+  it('submits displacing penalties in strict SHRS 5.3 order', async () => {
+    const boats = [
+      makeBoat(1, 101, 'Ana'),
+      makeBoat(2, 102, 'Ivo'),
+      makeBoat(3, 103, 'Mia'),
+      makeBoat(4, 104, 'Luka'),
+    ];
+    readBoatsByHeat.mockResolvedValueOnce(boats);
+    const onSubmit = jest.fn();
+
+    render(
+      <ScoringInputComponent
+        heat={makeHeat(33, 'Heat C2', boats)}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await waitFor(() => expect(readBoatsByHeat).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText('Ana Test'));
+    fireEvent.change(screen.getByLabelText('Penalty for sail 104'), {
+      target: { value: 'DSQ' },
+    });
+    fireEvent.change(screen.getByLabelText('Penalty for sail 103'), {
+      target: { value: 'DNF' },
+    });
+    fireEvent.change(screen.getByLabelText('Penalty for sail 102'), {
+      target: { value: 'DNS' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Scores' }));
+
+    expect(onSubmit).toHaveBeenCalledWith([
+      {
+        boatNumber: 101,
+        place: 1,
+        status: 'FINISHED',
+      },
+      {
+        boatNumber: 103,
+        place: 1,
+        status: 'DNF',
+      },
+      {
+        boatNumber: 102,
+        place: 2,
+        status: 'DNS',
+      },
+      {
+        boatNumber: 104,
+        place: 3,
+        status: 'DSQ',
+      },
+    ]);
   });
 });

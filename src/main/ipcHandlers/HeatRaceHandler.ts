@@ -375,6 +375,40 @@ function recomputeEventLeaderboard(event_id: any) {
   });
 }
 
+function recomputeFinalLeaderboard(event_id: any) {
+  const query = `
+    SELECT boat_id, heat_name, SUM(points) as total_points_final
+    FROM Scores
+    JOIN Races ON Scores.race_id = Races.race_id
+    JOIN Heats ON Races.heat_id = Heats.heat_id
+    WHERE Heats.event_id = ? AND Heats.heat_type = 'Final'
+    GROUP BY boat_id, heat_name
+    ORDER BY heat_name, total_points_final ASC
+  `;
+  const readQuery = db.prepare(query);
+  const results = readQuery.all(event_id);
+
+  const groupTables = calculateFinalBoatScores(results, event_id);
+
+  const updateQuery = db.prepare(
+    `INSERT INTO FinalLeaderboard (boat_id, total_points_final, event_id, placement_group, place)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(boat_id, event_id) DO UPDATE SET total_points_final = excluded.total_points_final, placement_group = excluded.placement_group,  place = excluded.place`,
+  );
+
+  groupTables.forEach((table, groupName) => {
+    table.forEach((boat) => {
+      updateQuery.run(
+        boat.boat_id,
+        boat.totalPoints,
+        event_id,
+        groupName,
+        boat.place,
+      );
+    });
+  });
+}
+
 /**
  * SHRS 5.2: Get the number of boats in the largest heat for an event.
  * Used for penalty scoring (DNS, DSQ, RET, etc. = largest heat size + 1).
@@ -443,6 +477,49 @@ function seedRaceWithDefaultDnsScores(race_id: number, heat_id: number): void {
   });
 
   tx();
+}
+
+function ensureCompleteRaceScoresForEvent(
+  event_id: any,
+  heatType: 'Qualifying' | 'Final',
+): number {
+  const missingRows = db
+    .prepare(
+      `SELECT r.race_id, hb.boat_id
+       FROM Races r
+       JOIN Heats h ON h.heat_id = r.heat_id
+       JOIN Heat_Boat hb ON hb.heat_id = h.heat_id
+       LEFT JOIN Scores s ON s.race_id = r.race_id AND s.boat_id = hb.boat_id
+       WHERE h.event_id = ? AND h.heat_type = ? AND s.score_id IS NULL`,
+    )
+    .all(event_id, heatType) as { race_id: number; boat_id: number }[];
+
+  if (missingRows.length === 0) {
+    return 0;
+  }
+
+  const penaltyPosition = getMaxHeatSize(event_id, heatType) + 1;
+  const insertMissingScore = db.prepare(
+    `INSERT INTO Scores (race_id, boat_id, position, points, status)
+     VALUES (?, ?, ?, ?, 'DNS')`,
+  );
+
+  const transaction = db.transaction(() => {
+    missingRows.forEach((row) => {
+      insertMissingScore.run(
+        row.race_id,
+        row.boat_id,
+        penaltyPosition,
+        penaltyPosition,
+      );
+    });
+  });
+
+  transaction();
+  console.warn(
+    `[Data integrity] Repaired ${missingRows.length} missing score row(s) as DNS for event ${event_id} (${heatType}).`,
+  );
+  return missingRows.length;
 }
 
 function applyRaceTieScoring(race_id: number): void {
@@ -1510,6 +1587,11 @@ ipcMain.handle(
 
 ipcMain.handle('readLeaderboard', async (event, event_id) => {
   try {
+    const repairedRows = ensureCompleteRaceScoresForEvent(event_id, 'Qualifying');
+    if (repairedRows > 0) {
+      recomputeEventLeaderboard(event_id);
+    }
+
     const query = `
       SELECT
         lb.boat_id,
@@ -1576,37 +1658,7 @@ ipcMain.handle('updateFinalLeaderboard', async (event, event_id) => {
     throw new Error('Cannot update final leaderboard for locked event.');
   }
   try {
-    const query = `
-      SELECT boat_id, heat_name, SUM(points) as total_points_final
-      FROM Scores
-      JOIN Races ON Scores.race_id = Races.race_id
-      JOIN Heats ON Races.heat_id = Heats.heat_id
-      WHERE Heats.event_id = ? AND Heats.heat_type = 'Final'
-      GROUP BY boat_id, heat_name
-      ORDER BY heat_name, total_points_final ASC
-    `;
-    const readQuery = db.prepare(query);
-    const results = readQuery.all(event_id);
-
-    const groupTables = calculateFinalBoatScores(results, event_id);
-
-    const updateQuery = db.prepare(
-      `INSERT INTO FinalLeaderboard (boat_id, total_points_final, event_id, placement_group, place)
-       VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(boat_id, event_id) DO UPDATE SET total_points_final = excluded.total_points_final, placement_group = excluded.placement_group,  place = excluded.place`,
-    );
-
-    groupTables.forEach((table, groupName) => {
-      table.forEach((boat) => {
-        updateQuery.run(
-          boat.boat_id,
-          boat.totalPoints,
-          event_id,
-          groupName,
-          boat.place,
-        );
-      });
-    });
+    recomputeFinalLeaderboard(event_id);
     console.log('Final leaderboard updated successfully.');
     return { success: true };
   } catch (error) {
@@ -1620,6 +1672,11 @@ ipcMain.handle('updateFinalLeaderboard', async (event, event_id) => {
 
 ipcMain.handle('readFinalLeaderboard', async (event, event_id) => {
   try {
+    const repairedRows = ensureCompleteRaceScoresForEvent(event_id, 'Final');
+    if (repairedRows > 0) {
+      recomputeFinalLeaderboard(event_id);
+    }
+
     const query = `
       SELECT
         fl.boat_id,
