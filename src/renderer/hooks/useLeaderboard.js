@@ -31,6 +31,10 @@ export default function useLeaderboard(eventId) {
   const [editableLeaderboard, setEditableLeaderboard] = useState([]);
   const [overallLeaderboard, setOverallLeaderboard] = useState([]);
   const [shiftPositions, setShiftPositions] = useState(false);
+  const [discardProfiles, setDiscardProfiles] = useState({
+    qualifying: 'standard',
+    final: 'standard',
+  });
   const [compareMode, setCompareMode] = useState(false);
   const [selectedBoatIds, setSelectedBoatIds] = useState([]);
   // rdgMeta stores per-cell info: { type, selectedRaceLabels? }
@@ -42,6 +46,9 @@ export default function useLeaderboard(eventId) {
   const roundToNearestTenthHalfUp = (value) =>
     Math.round((value + Number.EPSILON) * 10) / 10;
   const scoringPenaltyStatuses = new Set(['ZFP', 'SCP']);
+  const activeDiscardProfile = finalSeriesStarted
+    ? discardProfiles.final
+    : discardProfiles.qualifying;
 
   const sanitizeFilenamePart = (value, fallback = 'event') => {
     const raw = String(value ?? '').trim();
@@ -683,13 +690,29 @@ export default function useLeaderboard(eventId) {
         [],
       ];
 
+      const events = await window.electron.sqlite.eventDB.readAllEvents();
+      const currentEvent = Array.isArray(events)
+        ? events.find((event) => String(event.event_id) === String(eventId))
+        : null;
+
+      const nextProfiles = {
+        qualifying: currentEvent?.shrs_discard_profile_qualifying || 'standard',
+        final: currentEvent?.shrs_discard_profile_final || 'standard',
+      };
+      setDiscardProfiles(nextProfiles);
+
       const eventLeaderboardWithRaces = eventResults
-        .map(processLeaderboardEntry)
+        .map((entry) => processLeaderboardEntry(entry, nextProfiles.qualifying))
         .sort((a, b) => (a.place ?? Infinity) - (b.place ?? Infinity));
       setEventLeaderboard(eventLeaderboardWithRaces);
 
       const results = finalSeriesStarted ? finalResults : eventResults;
-      const leaderboardWithRaces = results.map(processLeaderboardEntry);
+      const leaderboardWithRaces = results.map((entry) =>
+        processLeaderboardEntry(
+          entry,
+          finalSeriesStarted ? nextProfiles.final : nextProfiles.qualifying,
+        ),
+      );
 
       if (finalSeriesStarted) {
         setOverallLeaderboard(overallResults);
@@ -914,7 +937,12 @@ export default function useLeaderboard(eventId) {
         rawRaces[raceIndex] = String(newPosition);
         newStatuses[raceIndex] = newStatus;
       }
-      const { markedRaces, total } = applyExclusions(rawRaces, newStatuses);
+      const { markedRaces, total } = applyExclusions(
+        rawRaces,
+        newStatuses,
+        rawRaces,
+        activeDiscardProfile,
+      );
       return {
         ...entry,
         races: markedRaces,
@@ -977,7 +1005,12 @@ export default function useLeaderboard(eventId) {
     rawRaces[raceIndex] = String(avg);
     entryStatuses[raceIndex] = 'RDG2';
 
-    const { markedRaces, total } = applyExclusions(rawRaces, entryStatuses);
+    const { markedRaces, total } = applyExclusions(
+      rawRaces,
+      entryStatuses,
+      rawRaces,
+      activeDiscardProfile,
+    );
     const updatedEntry = {
       ...entry,
       races: markedRaces,
@@ -1016,7 +1049,12 @@ export default function useLeaderboard(eventId) {
         const rawRaces = entry.races.map((r) => String(r).replace(/[()]/g, ''));
         const statuses =
           entry.race_statuses || entry.races.map(() => 'FINISHED');
-        const { total } = applyExclusions(rawRaces, statuses);
+        const { total } = applyExclusions(
+          rawRaces,
+          statuses,
+          rawRaces,
+          activeDiscardProfile,
+        );
         return {
           ...entry,
           race_points: rawRaces,

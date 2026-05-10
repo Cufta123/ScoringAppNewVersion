@@ -104,6 +104,15 @@ const dbMock = {
       };
     }
 
+    if (
+      sqlContains(sql, 'INSERT INTO Leaderboard (boat_id, total_points_event, event_id, place)') &&
+      sqlContains(sql, 'ON CONFLICT(boat_id, event_id) DO UPDATE SET')
+    ) {
+      return {
+        run: jest.fn(() => ({ changes: 1 })),
+      };
+    }
+
     if (sqlContains(sql, 'SELECT') && sqlContains(sql, 'FROM Leaderboard lb')) {
       return {
         all: jest.fn(() => [

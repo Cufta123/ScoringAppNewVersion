@@ -25,7 +25,9 @@ function setupMockDb(
     >
   >,
   scoresA82: Record<string, number[]> = {},
-  discardConfig: { firstDiscardAt: number; secondDiscardAt: number; additionalEvery: number } = {
+  discardConfig:
+    | { firstDiscardAt: number; secondDiscardAt: number; additionalEvery: number }
+    | { thresholds: number[] } = {
     firstDiscardAt: 4,
     secondDiscardAt: 8,
     additionalEvery: 8,
@@ -167,6 +169,23 @@ describe('Ranking within a group', () => {
     const silverPlaces = groupTables.get('Silver')!.map((b) => b.place).sort((x, y) => x! - y!);
     expect(goldPlaces).toEqual([1, 2]);
     expect(silverPlaces).toEqual([1, 2]);
+  });
+
+  it('applies custom threshold list in final series scoring', () => {
+    setupMockDb(
+      {
+        g1: [10, 9, 8, 7, 6, 5],
+      },
+      {},
+      { thresholds: [3, 5, 6] },
+    );
+
+    const groupTables = calculateFinalBoatScores(
+      [makeResult('g1', 'Final Gold')],
+      1,
+    );
+    const gold = groupTables.get('Gold')!;
+    expect(gold[0].totalPoints).toBe(7 + 6 + 5);
   });
 });
 

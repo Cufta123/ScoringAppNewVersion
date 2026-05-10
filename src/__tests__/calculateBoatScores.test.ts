@@ -41,7 +41,9 @@ function setupMockDb(
     string,
     Array<{ race_id: number; race_number: number; points: number }>
   > = {},
-  discardConfig: { firstDiscardAt: number; secondDiscardAt: number; additionalEvery: number } = {
+  discardConfig:
+    | { firstDiscardAt: number; secondDiscardAt: number; additionalEvery: number }
+    | { thresholds: number[] } = {
     firstDiscardAt: 4,
     secondDiscardAt: 8,
     additionalEvery: 8,
@@ -213,6 +215,21 @@ describe('Score exclusion thresholds', () => {
     const result = run([makeResult('boatA', 6)]);
     // At 6 races => 2 discards -> remove 9 and 8
     expect(result.boatA.totalPoints).toBe(7 + 6 + 5 + 4);
+  });
+
+  it('applies custom threshold list from event settings', () => {
+    setupMockDb(
+      {
+        boatA: [10, 9, 8, 7, 6, 5],
+      },
+      {},
+      {},
+      { thresholds: [3, 5, 6] },
+    );
+
+    const result = run([makeResult('boatA', 6)]);
+    // At 6 races with thresholds [3,5,6] => 3 discards -> remove 10, 9, 8.
+    expect(result.boatA.totalPoints).toBe(7 + 6 + 5);
   });
 });
 

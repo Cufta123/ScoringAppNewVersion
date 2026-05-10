@@ -72,6 +72,10 @@ const dbMock = {
       return { get: jest.fn(() => ({ shrs_heat_overflow_policy: heatOverflowPolicy })) };
     }
 
+    if (sqlContains(sql, 'SELECT shrs_discard_profile_qualifying as discard_profile FROM Events WHERE event_id = ?')) {
+      return { get: jest.fn(() => ({ discard_profile: 'standard' })) };
+    }
+
     if (
       sqlContains(sql, 'SELECT heat_id, heat_name, heat_type FROM Heats WHERE event_id = ?')
     ) {
@@ -383,6 +387,35 @@ describe('HeatRaceHandler startFinalSeriesAtomic', () => {
     );
     expect(fleetSizes).toEqual([17, 17, 16]);
     fleetSizes.forEach((size) => expect(size).toBeLessThanOrEqual(20));
+  });
+
+  it('skips SHRS 4.3 temporary second exclusion for fleet split when explicitly disabled', async () => {
+    qualifyingHeats = [
+      { heat_id: 11, heat_name: 'Heat A1', heat_type: 'Qualifying' },
+      { heat_id: 12, heat_name: 'Heat B1', heat_type: 'Qualifying' },
+    ];
+
+    leaderboardRows = [
+      { boat_id: 1, race_points: '1,1,1,1,15,15', race_statuses: 'FINISHED,FINISHED,FINISHED,FINISHED,FINISHED,FINISHED' },
+      { boat_id: 2, race_points: '2,2,2,2,3,3', race_statuses: 'FINISHED,FINISHED,FINISHED,FINISHED,FINISHED,FINISHED' },
+      { boat_id: 3, race_points: '3,3,3,3,2,2', race_statuses: 'FINISHED,FINISHED,FINISHED,FINISHED,FINISHED,FINISHED' },
+      { boat_id: 4, race_points: '4,4,4,4,1,1', race_statuses: 'FINISHED,FINISHED,FINISHED,FINISHED,FINISHED,FINISHED' },
+    ];
+
+    const handler = handlerRegistry.startFinalSeriesAtomic;
+
+    insertedHeats.length = 0;
+    insertedHeatBoats.length = 0;
+    await handler({}, 77, false, true);
+    const withRuleApplied = [...insertedHeatBoats];
+
+    insertedHeats.length = 0;
+    insertedHeatBoats.length = 0;
+    await handler({}, 77, false, false);
+    const withRuleDisabled = [...insertedHeatBoats];
+
+    expect(withRuleApplied.map((entry) => entry.boatId)).toEqual([1, 2, 3, 4]);
+    expect(withRuleDisabled.map((entry) => entry.boatId)).toEqual([2, 3, 4, 1]);
   });
 
   it('rejects leaderboard input when required table column is missing', () => {

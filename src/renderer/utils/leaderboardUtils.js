@@ -28,6 +28,25 @@ export const PENALTY_CODES = [
 export const RDG_TYPES = ['RDG1', 'RDG2', 'RDG3'];
 const NON_EXCLUDABLE_STATUSES = new Set(['DNE', 'DGM']);
 
+const parseDiscardThresholdsFromProfile = (discardProfile) => {
+  if (!discardProfile || discardProfile === 'standard') return null;
+  try {
+    const parsed = JSON.parse(discardProfile);
+    if (!Array.isArray(parsed?.thresholds)) return null;
+    const thresholds = parsed.thresholds
+      .map((entry) => Number(entry))
+      .filter((entry) => Number.isInteger(entry) && entry > 0);
+
+    if (thresholds.length !== parsed.thresholds.length) return null;
+    for (let index = 1; index < thresholds.length; index += 1) {
+      if (thresholds[index] <= thresholds[index - 1]) return null;
+    }
+    return thresholds;
+  } catch (_error) {
+    return null;
+  }
+};
+
 /**
  * Strip exclusion parentheses and return 0 for any non-numeric value.
  * Uses parseFloat so RDG average scores (e.g. 3.4) are preserved.
@@ -40,7 +59,12 @@ export const parseRaceNum = (val) => {
 /**
  * SHRS 5.4: after 4 races exclude 1, after 8 exclude 2, then +1 per 8 more.
  */
-export const getExcludeCount = (numberOfRaces) => {
+export const getExcludeCount = (numberOfRaces, discardProfile = 'standard') => {
+  const thresholds = parseDiscardThresholdsFromProfile(discardProfile);
+  if (thresholds && thresholds.length > 0) {
+    return thresholds.filter((threshold) => numberOfRaces >= threshold).length;
+  }
+
   if (numberOfRaces < 4) return 0;
   if (numberOfRaces < 8) return 1;
   return 2 + Math.floor((numberOfRaces - 8) / 8);
@@ -54,9 +78,10 @@ export const applyExclusions = (
   rawPositions,
   raceStatuses = [],
   scoreValues = rawPositions,
+  discardProfile = 'standard',
 ) => {
   const n = rawPositions.length;
-  const excludeCount = getExcludeCount(n);
+  const excludeCount = getExcludeCount(n, discardProfile);
   const points = scoreValues.map((r) => {
     const v = parseFloat(String(r).replace(/[()]/g, ''));
     return Number.isNaN(v) ? 0 : v;
@@ -95,14 +120,19 @@ export const applyExclusions = (
 /**
  * Process a raw leaderboard DB entry into display-ready format.
  */
-export const processLeaderboardEntry = (entry) => {
+export const processLeaderboardEntry = (entry, discardProfile = 'standard') => {
   const races = entry.race_positions ? entry.race_positions.split(',') : [];
   const race_points = entry.race_points ? entry.race_points.split(',') : races;
   const race_ids = entry.race_ids ? entry.race_ids.split(',') : [];
   const race_statuses = entry.race_statuses
     ? entry.race_statuses.split(',')
     : races.map(() => 'FINISHED');
-  const { markedRaces } = applyExclusions(races, race_statuses, race_points);
+  const { markedRaces } = applyExclusions(
+    races,
+    race_statuses,
+    race_points,
+    discardProfile,
+  );
   return {
     ...entry,
     races: markedRaces,

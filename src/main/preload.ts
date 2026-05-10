@@ -625,12 +625,14 @@ const electronHandler = {
       async startFinalSeriesAtomic(
         event_id: string,
         allow_oversize_confirm = false,
+        apply_shrs43_temporary_second_discard = true,
       ) {
         try {
           return await ipcRenderer.invoke(
             'startFinalSeriesAtomic',
             event_id,
             allow_oversize_confirm,
+            apply_shrs43_temporary_second_discard,
           );
         } catch (error) {
           throw error;

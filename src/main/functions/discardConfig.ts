@@ -5,6 +5,7 @@ export type DiscardConfig = {
   firstDiscardAt: number;
   secondDiscardAt: number;
   additionalEvery: number;
+  thresholds?: number[];
 };
 
 const DEFAULT_DISCARD_CONFIG: DiscardConfig = {
@@ -25,6 +26,28 @@ function sanitizePositiveInteger(value: unknown, fallback: number): number {
   return integer;
 }
 
+function normalizeThresholdList(value: unknown): number[] {
+  if (!Array.isArray(value)) {
+    throw new Error('Discard thresholds must be an array of positive integers.');
+  }
+
+  const normalized = value.map((entry) => {
+    const parsed = Number(entry);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) {
+      throw new Error('Discard thresholds must contain only positive integers.');
+    }
+    return parsed;
+  });
+
+  for (let index = 1; index < normalized.length; index += 1) {
+    if (normalized[index] <= normalized[index - 1]) {
+      throw new Error('Discard thresholds must be in strictly increasing order.');
+    }
+  }
+
+  return normalized;
+}
+
 export function normalizeDiscardConfig(value: unknown): DiscardConfig {
   if (value == null || value === '' || value === 'standard') {
     return { ...DEFAULT_DISCARD_CONFIG };
@@ -43,7 +66,21 @@ export function normalizeDiscardConfig(value: unknown): DiscardConfig {
     return { ...DEFAULT_DISCARD_CONFIG };
   }
 
-  const candidate = raw as Partial<DiscardConfig>;
+  const candidate = raw as Partial<DiscardConfig> & { thresholds?: unknown };
+  if (Object.prototype.hasOwnProperty.call(candidate, 'thresholds')) {
+    const thresholds = normalizeThresholdList(candidate.thresholds);
+    if (thresholds.length === 0) {
+      return { ...DEFAULT_DISCARD_CONFIG, thresholds: [] };
+    }
+
+    return {
+      firstDiscardAt: thresholds[0],
+      secondDiscardAt: thresholds[1] ?? thresholds[0] + DEFAULT_DISCARD_CONFIG.additionalEvery,
+      additionalEvery: DEFAULT_DISCARD_CONFIG.additionalEvery,
+      thresholds,
+    };
+  }
+
   const firstDiscardAt = sanitizePositiveInteger(
     candidate.firstDiscardAt,
     DEFAULT_DISCARD_CONFIG.firstDiscardAt,
@@ -66,6 +103,7 @@ export function normalizeDiscardConfig(value: unknown): DiscardConfig {
     firstDiscardAt,
     secondDiscardAt: normalizedSecondDiscardAt,
     additionalEvery,
+    thresholds: [],
   };
 }
 
@@ -77,6 +115,13 @@ export function getExcludeCountForConfig(
   numberOfRaces: number,
   config: DiscardConfig,
 ): number {
+  if (Array.isArray(config.thresholds) && config.thresholds.length > 0) {
+    return config.thresholds.reduce(
+      (count, threshold) => (numberOfRaces >= threshold ? count + 1 : count),
+      0,
+    );
+  }
+
   if (numberOfRaces < config.firstDiscardAt) return 0;
   if (numberOfRaces < config.secondDiscardAt) return 1;
   return (

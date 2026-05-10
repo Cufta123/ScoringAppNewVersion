@@ -138,4 +138,29 @@ describe('EventHandler updateEvent discard locks', () => {
       'Final discard profile is locked after the first final race.',
     );
   });
+
+  it('rejects qualifying threshold-list change once qualifying is locked', async () => {
+    currentEventRow.shrs_discard_locked_qualifying = 1;
+    currentEventRow.shrs_discard_profile_qualifying = JSON.stringify({
+      thresholds: [4, 8, 16],
+    });
+
+    const handler = handlerRegistry.updateEvent;
+    await expect(
+      handler(
+        {},
+        55,
+        'Event 2026',
+        'Split',
+        '2026-05-01',
+        '2026-05-03',
+        'progressive',
+        JSON.stringify({ thresholds: [3, 6, 9] }),
+        'standard',
+        'auto-increase',
+      ),
+    ).rejects.toThrow(
+      'Qualifying discard profile is locked after the first qualifying race.',
+    );
+  });
 });

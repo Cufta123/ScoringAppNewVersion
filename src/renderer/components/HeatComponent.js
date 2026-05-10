@@ -37,7 +37,38 @@ function getExcludeCount(racesCount) {
   return 2 + Math.floor((racesCount - 8) / 8);
 }
 
-export function buildAdjustedFleetLeaderboard(leaderboard) {
+function parseDiscardThresholdsFromProfile(discardProfile) {
+  if (!discardProfile || discardProfile === 'standard') return null;
+  try {
+    const parsed = JSON.parse(discardProfile);
+    if (!Array.isArray(parsed?.thresholds)) return null;
+    const thresholds = parsed.thresholds
+      .map((entry) => Number(entry))
+      .filter((entry) => Number.isInteger(entry) && entry > 0);
+    if (thresholds.length !== parsed.thresholds.length) return null;
+
+    for (let index = 1; index < thresholds.length; index += 1) {
+      if (thresholds[index] <= thresholds[index - 1]) return null;
+    }
+    return thresholds;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function getExcludeCountForProfile(racesCount, discardProfile) {
+  const thresholds = parseDiscardThresholdsFromProfile(discardProfile);
+  if (!thresholds || thresholds.length === 0) {
+    return getExcludeCount(racesCount);
+  }
+  return thresholds.filter((threshold) => racesCount >= threshold).length;
+}
+
+export function buildAdjustedFleetLeaderboard(
+  leaderboard,
+  applyShs43TemporarySecondDiscard = true,
+  qualifyingDiscardProfile = 'standard',
+) {
   return leaderboard.map((boat) => {
     const rawPoints = parseNumberCsv(boat.race_points);
     const rawStatuses = parseStatusCsv(boat.race_statuses, rawPoints.length);
@@ -48,10 +79,11 @@ export function buildAdjustedFleetLeaderboard(leaderboard) {
     }));
 
     const n = raceEntries.length;
-    let excludeCount = getExcludeCount(n);
+    let excludeCount = getExcludeCountForProfile(n, qualifyingDiscardProfile);
 
-    // SHRS 4.2: additionally exclude second-worst when 5 < n < 8.
-    if (n > 5 && n < 8) {
+    // SHRS 4.3: optionally exclude second-worst when 5 < n < 8,
+    // only for final fleet assignment ranking.
+    if (applyShs43TemporarySecondDiscard && n > 5 && n < 8) {
       excludeCount += 1;
     }
 
@@ -96,6 +128,7 @@ function HeatComponent({
   const [finalSeriesStarted, setFinalSeriesStarted] = useState(false);
   const [showFinalConfirm, setShowFinalConfirm] = useState(false);
   const [pendingFinalHeats, setPendingFinalHeats] = useState(0);
+  const [pendingQualifyingRaceCount, setPendingQualifyingRaceCount] = useState(0);
   const [numQualifyingGroups, setNumQualifyingGroups] = useState(0);
   const [newHeatsFormat, setNewHeatsFormat] = useState('excel');
   const [snapshotHistory, setSnapshotHistory] = useState([]);
@@ -214,18 +247,40 @@ function HeatComponent({
     loadSnapshotHistory();
   }, [loadSnapshotHistory]);
 
-  const handleConfirmFinalSeries = async (allowOversizeConfirm = false) => {
+  const handleConfirmFinalSeries = async (
+    allowOversizeConfirm = false,
+    shrs43ApplyChoice,
+  ) => {
     const allowOversize = allowOversizeConfirm === true;
     setShowFinalConfirm(false);
+
+    let applyShs43TemporarySecondDiscard = shrs43ApplyChoice;
+    if (applyShs43TemporarySecondDiscard == null) {
+      const shouldAskForShs43Choice =
+        pendingQualifyingRaceCount > 5 && pendingQualifyingRaceCount < 8;
+
+      if (shouldAskForShs43Choice) {
+        applyShs43TemporarySecondDiscard = await confirmAction(
+          'SHRS 2026-1 Rule 4.3 applies for 6-7 completed qualifying races.\n\nConfirm: Apply Rule 4.3 and temporarily exclude each boat\'s second worst race score only for final-fleet ranking.\nCancel: Do not apply Rule 4.3 and keep ranking without this temporary second exclusion.',
+          'Apply SHRS 2026-1 Rule 4.3?',
+        );
+      } else {
+        applyShs43TemporarySecondDiscard = true;
+      }
+    }
+
     try {
       if (allowOversize) {
         await window.electron.sqlite.heatRaceDB.startFinalSeriesAtomic(
           event.event_id,
           true,
+          applyShs43TemporarySecondDiscard,
         );
       } else {
         await window.electron.sqlite.heatRaceDB.startFinalSeriesAtomic(
           event.event_id,
+          false,
+          applyShs43TemporarySecondDiscard,
         );
       }
       setFinalSeriesStarted(true);
@@ -245,7 +300,10 @@ function HeatComponent({
         if (!proceed) {
           return;
         }
-        await handleConfirmFinalSeries(true);
+        await handleConfirmFinalSeries(
+          true,
+          applyShs43TemporarySecondDiscard,
+        );
         return;
       }
       reportError('Could not start final series.', error);
@@ -315,6 +373,7 @@ function HeatComponent({
         );
         return;
       }
+      setPendingQualifyingRaceCount(uniqueCounts[0]);
       if (uniqueCounts[0] === 0) {
         const proceed = await confirmAction(
           'No qualifying races have been completed yet. Boats will be assigned to fleets based on their initial seeding only.\n\nStart the Final Series anyway?',

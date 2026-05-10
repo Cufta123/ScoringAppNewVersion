@@ -77,6 +77,23 @@ function makeTiedPair(prng, length) {
 
 function setupMockDb(scoresA81Map, scoresA82Map, raceScoresMap) {
   mockPrepare.mockImplementation((sql) => ({
+    get: (_eventId) => {
+      if (
+        sql.includes(
+          'SELECT shrs_discard_profile_qualifying as discard_profile FROM Events WHERE event_id = ?',
+        )
+      ) {
+        return { discard_profile: 'standard' };
+      }
+      if (
+        sql.includes(
+          'SELECT shrs_discard_profile_final as discard_profile FROM Events WHERE event_id = ?',
+        )
+      ) {
+        return { discard_profile: 'standard' };
+      }
+      return undefined;
+    },
     all: (_eventId, boatId) => {
       if (sql.includes('SELECT s.race_id, r.race_number, s.points')) {
         return raceScoresMap[boatId] || [];

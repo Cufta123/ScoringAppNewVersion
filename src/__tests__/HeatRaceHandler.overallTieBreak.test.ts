@@ -80,6 +80,18 @@ const dbMock = {
       };
     }
 
+    if (sqlContains(sql, 'SELECT shrs_discard_profile_qualifying as discard_profile FROM Events WHERE event_id = ?')) {
+      return {
+        get: jest.fn(() => ({ discard_profile: 'standard' })),
+      };
+    }
+
+    if (sqlContains(sql, 'SELECT shrs_discard_profile_final as discard_profile FROM Events WHERE event_id = ?')) {
+      return {
+        get: jest.fn(() => ({ discard_profile: 'standard' })),
+      };
+    }
+
     if (
       sqlContains(sql, 'SELECT') &&
       sqlContains(sql, 'FROM Leaderboard lb') &&

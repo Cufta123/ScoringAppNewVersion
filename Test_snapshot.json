@@ -1,0 +1,2168 @@
+{
+  "schemaVersion": 1,
+  "exportedAt": "2026-05-10T17:02:16.185Z",
+  "event_id": 8,
+  "tables": {
+    "Events": [
+      {
+        "event_id": 8,
+        "event_name": "Test",
+        "event_location": "test",
+        "start_date": "2026-05-20",
+        "end_date": "2026-05-22",
+        "is_locked": 0,
+        "shrs_version": "2026-1",
+        "shrs_qualifying_assignment_mode": "progressive",
+        "shrs_discard_profile_qualifying": "{\"firstDiscardAt\":2,\"secondDiscardAt\":3,\"additionalEvery\":8,\"thresholds\":[2,3,5,10]}",
+        "shrs_discard_profile_final": "{\"firstDiscardAt\":4,\"secondDiscardAt\":8,\"additionalEvery\":8}",
+        "shrs_discard_locked_qualifying": 1,
+        "shrs_discard_locked_final": 0,
+        "shrs_heat_overflow_policy": "auto-increase"
+      }
+    ],
+    "Boat_Event": [
+      {
+        "boat_event_id": 115,
+        "boat_id": 16,
+        "event_id": 8
+      },
+      {
+        "boat_event_id": 116,
+        "boat_id": 17,
+        "event_id": 8
+      },
+      {
+        "boat_event_id": 117,
+        "boat_id": 18,
+        "event_id": 8
+      },
+      {
+        "boat_event_id": 118,
+        "boat_id": 19,
+        "event_id": 8
+      },
+      {
+        "boat_event_id": 119,
+        "boat_id": 20,
+        "event_id": 8
+      },
+      {
+        "boat_event_id": 120,
+        "boat_id": 21,
+        "event_id": 8
+      },
+      {
+        "boat_event_id": 121,
+        "boat_id": 22,
+        "event_id": 8
+      },
+      {
+        "boat_event_id": 122,
+        "boat_id": 23,
+        "event_id": 8
+      },
+      {
+        "boat_event_id": 123,
+        "boat_id": 24,
+        "event_id": 8
+      },
+      {
+        "boat_event_id": 124,
+        "boat_id": 25,
+        "event_id": 8
+      },
+      {
+        "boat_event_id": 125,
+        "boat_id": 26,
+        "event_id": 8
+      },
+      {
+        "boat_event_id": 126,
+        "boat_id": 27,
+        "event_id": 8
+      },
+      {
+        "boat_event_id": 127,
+        "boat_id": 28,
+        "event_id": 8
+      },
+      {
+        "boat_event_id": 128,
+        "boat_id": 29,
+        "event_id": 8
+      },
+      {
+        "boat_event_id": 129,
+        "boat_id": 30,
+        "event_id": 8
+      },
+      {
+        "boat_event_id": 130,
+        "boat_id": 31,
+        "event_id": 8
+      },
+      {
+        "boat_event_id": 131,
+        "boat_id": 32,
+        "event_id": 8
+      },
+      {
+        "boat_event_id": 132,
+        "boat_id": 33,
+        "event_id": 8
+      },
+      {
+        "boat_event_id": 133,
+        "boat_id": 34,
+        "event_id": 8
+      },
+      {
+        "boat_event_id": 134,
+        "boat_id": 35,
+        "event_id": 8
+      }
+    ],
+    "Heats": [
+      {
+        "heat_id": 72,
+        "event_id": 8,
+        "heat_name": "Heat A1",
+        "heat_type": "Qualifying"
+      },
+      {
+        "heat_id": 73,
+        "event_id": 8,
+        "heat_name": "Heat B1",
+        "heat_type": "Qualifying"
+      },
+      {
+        "heat_id": 74,
+        "event_id": 8,
+        "heat_name": "Heat C1",
+        "heat_type": "Qualifying"
+      },
+      {
+        "heat_id": 75,
+        "event_id": 8,
+        "heat_name": "Heat A2",
+        "heat_type": "Qualifying"
+      },
+      {
+        "heat_id": 76,
+        "event_id": 8,
+        "heat_name": "Heat B2",
+        "heat_type": "Qualifying"
+      },
+      {
+        "heat_id": 77,
+        "event_id": 8,
+        "heat_name": "Heat C2",
+        "heat_type": "Qualifying"
+      },
+      {
+        "heat_id": 78,
+        "event_id": 8,
+        "heat_name": "Heat A3",
+        "heat_type": "Qualifying"
+      },
+      {
+        "heat_id": 79,
+        "event_id": 8,
+        "heat_name": "Heat B3",
+        "heat_type": "Qualifying"
+      },
+      {
+        "heat_id": 80,
+        "event_id": 8,
+        "heat_name": "Heat C3",
+        "heat_type": "Qualifying"
+      },
+      {
+        "heat_id": 81,
+        "event_id": 8,
+        "heat_name": "Heat A4",
+        "heat_type": "Qualifying"
+      },
+      {
+        "heat_id": 82,
+        "event_id": 8,
+        "heat_name": "Heat B4",
+        "heat_type": "Qualifying"
+      },
+      {
+        "heat_id": 83,
+        "event_id": 8,
+        "heat_name": "Heat C4",
+        "heat_type": "Qualifying"
+      },
+      {
+        "heat_id": 84,
+        "event_id": 8,
+        "heat_name": "Heat A5",
+        "heat_type": "Qualifying"
+      },
+      {
+        "heat_id": 85,
+        "event_id": 8,
+        "heat_name": "Heat B5",
+        "heat_type": "Qualifying"
+      },
+      {
+        "heat_id": 86,
+        "event_id": 8,
+        "heat_name": "Heat C5",
+        "heat_type": "Qualifying"
+      },
+      {
+        "heat_id": 87,
+        "event_id": 8,
+        "heat_name": "Heat A6",
+        "heat_type": "Qualifying"
+      },
+      {
+        "heat_id": 88,
+        "event_id": 8,
+        "heat_name": "Heat B6",
+        "heat_type": "Qualifying"
+      },
+      {
+        "heat_id": 89,
+        "event_id": 8,
+        "heat_name": "Heat C6",
+        "heat_type": "Qualifying"
+      },
+      {
+        "heat_id": 90,
+        "event_id": 8,
+        "heat_name": "Heat A7",
+        "heat_type": "Qualifying"
+      },
+      {
+        "heat_id": 91,
+        "event_id": 8,
+        "heat_name": "Heat B7",
+        "heat_type": "Qualifying"
+      },
+      {
+        "heat_id": 92,
+        "event_id": 8,
+        "heat_name": "Heat C7",
+        "heat_type": "Qualifying"
+      }
+    ],
+    "Races": [
+      {
+        "race_id": 75,
+        "heat_id": 72,
+        "race_number": 1
+      },
+      {
+        "race_id": 76,
+        "heat_id": 73,
+        "race_number": 1
+      },
+      {
+        "race_id": 77,
+        "heat_id": 74,
+        "race_number": 1
+      },
+      {
+        "race_id": 78,
+        "heat_id": 75,
+        "race_number": 1
+      },
+      {
+        "race_id": 79,
+        "heat_id": 76,
+        "race_number": 1
+      },
+      {
+        "race_id": 80,
+        "heat_id": 77,
+        "race_number": 1
+      },
+      {
+        "race_id": 81,
+        "heat_id": 78,
+        "race_number": 1
+      },
+      {
+        "race_id": 82,
+        "heat_id": 79,
+        "race_number": 1
+      },
+      {
+        "race_id": 83,
+        "heat_id": 80,
+        "race_number": 1
+      },
+      {
+        "race_id": 84,
+        "heat_id": 81,
+        "race_number": 1
+      },
+      {
+        "race_id": 85,
+        "heat_id": 82,
+        "race_number": 1
+      },
+      {
+        "race_id": 86,
+        "heat_id": 83,
+        "race_number": 1
+      },
+      {
+        "race_id": 87,
+        "heat_id": 84,
+        "race_number": 1
+      },
+      {
+        "race_id": 88,
+        "heat_id": 85,
+        "race_number": 1
+      },
+      {
+        "race_id": 89,
+        "heat_id": 86,
+        "race_number": 1
+      },
+      {
+        "race_id": 90,
+        "heat_id": 87,
+        "race_number": 1
+      },
+      {
+        "race_id": 91,
+        "heat_id": 88,
+        "race_number": 1
+      },
+      {
+        "race_id": 92,
+        "heat_id": 89,
+        "race_number": 1
+      },
+      {
+        "race_id": 93,
+        "heat_id": 90,
+        "race_number": 1
+      },
+      {
+        "race_id": 94,
+        "heat_id": 91,
+        "race_number": 1
+      },
+      {
+        "race_id": 95,
+        "heat_id": 92,
+        "race_number": 1
+      }
+    ],
+    "Scores": [
+      {
+        "score_id": 553,
+        "race_id": 75,
+        "boat_id": 16,
+        "position": 6,
+        "points": 6,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 554,
+        "race_id": 75,
+        "boat_id": 21,
+        "position": 7,
+        "points": 7,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 555,
+        "race_id": 75,
+        "boat_id": 22,
+        "position": 5,
+        "points": 5,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 556,
+        "race_id": 75,
+        "boat_id": 27,
+        "position": 4,
+        "points": 4,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 557,
+        "race_id": 75,
+        "boat_id": 28,
+        "position": 1,
+        "points": 1,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 558,
+        "race_id": 75,
+        "boat_id": 33,
+        "position": 2,
+        "points": 2,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 559,
+        "race_id": 75,
+        "boat_id": 34,
+        "position": 3,
+        "points": 3,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 560,
+        "race_id": 76,
+        "boat_id": 17,
+        "position": 7,
+        "points": 7,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 561,
+        "race_id": 76,
+        "boat_id": 20,
+        "position": 6,
+        "points": 6,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 562,
+        "race_id": 76,
+        "boat_id": 23,
+        "position": 5,
+        "points": 5,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 563,
+        "race_id": 76,
+        "boat_id": 26,
+        "position": 4,
+        "points": 4,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 564,
+        "race_id": 76,
+        "boat_id": 29,
+        "position": 1,
+        "points": 1,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 565,
+        "race_id": 76,
+        "boat_id": 32,
+        "position": 2,
+        "points": 2,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 566,
+        "race_id": 76,
+        "boat_id": 35,
+        "position": 3,
+        "points": 3,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 567,
+        "race_id": 77,
+        "boat_id": 18,
+        "position": 6,
+        "points": 6,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 568,
+        "race_id": 77,
+        "boat_id": 19,
+        "position": 5,
+        "points": 5,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 569,
+        "race_id": 77,
+        "boat_id": 24,
+        "position": 3,
+        "points": 3,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 570,
+        "race_id": 77,
+        "boat_id": 25,
+        "position": 4,
+        "points": 4,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 571,
+        "race_id": 77,
+        "boat_id": 30,
+        "position": 2,
+        "points": 2,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 572,
+        "race_id": 77,
+        "boat_id": 31,
+        "position": 1,
+        "points": 1,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 573,
+        "race_id": 78,
+        "boat_id": 28,
+        "position": 6,
+        "points": 6,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 574,
+        "race_id": 78,
+        "boat_id": 27,
+        "position": 5,
+        "points": 5,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 575,
+        "race_id": 78,
+        "boat_id": 21,
+        "position": 7,
+        "points": 7,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 576,
+        "race_id": 78,
+        "boat_id": 35,
+        "position": 1,
+        "points": 1,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 577,
+        "race_id": 78,
+        "boat_id": 20,
+        "position": 4,
+        "points": 4,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 578,
+        "race_id": 78,
+        "boat_id": 30,
+        "position": 2,
+        "points": 2,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 579,
+        "race_id": 78,
+        "boat_id": 19,
+        "position": 3,
+        "points": 3,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 580,
+        "race_id": 79,
+        "boat_id": 33,
+        "position": 7,
+        "points": 7,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 581,
+        "race_id": 79,
+        "boat_id": 22,
+        "position": 6,
+        "points": 6,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 582,
+        "race_id": 79,
+        "boat_id": 29,
+        "position": 5,
+        "points": 5,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 583,
+        "race_id": 79,
+        "boat_id": 26,
+        "position": 1,
+        "points": 1,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 584,
+        "race_id": 79,
+        "boat_id": 17,
+        "position": 4,
+        "points": 4,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 585,
+        "race_id": 79,
+        "boat_id": 24,
+        "position": 2,
+        "points": 2,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 586,
+        "race_id": 79,
+        "boat_id": 18,
+        "position": 3,
+        "points": 3,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 587,
+        "race_id": 80,
+        "boat_id": 34,
+        "position": 5,
+        "points": 5,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 588,
+        "race_id": 80,
+        "boat_id": 16,
+        "position": 4,
+        "points": 4,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 589,
+        "race_id": 80,
+        "boat_id": 32,
+        "position": 6,
+        "points": 6,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 590,
+        "race_id": 80,
+        "boat_id": 23,
+        "position": 1,
+        "points": 1,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 591,
+        "race_id": 80,
+        "boat_id": 31,
+        "position": 2,
+        "points": 2,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 592,
+        "race_id": 80,
+        "boat_id": 25,
+        "position": 3,
+        "points": 3,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 593,
+        "race_id": 81,
+        "boat_id": 35,
+        "position": 6,
+        "points": 6,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 594,
+        "race_id": 81,
+        "boat_id": 20,
+        "position": 5,
+        "points": 5,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 595,
+        "race_id": 81,
+        "boat_id": 21,
+        "position": 7,
+        "points": 7,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 596,
+        "race_id": 81,
+        "boat_id": 18,
+        "position": 1,
+        "points": 1,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 597,
+        "race_id": 81,
+        "boat_id": 22,
+        "position": 2,
+        "points": 2,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 598,
+        "race_id": 81,
+        "boat_id": 31,
+        "position": 4,
+        "points": 4,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 599,
+        "race_id": 81,
+        "boat_id": 34,
+        "position": 3,
+        "points": 3,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 600,
+        "race_id": 82,
+        "boat_id": 30,
+        "position": 6,
+        "points": 6,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 601,
+        "race_id": 82,
+        "boat_id": 27,
+        "position": 7,
+        "points": 7,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 602,
+        "race_id": 82,
+        "boat_id": 26,
+        "position": 5,
+        "points": 5,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 603,
+        "race_id": 82,
+        "boat_id": 17,
+        "position": 1,
+        "points": 1,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 604,
+        "race_id": 82,
+        "boat_id": 33,
+        "position": 4,
+        "points": 4,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 605,
+        "race_id": 82,
+        "boat_id": 25,
+        "position": 2,
+        "points": 2,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 606,
+        "race_id": 82,
+        "boat_id": 32,
+        "position": 3,
+        "points": 3,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 607,
+        "race_id": 83,
+        "boat_id": 19,
+        "position": 6,
+        "points": 6,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 608,
+        "race_id": 83,
+        "boat_id": 28,
+        "position": 4,
+        "points": 4,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 609,
+        "race_id": 83,
+        "boat_id": 24,
+        "position": 5,
+        "points": 5,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 610,
+        "race_id": 83,
+        "boat_id": 29,
+        "position": 3,
+        "points": 3,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 611,
+        "race_id": 83,
+        "boat_id": 23,
+        "position": 1,
+        "points": 1,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 612,
+        "race_id": 83,
+        "boat_id": 16,
+        "position": 2,
+        "points": 2,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 613,
+        "race_id": 84,
+        "boat_id": 18,
+        "position": 5,
+        "points": 5,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 614,
+        "race_id": 84,
+        "boat_id": 31,
+        "position": 6,
+        "points": 6,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 615,
+        "race_id": 84,
+        "boat_id": 21,
+        "position": 4,
+        "points": 4,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 616,
+        "race_id": 84,
+        "boat_id": 32,
+        "position": 7,
+        "points": 7,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 617,
+        "race_id": 84,
+        "boat_id": 30,
+        "position": 3,
+        "points": 3,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 618,
+        "race_id": 84,
+        "boat_id": 16,
+        "position": 1,
+        "points": 1,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 619,
+        "race_id": 84,
+        "boat_id": 24,
+        "position": 2,
+        "points": 2,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 620,
+        "race_id": 85,
+        "boat_id": 22,
+        "position": 6,
+        "points": 6,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 621,
+        "race_id": 85,
+        "boat_id": 20,
+        "position": 5,
+        "points": 5,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 622,
+        "race_id": 85,
+        "boat_id": 17,
+        "position": 4,
+        "points": 4,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 623,
+        "race_id": 85,
+        "boat_id": 33,
+        "position": 7,
+        "points": 7,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 624,
+        "race_id": 85,
+        "boat_id": 27,
+        "position": 1,
+        "points": 1,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 625,
+        "race_id": 85,
+        "boat_id": 29,
+        "position": 3,
+        "points": 3,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 626,
+        "race_id": 85,
+        "boat_id": 19,
+        "position": 2,
+        "points": 2,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 627,
+        "race_id": 86,
+        "boat_id": 34,
+        "position": 5,
+        "points": 5,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 628,
+        "race_id": 86,
+        "boat_id": 35,
+        "position": 6,
+        "points": 6,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 629,
+        "race_id": 86,
+        "boat_id": 25,
+        "position": 4,
+        "points": 4,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 630,
+        "race_id": 86,
+        "boat_id": 26,
+        "position": 1,
+        "points": 1,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 631,
+        "race_id": 86,
+        "boat_id": 23,
+        "position": 2,
+        "points": 2,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 632,
+        "race_id": 86,
+        "boat_id": 28,
+        "position": 3,
+        "points": 3,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 633,
+        "race_id": 87,
+        "boat_id": 16,
+        "position": 6,
+        "points": 6,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 634,
+        "race_id": 87,
+        "boat_id": 21,
+        "position": 7,
+        "points": 7,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 635,
+        "race_id": 87,
+        "boat_id": 32,
+        "position": 5,
+        "points": 5,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 636,
+        "race_id": 87,
+        "boat_id": 29,
+        "position": 3,
+        "points": 3,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 637,
+        "race_id": 87,
+        "boat_id": 22,
+        "position": 4,
+        "points": 4,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 638,
+        "race_id": 87,
+        "boat_id": 23,
+        "position": 2,
+        "points": 2,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 639,
+        "race_id": 87,
+        "boat_id": 34,
+        "position": 1,
+        "points": 1,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 640,
+        "race_id": 88,
+        "boat_id": 24,
+        "position": 6,
+        "points": 6,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 641,
+        "race_id": 88,
+        "boat_id": 18,
+        "position": 7,
+        "points": 7,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 642,
+        "race_id": 88,
+        "boat_id": 27,
+        "position": 5,
+        "points": 5,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 643,
+        "race_id": 88,
+        "boat_id": 17,
+        "position": 1,
+        "points": 1,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 644,
+        "race_id": 88,
+        "boat_id": 33,
+        "position": 2,
+        "points": 2,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 645,
+        "race_id": 88,
+        "boat_id": 28,
+        "position": 3,
+        "points": 3,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 646,
+        "race_id": 88,
+        "boat_id": 35,
+        "position": 4,
+        "points": 4,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 647,
+        "race_id": 89,
+        "boat_id": 30,
+        "position": 5,
+        "points": 5,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 648,
+        "race_id": 89,
+        "boat_id": 31,
+        "position": 4,
+        "points": 4,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 649,
+        "race_id": 89,
+        "boat_id": 19,
+        "position": 6,
+        "points": 6,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 650,
+        "race_id": 89,
+        "boat_id": 20,
+        "position": 3,
+        "points": 3,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 651,
+        "race_id": 89,
+        "boat_id": 26,
+        "position": 1,
+        "points": 1,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 652,
+        "race_id": 89,
+        "boat_id": 25,
+        "position": 2,
+        "points": 2,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 653,
+        "race_id": 90,
+        "boat_id": 34,
+        "position": 6,
+        "points": 6,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 654,
+        "race_id": 90,
+        "boat_id": 22,
+        "position": 7,
+        "points": 7,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 655,
+        "race_id": 90,
+        "boat_id": 21,
+        "position": 5,
+        "points": 5,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 656,
+        "race_id": 90,
+        "boat_id": 28,
+        "position": 1,
+        "points": 1,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 657,
+        "race_id": 90,
+        "boat_id": 24,
+        "position": 4,
+        "points": 4,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 658,
+        "race_id": 90,
+        "boat_id": 25,
+        "position": 2,
+        "points": 2,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 659,
+        "race_id": 90,
+        "boat_id": 30,
+        "position": 3,
+        "points": 3,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 660,
+        "race_id": 91,
+        "boat_id": 23,
+        "position": 5,
+        "points": 5,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 661,
+        "race_id": 91,
+        "boat_id": 32,
+        "position": 6,
+        "points": 6,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 662,
+        "race_id": 91,
+        "boat_id": 17,
+        "position": 4,
+        "points": 4,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 663,
+        "race_id": 91,
+        "boat_id": 35,
+        "position": 7,
+        "points": 7,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 664,
+        "race_id": 91,
+        "boat_id": 18,
+        "position": 3,
+        "points": 3,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 665,
+        "race_id": 91,
+        "boat_id": 20,
+        "position": 1,
+        "points": 1,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 666,
+        "race_id": 91,
+        "boat_id": 19,
+        "position": 2,
+        "points": 2,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 667,
+        "race_id": 92,
+        "boat_id": 29,
+        "position": 5,
+        "points": 5,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 668,
+        "race_id": 92,
+        "boat_id": 16,
+        "position": 6,
+        "points": 6,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 669,
+        "race_id": 92,
+        "boat_id": 33,
+        "position": 4,
+        "points": 4,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 670,
+        "race_id": 92,
+        "boat_id": 27,
+        "position": 1,
+        "points": 1,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 671,
+        "race_id": 92,
+        "boat_id": 26,
+        "position": 2,
+        "points": 2,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 672,
+        "race_id": 92,
+        "boat_id": 31,
+        "position": 3,
+        "points": 3,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 673,
+        "race_id": 93,
+        "boat_id": 28,
+        "position": 4,
+        "points": 4,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 674,
+        "race_id": 93,
+        "boat_id": 24,
+        "position": 5,
+        "points": 5,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 675,
+        "race_id": 93,
+        "boat_id": 22,
+        "position": 3,
+        "points": 3,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 676,
+        "race_id": 93,
+        "boat_id": 18,
+        "position": 6,
+        "points": 6,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 677,
+        "race_id": 93,
+        "boat_id": 32,
+        "position": 1,
+        "points": 1,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 678,
+        "race_id": 93,
+        "boat_id": 26,
+        "position": 7,
+        "points": 7,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 679,
+        "race_id": 93,
+        "boat_id": 29,
+        "position": 2,
+        "points": 2,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 680,
+        "race_id": 94,
+        "boat_id": 25,
+        "position": 7,
+        "points": 7,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 681,
+        "race_id": 94,
+        "boat_id": 21,
+        "position": 6,
+        "points": 6,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 682,
+        "race_id": 94,
+        "boat_id": 20,
+        "position": 5,
+        "points": 5,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 683,
+        "race_id": 94,
+        "boat_id": 17,
+        "position": 1,
+        "points": 1,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 684,
+        "race_id": 94,
+        "boat_id": 35,
+        "position": 2,
+        "points": 2,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 685,
+        "race_id": 94,
+        "boat_id": 31,
+        "position": 3,
+        "points": 3,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 686,
+        "race_id": 94,
+        "boat_id": 16,
+        "position": 4,
+        "points": 4,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 687,
+        "race_id": 95,
+        "boat_id": 30,
+        "position": 4,
+        "points": 4,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 688,
+        "race_id": 95,
+        "boat_id": 34,
+        "position": 5,
+        "points": 5,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 689,
+        "race_id": 95,
+        "boat_id": 19,
+        "position": 3,
+        "points": 3,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 690,
+        "race_id": 95,
+        "boat_id": 23,
+        "position": 1,
+        "points": 1,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 691,
+        "race_id": 95,
+        "boat_id": 27,
+        "position": 2,
+        "points": 2,
+        "status": "FINISHED"
+      },
+      {
+        "score_id": 692,
+        "race_id": 95,
+        "boat_id": 33,
+        "position": 6,
+        "points": 6,
+        "status": "FINISHED"
+      }
+    ],
+    "Heat_Boat": [
+      {
+        "heat_id": 72,
+        "boat_id": 16
+      },
+      {
+        "heat_id": 73,
+        "boat_id": 17
+      },
+      {
+        "heat_id": 74,
+        "boat_id": 18
+      },
+      {
+        "heat_id": 74,
+        "boat_id": 19
+      },
+      {
+        "heat_id": 73,
+        "boat_id": 20
+      },
+      {
+        "heat_id": 72,
+        "boat_id": 21
+      },
+      {
+        "heat_id": 72,
+        "boat_id": 22
+      },
+      {
+        "heat_id": 73,
+        "boat_id": 23
+      },
+      {
+        "heat_id": 74,
+        "boat_id": 24
+      },
+      {
+        "heat_id": 74,
+        "boat_id": 25
+      },
+      {
+        "heat_id": 73,
+        "boat_id": 26
+      },
+      {
+        "heat_id": 72,
+        "boat_id": 27
+      },
+      {
+        "heat_id": 72,
+        "boat_id": 28
+      },
+      {
+        "heat_id": 73,
+        "boat_id": 29
+      },
+      {
+        "heat_id": 74,
+        "boat_id": 30
+      },
+      {
+        "heat_id": 74,
+        "boat_id": 31
+      },
+      {
+        "heat_id": 73,
+        "boat_id": 32
+      },
+      {
+        "heat_id": 72,
+        "boat_id": 33
+      },
+      {
+        "heat_id": 72,
+        "boat_id": 34
+      },
+      {
+        "heat_id": 73,
+        "boat_id": 35
+      },
+      {
+        "heat_id": 75,
+        "boat_id": 28
+      },
+      {
+        "heat_id": 76,
+        "boat_id": 33
+      },
+      {
+        "heat_id": 77,
+        "boat_id": 34
+      },
+      {
+        "heat_id": 75,
+        "boat_id": 27
+      },
+      {
+        "heat_id": 76,
+        "boat_id": 22
+      },
+      {
+        "heat_id": 77,
+        "boat_id": 16
+      },
+      {
+        "heat_id": 75,
+        "boat_id": 21
+      },
+      {
+        "heat_id": 76,
+        "boat_id": 29
+      },
+      {
+        "heat_id": 77,
+        "boat_id": 32
+      },
+      {
+        "heat_id": 75,
+        "boat_id": 35
+      },
+      {
+        "heat_id": 76,
+        "boat_id": 26
+      },
+      {
+        "heat_id": 77,
+        "boat_id": 23
+      },
+      {
+        "heat_id": 75,
+        "boat_id": 20
+      },
+      {
+        "heat_id": 76,
+        "boat_id": 17
+      },
+      {
+        "heat_id": 77,
+        "boat_id": 31
+      },
+      {
+        "heat_id": 75,
+        "boat_id": 30
+      },
+      {
+        "heat_id": 76,
+        "boat_id": 24
+      },
+      {
+        "heat_id": 77,
+        "boat_id": 25
+      },
+      {
+        "heat_id": 75,
+        "boat_id": 19
+      },
+      {
+        "heat_id": 76,
+        "boat_id": 18
+      },
+      {
+        "heat_id": 78,
+        "boat_id": 35
+      },
+      {
+        "heat_id": 79,
+        "boat_id": 30
+      },
+      {
+        "heat_id": 80,
+        "boat_id": 19
+      },
+      {
+        "heat_id": 78,
+        "boat_id": 20
+      },
+      {
+        "heat_id": 79,
+        "boat_id": 27
+      },
+      {
+        "heat_id": 80,
+        "boat_id": 28
+      },
+      {
+        "heat_id": 78,
+        "boat_id": 21
+      },
+      {
+        "heat_id": 79,
+        "boat_id": 26
+      },
+      {
+        "heat_id": 80,
+        "boat_id": 24
+      },
+      {
+        "heat_id": 78,
+        "boat_id": 18
+      },
+      {
+        "heat_id": 79,
+        "boat_id": 17
+      },
+      {
+        "heat_id": 80,
+        "boat_id": 29
+      },
+      {
+        "heat_id": 78,
+        "boat_id": 22
+      },
+      {
+        "heat_id": 79,
+        "boat_id": 33
+      },
+      {
+        "heat_id": 80,
+        "boat_id": 23
+      },
+      {
+        "heat_id": 78,
+        "boat_id": 31
+      },
+      {
+        "heat_id": 79,
+        "boat_id": 25
+      },
+      {
+        "heat_id": 80,
+        "boat_id": 16
+      },
+      {
+        "heat_id": 78,
+        "boat_id": 34
+      },
+      {
+        "heat_id": 79,
+        "boat_id": 32
+      },
+      {
+        "heat_id": 81,
+        "boat_id": 18
+      },
+      {
+        "heat_id": 82,
+        "boat_id": 22
+      },
+      {
+        "heat_id": 83,
+        "boat_id": 34
+      },
+      {
+        "heat_id": 81,
+        "boat_id": 31
+      },
+      {
+        "heat_id": 82,
+        "boat_id": 20
+      },
+      {
+        "heat_id": 83,
+        "boat_id": 35
+      },
+      {
+        "heat_id": 81,
+        "boat_id": 21
+      },
+      {
+        "heat_id": 82,
+        "boat_id": 17
+      },
+      {
+        "heat_id": 83,
+        "boat_id": 25
+      },
+      {
+        "heat_id": 81,
+        "boat_id": 32
+      },
+      {
+        "heat_id": 82,
+        "boat_id": 33
+      },
+      {
+        "heat_id": 83,
+        "boat_id": 26
+      },
+      {
+        "heat_id": 81,
+        "boat_id": 30
+      },
+      {
+        "heat_id": 82,
+        "boat_id": 27
+      },
+      {
+        "heat_id": 83,
+        "boat_id": 23
+      },
+      {
+        "heat_id": 81,
+        "boat_id": 16
+      },
+      {
+        "heat_id": 82,
+        "boat_id": 29
+      },
+      {
+        "heat_id": 83,
+        "boat_id": 28
+      },
+      {
+        "heat_id": 81,
+        "boat_id": 24
+      },
+      {
+        "heat_id": 82,
+        "boat_id": 19
+      },
+      {
+        "heat_id": 84,
+        "boat_id": 16
+      },
+      {
+        "heat_id": 85,
+        "boat_id": 24
+      },
+      {
+        "heat_id": 86,
+        "boat_id": 30
+      },
+      {
+        "heat_id": 84,
+        "boat_id": 21
+      },
+      {
+        "heat_id": 85,
+        "boat_id": 18
+      },
+      {
+        "heat_id": 86,
+        "boat_id": 31
+      },
+      {
+        "heat_id": 84,
+        "boat_id": 32
+      },
+      {
+        "heat_id": 85,
+        "boat_id": 27
+      },
+      {
+        "heat_id": 86,
+        "boat_id": 19
+      },
+      {
+        "heat_id": 84,
+        "boat_id": 29
+      },
+      {
+        "heat_id": 85,
+        "boat_id": 17
+      },
+      {
+        "heat_id": 86,
+        "boat_id": 20
+      },
+      {
+        "heat_id": 84,
+        "boat_id": 22
+      },
+      {
+        "heat_id": 85,
+        "boat_id": 33
+      },
+      {
+        "heat_id": 86,
+        "boat_id": 26
+      },
+      {
+        "heat_id": 84,
+        "boat_id": 23
+      },
+      {
+        "heat_id": 85,
+        "boat_id": 28
+      },
+      {
+        "heat_id": 86,
+        "boat_id": 25
+      },
+      {
+        "heat_id": 84,
+        "boat_id": 34
+      },
+      {
+        "heat_id": 85,
+        "boat_id": 35
+      },
+      {
+        "heat_id": 87,
+        "boat_id": 34
+      },
+      {
+        "heat_id": 88,
+        "boat_id": 23
+      },
+      {
+        "heat_id": 89,
+        "boat_id": 29
+      },
+      {
+        "heat_id": 87,
+        "boat_id": 22
+      },
+      {
+        "heat_id": 88,
+        "boat_id": 32
+      },
+      {
+        "heat_id": 89,
+        "boat_id": 16
+      },
+      {
+        "heat_id": 87,
+        "boat_id": 21
+      },
+      {
+        "heat_id": 88,
+        "boat_id": 17
+      },
+      {
+        "heat_id": 89,
+        "boat_id": 33
+      },
+      {
+        "heat_id": 87,
+        "boat_id": 28
+      },
+      {
+        "heat_id": 88,
+        "boat_id": 35
+      },
+      {
+        "heat_id": 89,
+        "boat_id": 27
+      },
+      {
+        "heat_id": 87,
+        "boat_id": 24
+      },
+      {
+        "heat_id": 88,
+        "boat_id": 18
+      },
+      {
+        "heat_id": 89,
+        "boat_id": 26
+      },
+      {
+        "heat_id": 87,
+        "boat_id": 25
+      },
+      {
+        "heat_id": 88,
+        "boat_id": 20
+      },
+      {
+        "heat_id": 89,
+        "boat_id": 31
+      },
+      {
+        "heat_id": 87,
+        "boat_id": 30
+      },
+      {
+        "heat_id": 88,
+        "boat_id": 19
+      },
+      {
+        "heat_id": 90,
+        "boat_id": 28
+      },
+      {
+        "heat_id": 91,
+        "boat_id": 25
+      },
+      {
+        "heat_id": 92,
+        "boat_id": 30
+      },
+      {
+        "heat_id": 90,
+        "boat_id": 24
+      },
+      {
+        "heat_id": 91,
+        "boat_id": 21
+      },
+      {
+        "heat_id": 92,
+        "boat_id": 34
+      },
+      {
+        "heat_id": 90,
+        "boat_id": 22
+      },
+      {
+        "heat_id": 91,
+        "boat_id": 20
+      },
+      {
+        "heat_id": 92,
+        "boat_id": 19
+      },
+      {
+        "heat_id": 90,
+        "boat_id": 18
+      },
+      {
+        "heat_id": 91,
+        "boat_id": 17
+      },
+      {
+        "heat_id": 92,
+        "boat_id": 23
+      },
+      {
+        "heat_id": 90,
+        "boat_id": 32
+      },
+      {
+        "heat_id": 91,
+        "boat_id": 35
+      },
+      {
+        "heat_id": 92,
+        "boat_id": 27
+      },
+      {
+        "heat_id": 90,
+        "boat_id": 26
+      },
+      {
+        "heat_id": 91,
+        "boat_id": 31
+      },
+      {
+        "heat_id": 92,
+        "boat_id": 33
+      },
+      {
+        "heat_id": 90,
+        "boat_id": 29
+      },
+      {
+        "heat_id": 91,
+        "boat_id": 16
+      }
+    ],
+    "Leaderboard": [
+      {
+        "boat_id": 26,
+        "total_points_event": 5,
+        "event_id": 8,
+        "place": 1
+      },
+      {
+        "boat_id": 23,
+        "total_points_event": 5,
+        "event_id": 8,
+        "place": 2
+      },
+      {
+        "boat_id": 17,
+        "total_points_event": 7,
+        "event_id": 8,
+        "place": 3
+      },
+      {
+        "boat_id": 28,
+        "total_points_event": 8,
+        "event_id": 8,
+        "place": 4
+      },
+      {
+        "boat_id": 27,
+        "total_points_event": 8,
+        "event_id": 8,
+        "place": 5
+      },
+      {
+        "boat_id": 31,
+        "total_points_event": 9,
+        "event_id": 8,
+        "place": 6
+      },
+      {
+        "boat_id": 29,
+        "total_points_event": 9,
+        "event_id": 8,
+        "place": 7
+      },
+      {
+        "boat_id": 25,
+        "total_points_event": 9,
+        "event_id": 8,
+        "place": 8
+      },
+      {
+        "boat_id": 35,
+        "total_points_event": 10,
+        "event_id": 8,
+        "place": 9
+      },
+      {
+        "boat_id": 30,
+        "total_points_event": 10,
+        "event_id": 8,
+        "place": 10
+      },
+      {
+        "boat_id": 19,
+        "total_points_event": 10,
+        "event_id": 8,
+        "place": 11
+      },
+      {
+        "boat_id": 16,
+        "total_points_event": 11,
+        "event_id": 8,
+        "place": 12
+      },
+      {
+        "boat_id": 32,
+        "total_points_event": 11,
+        "event_id": 8,
+        "place": 13
+      },
+      {
+        "boat_id": 24,
+        "total_points_event": 11,
+        "event_id": 8,
+        "place": 14
+      },
+      {
+        "boat_id": 33,
+        "total_points_event": 12,
+        "event_id": 8,
+        "place": 15
+      },
+      {
+        "boat_id": 18,
+        "total_points_event": 12,
+        "event_id": 8,
+        "place": 16
+      },
+      {
+        "boat_id": 34,
+        "total_points_event": 12,
+        "event_id": 8,
+        "place": 17
+      },
+      {
+        "boat_id": 20,
+        "total_points_event": 13,
+        "event_id": 8,
+        "place": 18
+      },
+      {
+        "boat_id": 22,
+        "total_points_event": 14,
+        "event_id": 8,
+        "place": 19
+      },
+      {
+        "boat_id": 21,
+        "total_points_event": 22,
+        "event_id": 8,
+        "place": 20
+      }
+    ],
+    "FinalLeaderboard": []
+  }
+}

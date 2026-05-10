@@ -66,6 +66,23 @@ function setupQualifyingMockDb(
   > = {},
 ) {
   mockPrepare.mockImplementation((sql: string) => ({
+    get: (_eventId: unknown) => {
+      if (
+        sql.includes(
+          'SELECT shrs_discard_profile_qualifying as discard_profile FROM Events WHERE event_id = ?',
+        )
+      ) {
+        return { discard_profile: 'standard' };
+      }
+      if (
+        sql.includes(
+          'SELECT shrs_discard_profile_final as discard_profile FROM Events WHERE event_id = ?',
+        )
+      ) {
+        return { discard_profile: 'standard' };
+      }
+      return undefined;
+    },
     all: (_eventId: unknown, boatId: string) => {
       if (sql.includes('SELECT s.race_id, r.race_number, s.points')) {
         if (raceScores[boatId]) return raceScores[boatId];
@@ -95,6 +112,23 @@ function setupFinalMockDb(
   scoresA82: Record<string, number[]> = {},
 ) {
   mockPrepare.mockImplementation((sql: string) => ({
+    get: (_eventId: unknown) => {
+      if (
+        sql.includes(
+          'SELECT shrs_discard_profile_qualifying as discard_profile FROM Events WHERE event_id = ?',
+        )
+      ) {
+        return { discard_profile: 'standard' };
+      }
+      if (
+        sql.includes(
+          'SELECT shrs_discard_profile_final as discard_profile FROM Events WHERE event_id = ?',
+        )
+      ) {
+        return { discard_profile: 'standard' };
+      }
+      return undefined;
+    },
     all: (_eventId: unknown, boatId: string) => {
       if (sql.includes('ORDER BY points DESC')) {
         return (scoresA81[boatId] ?? []).map((p) => ({ points: p }));

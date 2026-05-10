@@ -8,6 +8,8 @@ const DEFAULT_DISCARD_CONFIG = {
   additionalEvery: 8,
 };
 
+const DEFAULT_THRESHOLD_PREVIEW = '4,8,16,24';
+
 const clampPositiveInt = (value, fallback) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
@@ -39,56 +41,121 @@ const normalizeDiscardConfig = (raw) => {
   };
 };
 
+const toLegacyThresholdPreview = (config) => {
+  const normalized = normalizeDiscardConfig(config);
+  return [
+    normalized.firstDiscardAt,
+    normalized.secondDiscardAt,
+    normalized.secondDiscardAt + normalized.additionalEvery,
+    normalized.secondDiscardAt + normalized.additionalEvery * 2,
+  ].join(',');
+};
+
+const parseThresholdInput = (input) => {
+  const cleaned = String(input ?? '').trim();
+  if (!cleaned) {
+    return {
+      thresholds: [],
+      error: 'Enter at least one threshold (e.g. 4,8,16).',
+    };
+  }
+
+  const parts = cleaned
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
+  if (parts.length === 0) {
+    return {
+      thresholds: [],
+      error: 'Enter at least one threshold (e.g. 4,8,16).',
+    };
+  }
+
+  const thresholds = parts.map((entry) => Number(entry));
+  if (thresholds.some((value) => !Number.isInteger(value) || value <= 0)) {
+    return {
+      thresholds: [],
+      error: 'Thresholds must be positive whole numbers.',
+    };
+  }
+
+  for (let index = 1; index < thresholds.length; index += 1) {
+    if (thresholds[index] <= thresholds[index - 1]) {
+      return {
+        thresholds: [],
+        error: 'Thresholds must be in strictly increasing order.',
+      };
+    }
+  }
+
+  return { thresholds, error: null };
+};
+
 const parseDiscardModeAndConfig = (raw) => {
   if (!raw || raw === 'standard') {
     return {
       mode: 'standard',
-      config: { ...DEFAULT_DISCARD_CONFIG },
+      thresholdsInput: DEFAULT_THRESHOLD_PREVIEW,
     };
   }
 
   try {
     const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed?.thresholds)) {
+      return {
+        mode: 'custom',
+        thresholdsInput: parsed.thresholds.join(','),
+      };
+    }
+
     return {
       mode: 'custom',
-      config: normalizeDiscardConfig(parsed),
+      thresholdsInput: toLegacyThresholdPreview(parsed),
     };
   } catch (_error) {
     return {
       mode: 'standard',
-      config: { ...DEFAULT_DISCARD_CONFIG },
+      thresholdsInput: DEFAULT_THRESHOLD_PREVIEW,
     };
   }
 };
 
-const serializeDiscardProfile = (mode, config) =>
-  mode === 'standard' ? 'standard' : JSON.stringify(normalizeDiscardConfig(config));
-
-const getDiscardSummary = (config) => {
-  const normalized = normalizeDiscardConfig(config);
-  return `0 discards before ${normalized.firstDiscardAt} races. Then: 1 discard from ${normalized.firstDiscardAt}, 2 from ${normalized.secondDiscardAt}, then +1 discard every ${normalized.additionalEvery} additional races.`;
+const serializeDiscardProfile = (mode, thresholdsInput) => {
+  if (mode === 'standard') return 'standard';
+  const { thresholds, error } = parseThresholdInput(thresholdsInput);
+  if (error) {
+    throw new Error(error);
+  }
+  return JSON.stringify({ thresholds });
 };
 
-const getDiscardExamples = (config) => {
-  const normalized = normalizeDiscardConfig(config);
-  const thresholds = [
-    normalized.firstDiscardAt,
-    normalized.secondDiscardAt,
-    normalized.secondDiscardAt + normalized.additionalEvery,
-    normalized.secondDiscardAt + normalized.additionalEvery * 2,
-  ];
+const getDiscardSummary = (mode, thresholdsInput) => {
+  if (mode === 'standard') {
+    return 'Standard SHRS 5.4 is active: after 4 races exclude 1, after 8 exclude 2, then +1 every 8 races.';
+  }
 
-  return thresholds
+  const { thresholds, error } = parseThresholdInput(thresholdsInput);
+  if (error) return error;
+  return `Custom list active. Exclusions increase by 1 at each threshold: ${thresholds.join(', ')}.`;
+};
+
+const getDiscardExamples = (mode, thresholdsInput) => {
+  if (mode === 'standard') {
+    return 'Examples: 4 races = 1 discard | 8 races = 2 discards | 16 races = 3 discards | 24 races = 4 discards';
+  }
+
+  const { thresholds, error } = parseThresholdInput(thresholdsInput);
+  if (error) return '';
+
+  const sampleRaceCounts = thresholds.slice(0, 4);
+  if (sampleRaceCounts.length === 0) return '';
+
+  return sampleRaceCounts
     .map((raceCount) => {
-      let discardCount = 0;
-      if (raceCount >= normalized.firstDiscardAt) discardCount = 1;
-      if (raceCount >= normalized.secondDiscardAt) {
-        discardCount =
-          2 +
-          Math.floor(
-            (raceCount - normalized.secondDiscardAt) / normalized.additionalEvery,
-          );
-      }
+      const discardCount = thresholds.filter(
+        (threshold) => raceCount >= threshold,
+      ).length;
       return `${raceCount} races = ${discardCount} discard${discardCount === 1 ? '' : 's'}`;
     })
     .join(' | ');
@@ -99,16 +166,19 @@ function EventForm() {
   const [eventLocation, setEventLocation] = useState('');
   const [eventStartDate, setEventStartDate] = useState('');
   const [eventEndDate, setEventEndDate] = useState('');
+  const [advancedEnabled, setAdvancedEnabled] = useState(false);
   const [assignmentMode, setAssignmentMode] = useState('progressive');
   const [qualifyingDiscardMode, setQualifyingDiscardMode] =
     useState('standard');
-  const [qualifyingDiscardConfig, setQualifyingDiscardConfig] = useState({
-    ...DEFAULT_DISCARD_CONFIG,
-  });
+  const [qualifyingDiscardInput, setQualifyingDiscardInput] = useState(
+    DEFAULT_THRESHOLD_PREVIEW,
+  );
+  const [qualifyingDiscardError, setQualifyingDiscardError] = useState('');
   const [finalDiscardMode, setFinalDiscardMode] = useState('standard');
-  const [finalDiscardConfig, setFinalDiscardConfig] = useState({
-    ...DEFAULT_DISCARD_CONFIG,
-  });
+  const [finalDiscardInput, setFinalDiscardInput] = useState(
+    DEFAULT_THRESHOLD_PREVIEW,
+  );
+  const [finalDiscardError, setFinalDiscardError] = useState('');
   const [heatOverflowPolicy, setHeatOverflowPolicy] = useState('auto-increase');
   const [events, setEvents] = useState([]);
 
@@ -118,15 +188,20 @@ function EventForm() {
   const [editLocation, setEditLocation] = useState('');
   const [editStartDate, setEditStartDate] = useState('');
   const [editEndDate, setEditEndDate] = useState('');
+  const [editAdvancedEnabled, setEditAdvancedEnabled] = useState(false);
   const [editAssignmentMode, setEditAssignmentMode] = useState('progressive');
   const [editQualifyingDiscardMode, setEditQualifyingDiscardMode] =
     useState('standard');
-  const [editQualifyingDiscardConfig, setEditQualifyingDiscardConfig] =
-    useState({ ...DEFAULT_DISCARD_CONFIG });
+  const [editQualifyingDiscardInput, setEditQualifyingDiscardInput] = useState(
+    DEFAULT_THRESHOLD_PREVIEW,
+  );
+  const [editQualifyingDiscardError, setEditQualifyingDiscardError] =
+    useState('');
   const [editFinalDiscardMode, setEditFinalDiscardMode] = useState('standard');
-  const [editFinalDiscardConfig, setEditFinalDiscardConfig] = useState({
-    ...DEFAULT_DISCARD_CONFIG,
-  });
+  const [editFinalDiscardInput, setEditFinalDiscardInput] = useState(
+    DEFAULT_THRESHOLD_PREVIEW,
+  );
+  const [editFinalDiscardError, setEditFinalDiscardError] = useState('');
   const [editHeatOverflowPolicy, setEditHeatOverflowPolicy] =
     useState('auto-increase');
   const [editQualifyingDiscardLocked, setEditQualifyingDiscardLocked] =
@@ -150,26 +225,55 @@ function EventForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (advancedEnabled && qualifyingDiscardMode === 'custom') {
+      const validation = parseThresholdInput(qualifyingDiscardInput);
+      setQualifyingDiscardError(validation.error || '');
+      if (validation.error) {
+        reportInfo(validation.error, 'Invalid qualifying thresholds');
+        return;
+      }
+    }
+
+    if (advancedEnabled && finalDiscardMode === 'custom') {
+      const validation = parseThresholdInput(finalDiscardInput);
+      setFinalDiscardError(validation.error || '');
+      if (validation.error) {
+        reportInfo(validation.error, 'Invalid final thresholds');
+        return;
+      }
+    }
+
     try {
       await window.electron.sqlite.eventDB.insertEvent(
         eventName,
         eventLocation,
         eventStartDate,
         eventEndDate,
-        assignmentMode,
-        serializeDiscardProfile(qualifyingDiscardMode, qualifyingDiscardConfig),
-        serializeDiscardProfile(finalDiscardMode, finalDiscardConfig),
-        heatOverflowPolicy,
+        advancedEnabled ? assignmentMode : 'progressive',
+        advancedEnabled
+          ? serializeDiscardProfile(
+              qualifyingDiscardMode,
+              qualifyingDiscardInput,
+            )
+          : 'standard',
+        advancedEnabled
+          ? serializeDiscardProfile(finalDiscardMode, finalDiscardInput)
+          : 'standard',
+        advancedEnabled ? heatOverflowPolicy : 'auto-increase',
       );
       setEventName('');
       setEventLocation('');
       setEventStartDate('');
       setEventEndDate('');
+      setAdvancedEnabled(false);
       setAssignmentMode('progressive');
       setQualifyingDiscardMode('standard');
-      setQualifyingDiscardConfig({ ...DEFAULT_DISCARD_CONFIG });
+      setQualifyingDiscardInput(DEFAULT_THRESHOLD_PREVIEW);
+      setQualifyingDiscardError('');
       setFinalDiscardMode('standard');
-      setFinalDiscardConfig({ ...DEFAULT_DISCARD_CONFIG });
+      setFinalDiscardInput(DEFAULT_THRESHOLD_PREVIEW);
+      setFinalDiscardError('');
       setHeatOverflowPolicy('auto-increase');
       fetchEvents();
     } catch (error) {
@@ -195,13 +299,23 @@ function EventForm() {
     setEditLocation(event.event_location);
     setEditStartDate(event.start_date);
     setEditEndDate(event.end_date);
+    const hasAdvancedSettings =
+      (event.shrs_qualifying_assignment_mode || 'progressive') !==
+        'progressive' ||
+      (event.shrs_heat_overflow_policy || 'auto-increase') !==
+        'auto-increase' ||
+      qualifyingProfile.mode === 'custom' ||
+      finalProfile.mode === 'custom';
+    setEditAdvancedEnabled(hasAdvancedSettings);
     setEditAssignmentMode(
       event.shrs_qualifying_assignment_mode || 'progressive',
     );
     setEditQualifyingDiscardMode(qualifyingProfile.mode);
-    setEditQualifyingDiscardConfig(qualifyingProfile.config);
+    setEditQualifyingDiscardInput(qualifyingProfile.thresholdsInput);
+    setEditQualifyingDiscardError('');
     setEditFinalDiscardMode(finalProfile.mode);
-    setEditFinalDiscardConfig(finalProfile.config);
+    setEditFinalDiscardInput(finalProfile.thresholdsInput);
+    setEditFinalDiscardError('');
     setEditHeatOverflowPolicy(
       event.shrs_heat_overflow_policy || 'auto-increase',
     );
@@ -211,10 +325,38 @@ function EventForm() {
 
   const cancelEdit = () => {
     setEditingId(null);
+    setEditAdvancedEnabled(false);
   };
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
+
+    if (
+      editAdvancedEnabled &&
+      !editQualifyingDiscardLocked &&
+      editQualifyingDiscardMode === 'custom'
+    ) {
+      const validation = parseThresholdInput(editQualifyingDiscardInput);
+      setEditQualifyingDiscardError(validation.error || '');
+      if (validation.error) {
+        reportInfo(validation.error, 'Invalid qualifying thresholds');
+        return;
+      }
+    }
+
+    if (
+      editAdvancedEnabled &&
+      !editFinalDiscardLocked &&
+      editFinalDiscardMode === 'custom'
+    ) {
+      const validation = parseThresholdInput(editFinalDiscardInput);
+      setEditFinalDiscardError(validation.error || '');
+      if (validation.error) {
+        reportInfo(validation.error, 'Invalid final thresholds');
+        return;
+      }
+    }
+
     try {
       await window.electron.sqlite.eventDB.updateEvent(
         editingId,
@@ -222,15 +364,20 @@ function EventForm() {
         editLocation,
         editStartDate,
         editEndDate,
-        editAssignmentMode,
-        serializeDiscardProfile(
-          editQualifyingDiscardMode,
-          editQualifyingDiscardConfig,
-        ),
-        serializeDiscardProfile(editFinalDiscardMode, editFinalDiscardConfig),
-        editHeatOverflowPolicy,
+        editAdvancedEnabled ? editAssignmentMode : 'progressive',
+        editAdvancedEnabled
+          ? serializeDiscardProfile(
+              editQualifyingDiscardMode,
+              editQualifyingDiscardInput,
+            )
+          : 'standard',
+        editAdvancedEnabled
+          ? serializeDiscardProfile(editFinalDiscardMode, editFinalDiscardInput)
+          : 'standard',
+        editAdvancedEnabled ? editHeatOverflowPolicy : 'auto-increase',
       );
       setEditingId(null);
+      setEditAdvancedEnabled(false);
       fetchEvents();
     } catch (error) {
       reportError('Could not update the event.', error);
@@ -270,11 +417,22 @@ function EventForm() {
     marginBottom: '18px',
   };
 
-  const discardGridStyle = {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr 1fr',
-    gap: '6px',
-    marginTop: '6px',
+  const advancedToggleLabelStyle = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: '8px',
+    marginBottom: '14px',
+  };
+
+  const checkboxInputStyle = {
+    width: 'auto',
+    padding: 0,
+    border: 'none',
+    borderRadius: 0,
+    boxShadow: 'none',
+    background: 'transparent',
+    margin: 0,
   };
 
   const getAssignmentLabel = (event) =>
@@ -289,29 +447,33 @@ function EventForm() {
 
   const handleQualifyingDiscardModeChange = (value) => {
     setQualifyingDiscardMode(value);
+    setQualifyingDiscardError('');
     if (value === 'standard') {
-      setQualifyingDiscardConfig({ ...DEFAULT_DISCARD_CONFIG });
+      setQualifyingDiscardInput(DEFAULT_THRESHOLD_PREVIEW);
     }
   };
 
   const handleFinalDiscardModeChange = (value) => {
     setFinalDiscardMode(value);
+    setFinalDiscardError('');
     if (value === 'standard') {
-      setFinalDiscardConfig({ ...DEFAULT_DISCARD_CONFIG });
+      setFinalDiscardInput(DEFAULT_THRESHOLD_PREVIEW);
     }
   };
 
   const handleEditQualifyingDiscardModeChange = (value) => {
     setEditQualifyingDiscardMode(value);
+    setEditQualifyingDiscardError('');
     if (value === 'standard') {
-      setEditQualifyingDiscardConfig({ ...DEFAULT_DISCARD_CONFIG });
+      setEditQualifyingDiscardInput(DEFAULT_THRESHOLD_PREVIEW);
     }
   };
 
   const handleEditFinalDiscardModeChange = (value) => {
     setEditFinalDiscardMode(value);
+    setEditFinalDiscardError('');
     if (value === 'standard') {
-      setEditFinalDiscardConfig({ ...DEFAULT_DISCARD_CONFIG });
+      setEditFinalDiscardInput(DEFAULT_THRESHOLD_PREVIEW);
     }
   };
 
@@ -371,164 +533,136 @@ function EventForm() {
             </label>
           </div>
         </div>
-        <div style={settingsFieldStyle}>
-          <div>
-            <label htmlFor="assignmentMode">
-              Qualifying Assignment Mode
-              <select
-                id="assignmentMode"
-                value={assignmentMode}
-                onChange={(e) => setAssignmentMode(e.target.value)}
-              >
-                <option value="progressive">Progressive Assignment</option>
-                <option value="pre-assigned">Pre-Assignments</option>
-              </select>
-            </label>
+        <label
+          htmlFor="advancedSettingsToggle"
+          style={advancedToggleLabelStyle}
+        >
+          <input
+            id="advancedSettingsToggle"
+            type="checkbox"
+            style={checkboxInputStyle}
+            checked={advancedEnabled}
+            onChange={(e) => setAdvancedEnabled(e.target.checked)}
+          />
+          Advanced SHRS options
+        </label>
+
+        {advancedEnabled && (
+          <div style={settingsFieldStyle}>
+            <div>
+              <label htmlFor="assignmentMode">
+                Qualifying Assignment Mode
+                <select
+                  id="assignmentMode"
+                  value={assignmentMode}
+                  onChange={(e) => setAssignmentMode(e.target.value)}
+                >
+                  <option value="progressive">Progressive Assignment</option>
+                  <option value="pre-assigned">Pre-Assignments</option>
+                </select>
+              </label>
+            </div>
+            <div>
+              <label htmlFor="overflowPolicy">
+                Heat Overflow Policy
+                <select
+                  id="overflowPolicy"
+                  value={heatOverflowPolicy}
+                  onChange={(e) => setHeatOverflowPolicy(e.target.value)}
+                >
+                  <option value="auto-increase">
+                    Auto-increase number of heats
+                  </option>
+                  <option value="confirm-allow-oversize">
+                    Allow oversize only after confirm
+                  </option>
+                </select>
+              </label>
+            </div>
+            <div>
+              <label htmlFor="qualDiscardProfile">
+                Qualifying Discards
+                <select
+                  id="qualDiscardProfile"
+                  value={qualifyingDiscardMode}
+                  onChange={(e) =>
+                    handleQualifyingDiscardModeChange(e.target.value)
+                  }
+                >
+                  <option value="standard">Standard SHRS 5.4</option>
+                  <option value="custom">Custom thresholds list</option>
+                </select>
+                {qualifyingDiscardMode === 'custom' && (
+                  <input
+                    type="text"
+                    value={qualifyingDiscardInput}
+                    onChange={(e) => {
+                      setQualifyingDiscardInput(e.target.value);
+                      const validation = parseThresholdInput(e.target.value);
+                      setQualifyingDiscardError(validation.error || '');
+                    }}
+                    placeholder="e.g. 4,8,16,24"
+                    title="Enter comma-separated thresholds"
+                  />
+                )}
+                {qualifyingDiscardError && (
+                  <small style={{ color: '#B42318', display: 'block' }}>
+                    {qualifyingDiscardError}
+                  </small>
+                )}
+                <small style={{ color: '#5D6D7E', display: 'block' }}>
+                  {getDiscardSummary(
+                    qualifyingDiscardMode,
+                    qualifyingDiscardInput,
+                  )}
+                </small>
+                <small style={{ color: '#5D6D7E', display: 'block' }}>
+                  {getDiscardExamples(
+                    qualifyingDiscardMode,
+                    qualifyingDiscardInput,
+                  )}
+                </small>
+              </label>
+            </div>
+            <div>
+              <label htmlFor="finalDiscardProfile">
+                Finals Discards
+                <select
+                  id="finalDiscardProfile"
+                  value={finalDiscardMode}
+                  onChange={(e) => handleFinalDiscardModeChange(e.target.value)}
+                >
+                  <option value="standard">Standard SHRS 5.4</option>
+                  <option value="custom">Custom thresholds list</option>
+                </select>
+                {finalDiscardMode === 'custom' && (
+                  <input
+                    type="text"
+                    value={finalDiscardInput}
+                    onChange={(e) => {
+                      setFinalDiscardInput(e.target.value);
+                      const validation = parseThresholdInput(e.target.value);
+                      setFinalDiscardError(validation.error || '');
+                    }}
+                    placeholder="e.g. 4,8,16,24"
+                    title="Enter comma-separated thresholds"
+                  />
+                )}
+                {finalDiscardError && (
+                  <small style={{ color: '#B42318', display: 'block' }}>
+                    {finalDiscardError}
+                  </small>
+                )}
+                <small style={{ color: '#5D6D7E', display: 'block' }}>
+                  {getDiscardSummary(finalDiscardMode, finalDiscardInput)}
+                </small>
+                <small style={{ color: '#5D6D7E', display: 'block' }}>
+                  {getDiscardExamples(finalDiscardMode, finalDiscardInput)}
+                </small>
+              </label>
+            </div>
           </div>
-          <div>
-            <label htmlFor="overflowPolicy">
-              Heat Overflow Policy
-              <select
-                id="overflowPolicy"
-                value={heatOverflowPolicy}
-                onChange={(e) => setHeatOverflowPolicy(e.target.value)}
-              >
-                <option value="auto-increase">
-                  Auto-increase number of heats
-                </option>
-                <option value="confirm-allow-oversize">
-                  Allow oversize only after confirm
-                </option>
-              </select>
-            </label>
-          </div>
-          <div>
-            <label htmlFor="qualDiscardProfile">
-              Qualifying Discards
-              <select
-                id="qualDiscardProfile"
-                value={qualifyingDiscardMode}
-                onChange={(e) => handleQualifyingDiscardModeChange(e.target.value)}
-              >
-                <option value="standard">Standard SHRS 5.4</option>
-                <option value="custom">Custom thresholds</option>
-              </select>
-              <div style={discardGridStyle}>
-                <input
-                  type="number"
-                  min="1"
-                  disabled={qualifyingDiscardMode !== 'custom'}
-                  value={qualifyingDiscardConfig.firstDiscardAt}
-                  onChange={(e) =>
-                    setQualifyingDiscardConfig((prev) => ({
-                      ...prev,
-                      firstDiscardAt: Number(e.target.value) || 1,
-                    }))
-                  }
-                  title="First discard at N races"
-                />
-                <input
-                  type="number"
-                  min="2"
-                  disabled={qualifyingDiscardMode !== 'custom'}
-                  value={qualifyingDiscardConfig.secondDiscardAt}
-                  onChange={(e) =>
-                    setQualifyingDiscardConfig((prev) => ({
-                      ...prev,
-                      secondDiscardAt: Number(e.target.value) || 2,
-                    }))
-                  }
-                  title="Second discard at N races"
-                />
-                <input
-                  type="number"
-                  min="1"
-                  disabled={qualifyingDiscardMode !== 'custom'}
-                  value={qualifyingDiscardConfig.additionalEvery}
-                  onChange={(e) =>
-                    setQualifyingDiscardConfig((prev) => ({
-                      ...prev,
-                      additionalEvery: Number(e.target.value) || 1,
-                    }))
-                  }
-                  title="Additional discard every N races"
-                />
-              </div>
-              <small style={{ color: '#5D6D7E' }}>
-                Meaning of the 3 numbers: first discard starts at N1 races, second at N2 races, then one extra discard every N3 races.
-              </small>
-              <small style={{ color: '#5D6D7E', display: 'block' }}>
-                {getDiscardSummary(qualifyingDiscardConfig)}
-              </small>
-              <small style={{ color: '#5D6D7E', display: 'block' }}>
-                {getDiscardExamples(qualifyingDiscardConfig)}
-              </small>
-            </label>
-          </div>
-          <div>
-            <label htmlFor="finalDiscardProfile">
-              Finals Discards
-              <select
-                id="finalDiscardProfile"
-                value={finalDiscardMode}
-                onChange={(e) => handleFinalDiscardModeChange(e.target.value)}
-              >
-                <option value="standard">Standard SHRS 5.4</option>
-                <option value="custom">Custom thresholds</option>
-              </select>
-              <div style={discardGridStyle}>
-                <input
-                  type="number"
-                  min="1"
-                  disabled={finalDiscardMode !== 'custom'}
-                  value={finalDiscardConfig.firstDiscardAt}
-                  onChange={(e) =>
-                    setFinalDiscardConfig((prev) => ({
-                      ...prev,
-                      firstDiscardAt: Number(e.target.value) || 1,
-                    }))
-                  }
-                  title="First discard at N races"
-                />
-                <input
-                  type="number"
-                  min="2"
-                  disabled={finalDiscardMode !== 'custom'}
-                  value={finalDiscardConfig.secondDiscardAt}
-                  onChange={(e) =>
-                    setFinalDiscardConfig((prev) => ({
-                      ...prev,
-                      secondDiscardAt: Number(e.target.value) || 2,
-                    }))
-                  }
-                  title="Second discard at N races"
-                />
-                <input
-                  type="number"
-                  min="1"
-                  disabled={finalDiscardMode !== 'custom'}
-                  value={finalDiscardConfig.additionalEvery}
-                  onChange={(e) =>
-                    setFinalDiscardConfig((prev) => ({
-                      ...prev,
-                      additionalEvery: Number(e.target.value) || 1,
-                    }))
-                  }
-                  title="Additional discard every N races"
-                />
-              </div>
-              <small style={{ color: '#5D6D7E' }}>
-                Same logic for Finals: N1/N2/N3 define when discards start and how they grow.
-              </small>
-              <small style={{ color: '#5D6D7E', display: 'block' }}>
-                {getDiscardSummary(finalDiscardConfig)}
-              </small>
-              <small style={{ color: '#5D6D7E', display: 'block' }}>
-                {getDiscardExamples(finalDiscardConfig)}
-              </small>
-            </label>
-          </div>
-        </div>
+        )}
         <button type="submit" className="btn-success">
           <i className="fa fa-plus-circle" aria-hidden="true" /> Create Event
         </button>
@@ -611,208 +745,198 @@ function EventForm() {
                         </label>
                       </div>
                     </div>
-                    <div style={settingsFieldStyle}>
-                      <div>
-                        <label htmlFor={`editAssignment-${event.event_id}`}>
-                          Qualifying Assignment Mode
-                          <select
-                            id={`editAssignment-${event.event_id}`}
-                            value={editAssignmentMode}
-                            onChange={(e) =>
-                              setEditAssignmentMode(e.target.value)
-                            }
-                          >
-                            <option value="progressive">
-                              Progressive Assignment
-                            </option>
-                            <option value="pre-assigned">
-                              Pre-Assignments
-                            </option>
-                          </select>
-                        </label>
-                      </div>
-                      <div>
-                        <label htmlFor={`editOverflow-${event.event_id}`}>
-                          Heat Overflow Policy
-                          <select
-                            id={`editOverflow-${event.event_id}`}
-                            value={editHeatOverflowPolicy}
-                            onChange={(e) =>
-                              setEditHeatOverflowPolicy(e.target.value)
-                            }
-                          >
-                            <option value="auto-increase">
-                              Auto-increase number of heats
-                            </option>
-                            <option value="confirm-allow-oversize">
-                              Allow oversize only after confirm
-                            </option>
-                          </select>
-                        </label>
-                      </div>
-                      <div>
-                        <label htmlFor={`editQualDiscard-${event.event_id}`}>
-                          Qualifying Discards
-                          <select
-                            id={`editQualDiscard-${event.event_id}`}
-                            value={editQualifyingDiscardMode}
-                            disabled={editQualifyingDiscardLocked}
-                            onChange={(e) =>
-                              handleEditQualifyingDiscardModeChange(
-                                e.target.value,
-                              )
-                            }
-                          >
-                            <option value="standard">Standard SHRS 5.4</option>
-                            <option value="custom">Custom thresholds</option>
-                          </select>
-                          <div style={discardGridStyle}>
-                            <input
-                              type="number"
-                              min="1"
-                              disabled={
-                                editQualifyingDiscardLocked ||
-                                editQualifyingDiscardMode !== 'custom'
-                              }
-                              value={editQualifyingDiscardConfig.firstDiscardAt}
+                    <label
+                      htmlFor={`editAdvanced-${event.event_id}`}
+                      style={advancedToggleLabelStyle}
+                    >
+                      <input
+                        id={`editAdvanced-${event.event_id}`}
+                        type="checkbox"
+                        style={checkboxInputStyle}
+                        checked={editAdvancedEnabled}
+                        onChange={(e) =>
+                          setEditAdvancedEnabled(e.target.checked)
+                        }
+                      />
+                      Advanced SHRS options
+                    </label>
+
+                    {editAdvancedEnabled && (
+                      <div style={settingsFieldStyle}>
+                        <div>
+                          <label htmlFor={`editAssignment-${event.event_id}`}>
+                            Qualifying Assignment Mode
+                            <select
+                              id={`editAssignment-${event.event_id}`}
+                              value={editAssignmentMode}
                               onChange={(e) =>
-                                setEditQualifyingDiscardConfig((prev) => ({
-                                  ...prev,
-                                  firstDiscardAt: Number(e.target.value) || 1,
-                                }))
+                                setEditAssignmentMode(e.target.value)
                               }
-                              title="First discard at N races"
-                            />
-                            <input
-                              type="number"
-                              min="2"
-                              disabled={
-                                editQualifyingDiscardLocked ||
-                                editQualifyingDiscardMode !== 'custom'
-                              }
-                              value={
-                                editQualifyingDiscardConfig.secondDiscardAt
-                              }
+                            >
+                              <option value="progressive">
+                                Progressive Assignment
+                              </option>
+                              <option value="pre-assigned">
+                                Pre-Assignments
+                              </option>
+                            </select>
+                          </label>
+                        </div>
+                        <div>
+                          <label htmlFor={`editOverflow-${event.event_id}`}>
+                            Heat Overflow Policy
+                            <select
+                              id={`editOverflow-${event.event_id}`}
+                              value={editHeatOverflowPolicy}
                               onChange={(e) =>
-                                setEditQualifyingDiscardConfig((prev) => ({
-                                  ...prev,
-                                  secondDiscardAt: Number(e.target.value) || 2,
-                                }))
+                                setEditHeatOverflowPolicy(e.target.value)
                               }
-                              title="Second discard at N races"
-                            />
-                            <input
-                              type="number"
-                              min="1"
-                              disabled={
-                                editQualifyingDiscardLocked ||
-                                editQualifyingDiscardMode !== 'custom'
-                              }
-                              value={
-                                editQualifyingDiscardConfig.additionalEvery
-                              }
+                            >
+                              <option value="auto-increase">
+                                Auto-increase number of heats
+                              </option>
+                              <option value="confirm-allow-oversize">
+                                Allow oversize only after confirm
+                              </option>
+                            </select>
+                          </label>
+                        </div>
+                        <div>
+                          <label htmlFor={`editQualDiscard-${event.event_id}`}>
+                            Qualifying Discards
+                            <select
+                              id={`editQualDiscard-${event.event_id}`}
+                              value={editQualifyingDiscardMode}
+                              disabled={editQualifyingDiscardLocked}
                               onChange={(e) =>
-                                setEditQualifyingDiscardConfig((prev) => ({
-                                  ...prev,
-                                  additionalEvery: Number(e.target.value) || 1,
-                                }))
+                                handleEditQualifyingDiscardModeChange(
+                                  e.target.value,
+                                )
                               }
-                              title="Additional discard every N races"
-                            />
-                          </div>
-                          <small style={{ color: '#5D6D7E', display: 'block' }}>
-                            {getDiscardSummary(editQualifyingDiscardConfig)}
-                          </small>
-                          <small style={{ color: '#5D6D7E', display: 'block' }}>
-                            {getDiscardExamples(editQualifyingDiscardConfig)}
-                          </small>
-                          {editQualifyingDiscardLocked && (
-                            <small style={{ color: '#6B849A' }}>
-                              Locked after first qualifying race.
+                            >
+                              <option value="standard">
+                                Standard SHRS 5.4
+                              </option>
+                              <option value="custom">
+                                Custom thresholds list
+                              </option>
+                            </select>
+                            {editQualifyingDiscardMode === 'custom' && (
+                              <input
+                                type="text"
+                                disabled={editQualifyingDiscardLocked}
+                                value={editQualifyingDiscardInput}
+                                onChange={(e) => {
+                                  setEditQualifyingDiscardInput(e.target.value);
+                                  const validation = parseThresholdInput(
+                                    e.target.value,
+                                  );
+                                  setEditQualifyingDiscardError(
+                                    validation.error || '',
+                                  );
+                                }}
+                                placeholder="e.g. 4,8,16,24"
+                                title="Enter comma-separated thresholds"
+                              />
+                            )}
+                            {editQualifyingDiscardError && (
+                              <small
+                                style={{ color: '#B42318', display: 'block' }}
+                              >
+                                {editQualifyingDiscardError}
+                              </small>
+                            )}
+                            <small
+                              style={{ color: '#5D6D7E', display: 'block' }}
+                            >
+                              {getDiscardSummary(
+                                editQualifyingDiscardMode,
+                                editQualifyingDiscardInput,
+                              )}
                             </small>
-                          )}
-                        </label>
-                      </div>
-                      <div>
-                        <label htmlFor={`editFinalDiscard-${event.event_id}`}>
-                          Finals Discards
-                          <select
-                            id={`editFinalDiscard-${event.event_id}`}
-                            value={editFinalDiscardMode}
-                            disabled={editFinalDiscardLocked}
-                            onChange={(e) =>
-                              handleEditFinalDiscardModeChange(
-                                e.target.value,
-                              )
-                            }
-                          >
-                            <option value="standard">Standard SHRS 5.4</option>
-                            <option value="custom">Custom thresholds</option>
-                          </select>
-                          <div style={discardGridStyle}>
-                            <input
-                              type="number"
-                              min="1"
-                              disabled={
-                                editFinalDiscardLocked ||
-                                editFinalDiscardMode !== 'custom'
-                              }
-                              value={editFinalDiscardConfig.firstDiscardAt}
-                              onChange={(e) =>
-                                setEditFinalDiscardConfig((prev) => ({
-                                  ...prev,
-                                  firstDiscardAt: Number(e.target.value) || 1,
-                                }))
-                              }
-                              title="First discard at N races"
-                            />
-                            <input
-                              type="number"
-                              min="2"
-                              disabled={
-                                editFinalDiscardLocked ||
-                                editFinalDiscardMode !== 'custom'
-                              }
-                              value={editFinalDiscardConfig.secondDiscardAt}
-                              onChange={(e) =>
-                                setEditFinalDiscardConfig((prev) => ({
-                                  ...prev,
-                                  secondDiscardAt: Number(e.target.value) || 2,
-                                }))
-                              }
-                              title="Second discard at N races"
-                            />
-                            <input
-                              type="number"
-                              min="1"
-                              disabled={
-                                editFinalDiscardLocked ||
-                                editFinalDiscardMode !== 'custom'
-                              }
-                              value={editFinalDiscardConfig.additionalEvery}
-                              onChange={(e) =>
-                                setEditFinalDiscardConfig((prev) => ({
-                                  ...prev,
-                                  additionalEvery: Number(e.target.value) || 1,
-                                }))
-                              }
-                              title="Additional discard every N races"
-                            />
-                          </div>
-                          <small style={{ color: '#5D6D7E', display: 'block' }}>
-                            {getDiscardSummary(editFinalDiscardConfig)}
-                          </small>
-                          <small style={{ color: '#5D6D7E', display: 'block' }}>
-                            {getDiscardExamples(editFinalDiscardConfig)}
-                          </small>
-                          {editFinalDiscardLocked && (
-                            <small style={{ color: '#6B849A' }}>
-                              Locked after first final race.
+                            <small
+                              style={{ color: '#5D6D7E', display: 'block' }}
+                            >
+                              {getDiscardExamples(
+                                editQualifyingDiscardMode,
+                                editQualifyingDiscardInput,
+                              )}
                             </small>
-                          )}
-                        </label>
+                            {editQualifyingDiscardLocked && (
+                              <small style={{ color: '#6B849A' }}>
+                                Locked after first qualifying race.
+                              </small>
+                            )}
+                          </label>
+                        </div>
+                        <div>
+                          <label htmlFor={`editFinalDiscard-${event.event_id}`}>
+                            Finals Discards
+                            <select
+                              id={`editFinalDiscard-${event.event_id}`}
+                              value={editFinalDiscardMode}
+                              disabled={editFinalDiscardLocked}
+                              onChange={(e) =>
+                                handleEditFinalDiscardModeChange(e.target.value)
+                              }
+                            >
+                              <option value="standard">
+                                Standard SHRS 5.4
+                              </option>
+                              <option value="custom">
+                                Custom thresholds list
+                              </option>
+                            </select>
+                            {editFinalDiscardMode === 'custom' && (
+                              <input
+                                type="text"
+                                disabled={editFinalDiscardLocked}
+                                value={editFinalDiscardInput}
+                                onChange={(e) => {
+                                  setEditFinalDiscardInput(e.target.value);
+                                  const validation = parseThresholdInput(
+                                    e.target.value,
+                                  );
+                                  setEditFinalDiscardError(
+                                    validation.error || '',
+                                  );
+                                }}
+                                placeholder="e.g. 4,8,16,24"
+                                title="Enter comma-separated thresholds"
+                              />
+                            )}
+                            {editFinalDiscardError && (
+                              <small
+                                style={{ color: '#B42318', display: 'block' }}
+                              >
+                                {editFinalDiscardError}
+                              </small>
+                            )}
+                            <small
+                              style={{ color: '#5D6D7E', display: 'block' }}
+                            >
+                              {getDiscardSummary(
+                                editFinalDiscardMode,
+                                editFinalDiscardInput,
+                              )}
+                            </small>
+                            <small
+                              style={{ color: '#5D6D7E', display: 'block' }}
+                            >
+                              {getDiscardExamples(
+                                editFinalDiscardMode,
+                                editFinalDiscardInput,
+                              )}
+                            </small>
+                            {editFinalDiscardLocked && (
+                              <small style={{ color: '#6B849A' }}>
+                                Locked after first final race.
+                              </small>
+                            )}
+                          </label>
+                        </div>
                       </div>
-                    </div>
+                    )}
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <button type="submit" className="btn-success">
                         <i className="fa fa-check" aria-hidden="true" /> Save

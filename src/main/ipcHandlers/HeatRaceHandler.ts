@@ -13,6 +13,11 @@ import {
   getNextHeatIndexByMovementTable,
 } from '../functions/creatingNewHeatsUtls';
 import calculateFinalBoatScores from '../functions/calculateFinalBoatScores';
+import {
+  DiscardConfig,
+  getEventDiscardConfig,
+  getExcludeCountForConfig,
+} from '../functions/discardConfig';
 
 console.log('HeatRaceHandler.ts loaded');
 
@@ -356,12 +361,6 @@ function normalizeScoreStatus(status: unknown): string {
   return normalized;
 }
 
-function getExcludeCount(numberOfRaces: number): number {
-  if (numberOfRaces < 4) return 0;
-  if (numberOfRaces < 8) return 1;
-  return 2 + Math.floor((numberOfRaces - 8) / 8);
-}
-
 function roundHalfUp(value: number): number {
   return Math.floor(value + 0.5 + Number.EPSILON);
 }
@@ -376,8 +375,9 @@ function getScoringPenaltyPoints(
 
 function getKeptSeriesPoints(
   scores: { points: number; status?: string; race_number?: number; race_id?: number }[],
+  discardConfig: DiscardConfig,
 ): number[] {
-  const excludeCount = getExcludeCount(scores.length);
+  const excludeCount = getExcludeCountForConfig(scores.length, discardConfig);
   if (excludeCount <= 0) {
     return scores.map((entry) => entry.points);
   }
@@ -434,11 +434,14 @@ type OverallTiePacket = {
   a82AllScores: number[];
 };
 
-function buildSeriesPacket(scores: OverallRaceScore[]): {
+function buildSeriesPacketWithConfig(
+  scores: OverallRaceScore[],
+  discardConfig: DiscardConfig,
+): {
   keptForA81: number[];
   allForA82: number[];
 } {
-  const keptForA81 = getKeptSeriesPoints(scores).sort((a, b) => a - b);
+  const keptForA81 = getKeptSeriesPoints(scores, discardConfig).sort((a, b) => a - b);
   const allForA82 = [...scores]
     .sort((a, b) => b.race_number - a.race_number || b.race_id - a.race_id)
     .map((entry) => entry.points);
@@ -460,8 +463,14 @@ function buildOverallTiePacket(event_id: any, boat_id: any): OverallTiePacket {
   const qualScores = scoreRows.filter((row) => row.heat_type === 'Qualifying');
   const finalScores = scoreRows.filter((row) => row.heat_type === 'Final');
 
-  const qualPacket = buildSeriesPacket(qualScores);
-  const finalPacket = buildSeriesPacket(finalScores);
+  const qualifyingDiscardConfig = getEventDiscardConfig(event_id, 'qualifying');
+  const finalDiscardConfig = getEventDiscardConfig(event_id, 'final');
+
+  const qualPacket = buildSeriesPacketWithConfig(
+    qualScores,
+    qualifyingDiscardConfig,
+  );
+  const finalPacket = buildSeriesPacketWithConfig(finalScores, finalDiscardConfig);
 
   const byRaceId = new Map<number, OverallRaceScore>();
   scoreRows.forEach((row) => {
@@ -1188,6 +1197,8 @@ function buildAdjustedFleetLeaderboard(
     race_points: string | null;
     race_statuses: string | null;
   }>,
+  qualifyingDiscardConfig: DiscardConfig,
+  applyShs43TemporarySecondDiscard = true,
 ): Array<{ boat_id: number; totalPoints: number }> {
   return leaderboard.map((boat) => {
     const rawPoints = parseNumberCsv(boat.race_points);
@@ -1199,8 +1210,8 @@ function buildAdjustedFleetLeaderboard(
     }));
 
     const n = raceEntries.length;
-    let excludeCount = getExcludeCount(n);
-    if (n > 5 && n < 8) {
+    let excludeCount = getExcludeCountForConfig(n, qualifyingDiscardConfig);
+    if (applyShs43TemporarySecondDiscard && n > 5 && n < 8) {
       excludeCount += 1;
     }
 
@@ -1438,6 +1449,18 @@ ipcMain.handle('readAllRaces', async (event, heat_id) => {
 
 ipcMain.handle('insertRace', async (event, heat_id, race_number) => {
   try {
+    const heatRow = db
+      .prepare('SELECT event_id FROM Heats WHERE heat_id = ?')
+      .get(heat_id) as { event_id?: number } | undefined;
+
+    if (heatRow?.event_id == null) {
+      throw new Error('Heat not found.');
+    }
+
+    if (isEventLocked(heatRow.event_id)) {
+      throw new Error('Cannot insert race for locked event.');
+    }
+
     const result = db
       .prepare('INSERT INTO Races (heat_id, race_number) VALUES (?, ?)')
       .run(heat_id, race_number);
@@ -1465,6 +1488,23 @@ ipcMain.handle(
   'insertScore',
   async (event, race_id, boat_id, position, points, status) => {
     try {
+      const raceRow = db
+        .prepare(
+          `SELECT h.event_id
+           FROM Races r
+           JOIN Heats h ON h.heat_id = r.heat_id
+           WHERE r.race_id = ?`,
+        )
+        .get(race_id) as { event_id?: number } | undefined;
+
+      if (raceRow?.event_id == null) {
+        throw new Error('Race not found.');
+      }
+
+      if (isEventLocked(raceRow.event_id)) {
+        throw new Error('Cannot insert score for locked event.');
+      }
+
       const normalizedStatus = normalizeScoreStatus(status);
       const updated = db
         .prepare(
@@ -1583,7 +1623,12 @@ ipcMain.handle('deleteScore', async (event, score_id) => {
 
 ipcMain.handle(
   'startFinalSeriesAtomic',
-  async (_event, event_id, allow_oversize_confirm = false) => {
+  async (
+    _event,
+    event_id,
+    allow_oversize_confirm = false,
+    apply_shrs43_temporary_second_discard = true,
+  ) => {
   if (isEventLocked(event_id)) {
     throw new Error('Cannot start final series for locked event.');
   }
@@ -1660,7 +1705,12 @@ ipcMain.handle(
       throw new Error('Cannot start final series without qualifying leaderboard data.');
     }
 
-    const adjustedLeaderboard = buildAdjustedFleetLeaderboard(leaderboard);
+    const qualifyingDiscardConfig = getEventDiscardConfig(event_id, 'qualifying');
+    const adjustedLeaderboard = buildAdjustedFleetLeaderboard(
+      leaderboard,
+      qualifyingDiscardConfig,
+      apply_shrs43_temporary_second_discard === true,
+    );
     const withdrawnBoatIds = new Set(
       leaderboard
         .filter((boat) => {
