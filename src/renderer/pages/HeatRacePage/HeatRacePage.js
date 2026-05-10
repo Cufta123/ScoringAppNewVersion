@@ -127,7 +127,7 @@ function HeatRacePage() {
         Math.floor((maxHeatSize || placeNumbers.length) * 0.2 + 0.5),
         2,
       );
-      const scoringPenaltyStatuses = new Set(['ZFP', 'SCP']);
+      const scoringPenaltyStatuses = new Set(['ZFP', 'SCP', 'T1']);
 
       const boats = await window.electron.sqlite.heatRaceDB.readBoatsByHeat(
         selectedHeat.heat_id,
@@ -453,7 +453,6 @@ function HeatRacePage() {
           <ScoringInputComponent
             heat={selectedHeat}
             onSubmit={handleSubmitScores}
-            onBack={handleBackToHeats}
           />
         )}
       </main>

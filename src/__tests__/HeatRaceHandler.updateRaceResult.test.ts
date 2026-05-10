@@ -167,6 +167,27 @@ function baseScenario(): Scenario {
   };
 }
 
+function makePrng(seed: number) {
+  let state = seed >>> 0;
+  return () => {
+    state = (1664525 * state + 1013904223) >>> 0;
+    return state / 0x100000000;
+  };
+}
+
+function randInt(prng: () => number, min: number, max: number) {
+  return Math.floor(prng() * (max - min + 1)) + min;
+}
+
+function pick<T>(prng: () => number, values: T[]): T {
+  return values[randInt(prng, 0, values.length - 1)];
+}
+
+function normalizeStatusForTest(status: string): string {
+  const normalized = status.trim().toUpperCase();
+  return normalized === 'RAF' ? 'RET' : normalized;
+}
+
 describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
   beforeAll(() => {
     require('../main/ipcHandlers/HeatRaceHandler');
@@ -252,6 +273,34 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     expect(shiftCall?.args).toEqual([500, 2]);
   });
 
+  it('applies mandatory A6.1 shift when FINISHED -> DNE', async () => {
+    currentScenario.currentPosition = 3;
+    currentScenario.currentStatus = 'FINISHED';
+
+    const handler = handlerRegistry.updateRaceResult;
+    await handler({}, 99, 500, 'B1', 3, false, 'DNE');
+
+    const shiftCall = runCalls.find((call) =>
+      sqlContains(call.sql, 'WHERE race_id = ? AND status = \'FINISHED\' AND position > ?'),
+    );
+    expect(shiftCall).toBeDefined();
+    expect(shiftCall?.args).toEqual([500, 3]);
+  });
+
+  it('applies mandatory A6.1 shift when FINISHED -> DGM', async () => {
+    currentScenario.currentPosition = 5;
+    currentScenario.currentStatus = 'FINISHED';
+
+    const handler = handlerRegistry.updateRaceResult;
+    await handler({}, 99, 500, 'B1', 5, false, 'DGM');
+
+    const shiftCall = runCalls.find((call) =>
+      sqlContains(call.sql, 'WHERE race_id = ? AND status = \'FINISHED\' AND position > ?'),
+    );
+    expect(shiftCall).toBeDefined();
+    expect(shiftCall?.args).toEqual([500, 5]);
+  });
+
   it('does not apply mandatory A6.1 shift when previous status was not FINISHED', async () => {
     currentScenario.currentPosition = 3;
     currentScenario.currentStatus = 'DNS';
@@ -263,6 +312,218 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
       sqlContains(call.sql, 'WHERE race_id = ? AND status = \'FINISHED\' AND position > ?'),
     );
     expect(shiftCall).toBeUndefined();
+  });
+
+  it('does not apply mandatory A6.1 shift when status is non-disqualification penalty', async () => {
+    currentScenario.currentPosition = 4;
+    currentScenario.currentStatus = 'FINISHED';
+
+    const handler = handlerRegistry.updateRaceResult;
+    await handler({}, 99, 500, 'B1', 4, false, 'DPI');
+
+    const shiftCall = runCalls.find((call) =>
+      sqlContains(call.sql, 'WHERE race_id = ? AND status = \'FINISHED\' AND position > ?'),
+    );
+    expect(shiftCall).toBeUndefined();
+  });
+
+  it('applies shift_positions move-up branch when FINISHED boat improves place', async () => {
+    currentScenario.currentPosition = 6;
+    currentScenario.currentStatus = 'FINISHED';
+
+    const handler = handlerRegistry.updateRaceResult;
+    await handler({}, 99, 500, 'B1', 2, true, 'FINISHED');
+
+    const shiftCall = runCalls.find((call) =>
+      sqlContains(call.sql, 'position >= ? AND position < ? AND boat_id != ?'),
+    );
+    expect(shiftCall).toBeDefined();
+    expect(shiftCall?.args).toEqual([500, 2, 6, 'B1']);
+  });
+
+  it('applies shift_positions move-down branch when FINISHED boat drops place', async () => {
+    currentScenario.currentPosition = 2;
+    currentScenario.currentStatus = 'FINISHED';
+
+    const handler = handlerRegistry.updateRaceResult;
+    await handler({}, 99, 500, 'B1', 7, true, 'FINISHED');
+
+    const shiftCall = runCalls.find((call) =>
+      sqlContains(call.sql, 'position <= ? AND position > ? AND boat_id != ?'),
+    );
+    expect(shiftCall).toBeDefined();
+    expect(shiftCall?.args).toEqual([500, 7, 2, 'B1']);
+  });
+
+  it('keeps RDG position/points as provided without penalty normalization', async () => {
+    currentScenario.maxBoats = 5;
+    const handler = handlerRegistry.updateRaceResult;
+    await handler({}, 99, 500, 'B1', 8, false, 'RDG2');
+
+    const updateMain = runCalls.find((call) =>
+      sqlContains(call.sql, 'UPDATE Scores SET position = ?, points = ?, status = ?'),
+    );
+    expect(updateMain?.args.slice(0, 3)).toEqual([8, 8, 'RDG2']);
+  });
+
+  it('rejects unsupported score status', async () => {
+    const handler = handlerRegistry.updateRaceResult;
+    await expect(handler({}, 99, 500, 'B1', 3, false, 'FOO')).rejects.toThrow(
+      'Unsupported score status: FOO',
+    );
+  });
+
+  it('property-based: A6.1 displacement happens iff FINISHED -> (DSQ|RET|DNE|DGM)', async () => {
+    const handler = handlerRegistry.updateRaceResult;
+    const prng = makePrng(20260510);
+
+    const possiblePreviousStatuses = [
+      'FINISHED',
+      'DNS',
+      'DNF',
+      'RET',
+      'DSQ',
+      'DNE',
+      'DGM',
+      'RDG1',
+      'SCP',
+      'ZFP',
+      'T1',
+      'DPI',
+      'OCS',
+      'UFD',
+      'BFD',
+      'DNC',
+      'NSC',
+      'WTH',
+    ];
+
+    const possibleNewStatuses = [
+      'FINISHED',
+      'DSQ',
+      'RET',
+      'DNE',
+      'DGM',
+      'RAF',
+      'DNS',
+      'DNF',
+      'SCP',
+      'ZFP',
+      'T1',
+      'DPI',
+      'RDG1',
+      'RDG2',
+      'RDG3',
+      'OCS',
+      'UFD',
+      'BFD',
+      'DNC',
+      'NSC',
+      'WTH',
+    ];
+
+    const displacementStatuses = new Set(['DSQ', 'RET', 'DNE', 'DGM']);
+
+    for (let i = 0; i < 300; i += 1) {
+      runCalls.length = 0;
+      currentScenario.currentPosition = randInt(prng, 1, 20);
+      currentScenario.currentStatus = pick(prng, possiblePreviousStatuses);
+
+      const newStatus = pick(prng, possibleNewStatuses);
+      const newPosition = randInt(prng, 1, 20);
+
+      await handler({}, 99, 500, 'B1', newPosition, false, newStatus);
+
+      const hasMandatoryShift = runCalls.some((call) =>
+        sqlContains(call.sql, 'WHERE race_id = ? AND status = \'FINISHED\' AND position > ?'),
+      );
+
+      const expectedShift =
+        currentScenario.currentStatus === 'FINISHED' &&
+        displacementStatuses.has(normalizeStatusForTest(newStatus));
+
+      expect(hasMandatoryShift).toBe(expectedShift);
+    }
+  });
+
+  it('property-based: A6.1 mandatory shift SQL uses exact previous currentPosition', async () => {
+    const handler = handlerRegistry.updateRaceResult;
+    const prng = makePrng(20260511);
+
+    const possiblePreviousStatuses = [
+      'FINISHED',
+      'DNS',
+      'DNF',
+      'RET',
+      'DSQ',
+      'DNE',
+      'DGM',
+      'RDG1',
+      'SCP',
+      'ZFP',
+      'T1',
+      'DPI',
+      'OCS',
+      'UFD',
+      'BFD',
+      'DNC',
+      'NSC',
+      'WTH',
+    ];
+
+    const possibleNewStatuses = [
+      'FINISHED',
+      'DSQ',
+      'RET',
+      'DNE',
+      'DGM',
+      'RAF',
+      'DNS',
+      'DNF',
+      'SCP',
+      'ZFP',
+      'T1',
+      'DPI',
+      'RDG1',
+      'RDG2',
+      'RDG3',
+      'OCS',
+      'UFD',
+      'BFD',
+      'DNC',
+      'NSC',
+      'WTH',
+    ];
+
+    const displacementStatuses = new Set(['DSQ', 'RET', 'DNE', 'DGM']);
+
+    for (let i = 0; i < 300; i += 1) {
+      runCalls.length = 0;
+      currentScenario.currentPosition = randInt(prng, 1, 20);
+      currentScenario.currentStatus = pick(prng, possiblePreviousStatuses);
+
+      const previousPosition = currentScenario.currentPosition;
+      const previousStatus = currentScenario.currentStatus;
+      const newStatus = pick(prng, possibleNewStatuses);
+      const newPosition = randInt(prng, 1, 20);
+
+      await handler({}, 99, 500, 'B1', newPosition, false, newStatus);
+
+      const shiftCalls = runCalls.filter((call) =>
+        sqlContains(call.sql, 'WHERE race_id = ? AND status = \'FINISHED\' AND position > ?'),
+      );
+
+      const expectedShift =
+        previousStatus === 'FINISHED' &&
+        displacementStatuses.has(normalizeStatusForTest(newStatus));
+
+      if (expectedShift) {
+        expect(shiftCalls).toHaveLength(1);
+        expect(shiftCalls[0].args).toEqual([500, previousPosition]);
+      } else {
+        expect(shiftCalls).toHaveLength(0);
+      }
+    }
   });
 
   it('applies A7 tie points by averaging tied places', async () => {

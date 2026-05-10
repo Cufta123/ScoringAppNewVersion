@@ -190,18 +190,30 @@ ipcMain.handle('lockEvent', async (event, event_id) => {
           `
         SELECT
           fl.boat_id,
+          COALESCE(lb.total_points_event, 0) + fl.total_points_final AS overall_points,
           fl.total_points_final,
+          COALESCE(lb.total_points_event, 0) AS total_points_event,
           fl.placement_group,
+          fl.place AS final_place,
           b.sail_number AS boat_number,
           b.model AS boat_type,
           s.name,
           s.surname,
           b.country
         FROM FinalLeaderboard fl
+        LEFT JOIN Leaderboard lb ON lb.boat_id = fl.boat_id AND lb.event_id = fl.event_id
         LEFT JOIN Boats b ON fl.boat_id = b.boat_id
         LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id
         WHERE fl.event_id = ?
-        ORDER BY fl.placement_group, fl.total_points_final ASC
+        ORDER BY CASE fl.placement_group
+          WHEN 'Gold' THEN 1
+          WHEN 'Silver' THEN 2
+          WHEN 'Bronze' THEN 3
+          WHEN 'Copper' THEN 4
+          ELSE 5
+        END,
+        overall_points ASC,
+        fl.place ASC
       `,
         )
         .all(event_id);

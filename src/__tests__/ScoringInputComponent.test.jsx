@@ -381,17 +381,17 @@ describe('ScoringInputComponent', () => {
       },
       {
         boatNumber: 103,
-        place: 1,
+        place: 2,
         status: 'DNF',
       },
       {
         boatNumber: 102,
-        place: 2,
+        place: 3,
         status: 'DNS',
       },
       {
         boatNumber: 104,
-        place: 3,
+        place: 4,
         status: 'DSQ',
       },
     ]);

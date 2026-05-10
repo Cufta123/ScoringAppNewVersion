@@ -310,7 +310,7 @@ function FinalFleetTable({
                       color: 'var(--navy)',
                     }}
                   >
-                    {index + 1}
+                    {entry.overall_rank ?? index + 1}
                   </td>
 
                   {/* Name */}

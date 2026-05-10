@@ -244,7 +244,7 @@ function ScoringInputComponent({ heat, onSubmit }) {
     const boatPlaces = [];
     const includedBoats = new Set();
     let finishingPlace = 1;
-    let penaltyPlace = finishingPlace;
+    let penaltyPlace = null;
 
     orderedBoatNumbers.forEach((boatNumber) => {
       includedBoats.add(boatNumber);
@@ -265,6 +265,10 @@ function ScoringInputComponent({ heat, onSubmit }) {
         return;
       }
 
+      if (penaltyPlace === null) {
+        penaltyPlace = finishingPlace;
+      }
+
       boatPlaces.push({
         boatNumber,
         place: penaltyPlace,
@@ -277,6 +281,9 @@ function ScoringInputComponent({ heat, onSubmit }) {
     // the ordered list, still include it in the submitted payload.
     validBoats.forEach((boatNumber) => {
       if (includedBoats.has(boatNumber) || !penalties[boatNumber]) return;
+      if (penaltyPlace === null) {
+        penaltyPlace = finishingPlace;
+      }
       boatPlaces.push({
         boatNumber,
         place: penaltyPlace,

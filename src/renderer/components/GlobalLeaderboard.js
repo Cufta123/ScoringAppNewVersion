@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import React, { useState, useEffect } from 'react';
 import Flag from 'react-world-flags';
 import ExcelJS from 'exceljs';
@@ -12,32 +11,62 @@ function GlobalLeaderboardComponent() {
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const getFlagCode = (iocCode) => iocToFlagCodeMap[iocCode] || iocCode;
+
+  const mapAndSortLeaderboard = (results) => {
+    const rows = (results || []).map((entry) => ({
+      ...entry,
+      total_points_global: Number(entry.total_points_global || 0),
+      name: entry.name || '',
+      surname: entry.surname || '',
+      boat_number: entry.boat_number || '',
+      boat_type: entry.boat_type || '',
+      country: entry.country || '',
+    }));
+
+    rows.sort((left, right) => {
+      if (left.total_points_global !== right.total_points_global) {
+        return left.total_points_global - right.total_points_global;
+      }
+
+      const surnameCmp = left.surname.localeCompare(right.surname);
+      if (surnameCmp !== 0) return surnameCmp;
+
+      const nameCmp = left.name.localeCompare(right.name);
+      if (nameCmp !== 0) return nameCmp;
+
+      return String(left.boat_number).localeCompare(String(right.boat_number), undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      });
+    });
+
+    return rows;
+  };
+
   useEffect(() => {
+    let isActive = true;
+
     const fetchGlobalLeaderboard = async () => {
       try {
-          const results = await window.electron.sqlite.heatRaceDB.readGlobalLeaderboard();
-          console.log('Fetched global leaderboard:', results);
+        const results = await window.electron.sqlite.heatRaceDB.readGlobalLeaderboard();
+        if (!isActive) return;
 
-          const mappedLeaderboard = (results || []).map((entry) => ({
-            ...entry,
-            sailor: `${entry.name} ${entry.surname}`,
-            club: entry.club_name, // Map club_name
-            country: entry.country, // Map country
-            category: entry.category_name, // Map category_name
-          }));
-
-          // Sort the leaderboard by total_points in descending order
-          mappedLeaderboard.sort((a, b) => a.total_points_global - b.total_points_global);
-
-          setLeaderboard(mappedLeaderboard);
+        setLeaderboard(mapAndSortLeaderboard(results));
       } catch (error) {
+        if (!isActive) return;
         reportError('Could not load global leaderboard.', error);
       } finally {
+        if (!isActive) return;
         setLoading(false);
       }
     };
 
     fetchGlobalLeaderboard();
+
+    return () => {
+      isActive = false;
+    };
   }, []);
 
   if (loading) {
@@ -52,10 +81,6 @@ function GlobalLeaderboardComponent() {
       />
     );
   }
-  const getFlagCode = (iocCode) => {
-    return iocToFlagCodeMap[iocCode] || iocCode;
-  };
-
   const exportToExcel = async () => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Global Leaderboard');
@@ -120,18 +145,18 @@ function GlobalLeaderboardComponent() {
           {leaderboard.map((entry, index) => (
             <tr key={entry.boat_id}>
               <td>{index + 1}</td>
-              <td>{entry.name}</td>
-              <td>{entry.surname}</td>
+              <td>{entry.name || '—'}</td>
+              <td>{entry.surname || '—'}</td>
               <td>{entry.boat_number}</td>
-              <td>{entry.boat_type}</td>
-               <td>
-                    <Flag
-                      code={getFlagCode(entry.country)}
-                      alt={`${entry.country} flag`}
-                      style={{ width: '30px', marginRight: '5px' }}
-                    />
-                    {entry.country}
-                  </td>
+              <td>{entry.boat_type || '—'}</td>
+              <td>
+                <Flag
+                  code={getFlagCode(entry.country)}
+                  alt={`${entry.country || 'Unknown'} flag`}
+                  style={{ width: '30px', marginRight: '5px' }}
+                />
+                {entry.country || '—'}
+              </td>
               <td>{entry.total_points_global}</td>
             </tr>
           ))}

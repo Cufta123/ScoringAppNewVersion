@@ -195,7 +195,7 @@ function QualifyingTable({
                 >
                   {/* Rank */}
                   <td style={{ padding: '8px 12px', fontWeight: 700, color: 'var(--navy)' }}>
-                    {index + 1}
+                    {entry.place ?? index + 1}
                   </td>
 
                   {/* Name */}

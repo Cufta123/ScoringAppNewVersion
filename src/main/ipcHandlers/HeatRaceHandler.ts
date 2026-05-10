@@ -288,7 +288,7 @@ const lockDiscardProfileForRace = (race_id: number) => {
   }
 };
 
-// SHRS 2023 (5.3) is source-of-truth for displacement order.
+// SHRS 2026-1 (5.3) is source-of-truth for displacement order.
 // Appendix-only statuses are appended as fallback when SHRS text is silent.
 const shrsPrimaryStatusOrder = [
   'DNF',
@@ -319,7 +319,7 @@ const statusRankMap = new Map<string, number>(
 const rdgStatuses = ['RDG1', 'RDG2', 'RDG3'];
 const scoringPenaltyStatuses = new Set(['ZFP', 'SCP', 'T1']);
 const nonExcludableStatuses = new Set(['DNE', 'DGM']);
-const mandatoryDisplaceStatuses = new Set(['DSQ', 'RET']);
+const mandatoryDisplaceStatuses = new Set(['DSQ', 'RET', 'DNE', 'DGM']);
 const penaltyStatuses = [
   'DNF',
   'DNS',

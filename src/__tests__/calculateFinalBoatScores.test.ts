@@ -237,7 +237,7 @@ describe('Tie-breaking A82 within final group', () => {
 });
 
 describe('A8.1 regression in final group', () => {
-  it('does not use excluded scores in A8.1 for standard final-group ties', () => {
+  it('uses excluded scores in A8.1 for standard final-group ties', () => {
     setupMockDb(
       {
         boatA: [10, 10, 3, 2, 2, 1, 1, 1],
@@ -258,8 +258,39 @@ describe('A8.1 regression in final group', () => {
     );
     const gold = groupTables.get('Gold')!;
     const byBoat = Object.fromEntries(gold.map((b) => [b.boat_id, b.place]));
-    expect(byBoat.boatA).toBe(1);
-    expect(byBoat.boatB).toBe(2);
+    expect(byBoat.boatB).toBe(1);
+    expect(byBoat.boatA).toBe(2);
+  });
+
+  it('explicitly resolves a tie by excluded scores when kept scores and A82 are equal', () => {
+    // Both boats have identical kept scores after 2 discards at 8 races:
+    // kept -> [3,2,2,1,1,1]
+    // Tie must therefore be broken by excluded scores in A8.1:
+    // boatA excluded [8,7] vs boatB excluded [6,5] => boatB wins.
+    setupMockDb(
+      {
+        boatA: [8, 7, 3, 2, 2, 1, 1, 1],
+        boatB: [6, 5, 3, 2, 2, 1, 1, 1],
+      },
+      {
+        // Keep A82 identical so this test isolates A8.1 behavior only.
+        boatA: [1, 1, 1, 2, 2, 3, 4, 4],
+        boatB: [1, 1, 1, 2, 2, 3, 4, 4],
+      },
+    );
+
+    const groupTables = calculateFinalBoatScores(
+      [
+        makeResult('boatA', 'Final Gold'),
+        makeResult('boatB', 'Final Gold'),
+      ],
+      1,
+    );
+
+    const gold = groupTables.get('Gold')!;
+    const byBoat = Object.fromEntries(gold.map((b) => [b.boat_id, b.place]));
+    expect(byBoat.boatB).toBe(1);
+    expect(byBoat.boatA).toBe(2);
   });
 });
 

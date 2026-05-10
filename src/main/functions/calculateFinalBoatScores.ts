@@ -20,7 +20,8 @@ interface TemporaryTableEntry {
 interface TieCandidate {
   boat_id: string;
   heat_name: string;
-  keptScores: number[];
+  allScoresForA81: number[];
+  a82Scores: number[];
 }
 
 interface ScoreEntry {
@@ -157,32 +158,32 @@ export default function calculateFinalBoatScores(
             results.find((row) => row.boat_id === boat_id)?.heat_name ??
             `Final ${groupName}`;
           const scoreEntries = getScoresForA81(event_id, boat_id, boatHeatName);
-          const excludeCount = getExcludeCountForConfig(
-            scoreEntries.length,
-            discardConfig,
-          );
-          const keptScores = getKeptScores(scoreEntries, excludeCount).sort(
+          const a82Scores = getScoresForA82(event_id, boat_id, boatHeatName);
+          const allScoresForA81 = scoreEntries
+            .map((entry) => entry.points)
+            .sort(
             (a: number, b: number) => a - b,
           );
           return {
             boat_id,
             heat_name: boatHeatName,
-            keptScores,
+            allScoresForA81,
+            a82Scores,
           };
         });
 
-        // A8.1: Compare best individual scores, then A8.2 (last race backward)
+        // SHRS 5.7(ii)(2): tie-break uses excluded scores (all race scores).
+        // Then apply A8.2 from last race backward.
         const compareTieCandidates = (a: TieCandidate, b: TieCandidate) => {
-          // Standard A8.1: excluded scores are NOT used.
           const initialComparison = compareA81Scores(
-            a.keptScores,
-            b.keptScores,
+            a.allScoresForA81,
+            b.allScoresForA81,
           );
 
           if (initialComparison !== 0) return initialComparison;
 
-          const scoresA = getScoresForA82(event_id, a.boat_id, a.heat_name);
-          const scoresB = getScoresForA82(event_id, b.boat_id, b.heat_name);
+          const scoresA = a.a82Scores;
+          const scoresB = b.a82Scores;
 
           const maxLength = Math.max(scoresA.length, scoresB.length);
           for (let i = 0; i < maxLength; i += 1) {

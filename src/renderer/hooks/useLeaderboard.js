@@ -45,7 +45,7 @@ export default function useLeaderboard(eventId) {
 
   const roundToNearestTenthHalfUp = (value) =>
     Math.round((value + Number.EPSILON) * 10) / 10;
-  const scoringPenaltyStatuses = new Set(['ZFP', 'SCP']);
+  const scoringPenaltyStatuses = new Set(['ZFP', 'SCP', 'T1']);
   const activeDiscardProfile = finalSeriesStarted
     ? discardProfiles.final
     : discardProfiles.qualifying;

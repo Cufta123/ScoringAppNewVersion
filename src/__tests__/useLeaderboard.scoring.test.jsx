@@ -119,6 +119,27 @@ describe('useLeaderboard scoring/edit flow', () => {
     expect(edited.computed_total).toBe(4);
   });
 
+  it('keeps position for T1 scoring penalty in edit mode', async () => {
+    const { result } = renderHook(() => useLeaderboard(1));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.toggleEditMode();
+    });
+
+    act(() => {
+      result.current.handleRaceChange('b2', 0, 2, 'T1');
+    });
+
+    const edited = result.current.editableLeaderboard.find(
+      (e) => e.boat_id === 'b2',
+    );
+    expect(edited.races[0]).toBe('2');
+    expect(edited.race_statuses[0]).toBe('T1');
+    expect(edited.computed_total).toBe(2);
+  });
+
   it('shifts other boats when changing place with shiftPositions enabled', async () => {
     const { result } = renderHook(() => useLeaderboard(1));
 

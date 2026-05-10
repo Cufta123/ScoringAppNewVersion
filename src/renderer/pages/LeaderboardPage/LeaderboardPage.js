@@ -223,8 +223,13 @@ function LeaderboardPage() {
   const { event } = location.state || {};
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
+  useEffect(() => {
+    if (!event) {
+      navigate('/');
+    }
+  }, [event, navigate]);
+
   if (!event) {
-    navigate('/');
     return null;
   }
 
