@@ -64,6 +64,17 @@ function getExcludeCountForProfile(racesCount, discardProfile) {
   return thresholds.filter((threshold) => racesCount >= threshold).length;
 }
 
+function getCompletedQualifyingRaceCountFromLeaderboard(leaderboardRows) {
+  if (!Array.isArray(leaderboardRows) || leaderboardRows.length === 0) {
+    return 0;
+  }
+
+  return leaderboardRows.reduce((maxCount, row) => {
+    const racePoints = parseNumberCsv(row?.race_points);
+    return Math.max(maxCount, racePoints.length);
+  }, 0);
+}
+
 export function buildAdjustedFleetLeaderboard(
   leaderboard,
   applyShs43TemporarySecondDiscard = true,
@@ -128,7 +139,10 @@ function HeatComponent({
   const [finalSeriesStarted, setFinalSeriesStarted] = useState(false);
   const [showFinalConfirm, setShowFinalConfirm] = useState(false);
   const [pendingFinalHeats, setPendingFinalHeats] = useState(0);
-  const [pendingQualifyingRaceCount, setPendingQualifyingRaceCount] = useState(0);
+  const [
+    pendingShs43TemporarySecondDiscard,
+    setPendingShs43TemporarySecondDiscard,
+  ] = useState(true);
   const [numQualifyingGroups, setNumQualifyingGroups] = useState(0);
   const [newHeatsFormat, setNewHeatsFormat] = useState('excel');
   const [snapshotHistory, setSnapshotHistory] = useState([]);
@@ -162,7 +176,10 @@ function HeatComponent({
 
   const rememberSnapshot = useCallback(
     (filePath) => {
-      const fileName = String(filePath || '').split(/[\\/]/).pop() || 'snapshot.json';
+      const fileName =
+        String(filePath || '')
+          .split(/[\\/]/)
+          .pop() || 'snapshot.json';
       const entry = {
         fileName,
         savedAt: new Date().toISOString(),
@@ -248,26 +265,16 @@ function HeatComponent({
   }, [loadSnapshotHistory]);
 
   const handleConfirmFinalSeries = async (
-    allowOversizeConfirm = false,
+    allowOversizeConfirm,
     shrs43ApplyChoice,
   ) => {
     const allowOversize = allowOversizeConfirm === true;
     setShowFinalConfirm(false);
 
-    let applyShs43TemporarySecondDiscard = shrs43ApplyChoice;
-    if (applyShs43TemporarySecondDiscard == null) {
-      const shouldAskForShs43Choice =
-        pendingQualifyingRaceCount > 5 && pendingQualifyingRaceCount < 8;
-
-      if (shouldAskForShs43Choice) {
-        applyShs43TemporarySecondDiscard = await confirmAction(
-          'SHRS 2026-1 Rule 4.3 applies for 6-7 completed qualifying races.\n\nConfirm: Apply Rule 4.3 and temporarily exclude each boat\'s second worst race score only for final-fleet ranking.\nCancel: Do not apply Rule 4.3 and keep ranking without this temporary second exclusion.',
-          'Apply SHRS 2026-1 Rule 4.3?',
-        );
-      } else {
-        applyShs43TemporarySecondDiscard = true;
-      }
-    }
+    const applyShs43TemporarySecondDiscard =
+      shrs43ApplyChoice == null
+        ? pendingShs43TemporarySecondDiscard
+        : shrs43ApplyChoice;
 
     try {
       if (allowOversize) {
@@ -300,10 +307,7 @@ function HeatComponent({
         if (!proceed) {
           return;
         }
-        await handleConfirmFinalSeries(
-          true,
-          applyShs43TemporarySecondDiscard,
-        );
+        await handleConfirmFinalSeries(true, applyShs43TemporarySecondDiscard);
         return;
       }
       reportError('Could not start final series.', error);
@@ -373,7 +377,29 @@ function HeatComponent({
         );
         return;
       }
-      setPendingQualifyingRaceCount(uniqueCounts[0]);
+
+      // Prefer completed-race count derived from leaderboard points. This avoids
+      // missing SHRS 4.3 prompt when next-round heats/races are created but not sailed.
+      let completedQualifyingRaces = uniqueCounts[0] || 0;
+      if (
+        typeof window?.electron?.sqlite?.heatRaceDB?.readLeaderboard ===
+        'function'
+      ) {
+        try {
+          const leaderboardRows =
+            await window.electron.sqlite.heatRaceDB.readLeaderboard(
+              event.event_id,
+            );
+          const fromLeaderboard =
+            getCompletedQualifyingRaceCountFromLeaderboard(leaderboardRows);
+          if (fromLeaderboard > 0) {
+            completedQualifyingRaces = fromLeaderboard;
+          }
+        } catch (_error) {
+          // Keep fallback count from latest heat race rows.
+        }
+      }
+
       if (uniqueCounts[0] === 0) {
         const proceed = await confirmAction(
           'No qualifying races have been completed yet. Boats will be assigned to fleets based on their initial seeding only.\n\nStart the Final Series anyway?',
@@ -383,8 +409,8 @@ function HeatComponent({
       }
 
       const canSnapshot =
-        typeof window?.electron?.sqlite?.heatRaceDB?.exportEventSnapshotToFile ===
-        'function';
+        typeof window?.electron?.sqlite?.heatRaceDB
+          ?.exportEventSnapshotToFile === 'function';
       if (canSnapshot) {
         const saveSnapshotNow = await confirmAction(
           'Before starting the Final Series, do you want to save a recovery snapshot file now?\n\nThis allows you to restore the event state later if needed.',
@@ -412,6 +438,20 @@ function HeatComponent({
           }
         }
       }
+
+      let applyShs43TemporarySecondDiscard = true;
+      if (completedQualifyingRaces > 5 && completedQualifyingRaces < 8) {
+        applyShs43TemporarySecondDiscard = await confirmAction(
+          "SHRS 2026-1 Rule 4.3 applies for 6-7 completed qualifying races.\n\nConfirm: Apply Rule 4.3 and temporarily exclude each boat's second worst race score only for final-fleet ranking.\nCancel: Do not apply Rule 4.3 and keep ranking without this temporary second exclusion.",
+          'Apply SHRS 2026-1 Rule 4.3?',
+          {
+            confirmLabel: 'Apply Rule 4.3',
+            cancelLabel: 'Skip Rule 4.3',
+            confirmClassName: 'btn-success',
+          },
+        );
+      }
+      setPendingShs43TemporarySecondDiscard(applyShs43TemporarySecondDiscard);
 
       setPendingFinalHeats(numFinalHeats);
       setShowFinalConfirm(true);
@@ -631,9 +671,10 @@ function HeatComponent({
 
   const handleSaveSnapshot = async () => {
     try {
-      const result = await window.electron.sqlite.heatRaceDB.exportEventSnapshotToFile(
-        event.event_id,
-      );
+      const result =
+        await window.electron.sqlite.heatRaceDB.exportEventSnapshotToFile(
+          event.event_id,
+        );
       if (result?.canceled) return;
       rememberSnapshot(result?.filePath);
       reportInfo('Recovery snapshot saved successfully.', 'Snapshot saved');
@@ -651,9 +692,10 @@ function HeatComponent({
     if (!confirmed) return;
 
     try {
-      const result = await window.electron.sqlite.heatRaceDB.restoreEventSnapshotFromFile(
-        event.event_id,
-      );
+      const result =
+        await window.electron.sqlite.heatRaceDB.restoreEventSnapshotFromFile(
+          event.event_id,
+        );
       if (result?.canceled) return;
 
       setFinalSeriesStarted(false);
@@ -922,7 +964,8 @@ function HeatComponent({
             </span>
           </div>
           <span style={{ fontSize: '.85rem', color: '#6B849A' }}>
-            Advances the event to the final fleet stage based on current standings.
+            Advances the event to the final fleet stage based on current
+            standings.
           </span>
         </div>
       )}
@@ -966,12 +1009,17 @@ function HeatComponent({
             background: '#F7FBFF',
           }}
         >
-          <div style={{ fontSize: '.88rem', fontWeight: 700, marginBottom: '6px' }}>
+          <div
+            style={{ fontSize: '.88rem', fontWeight: 700, marginBottom: '6px' }}
+          >
             Last snapshots
           </div>
           <ul style={{ margin: 0, paddingLeft: '18px' }}>
             {snapshotHistory.map((item) => (
-              <li key={`${item.fileName}-${item.savedAt}`} style={{ fontSize: '.82rem', color: '#4D6276' }}>
+              <li
+                key={`${item.fileName}-${item.savedAt}`}
+                style={{ fontSize: '.82rem', color: '#4D6276' }}
+              >
                 {item.fileName} - {new Date(item.savedAt).toLocaleString()}
               </li>
             ))}

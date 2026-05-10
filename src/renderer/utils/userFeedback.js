@@ -30,7 +30,13 @@ export const reportInfo = (message, title = 'Notice') => {
   toast.info(`${title}: ${body}`);
 };
 
-const buildConfirmDialog = ({ title, body }) => {
+const buildConfirmDialog = ({
+  title,
+  body,
+  confirmLabel = 'Confirm',
+  cancelLabel = 'Cancel',
+  confirmClassName = 'btn-danger',
+}) => {
   const overlay = document.createElement('div');
   overlay.className = 'feedback-modal-overlay';
 
@@ -54,12 +60,12 @@ const buildConfirmDialog = ({ title, body }) => {
   const cancelButton = document.createElement('button');
   cancelButton.type = 'button';
   cancelButton.className = 'btn-outline';
-  cancelButton.textContent = 'Cancel';
+  cancelButton.textContent = cancelLabel;
 
   const confirmButton = document.createElement('button');
   confirmButton.type = 'button';
-  confirmButton.className = 'btn-danger';
-  confirmButton.textContent = 'Confirm';
+  confirmButton.className = confirmClassName;
+  confirmButton.textContent = confirmLabel;
 
   actions.append(cancelButton, confirmButton);
   dialog.append(heading, messageNode, actions);
@@ -68,8 +74,21 @@ const buildConfirmDialog = ({ title, body }) => {
   return { overlay, cancelButton, confirmButton };
 };
 
-export const confirmAction = (message, title = 'Please confirm') => {
+export const confirmAction = (message, title = 'Please confirm', options = {}) => {
   const body = message || 'Are you sure you want to continue?';
+  const confirmLabel =
+    typeof options?.confirmLabel === 'string' && options.confirmLabel.trim()
+      ? options.confirmLabel
+      : 'Confirm';
+  const cancelLabel =
+    typeof options?.cancelLabel === 'string' && options.cancelLabel.trim()
+      ? options.cancelLabel
+      : 'Cancel';
+  const confirmClassName =
+    typeof options?.confirmClassName === 'string' &&
+    options.confirmClassName.trim()
+      ? options.confirmClassName
+      : 'btn-danger';
 
   if (typeof document === 'undefined') {
     return Promise.resolve(false);
@@ -79,6 +98,9 @@ export const confirmAction = (message, title = 'Please confirm') => {
     const { overlay, cancelButton, confirmButton } = buildConfirmDialog({
       title,
       body,
+      confirmLabel,
+      cancelLabel,
+      confirmClassName,
     });
     const dialog = overlay.querySelector('.feedback-modal');
     const previousActive = document.activeElement;
