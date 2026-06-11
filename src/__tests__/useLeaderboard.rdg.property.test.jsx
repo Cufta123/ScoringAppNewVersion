@@ -145,33 +145,10 @@ describe('Property-based: RDG1/RDG2/RDG3 random stress', () => {
         .map((r, i) => ({
           index: i,
           value: parseScore(r),
-          status: beforeRdg1.race_statuses?.[i] || 'FINISHED',
         }))
-        .filter(
-          ({ index, status, value }) =>
-            index !== rdg1Index &&
-            ![
-              'DNF',
-              'DNS',
-              'DSQ',
-              'OCS',
-              'ZFP',
-              'RET',
-              'SCP',
-              'BFD',
-              'UFD',
-              'DNC',
-              'NSC',
-              'WTH',
-              'DNE',
-              'DGM',
-              'DPI',
-              'RDG1',
-              'RDG2',
-              'RDG3',
-            ].includes(status) &&
-            value !== null,
-        )
+        // RRS A9(a): all races except the race in question; penalty
+        // scores are the boat's points and are included in the average.
+        .filter(({ index, value }) => index !== rdg1Index && value !== null)
         .map((x) => x.value);
 
       const expectedRdg1 =
@@ -218,65 +195,12 @@ describe('Property-based: RDG1/RDG2/RDG3 random stress', () => {
 
       const rdg2FinalValues = [...selectedFinalIndices]
         .filter((i) => i !== rdg2Index)
-        .map((i) => {
-          const status = currentEntry.race_statuses?.[i] || 'FINISHED';
-          if (
-            [
-              'DNF',
-              'DNS',
-              'DSQ',
-              'OCS',
-              'ZFP',
-              'RET',
-              'SCP',
-              'BFD',
-              'UFD',
-              'DNC',
-              'NSC',
-              'WTH',
-              'DNE',
-              'DGM',
-              'DPI',
-              'RDG1',
-              'RDG2',
-              'RDG3',
-            ].includes(status)
-          ) {
-            return null;
-          }
-          return parseScore(currentEntry.races[i]);
-        })
+        // RRS A9(b): points in the selected races, penalties included.
+        .map((i) => parseScore(currentEntry.races[i]))
         .filter((v) => v !== null);
 
       const rdg2QualValues = [...selectedQualIndices]
-        .map((i) => {
-          const status = qualEntry.race_statuses?.[i] || 'FINISHED';
-          if (
-            [
-              'DNF',
-              'DNS',
-              'DSQ',
-              'OCS',
-              'ZFP',
-              'RET',
-              'SCP',
-              'BFD',
-              'UFD',
-              'DNC',
-              'NSC',
-              'WTH',
-              'DNE',
-              'DGM',
-              'DPI',
-              'RDG1',
-              'RDG2',
-              'RDG3',
-            ].includes(status)
-          ) {
-            return null;
-          }
-          return parseScore(qualEntry.races[i]);
-        })
+        .map((i) => parseScore(qualEntry.races[i]))
         .filter((v) => v !== null);
 
       const rdg2Pool = [...rdg2QualValues, ...rdg2FinalValues];

@@ -168,8 +168,8 @@ describe('ScoringInputComponent', () => {
 
     expect(onSubmit).not.toHaveBeenCalled();
     expect(reportInfo).toHaveBeenCalledWith(
-      'All boats must be assigned a place or a penalty before submitting.',
-      'Incomplete scoring',
+      expect.stringContaining('Still missing: sail 102'),
+      'Some boats are not scored yet',
     );
   });
 

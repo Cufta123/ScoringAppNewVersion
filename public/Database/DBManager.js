@@ -336,6 +336,20 @@ const initializeSchema = () => {
 );
 `;
 
+  // SHRS 3.1.5: heat assignments must not change after a protest decision.
+  // Snapshots of the pre-protest ranking order are persisted here so they
+  // survive application restarts.
+  const createRaceAssignmentSnapshotsTable = `
+  CREATE TABLE IF NOT EXISTS RaceAssignmentSnapshots (
+  race_id INTEGER NOT NULL,
+  rank INTEGER NOT NULL,
+  boat_id INTEGER NOT NULL,
+  PRIMARY KEY (race_id, rank),
+  FOREIGN KEY (race_id) REFERENCES Races(race_id),
+  FOREIGN KEY (boat_id) REFERENCES Boats(boat_id)
+);
+`;
+
   try {
     console.log('Creating Events table...');
     db.exec(createEventsTable);
@@ -391,6 +405,10 @@ const initializeSchema = () => {
     console.log('Creating FinalLeaderboard table...');
     db.exec(createFinalLeaderboardTable);
     console.log('FinalLeaderboard table created or already exists.');
+
+    console.log('Creating RaceAssignmentSnapshots table...');
+    db.exec(createRaceAssignmentSnapshotsTable);
+    console.log('RaceAssignmentSnapshots table created or already exists.');
 
     console.log('Database schema initialized successfully.');
   } catch (error) {

@@ -220,13 +220,13 @@ describe('T1 integration: scoring flow to leaderboard display', () => {
       'FINISHED',
     );
 
-    // maxHeatSize=10 -> penaltyPlace=11, scoringPenaltyPlaces=2, place=2 => points=4
+    // maxHeatSize=10 -> RRS T1 penalty = 30% rounded half-up = 3, place=2 => points=5
     expect(window.electron.sqlite.heatRaceDB.insertScore).toHaveBeenNthCalledWith(
       2,
       901,
       2,
       2,
-      4,
+      5,
       'T1',
     );
 

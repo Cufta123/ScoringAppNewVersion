@@ -226,6 +226,14 @@ function EventForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (eventStartDate && eventEndDate && eventEndDate < eventStartDate) {
+      reportInfo(
+        'The end date is before the start date. Please pick an end date that is the same day or later.',
+        'Check the event dates',
+      );
+      return;
+    }
+
     if (advancedEnabled && qualifyingDiscardMode === 'custom') {
       const validation = parseThresholdInput(qualifyingDiscardInput);
       setQualifyingDiscardError(validation.error || '');
@@ -331,6 +339,14 @@ function EventForm() {
   const handleEditSubmit = async (e) => {
     e.preventDefault();
 
+    if (editStartDate && editEndDate && editEndDate < editStartDate) {
+      reportInfo(
+        'The end date is before the start date. Please pick an end date that is the same day or later.',
+        'Check the event dates',
+      );
+      return;
+    }
+
     if (
       editAdvancedEnabled &&
       !editQualifyingDiscardLocked &&
@@ -388,8 +404,9 @@ function EventForm() {
     e.stopPropagation();
 
     const confirmed = await confirmAction(
-      'Delete this event and all associated data?',
+      'This will permanently delete the event together with all its sailors, heats, races and scores. This cannot be undone.\n\nDelete this event?',
       'Delete event',
+      { confirmLabel: 'Delete permanently', cancelLabel: 'Keep event' },
     );
 
     if (!confirmed) return;
@@ -527,6 +544,7 @@ function EventForm() {
                 id="evtEnd"
                 type="date"
                 value={eventEndDate}
+                min={eventStartDate || undefined}
                 onChange={(e) => setEventEndDate(e.target.value)}
                 required
               />
@@ -739,6 +757,7 @@ function EventForm() {
                             id={`editEnd-${event.event_id}`}
                             type="date"
                             value={editEndDate}
+                            min={editStartDate || undefined}
                             onChange={(e) => setEditEndDate(e.target.value)}
                             required
                           />

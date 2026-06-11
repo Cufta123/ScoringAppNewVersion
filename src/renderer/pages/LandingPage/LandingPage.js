@@ -40,6 +40,32 @@ function LandingPage() {
         <p>Sailing event management &amp; race scoring</p>
       </div>
 
+      {/* ── How it works ─── */}
+      <div
+        className="landing-card"
+        aria-label="How it works"
+        style={{ padding: '16px 20px' }}
+      >
+        <h2 style={{ marginTop: 0, fontSize: '1.05rem' }}>
+          <i className="fa fa-map-signs" aria-hidden="true" style={{ marginRight: '8px' }} />
+          How it works
+        </h2>
+        <ol style={{ margin: 0, paddingLeft: '22px', lineHeight: 1.7 }}>
+          <li>
+            <strong>Create an event</strong> below with its name, place and dates.
+          </li>
+          <li>
+            <strong>Open the event</strong> and add sailors &amp; boats (one by one, or import a CSV file).
+          </li>
+          <li>
+            <strong>Create heats</strong> on the event page, then go to <em>Heat Race</em> to score each race.
+          </li>
+          <li>
+            <strong>Check the leaderboard</strong> at any time — and lock the event when racing is finished.
+          </li>
+        </ol>
+      </div>
+
       {/* ── Global leaderboard shortcut ─── */}
       <div className="landing-actions">
         <button type="button" onClick={() => setShowLeaderboard(true)}>

@@ -515,6 +515,72 @@ describe('Multiple heat tie-break uses shared heats only', () => {
     expect(result.USA55.place).toBe(2);
   });
 
+  it('applies SHRS 5.7.2.2 to tied boats that shared ALL races in a multi-heat event', () => {
+    // boatA and boatB sailed the exact same races (601-604); boatC sailed
+    // different races (701-704), so the EVENT is multi-heat. SHRS 5.7.2.2
+    // therefore applies to the A/B tie: A8.1 uses ALL scores including
+    // excluded ones. Kept scores are identical ([1,2,3] each), but A's
+    // excluded worst is 9 vs B's 7, so B must win. The old pairwise
+    // "shared all races = single heat" heuristic would instead fall to
+    // chronological A8.2 and wrongly favour A (1 vs 3 in race 4).
+    setupMockDb(
+      {
+        boatA: [
+          { points: 9, race_id: 601, race_number: 1 },
+          { points: 3, race_id: 602, race_number: 2 },
+          { points: 2, race_id: 603, race_number: 3 },
+          { points: 1, race_id: 604, race_number: 4 },
+        ],
+        boatB: [
+          { points: 7, race_id: 601, race_number: 1 },
+          { points: 3, race_id: 604, race_number: 4 },
+          { points: 2, race_id: 603, race_number: 3 },
+          { points: 1, race_id: 602, race_number: 2 },
+        ],
+        boatC: [
+          { points: 2, race_id: 704, race_number: 4 },
+          { points: 1, race_id: 701, race_number: 1 },
+          { points: 1, race_id: 702, race_number: 2 },
+          { points: 1, race_id: 703, race_number: 3 },
+        ],
+      },
+      {
+        boatA: [1, 2, 3, 9],
+        boatB: [3, 2, 1, 7],
+        boatC: [2, 1, 1, 1],
+      },
+      {
+        boatA: [
+          { race_id: 604, race_number: 4, points: 1 },
+          { race_id: 603, race_number: 3, points: 2 },
+          { race_id: 602, race_number: 2, points: 3 },
+          { race_id: 601, race_number: 1, points: 9 },
+        ],
+        boatB: [
+          { race_id: 604, race_number: 4, points: 3 },
+          { race_id: 603, race_number: 3, points: 2 },
+          { race_id: 602, race_number: 2, points: 1 },
+          { race_id: 601, race_number: 1, points: 7 },
+        ],
+        boatC: [
+          { race_id: 704, race_number: 4, points: 2 },
+          { race_id: 703, race_number: 3, points: 1 },
+          { race_id: 702, race_number: 2, points: 1 },
+          { race_id: 701, race_number: 1, points: 1 },
+        ],
+      },
+    );
+
+    const result = run([
+      makeResult('boatA', 4),
+      makeResult('boatB', 4),
+      makeResult('boatC', 4),
+    ]);
+    expect(result.boatC.place).toBe(1);
+    expect(result.boatB.place).toBe(2);
+    expect(result.boatA.place).toBe(3);
+  });
+
   it('uses excluded shared scores when breaking a tie', () => {
     setupMockDb(
       {

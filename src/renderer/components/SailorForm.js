@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /* eslint-disable jsx-a11y/label-has-associated-control */
 /* eslint-disable camelcase */
 import React, { useState, useEffect, useCallback } from 'react';
@@ -9,12 +8,13 @@ import { reportError, reportInfo } from '../utils/userFeedback';
 
 import iocCountries from '../constants/iocCountries.json';
 
+// Plain-language labels (category IDs map to the seeded Categories table).
 const SUBGROUP_OPTIONS = [
-  { value: 'M', label: 'M', categoryId: 4 },
-  { value: 'GM', label: 'GM', categoryId: 5 },
-  { value: 'L', label: 'L', categoryId: 3 },
-  { value: 'U25', label: 'U25', categoryId: 2 },
-  { value: 'U16', label: 'U16', categoryId: 1 },
+  { value: 'M', label: 'M — Masters (Veteran)', categoryId: 4 },
+  { value: 'GM', label: 'GM — Grand Masters (Master)', categoryId: 5 },
+  { value: 'L', label: 'L — Open (Senior)', categoryId: 3 },
+  { value: 'U25', label: 'U25 — Under 25 (Junior)', categoryId: 2 },
+  { value: 'U16', label: 'U16 — Under 16 (Kadet)', categoryId: 1 },
 ];
 
 function SailorForm({ onAddSailor, eventId }) {
@@ -35,31 +35,21 @@ function SailorForm({ onAddSailor, eventId }) {
   const [raceHappened, setRaceHappened] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
 
-  const fetchSailors = async () => {
-    try {
-      const allSailors = await window.electron.sqlite.sailorDB.readAllSailors();
-      console.log('Fetched sailors:', allSailors);
-    } catch (error) {
-      console.error('Error fetching sailors:', error);
-    }
-  };
-
   const fetchClubs = async () => {
     try {
       const allClubs = await window.electron.sqlite.sailorDB.readAllClubs();
       setClubs(allClubs);
     } catch (error) {
-      console.error('Error fetching clubs:', error);
+      reportError('Could not load clubs.', error);
     }
   };
 
   const fetchBoats = async () => {
     try {
       const allBoats = await window.electron.sqlite.sailorDB.readAllBoats();
-      console.log('Fetched boats:', allBoats); // Log the structure of the fetched boats
       setBoats(allBoats);
     } catch (error) {
-      console.error('Error fetching boats:', error);
+      reportError('Could not load boats.', error);
     }
   };
 
@@ -74,12 +64,11 @@ function SailorForm({ onAddSailor, eventId }) {
       const anyRaceHappened = races.some((raceArray) => raceArray.length > 0);
       setRaceHappened(anyRaceHappened);
     } catch (error) {
-      console.error('Error checking if race happened:', error);
+      reportError('Could not check race status.', error);
     }
   }, [eventId]);
 
   useEffect(() => {
-    fetchSailors();
     fetchClubs();
     fetchBoats();
     checkIfRaceHappened();
@@ -106,10 +95,8 @@ function SailorForm({ onAddSailor, eventId }) {
 
       const category_id = selectedSubgroup.categoryId;
       const birthday = '';
-      console.log(`Category ID calculated: ${category_id}`);
 
       // Check if the club already exists
-      console.log('Existing clubs:', clubs); // Log the existing clubs
       let club_id = clubs.find(
         (c) => c.club_name === club && c.country === selectedCountry,
       )?.club_id;
@@ -120,7 +107,6 @@ function SailorForm({ onAddSailor, eventId }) {
             selectedCountry,
           );
           club_id = result.lastInsertRowid;
-          console.log(`Club inserted with ID: ${club_id}`);
 
           // Update the clubs state with the newly added club
           setClubs([
@@ -134,18 +120,14 @@ function SailorForm({ onAddSailor, eventId }) {
             );
             if (existingClub) {
               club_id = existingClub.club_id;
-              console.log(`Club already exists with ID: ${club_id}`);
             } else {
               throw new Error('Club exists but could not retrieve its ID');
             }
           } else {
-            console.error('Error inserting club:', error);
             reportError('There was an error inserting the club.', error);
             return; // Exit the function gracefully
           }
         }
-      } else {
-        console.log(`Club found with ID: ${club_id}`);
       }
 
       const allSailors = await window.electron.sqlite.sailorDB.readAllSailors();
@@ -165,21 +147,14 @@ function SailorForm({ onAddSailor, eventId }) {
               club_id,
             );
           sailor_id = sailorResult.lastInsertRowid;
-          console.log(`Sailor inserted with ID: ${sailor_id}`);
         } catch (error) {
-          console.error('Error inserting sailor:', error);
           reportError('There was an error inserting the sailor.', error);
           return; // Exit the function gracefully
         }
-      } else {
-        console.log(`Sailor found with ID: ${sailor_id}`);
       }
 
-      const sailorBoats = boats.filter((b) => b.sailor_id === sailor_id);
-      console.log(`Boats for sailor ID ${sailor_id}:`, sailorBoats);
       const eventBoats =
         await window.electron.sqlite.eventDB.readBoatsByEvent(eventId);
-      console.log(`Boats for event ID ${eventId}:`, eventBoats);
 
       let boat_id = null;
 
@@ -191,28 +166,20 @@ function SailorForm({ onAddSailor, eventId }) {
           sailor_id,
         );
         boat_id = boatResult.lastInsertRowid;
-        console.log(`Boat inserted with ID: ${boat_id}`);
       } catch (error) {
-        console.error('Error inserting boat:', error);
         reportError('There was an error inserting the boat.', error);
         return; // Exit the function gracefully
       }
 
       const existingAssociation = eventBoats.find((b) => b.boat_id === boat_id);
 
-      if (existingAssociation) {
-        console.log(
-          `Boat ID ${boat_id} is already associated with event ID ${eventId}`,
-        );
-      } else {
+      if (!existingAssociation) {
         try {
           await window.electron.sqlite.eventDB.associateBoatWithEvent(
             boat_id,
             eventId,
           );
-          console.log(`Boat ID ${boat_id} associated with event ID ${eventId}`);
         } catch (error) {
-          console.error('Error associating boat with event:', error);
           reportError(
             'There was an error associating the boat with the event.',
             error,
@@ -237,12 +204,10 @@ function SailorForm({ onAddSailor, eventId }) {
       setSailNumber('');
       setModel('');
 
-      fetchSailors();
       fetchBoats();
       onAddSailor();
       reportInfo('Sailor and boat added successfully.', 'Success');
     } catch (error) {
-      console.error('Unexpected error during submission:', error);
       reportError('An unexpected error occurred.', error);
     }
   };

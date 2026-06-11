@@ -33,7 +33,6 @@ interface ScoreEntry {
 interface TieCandidate {
   boat_id: string;
   keptScores: number[];
-  totalRaceCount: number;
 }
 
 const nonExcludableStatuses = new Set(['DNE', 'DGM']);
@@ -176,6 +175,34 @@ function getKeptScores(entries: ScoreEntry[], excludeCount: number): number[] {
     .map((entry) => entry.points);
 }
 
+// SHRS 5.7.1 vs 5.7.2: whether an event is single-heat is an event-level
+// property, not a property of one tied pair. An event is single-heat only
+// when every boat raced exactly the same set of races; otherwise two tied
+// boats that happen to share all their races must still be compared under
+// the multi-heat rules (SHRS 5.7.2.2 uses excluded scores).
+function detectSingleHeatEvent(event_id: any, boatIds: string[]): boolean {
+  let reference: Set<number> | null = null;
+  for (let i = 0; i < boatIds.length; i += 1) {
+    const raceIds = new Set(
+      getRaceScoresForTieBreak(event_id, boatIds[i]).map(
+        (entry) => entry.race_id,
+      ),
+    );
+    if (reference === null) {
+      reference = raceIds;
+    } else {
+      if (raceIds.size !== reference.size) {
+        return false;
+      }
+      const ref = reference;
+      if (![...raceIds].every((raceId) => ref.has(raceId))) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 // SHRS 5.4: after 4 races exclude 1, after 8 exclude 2, then +1 per 8 more
 export default function calculateBoatScores(
   results: Result[],
@@ -183,6 +210,10 @@ export default function calculateBoatScores(
   pointsMap: Map<number, string[]>,
 ): TemporaryTableEntry[] {
   const discardConfig = getEventDiscardConfig(event_id, 'qualifying');
+  const isSingleHeatEvent = detectSingleHeatEvent(
+    event_id,
+    results.map((row) => String(row.boat_id)),
+  );
 
   results.forEach((result) => {
     const { boat_id, number_of_races } = result;
@@ -274,15 +305,13 @@ export default function calculateBoatScores(
         const keptScores = getKeptScores(scoreEntries, excludeCount).sort(
           (a: number, b: number) => a - b,
         );
-        const totalRaceCount = getRaceScoresForTieBreak(event_id, boat_id).length;
         return {
           boat_id,
           keptScores,
-          totalRaceCount,
         };
       });
 
-      // A8.1 + SHRS 5.6: Compare shared-heat A81 scores first, then A82 (last race backward)
+      // A8.1 + SHRS 5.7: Compare shared-heat A81 scores first, then A82 (last race backward)
       const compareTieCandidates = (a: TieCandidate, b: TieCandidate) => {
         const sharedScores = getSharedRaceScoresForTieBreak(
           event_id,
@@ -291,12 +320,8 @@ export default function calculateBoatScores(
         );
 
         if (sharedScores) {
-          const isSingleHeatEvent =
-            sharedScores.a82A.length === a.totalRaceCount &&
-            sharedScores.a82B.length === b.totalRaceCount;
-
           if (isSingleHeatEvent) {
-            // SHRS 5.6(i): single-heat events use standard RRS A8.1
+            // SHRS 5.7.1: single-heat events use standard RRS A8.1
             // where excluded scores are NOT used.
             const singleHeatA81Comparison = compareA81Scores(
               a.keptScores,
@@ -306,8 +331,8 @@ export default function calculateBoatScores(
               return singleHeatA81Comparison;
             }
           } else {
-            // SHRS 5.6(ii)(a): for shared-heat comparisons, excluded scores
-            // are used when applying A8.1.
+            // SHRS 5.7.2.2: for shared-heat comparisons in multi-heat
+            // events, excluded scores ARE used when applying A8.1.
             const sharedA81Comparison = compareA81Scores(
               sharedScores.a81A,
               sharedScores.a81B,

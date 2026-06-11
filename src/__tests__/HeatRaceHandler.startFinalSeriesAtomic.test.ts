@@ -88,6 +88,12 @@ const dbMock = {
       return { get: jest.fn(() => ({ race_count: 1 })) };
     }
 
+    // Data-integrity repair scan (ensureCompleteRaceScoresForEvent):
+    // report no missing score rows in these scenarios.
+    if (sqlContains(sql, 's.score_id IS NULL')) {
+      return { all: jest.fn(() => []) };
+    }
+
     if (
       sqlContains(sql, 'FROM Leaderboard lb') &&
       sqlContains(sql, 'GROUP_CONCAT(sc.points ORDER BY r.race_number) AS race_points')
@@ -416,6 +422,54 @@ describe('HeatRaceHandler startFinalSeriesAtomic', () => {
 
     expect(withRuleApplied.map((entry) => entry.boatId)).toEqual([1, 2, 3, 4]);
     expect(withRuleDisabled.map((entry) => entry.boatId)).toEqual([2, 3, 4, 1]);
+  });
+
+  it('does NOT apply SHRS 4.3 temporary discard at exactly 5 completed races', async () => {
+    qualifyingHeats = [
+      { heat_id: 11, heat_name: 'Heat A1', heat_type: 'Qualifying' },
+      { heat_id: 12, heat_name: 'Heat B1', heat_type: 'Qualifying' },
+    ];
+
+    const fin5 = 'FINISHED,FINISHED,FINISHED,FINISHED,FINISHED';
+    leaderboardRows = [
+      { boat_id: 1, race_points: '1,1,1,10,9', race_statuses: fin5 },
+      { boat_id: 2, race_points: '2,2,2,2,2', race_statuses: fin5 },
+      { boat_id: 3, race_points: '1,1,1,1,1', race_statuses: fin5 },
+      { boat_id: 4, race_points: '9,9,9,9,9', race_statuses: fin5 },
+    ];
+
+    const handler = handlerRegistry.startFinalSeriesAtomic;
+    await handler({}, 77, false, true);
+
+    // SHRS 4.3 requires MORE than 5 races. With exactly 5, only the
+    // standard single discard applies:
+    // boat3 = 4, boat2 = 8, boat1 = 12 (drops 10 only), boat4 = 36.
+    // A buggy second discard would give boat1 = 3 and put it in Gold.
+    expect(insertedHeatBoats.map((entry) => entry.boatId)).toEqual([3, 2, 1, 4]);
+  });
+
+  it('does NOT apply SHRS 4.3 temporary discard at exactly 8 completed races', async () => {
+    qualifyingHeats = [
+      { heat_id: 11, heat_name: 'Heat A1', heat_type: 'Qualifying' },
+      { heat_id: 12, heat_name: 'Heat B1', heat_type: 'Qualifying' },
+    ];
+
+    const fin8 = Array(8).fill('FINISHED').join(',');
+    leaderboardRows = [
+      { boat_id: 1, race_points: '3,3,3,3,3,3,9,9', race_statuses: fin8 },
+      { boat_id: 2, race_points: '1,1,1,2,4,10,10,10', race_statuses: fin8 },
+      { boat_id: 3, race_points: '1,1,1,1,1,1,1,1', race_statuses: fin8 },
+      { boat_id: 4, race_points: '15,15,15,15,15,15,15,15', race_statuses: fin8 },
+    ];
+
+    const handler = handlerRegistry.startFinalSeriesAtomic;
+    await handler({}, 77, false, true);
+
+    // With exactly 8 races only the standard 2 discards apply:
+    // boat3 = 6, boat1 = 18, boat2 = 19, boat4 = 90.
+    // A buggy third discard would give boat2 = 9 < boat1 = 15 and
+    // wrongly promote boat2 into Gold.
+    expect(insertedHeatBoats.map((entry) => entry.boatId)).toEqual([3, 1, 2, 4]);
   });
 
   it('rejects leaderboard input when required table column is missing', () => {

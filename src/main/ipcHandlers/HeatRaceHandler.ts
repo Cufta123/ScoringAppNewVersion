@@ -54,7 +54,57 @@ const getEventHeatOverflowPolicy = (event_id: any): string => {
 };
 
 const SHRS_MAX_BOATS_PER_HEAT = 20;
+// SHRS 3.1.5: in-memory cache of pre-protest assignment order, backed by
+// the RaceAssignmentSnapshots table so snapshots survive app restarts.
 const raceAssignmentSnapshots = new Map<number, string[]>();
+
+function loadPersistedAssignmentSnapshot(race_id: number): string[] | null {
+  try {
+    const rows = db
+      .prepare(
+        `SELECT boat_id FROM RaceAssignmentSnapshots
+         WHERE race_id = ? ORDER BY rank ASC`,
+      )
+      .all(race_id) as { boat_id: string | number }[];
+    if (rows && rows.length > 0) {
+      return rows.map((row) => String(row.boat_id));
+    }
+  } catch {
+    // Table unavailable (legacy DB or test double); fall back to memory.
+  }
+  return null;
+}
+
+function persistAssignmentSnapshot(race_id: number, boatIds: string[]): void {
+  try {
+    const deleteStmt = db.prepare(
+      'DELETE FROM RaceAssignmentSnapshots WHERE race_id = ?',
+    );
+    const insertStmt = db.prepare(
+      'INSERT INTO RaceAssignmentSnapshots (race_id, rank, boat_id) VALUES (?, ?, ?)',
+    );
+    const tx = db.transaction(() => {
+      deleteStmt.run(race_id);
+      boatIds.forEach((boatId, rank) => {
+        insertStmt.run(race_id, rank, boatId);
+      });
+    });
+    tx();
+  } catch {
+    // Table unavailable (legacy DB or test double); memory cache still applies.
+  }
+}
+
+function clearAssignmentSnapshot(race_id: number): void {
+  raceAssignmentSnapshots.delete(race_id);
+  try {
+    db.prepare('DELETE FROM RaceAssignmentSnapshots WHERE race_id = ?').run(
+      race_id,
+    );
+  } catch {
+    // Table unavailable (legacy DB or test double); nothing to clean up.
+  }
+}
 
 function buildEventSnapshot(event_id: number) {
   const eventRow = db
@@ -368,8 +418,12 @@ function roundHalfUp(value: number): number {
 function getScoringPenaltyPoints(
   finishingPosition: number,
   maxBoats: number,
+  status?: string,
 ): number {
-  const penaltyPlaces = Math.max(roundHalfUp(maxBoats * 0.2), 2);
+  // RRS 44.3(c): ZFP/SCP = 20% of boats, rounded to nearest whole number
+  // (0.5 rounded up). RRS Appendix T1 = 30%, calculated the same way.
+  const penaltyRate = status === 'T1' ? 0.3 : 0.2;
+  const penaltyPlaces = roundHalfUp(maxBoats * penaltyRate);
   return Math.min(finishingPosition + penaltyPlaces, maxBoats + 1);
 }
 
@@ -497,19 +551,12 @@ function compareOverallTiePackets(
     right.raceIds.has(raceId),
   );
 
-  const allRaceIds = new Set([...left.raceIds, ...right.raceIds]);
-  const isMultiHeat = sharedRaceIds.length < allRaceIds.size;
-
-  if (!isMultiHeat) {
-    const a81Comparison = compareScoreArrays(
-      left.a81KeptScores,
-      right.a81KeptScores,
-    );
-    if (a81Comparison !== 0) return a81Comparison;
-
-    const a82Comparison = compareScoreArrays(left.a82AllScores, right.a82AllScores);
-    if (a82Comparison !== 0) return a82Comparison;
-  } else if (sharedRaceIds.length > 0) {
+  // The overall leaderboard only exists for multi-heat events (a final
+  // series requires >= 2 qualifying groups), so SHRS 5.7.2 applies:
+  // boats that shared races are compared on those shared races with
+  // excluded scores included (5.7.2.2); boats that never shared a race
+  // fall back to plain RRS A8 (5.7.2.5).
+  if (sharedRaceIds.length > 0) {
     const sharedLeft = sharedRaceIds
       .map((raceId) => left.byRaceId.get(raceId)?.points)
       .filter((score): score is number => score != null);
@@ -517,7 +564,7 @@ function compareOverallTiePackets(
       .map((raceId) => right.byRaceId.get(raceId)?.points)
       .filter((score): score is number => score != null);
 
-    // SHRS 5.6(ii)(a)(2): excluded scores are used for tie-break on shared races.
+    // SHRS 5.7.2.2: excluded scores are used for tie-break on shared races.
     const a81SharedComparison = compareScoreArrays(
       [...sharedLeft].sort((a, b) => a - b),
       [...sharedRight].sort((a, b) => a - b),
@@ -766,7 +813,7 @@ function applyRaceResultUpdate(
   if (!isRdg && penaltyStatuses.includes(status)) {
     if (isScoringPenalty) {
       finalPosition = Number(new_position);
-      points = getScoringPenaltyPoints(finalPosition, maxBoats);
+      points = getScoringPenaltyPoints(finalPosition, maxBoats, status);
     } else {
       finalPosition = maxBoats + 1;
       points = finalPosition;
@@ -1148,24 +1195,31 @@ function captureRaceAssignmentSnapshotIfMissing(
     return;
   }
 
+  const persisted = loadPersistedAssignmentSnapshot(race_id);
+  if (persisted) {
+    raceAssignmentSnapshots.set(race_id, persisted);
+    return;
+  }
+
   const rankedRows = getRankedBoatsInHeatForRace(heat_id, race_id);
-  raceAssignmentSnapshots.set(
-    race_id,
-    rankedRows.map((row) => row.boat_id),
-  );
+  const boatIds = rankedRows.map((row) => row.boat_id);
+  raceAssignmentSnapshots.set(race_id, boatIds);
+  persistAssignmentSnapshot(race_id, boatIds);
 }
 
 function getAssignmentRowsForHeatRace(heat_id: number, race_id: number) {
-  const snapshotBoatIds = raceAssignmentSnapshots.get(race_id);
+  const snapshotBoatIds =
+    raceAssignmentSnapshots.get(race_id) ??
+    loadPersistedAssignmentSnapshot(race_id);
   if (snapshotBoatIds && snapshotBoatIds.length > 0) {
+    raceAssignmentSnapshots.set(race_id, snapshotBoatIds);
     return snapshotBoatIds.map((boat_id) => ({ boat_id }));
   }
 
   const rankedRows = getRankedBoatsInHeatForRace(heat_id, race_id);
-  raceAssignmentSnapshots.set(
-    race_id,
-    rankedRows.map((row) => row.boat_id),
-  );
+  const boatIds = rankedRows.map((row) => row.boat_id);
+  raceAssignmentSnapshots.set(race_id, boatIds);
+  persistAssignmentSnapshot(race_id, boatIds);
   return rankedRows.map((row) => ({ boat_id: row.boat_id }));
 }
 
@@ -1680,6 +1734,10 @@ ipcMain.handle(
       );
     }
 
+    // Repair any missing score rows as DNS first so boats without scores
+    // are ranked last instead of being dropped by the leaderboard join.
+    ensureCompleteRaceScoresForEvent(event_id, 'Qualifying');
+
     const leaderboard = db
       .prepare(
         `SELECT
@@ -1967,6 +2025,7 @@ ipcMain.handle('undoLastScoredRaceForHeat', async (event, heat_id) => {
     });
 
     const removedScores = transaction();
+    clearAssignmentSnapshot(lastRace.race_id);
     recomputeEventLeaderboard(heatRow.event_id);
 
     return {
@@ -2032,6 +2091,7 @@ ipcMain.handle('undoLastScoredRace', async (event, event_id) => {
     });
 
     const result = transaction();
+    raceIds.forEach((raceId) => clearAssignmentSnapshot(raceId));
     recomputeEventLeaderboard(event_id);
 
     return {

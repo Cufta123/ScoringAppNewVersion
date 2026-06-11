@@ -288,4 +288,86 @@ describe('HeatRaceHandler readOverallLeaderboard tie-break stress tests', () => 
     // In latest shared race (race_number=2), B has fewer points (1 vs 3), so B wins tie.
     expect(rows.map((r: any) => r.boat_id)).toEqual(['B', 'A']);
   });
+
+  it('applies SHRS 5.7.2.2 (excluded scores) when tied boats shared ALL races', async () => {
+    currentScenario.overallRows = [
+      {
+        boat_id: 'X',
+        qualifying_points: 6,
+        final_points: 5,
+        overall_points: 11,
+        placement_group: 'Gold',
+        final_place: 1,
+      },
+      {
+        boat_id: 'Y',
+        qualifying_points: 6,
+        final_points: 5,
+        overall_points: 11,
+        placement_group: 'Gold',
+        final_place: 2,
+      },
+    ];
+
+    // X and Y sailed the exact same races (same race_ids in Q and F).
+    // Kept-score multisets are identical, so standard (kept-only) A8.1
+    // cannot separate them — and the old chronological A8.2 fallback
+    // would wrongly favour X. SHRS 5.7.2.2 requires using ALL scores
+    // (including excluded): X's worst is 9, Y's worst is 7, so Y wins.
+    currentScenario.tieScoresByBoatId = {
+      X: [
+        { race_id: 1, race_number: 1, points: 9, heat_type: 'Qualifying', heat_name: 'Heat A1' },
+        { race_id: 2, race_number: 2, points: 3, heat_type: 'Qualifying', heat_name: 'Heat A1' },
+        { race_id: 3, race_number: 3, points: 2, heat_type: 'Qualifying', heat_name: 'Heat A1' },
+        { race_id: 4, race_number: 4, points: 1, heat_type: 'Qualifying', heat_name: 'Heat A1' },
+        { race_id: 101, race_number: 1, points: 2, heat_type: 'Final', heat_name: 'Final Gold' },
+        { race_id: 102, race_number: 2, points: 2, heat_type: 'Final', heat_name: 'Final Gold' },
+        { race_id: 103, race_number: 3, points: 2, heat_type: 'Final', heat_name: 'Final Gold' },
+        { race_id: 104, race_number: 4, points: 1, heat_type: 'Final', heat_name: 'Final Gold' },
+      ],
+      Y: [
+        { race_id: 1, race_number: 1, points: 7, heat_type: 'Qualifying', heat_name: 'Heat A1' },
+        { race_id: 2, race_number: 2, points: 1, heat_type: 'Qualifying', heat_name: 'Heat A1' },
+        { race_id: 3, race_number: 3, points: 2, heat_type: 'Qualifying', heat_name: 'Heat A1' },
+        { race_id: 4, race_number: 4, points: 3, heat_type: 'Qualifying', heat_name: 'Heat A1' },
+        { race_id: 101, race_number: 1, points: 2, heat_type: 'Final', heat_name: 'Final Gold' },
+        { race_id: 102, race_number: 2, points: 1, heat_type: 'Final', heat_name: 'Final Gold' },
+        { race_id: 103, race_number: 3, points: 2, heat_type: 'Final', heat_name: 'Final Gold' },
+        { race_id: 104, race_number: 4, points: 2, heat_type: 'Final', heat_name: 'Final Gold' },
+      ],
+    };
+
+    const handler = handlerRegistry.readOverallLeaderboard;
+    const rows = await handler({}, 3);
+
+    expect(rows.map((r: any) => r.boat_id)).toEqual(['Y', 'X']);
+  });
+
+  it('ranks every Gold boat above Silver boats regardless of points (SHRS 5.5)', async () => {
+    currentScenario.overallRows = [
+      {
+        boat_id: 'S1',
+        qualifying_points: 5,
+        final_points: 5,
+        overall_points: 10,
+        placement_group: 'Silver',
+        final_place: 1,
+      },
+      {
+        boat_id: 'G1',
+        qualifying_points: 30,
+        final_points: 20,
+        overall_points: 50,
+        placement_group: 'Gold',
+        final_place: 5,
+      },
+    ];
+
+    const handler = handlerRegistry.readOverallLeaderboard;
+    const rows = await handler({}, 3);
+
+    // Gold finishes ahead of Silver even with far more points.
+    expect(rows.map((r: any) => r.boat_id)).toEqual(['G1', 'S1']);
+    expect(rows.map((r: any) => r.overall_rank)).toEqual([1, 2]);
+  });
 });

@@ -18,6 +18,25 @@ const SHRS_PENALTY_ORDER = [
   'DNE',
 ];
 const APPENDIX_FALLBACK_PENALTY_ORDER = ['DGM', 'DPI'];
+// Plain-language labels so non-expert scorers know what each code means.
+const PENALTY_OPTIONS = [
+  { value: 'ZFP', label: 'ZFP — 20% penalty (keeps finish place)' },
+  { value: 'SCP', label: 'SCP — Scoring penalty (keeps finish place)' },
+  { value: 'T1', label: 'T1 — Post-race penalty 30% (keeps finish place)' },
+  { value: 'DNS', label: 'DNS — Did not start' },
+  { value: 'DNF', label: 'DNF — Did not finish' },
+  { value: 'RET', label: 'RET — Retired' },
+  { value: 'NSC', label: 'NSC — Did not sail the course' },
+  { value: 'OCS', label: 'OCS — Over the start line early' },
+  { value: 'DNC', label: 'DNC — Did not come to start area' },
+  { value: 'WTH', label: 'WTH — Withdrawn from series' },
+  { value: 'UFD', label: 'UFD — U-flag disqualification' },
+  { value: 'BFD', label: 'BFD — Black-flag disqualification' },
+  { value: 'DSQ', label: 'DSQ — Disqualified' },
+  { value: 'DNE', label: 'DNE — Disqualified (cannot be discarded)' },
+  { value: 'DGM', label: 'DGM — Disqualified, gross misconduct' },
+  { value: 'DPI', label: 'DPI — Discretionary penalty' },
+];
 const EFFECTIVE_PENALTY_ORDER = [
   ...SHRS_PENALTY_ORDER,
   ...APPENDIX_FALLBACK_PENALTY_ORDER,
@@ -304,9 +323,15 @@ function ScoringInputComponent({ heat, onSubmit }) {
     if (allBoatsAccountedFor) {
       onSubmit(boatPlaces);
     } else {
+      const missingBoats = allBoats.filter(
+        (boatNumber) =>
+          !assignedBoatNumbers.has(normalizeBoatNumber(boatNumber)),
+      );
       reportInfo(
-        'All boats must be assigned a place or a penalty before submitting.',
-        'Incomplete scoring',
+        `Still missing: sail ${missingBoats.join(', sail ')}.\n\n` +
+          'Every boat needs a finishing place or a penalty before you can submit. ' +
+          'Click the missing boats in the left table to add them, or pick a penalty (e.g. DNS if a boat did not start).',
+        'Some boats are not scored yet',
       );
     }
   };
@@ -499,22 +524,11 @@ function ScoringInputComponent({ heat, onSubmit }) {
                         }}
                       >
                         <option value="">None</option>
-                        <option value="ZFP">ZFP</option>
-                        <option value="SCP">SCP</option>
-                        <option value="T1">T1</option>
-                        <option value="DNS">DNS</option>
-                        <option value="DNF">DNF</option>
-                        <option value="RET">RET</option>
-                        <option value="NSC">NSC</option>
-                        <option value="OCS">OCS</option>
-                        <option value="DNC">DNC</option>
-                        <option value="WTH">WTH</option>
-                        <option value="UFD">UFD</option>
-                        <option value="BFD">BFD</option>
-                        <option value="DSQ">DSQ</option>
-                        <option value="DNE">DNE</option>
-                        <option value="DGM">DGM</option>
-                        <option value="DPI">DPI</option>
+                        {PENALTY_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
                       </select>
                     </td>
                   </tr>
@@ -544,6 +558,37 @@ function ScoringInputComponent({ heat, onSubmit }) {
         >
           Finish Order
         </h2>
+
+        {/* Progress indicator so the user always knows how many boats remain */}
+        {(() => {
+          const assigned = new Set(
+            [...boatNumbers, ...Object.keys(penalties)].map((value) =>
+              normalizeBoatNumber(value),
+            ),
+          );
+          const scoredCount = validBoats.filter((sail) =>
+            assigned.has(normalizeBoatNumber(sail)),
+          ).length;
+          const total = validBoats.length;
+          const done = total > 0 && scoredCount === total;
+          return (
+            <p
+              aria-live="polite"
+              style={{
+                margin: 0,
+                fontSize: '0.88rem',
+                fontWeight: 600,
+                color: done
+                  ? 'var(--teal, #2a9d8f)'
+                  : 'var(--text-muted, #666)',
+              }}
+            >
+              {done
+                ? `All ${total} boats scored — ready to submit ✓`
+                : `${scoredCount} of ${total} boats scored — ${total - scoredCount} remaining`}
+            </p>
+          );
+        })()}
 
         {/* Manual number input */}
         <div style={{ display: 'flex', gap: '8px' }}>

@@ -114,7 +114,8 @@ function SailorImport({ eventId, onImportComplete }) {
           onClick={downloadTemplate}
           aria-label="Download CSV template"
         >
-          <i className="fa fa-download" aria-hidden="true" /> template
+          <i className="fa fa-download" aria-hidden="true" /> Download CSV
+          template
         </button>
       </div>
 

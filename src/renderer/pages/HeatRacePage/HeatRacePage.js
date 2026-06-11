@@ -15,13 +15,19 @@ import {
 function HeatRacePage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { event } = location.state;
+  const { event } = location.state || {};
   const [eventData, setEventData] = useState(event || null);
   const [selectedHeat, setSelectedHeat] = useState(null);
   const [isScoring, setIsScoring] = useState(false);
   const [finalSeriesStarted, setFinalSeriesStarted] = useState(false);
   const [heats, setHeats] = useState([]);
   const [numQualifyingGroups, setNumQualifyingGroups] = useState(0);
+
+  useEffect(() => {
+    if (!event) {
+      navigate('/');
+    }
+  }, [event, navigate]);
 
   useEffect(() => {
     const fetchEvent = async () => {
@@ -123,10 +129,11 @@ function HeatRacePage() {
           heatType,
         );
       const penaltyPlace = (maxHeatSize || placeNumbers.length) + 1;
-      const scoringPenaltyPlaces = Math.max(
-        Math.floor((maxHeatSize || placeNumbers.length) * 0.2 + 0.5),
-        2,
-      );
+      // RRS 44.3(c): ZFP/SCP = 20% of boats; RRS Appendix T1 = 30%.
+      // Rounded to nearest whole number, 0.5 rounded up.
+      const heatSizeForPenalty = maxHeatSize || placeNumbers.length;
+      const getScoringPenaltyPlaces = (status) =>
+        Math.floor(heatSizeForPenalty * (status === 'T1' ? 0.3 : 0.2) + 0.5);
       const scoringPenaltyStatuses = new Set(['ZFP', 'SCP', 'T1']);
 
       const boats = await window.electron.sqlite.heatRaceDB.readBoatsByHeat(
@@ -178,7 +185,7 @@ function HeatRacePage() {
             if (scoringPenaltyStatuses.has(status)) {
               finalPosition = place;
               finalPoints = Math.min(
-                place + scoringPenaltyPlaces,
+                place + getScoringPenaltyPlaces(status),
                 penaltyPlace,
               );
             } else {
@@ -249,9 +256,10 @@ function HeatRacePage() {
     if (!confirmed) return;
 
     try {
-      const result = await window.electron.sqlite.heatRaceDB.createNewHeatsBasedOnLeaderboard(
-        event.event_id,
-      );
+      const result =
+        await window.electron.sqlite.heatRaceDB.createNewHeatsBasedOnLeaderboard(
+          event.event_id,
+        );
       if (result?.advisory) {
         reportInfo(result.advisory, 'SHRS advisory');
       }
@@ -325,6 +333,8 @@ function HeatRacePage() {
   };
 
   const checkFinalSeriesStarted = useCallback(async () => {
+    if (!event?.event_id) return;
+
     try {
       const allHeats = await window.electron.sqlite.heatRaceDB.readAllHeats(
         event.event_id,
@@ -336,7 +346,7 @@ function HeatRacePage() {
     } catch (error) {
       reportError('Could not check final series status.', error);
     }
-  }, [event.event_id]);
+  }, [event?.event_id]);
 
   useEffect(() => {
     checkFinalSeriesStarted();
@@ -361,6 +371,10 @@ function HeatRacePage() {
     }
     return ` — ${selectedHeat.heat_name} (no races)`;
   })();
+
+  if (!event) {
+    return null;
+  }
 
   return (
     <div>

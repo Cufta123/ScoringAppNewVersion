@@ -811,23 +811,21 @@ export default function useLeaderboard(eventId) {
     penaltyPos,
     selectedIndices = null,
   ) => {
+    // RRS A9(a)/(b): average of the boat's points in all races in the
+    // series (or the selected group) except the race in question.
+    // Penalty scores are her points and are included in the average.
     const candidates = races
       .map((r, i) => ({
         val: parseFloat(String(r).replace(/[()]/g, '')),
-        status: statuses?.[i] || 'FINISHED',
         idx: i,
       }))
-      .filter(({ idx, status }) => {
+      .filter(({ idx, val }) => {
         if (idx === excludeIdx) return false;
-        if (PENALTY_CODES.includes(status)) return false;
         if (selectedIndices !== null && !selectedIndices.has(idx)) return false;
-        return true;
+        return !Number.isNaN(val);
       });
     if (candidates.length === 0) return penaltyPos;
-    const sum = candidates.reduce(
-      (s, { val }) => s + (Number.isNaN(val) ? 0 : val),
-      0,
-    );
+    const sum = candidates.reduce((s, { val }) => s + val, 0);
     return roundToNearestTenthHalfUp(sum / candidates.length);
   };
 
@@ -970,25 +968,19 @@ export default function useLeaderboard(eventId) {
 
     const penaltyPosition = cloned.length + 1;
 
+    // RRS A9(b): average of her points in the selected group of races.
+    // Penalty scores are her points and are included.
     const finalValues = [...(selectedIndices || new Set())]
       .filter((i) => i !== raceIndex)
-      .map((i) => {
-        const status = entry.race_statuses?.[i] || 'FINISHED';
-        if (PENALTY_CODES.includes(status)) return null;
-        return parseFloat(String(entry.races[i]).replace(/[()]/g, ''));
-      })
-      .filter((v) => v !== null && !Number.isNaN(v));
+      .map((i) => parseFloat(String(entry.races[i]).replace(/[()]/g, '')))
+      .filter((v) => !Number.isNaN(v));
 
     const qualEntry = eventLeaderboard?.find((e) => e.boat_id === boatId);
     const qualValues = [...(selectedQualIndices || new Set())]
-      .map((i) => {
-        const status = qualEntry?.race_statuses?.[i] || 'FINISHED';
-        if (PENALTY_CODES.includes(status)) return null;
-        return parseFloat(
-          String(qualEntry?.races?.[i] ?? '').replace(/[()]/g, ''),
-        );
-      })
-      .filter((v) => v !== null && !Number.isNaN(v));
+      .map((i) =>
+        parseFloat(String(qualEntry?.races?.[i] ?? '').replace(/[()]/g, '')),
+      )
+      .filter((v) => !Number.isNaN(v));
 
     const allValues = [...qualValues, ...finalValues];
     const avg =

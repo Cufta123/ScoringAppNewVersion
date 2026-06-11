@@ -22,7 +22,8 @@ export const getErrorMessage = (error) => {
 export const reportError = (title, error) => {
   const details = getErrorMessage(error);
   const message = title ? `${title}: ${details}` : details;
-  toast.error(message, { autoClose: 7000 });
+  // Errors stay on screen until dismissed so slower readers never miss them.
+  toast.error(message, { autoClose: false, closeOnClick: true });
 };
 
 export const reportInfo = (message, title = 'Notice') => {

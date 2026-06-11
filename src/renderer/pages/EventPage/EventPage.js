@@ -433,7 +433,16 @@ function EventPage() {
                   }}
                 />
               </div>
-              <button type="submit" className="btn-success">
+              <button
+                type="submit"
+                className="btn-success"
+                disabled={!selectedBoats || selectedBoats.length === 0}
+                title={
+                  !selectedBoats || selectedBoats.length === 0
+                    ? 'Select at least one boat first'
+                    : undefined
+                }
+              >
                 <i className="fa fa-plus" aria-hidden="true" /> Add Boats
               </button>
             </form>

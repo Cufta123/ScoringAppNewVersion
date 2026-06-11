@@ -199,7 +199,7 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     dbMock.prepare.mockClear();
   });
 
-  it('scores ZFP as finishingPosition + max(20%,2) with cap at maxBoats+1', async () => {
+  it('scores ZFP as finishingPosition + 20% (RRS 44.3(c)) with cap at maxBoats+1', async () => {
     const handler = handlerRegistry.updateRaceResult;
     await handler({}, 99, 500, 'B1', 3, false, 'ZFP');
 
@@ -207,7 +207,7 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
       sqlContains(call.sql, 'UPDATE Scores SET position = ?, points = ?, status = ?'),
     );
     expect(updateMain).toBeDefined();
-    // maxBoats=10 -> penalty places = 2, ZFP points = 3 + 2 = 5
+    // maxBoats=10 -> 20% = 2 places, ZFP points = 3 + 2 = 5
     expect(updateMain?.args.slice(0, 3)).toEqual([3, 5, 'ZFP']);
   });
 
@@ -219,19 +219,31 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     const updateMain = runCalls.find((call) =>
       sqlContains(call.sql, 'UPDATE Scores SET position = ?, points = ?, status = ?'),
     );
-    // penalty places = max(round(1),2)=2 => 5+2=7, capped to 6
+    // maxBoats=5 -> 20% = 1 place => 5+1=6, equals cap maxBoats+1
     expect(updateMain?.args.slice(0, 3)).toEqual([5, 6, 'SCP']);
   });
 
-  it('scores T1 as finishingPosition + max(20%,2) with cap at maxBoats+1', async () => {
+  it('scores ZFP without artificial minimum in small heats (RRS 44.3(c))', async () => {
+    currentScenario.maxBoats = 5;
+    const handler = handlerRegistry.updateRaceResult;
+    await handler({}, 99, 500, 'B1', 2, false, 'ZFP');
+
+    const updateMain = runCalls.find((call) =>
+      sqlContains(call.sql, 'UPDATE Scores SET position = ?, points = ?, status = ?'),
+    );
+    // maxBoats=5 -> 20% = 1 place (no min-2 floor), ZFP points = 2 + 1 = 3
+    expect(updateMain?.args.slice(0, 3)).toEqual([2, 3, 'ZFP']);
+  });
+
+  it('scores T1 as finishingPosition + 30% (RRS Appendix T1) with cap at maxBoats+1', async () => {
     const handler = handlerRegistry.updateRaceResult;
     await handler({}, 99, 500, 'B1', 4, false, 'T1');
 
     const updateMain = runCalls.find((call) =>
       sqlContains(call.sql, 'UPDATE Scores SET position = ?, points = ?, status = ?'),
     );
-    // maxBoats=10 -> penalty places = 2, T1 points = 4 + 2 = 6
-    expect(updateMain?.args.slice(0, 3)).toEqual([4, 6, 'T1']);
+    // maxBoats=10 -> 30% = 3 places, T1 points = 4 + 3 = 7
+    expect(updateMain?.args.slice(0, 3)).toEqual([4, 7, 'T1']);
   });
 
   it('normalizes RAF to RET penalty scoring', async () => {
