@@ -73,7 +73,7 @@ Based on 24 critical invariants, Fable will validate **BOTH series with equal pr
 - ✅ Heat assignment logic (progressive movement tables)
 - ✅ Race 1 seeding (1,2,3,4,5,5,4,3,2,1 pattern)
 - ✅ Penalty order in movement (DNF, RET, NSC, OCS, DNS, DNC, UFD, BFD, DSQ, DNE)
-- ✅ Penalty scoring (largest heat size, not total fleet)
+- ✅ Penalty scoring split correctly: A5.2-style penalties use largest heat size + 1; ZFP/SCP use 20%, T1 uses 30%
 - ✅ Discount calculations (race count thresholds per series)
 - ✅ Tie-breaking (same-heat only, excluded scores count)
 
@@ -82,7 +82,7 @@ Based on 24 critical invariants, Fable will validate **BOTH series with equal pr
 - ✅ Temporary 2nd-worst exclusion for 5-7 qualifying races
 - ✅ Independent fleet scoring (separate leaderboards)
 - ✅ Separate discard calculation per series
-- ✅ Penalty points = max(fleet size) in final series
+- ✅ In final series, A5.2-style penalties use max(fleet size) + 1, while ZFP/SCP/T1 remain percentage-based
 - ✅ Overall ranking (Gold > Silver > Bronze > Copper)
 
 **Both Series**:

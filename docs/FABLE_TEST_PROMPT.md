@@ -34,7 +34,8 @@
 - DNE/DGM non-excludable penalties (SHRS 5.4 exclusions)
 - Tie-break with excluded scores (SHRS 5.7.2)
 - Temporary 2nd-worst exclusion for 5-7 race fleet assignment (SHRS 4.3)
-- Penalty points = largest heat size, not total fleet (SHRS 5.2)
+- A5.2-style penalties use largest heat size + 1, not total fleet (SHRS 5.2)
+- ZFP/SCP use 20% and T1 uses 30% (percentage penalties)
 - Same-heat tie-break vs different-heat tie-break (SHRS 5.7)
 - Multiple penalty types in same race (DNF, RET, NSC, OCS order)
 - Final series separate discard calculation (SHRS 5.4)
@@ -79,7 +80,8 @@
 - 3 races (0 discards) → verify scores
 - 5 races (1 discard) → verify worst excluded
 - 10 races (2 discards) → verify 2 worst excluded
-- Penalty points = largest heat size (NOT total fleet) ✓
+- A5.2-style penalties = largest heat size + 1 (NOT total fleet) ✓
+- ZFP/SCP = 20%, T1 = 30% (rounded per rules) ✓
 - Non-excludable penalties (DNE, DGM) ✓
 
 **Edge Cases**:
@@ -101,7 +103,8 @@
 - Verify independent fleet scoring (each fleet separate)
 - Test different race counts per fleet
 - Verify separate discard calculation per series
-- Penalty points = max(fleet size) not max(original heat size)
+- In final-series races, A5.2-style penalties = max(fleet size) + 1 (not max original qualifying heat size)
+- In final-series races, ZFP/SCP remain 20% and T1 remains 30%
 - Overall score = qualifying + final ✓
 - Test all penalty types in final series (DNF, DSQ, RDG, etc.)
 - Verify RDG average uses only final series races for final series redress

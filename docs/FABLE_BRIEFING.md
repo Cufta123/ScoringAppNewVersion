@@ -23,7 +23,8 @@ Electron desktop app for sailing regatta management. Stack: React renderer, Node
 **Qualifying Series**: 
 - 2+ heats per race, boats assigned progressively (movement table) or pre-assigned
 - Scoring: RRS A Low Point System, penalties scored as DNF/DNS/DSQ/OCS/UFD/BFD/RET/NSC/DNE/DGM/DPI/RDG1/RDG2/RDG3
-- Penalty points = largest heat size + 1 (not total fleet) — SHRS 5.2
+- For A5.2-style penalties (DNS/DNF/RET/DSQ/etc.), points = largest heat size + 1 (not total fleet) — SHRS 5.2
+- For scoring penalties, apply percentage penalties: ZFP/SCP = 20% (RRS 44.3(c)); T1 = 30% (RRS T1)
 - Discards: 0 if <4 races, 1 if 4-7 races, 2 if >=8 races, +1 per 8 additional
 - Heat movement tables control boat assignments between races
 
@@ -59,7 +60,7 @@ Electron desktop app for sailing regatta management. Stack: React renderer, Node
 10. DNF/RET/NSC/OCS/DNS/DNC/UFD/BFD order respected in movement
 
 ### Scoring Integrity (Both Qualifying & Final)
-11. Penalty points = max(heat sizes) + 1, not total fleet
+11. A5.2-style penalties use max(heat sizes) + 1 (not total fleet); ZFP/SCP/T1 use percentage penalties
 12. Non-excludable statuses: DNE, DGM
 13. Discount logic respects race count thresholds independently per series
 14. RDG average calculated separately for qualifying/final series
