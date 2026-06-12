@@ -135,11 +135,18 @@ function ScoringInputComponent({ heat, onSubmit }) {
     setInputValue(e.target.value);
   };
 
-  // Shared logic: add a list of sail numbers to the ranked list
+  // Shared logic: add a list of sail numbers to the ranked list.
+  // Comparison is done on normalized values so typed input ("101") matches
+  // sail numbers stored as either numbers or strings.
   const addBoatsToList = (sailNumbers) => {
-    const validNew = sailNumbers.filter(
-      (n) => !boatNumbers.includes(n) && validBoats.includes(n),
-    );
+    const existing = new Set(boatNumbers.map(normalizeBoatNumber));
+    const validSet = new Set(validBoats.map(normalizeBoatNumber));
+    const validNew = sailNumbers.filter((n) => {
+      const normalized = normalizeBoatNumber(n);
+      if (existing.has(normalized) || !validSet.has(normalized)) return false;
+      existing.add(normalized);
+      return true;
+    });
     if (validNew.length === 0) return;
 
     const merged = [...boatNumbers, ...validNew];
@@ -155,19 +162,28 @@ function ScoringInputComponent({ heat, onSubmit }) {
   };
 
   const handleAddBoats = () => {
-    const inputNumbers = inputValue
+    const tokens = inputValue
       .split(/[\s,]+/)
-      .map(Number)
-      .filter((n) => !Number.isNaN(n) && n > 0);
-    const unique = [...new Set(inputNumbers)];
-    const invalidInput = unique.filter((n) => !isValidBoatNumber(n));
+      .map((token) => token.trim())
+      .filter((token) => token.length > 0);
+    const unique = [...new Set(tokens.map(normalizeBoatNumber))];
+    // Map typed values to the canonical sail number from this heat so that
+    // the rest of the component works with one consistent value per boat.
+    const canonicalBySail = new Map(
+      validBoats.map((value) => [normalizeBoatNumber(value), value]),
+    );
+    const invalidInput = unique.filter((n) => !canonicalBySail.has(n));
     if (invalidInput.length > 0) {
       reportInfo(
         `These sail numbers are not in ${heat.heat_name}: ${invalidInput.join(', ')}`,
         'Unknown sail numbers',
       );
     }
-    addBoatsToList(unique);
+    addBoatsToList(
+      unique
+        .filter((n) => canonicalBySail.has(n))
+        .map((n) => canonicalBySail.get(n)),
+    );
     setInputValue('');
   };
 
@@ -341,187 +357,76 @@ function ScoringInputComponent({ heat, onSubmit }) {
     return placeNumbers[sailNumber] || '—';
   };
 
+  const isInvalidSail = (sailNumber) =>
+    invalidBoatNumbers
+      .map((n) => normalizeBoatNumber(n))
+      .includes(normalizeBoatNumber(sailNumber));
+
+  const assignedSet = new Set(
+    [...boatNumbers, ...Object.keys(penalties)].map((value) =>
+      normalizeBoatNumber(value),
+    ),
+  );
+  const scoredCount = validBoats.filter((sail) =>
+    assignedSet.has(normalizeBoatNumber(sail)),
+  ).length;
+  const totalBoats = validBoats.length;
+  const allScored = totalBoats > 0 && scoredCount === totalBoats;
+
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'row',
-        width: '100%',
-        gap: '24px',
-        padding: '8px 0',
-      }}
-    >
+    <div className="scoring-layout">
       {/* Left panel — boat list */}
-      <div style={{ flex: '1', minWidth: 0 }}>
-        <h2
-          style={{
-            margin: '0 0 4px 0',
-            fontSize: '1.1rem',
-            color: 'var(--navy)',
-          }}
-        >
-          {heat.heat_name} — Boats
-        </h2>
-        <p
-          style={{
-            margin: '0 0 12px 0',
-            fontSize: '0.88rem',
-            color: 'var(--text-muted, #666)',
-          }}
-        >
+      <div className="scoring-panel">
+        <h2 className="scoring-panel-title">{heat.heat_name} — Boats</h2>
+        <p className="scoring-hint">
           Click a row or select a penalty to include the boat in scoring
         </p>
-        <div
-          style={{
-            border: '1px solid var(--border, #dde3ea)',
-            borderRadius: '10px',
-            overflow: 'hidden',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-          }}
-        >
-          <table
-            style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              fontSize: '0.9rem',
-            }}
-          >
+        <div className="scoring-table-wrap">
+          <table className="scoring-table">
             <thead>
-              <tr
-                style={{
-                  background: 'var(--surface, #f5f7fa)',
-                  borderBottom: '2px solid var(--border, #dde3ea)',
-                }}
-              >
-                <th
-                  style={{
-                    textAlign: 'left',
-                    padding: '8px 10px',
-                    fontWeight: 600,
-                    color: 'var(--navy)',
-                  }}
-                >
-                  Sailor
-                </th>
-                <th
-                  style={{
-                    textAlign: 'left',
-                    padding: '8px 10px',
-                    fontWeight: 600,
-                    color: 'var(--navy)',
-                  }}
-                >
-                  CTR
-                </th>
-                <th
-                  style={{
-                    textAlign: 'left',
-                    padding: '8px 10px',
-                    fontWeight: 600,
-                    color: 'var(--navy)',
-                  }}
-                >
-                  Sail #
-                </th>
-                <th
-                  style={{
-                    textAlign: 'center',
-                    padding: '8px 10px',
-                    fontWeight: 600,
-                    color: 'var(--navy)',
-                  }}
-                >
-                  Place
-                </th>
-                <th
-                  style={{
-                    textAlign: 'left',
-                    padding: '8px 10px',
-                    fontWeight: 600,
-                    color: 'var(--navy)',
-                  }}
-                >
-                  Penalty
-                </th>
+              <tr>
+                <th>Sailor</th>
+                <th>CTR</th>
+                <th>Sail #</th>
+                <th className="scoring-place-cell">Place</th>
+                <th>Penalty</th>
               </tr>
             </thead>
             <tbody>
-              {heat.boats.map((boat, i) => {
+              {heat.boats.map((boat) => {
                 const added = boatNumbers.includes(boat.sail_number);
-                const isInvalid = invalidBoatNumbers
-                  .map((n) => normalizeBoatNumber(n))
-                  .includes(normalizeBoatNumber(boat.sail_number));
-                let rowBackground = 'var(--surface, #f5f7fa)';
-                if (added) {
-                  rowBackground = 'var(--teal-light, #e8f5f1)';
-                } else if (i % 2 === 0) {
-                  rowBackground = '#fff';
-                }
+                const invalid = isInvalidSail(boat.sail_number);
                 return (
                   <tr
                     key={boat.boat_id}
                     onClick={() => handleBoatClick(boat.sail_number)}
-                    style={{
-                      background: rowBackground,
-                      borderBottom: '1px solid var(--border, #dde3ea)',
-                      outline: isInvalid
-                        ? '2px solid var(--danger, #e63946)'
-                        : 'none',
-                      outlineOffset: '-2px',
-                      cursor: added ? 'default' : 'pointer',
-                      transition: 'background 0.15s',
-                    }}
+                    className={`${added ? 'is-added' : ''}${invalid ? ' is-invalid' : ''}`}
                     title={
                       added
                         ? `Already added at place ${getPlaceDisplay(boat.sail_number)}`
                         : 'Click to add to finish order'
                     }
                   >
-                    <td style={{ padding: '8px 10px' }}>
+                    <td>
                       {boat.name} {boat.surname}
-                      {added && (
-                        <span
-                          style={{
-                            marginLeft: 6,
-                            color: 'var(--teal, #2a9d8f)',
-                            fontWeight: 700,
-                            fontSize: '0.8rem',
-                          }}
-                        >
-                          ✓
-                        </span>
-                      )}
+                      {added && <span className="scoring-added-check">✓</span>}
                     </td>
-                    <td style={{ padding: '8px 10px', color: '#555' }}>
-                      {boat.country}
-                    </td>
-                    <td style={{ padding: '8px 10px', fontWeight: 600 }}>
-                      {boat.sail_number}
-                    </td>
+                    <td>{boat.country}</td>
+                    <td className="scoring-sail-cell">{boat.sail_number}</td>
                     <td
-                      style={{
-                        padding: '8px 10px',
-                        textAlign: 'center',
-                        fontWeight: 600,
-                        color: added ? 'var(--teal, #2a9d8f)' : '#aaa',
-                      }}
+                      className={`scoring-place-cell${added ? ' is-added' : ''}`}
                     >
                       {getPlaceDisplay(boat.sail_number)}
                     </td>
-                    <td style={{ padding: '6px 10px' }}>
+                    <td>
                       <select
+                        className="penalty-select"
                         value={penalties[boat.sail_number] || ''}
                         onChange={(e) =>
                           handlePenaltyChange(boat.sail_number, e.target.value)
                         }
                         onClick={(e) => e.stopPropagation()}
                         aria-label={`Penalty for sail ${boat.sail_number}`}
-                        style={{
-                          padding: '4px 6px',
-                          borderRadius: 'var(--radius, 6px)',
-                          border: '1px solid var(--border,#dde3ea)',
-                          fontSize: '0.85rem',
-                        }}
                       >
                         <option value="">None</option>
                         {PENALTY_OPTIONS.map((option) => (
@@ -540,58 +445,26 @@ function ScoringInputComponent({ heat, onSubmit }) {
       </div>
 
       {/* Right panel — finish order */}
-      <div
-        style={{
-          flex: '1',
-          minWidth: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '12px',
-        }}
-      >
-        <h2
-          style={{
-            margin: '0 0 4px 0',
-            fontSize: '1.1rem',
-            color: 'var(--navy)',
-          }}
-        >
+      <div className="scoring-panel scoring-panel-right">
+        <h2 className="scoring-panel-title">
           Finish Order
+          {typeof heat.raceNumber === 'number'
+            ? ` — Race ${heat.raceNumber + 1}`
+            : ''}
         </h2>
 
         {/* Progress indicator so the user always knows how many boats remain */}
-        {(() => {
-          const assigned = new Set(
-            [...boatNumbers, ...Object.keys(penalties)].map((value) =>
-              normalizeBoatNumber(value),
-            ),
-          );
-          const scoredCount = validBoats.filter((sail) =>
-            assigned.has(normalizeBoatNumber(sail)),
-          ).length;
-          const total = validBoats.length;
-          const done = total > 0 && scoredCount === total;
-          return (
-            <p
-              aria-live="polite"
-              style={{
-                margin: 0,
-                fontSize: '0.88rem',
-                fontWeight: 600,
-                color: done
-                  ? 'var(--teal, #2a9d8f)'
-                  : 'var(--text-muted, #666)',
-              }}
-            >
-              {done
-                ? `All ${total} boats scored — ready to submit ✓`
-                : `${scoredCount} of ${total} boats scored — ${total - scoredCount} remaining`}
-            </p>
-          );
-        })()}
+        <p
+          aria-live="polite"
+          className={`finish-progress${allScored ? ' is-done' : ''}`}
+        >
+          {allScored
+            ? `All ${totalBoats} boats scored — ready to submit ✓`
+            : `${scoredCount} of ${totalBoats} boats scored — ${totalBoats - scoredCount} remaining`}
+        </p>
 
         {/* Manual number input */}
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div className="finish-add-row">
           <input
             type="text"
             value={inputValue}
@@ -599,158 +472,66 @@ function ScoringInputComponent({ heat, onSubmit }) {
             onKeyDown={handleInputKeyDown}
             placeholder="Type sail number and press Enter"
             aria-label="Add sail numbers manually"
-            style={{
-              flex: 1,
-              padding: '9px 12px',
-              borderRadius: 'var(--radius, 6px)',
-              border: '1px solid var(--border, #dde3ea)',
-              fontSize: '0.9rem',
-              outline: 'none',
-            }}
           />
           <button
             type="button"
+            className="finish-add-btn"
             onClick={handleAddBoats}
             aria-label="Add sail number to finish order"
-            style={{
-              padding: '9px 16px',
-              borderRadius: 'var(--radius, 6px)',
-              border: '2px solid var(--ocean, #1a6fa3)',
-              background: 'transparent',
-              color: 'var(--ocean, #1a6fa3)',
-              fontWeight: 600,
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              fontSize: '0.9rem',
-            }}
           >
             Add
           </button>
         </div>
 
         {/* Ranked list */}
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0, flex: 1 }}>
+        <ul className="finish-list">
           {boatNumbers.map((number, index) => (
             <React.Fragment key={number}>
-              {dropIndex === index && (
-                <div
-                  style={{
-                    height: '2px',
-                    background: 'var(--ocean, #1a6fa3)',
-                    borderRadius: '1px',
-                    margin: '2px 0',
-                  }}
-                />
-              )}
+              {dropIndex === index && <div className="drop-indicator" />}
               <li
-                data-invalid={invalidBoatNumbers
-                  .map((n) => normalizeBoatNumber(n))
-                  .includes(normalizeBoatNumber(number))}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  marginBottom: '6px',
-                  padding: '8px 12px',
-                  border: invalidBoatNumbers
-                    .map((n) => normalizeBoatNumber(n))
-                    .includes(normalizeBoatNumber(number))
-                    ? '2px solid var(--danger, #e63946)'
-                    : '1px solid var(--border, #dde3ea)',
-                  borderRadius: 'var(--radius, 6px)',
-                  background: '#fff',
-                  cursor: 'grab',
-                  userSelect: 'none',
-                }}
+                data-invalid={isInvalidSail(number)}
+                className={`finish-item${isInvalidSail(number) ? ' is-invalid' : ''}`}
                 draggable
                 onDragStart={() => handleDragStart(index)}
                 onDragOver={handleDragOver(index)}
                 onDrop={handleDrop}
               >
-                <span
-                  style={{
-                    fontWeight: 700,
-                    color: 'var(--teal, #2a9d8f)',
-                    minWidth: '28px',
-                    fontSize: '1rem',
-                  }}
-                >
+                <span className="finish-place">
                   {penalties[number]
                     ? penalties[number]
                     : `${placeNumbers[number]}.`}
                 </span>
-                <span
-                  style={{ flex: 1, fontSize: '0.9rem', color: 'var(--navy)' }}
-                >
+                <span className="finish-label">
                   Sail #{number}
-                  {invalidBoatNumbers
-                    .map((n) => normalizeBoatNumber(n))
-                    .includes(normalizeBoatNumber(number)) && (
-                    <span
-                      style={{
-                        marginLeft: 8,
-                        color: 'var(--danger, #e63946)',
-                        fontWeight: 700,
-                      }}
-                    >
-                      Not in this heat
-                    </span>
+                  {isInvalidSail(number) && (
+                    <span className="finish-not-in-heat">Not in this heat</span>
                   )}
                 </span>
                 <button
                   type="button"
+                  className="finish-move-btn"
                   aria-label={`Move sail ${number} up`}
                   onClick={() => handleReorderBoat(index, index - 1)}
                   disabled={index === 0}
-                  style={{
-                    background: 'none',
-                    border: '1px solid var(--border, #dde3ea)',
-                    borderRadius: '4px',
-                    cursor: index === 0 ? 'not-allowed' : 'pointer',
-                    color: '#666',
-                    fontSize: '0.95rem',
-                    lineHeight: 1,
-                    padding: '4px 8px',
-                  }}
                   title="Move up"
                 >
                   ↑
                 </button>
                 <button
                   type="button"
+                  className="finish-move-btn"
                   aria-label={`Move sail ${number} down`}
                   onClick={() => handleReorderBoat(index, index + 1)}
                   disabled={index === boatNumbers.length - 1}
-                  style={{
-                    background: 'none',
-                    border: '1px solid var(--border, #dde3ea)',
-                    borderRadius: '4px',
-                    cursor:
-                      index === boatNumbers.length - 1
-                        ? 'not-allowed'
-                        : 'pointer',
-                    color: '#666',
-                    fontSize: '0.95rem',
-                    lineHeight: 1,
-                    padding: '4px 8px',
-                  }}
                   title="Move down"
                 >
                   ↓
                 </button>
                 <button
                   type="button"
+                  className="finish-remove-btn"
                   onClick={() => handleRemoveBoat(index)}
                   aria-label={`Remove sail ${number} from finish order`}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: '#999',
-                    fontSize: '1rem',
-                    padding: '0 4px',
-                    lineHeight: 1,
-                  }}
                   title="Remove"
                 >
                   ✕
@@ -759,32 +540,12 @@ function ScoringInputComponent({ heat, onSubmit }) {
             </React.Fragment>
           ))}
           {dropIndex === boatNumbers.length && (
-            <div
-              style={{
-                height: '2px',
-                background: 'var(--ocean, #1a6fa3)',
-                borderRadius: '1px',
-                margin: '2px 0',
-              }}
-            />
+            <div className="drop-indicator" />
           )}
         </ul>
 
         {invalidBoatNumbers.length > 0 && (
-          <div
-            role="alert"
-            style={{
-              alignSelf: 'flex-start',
-              background: 'var(--danger, #e63946)',
-              color: '#fff',
-              padding: '6px 10px',
-              borderRadius: '999px',
-              fontSize: '0.8rem',
-              fontWeight: 700,
-              letterSpacing: '0.01em',
-              boxShadow: '0 1px 4px rgba(230,57,70,0.3)',
-            }}
-          >
+          <div role="alert" className="invalid-count-pill">
             {invalidBoatNumbers.length} invalid sail
             {invalidBoatNumbers.length === 1 ? '' : 's'} in finish order
           </div>
@@ -793,19 +554,8 @@ function ScoringInputComponent({ heat, onSubmit }) {
         {/* Submit */}
         <button
           type="button"
+          className="btn-success submit-scores-btn"
           onClick={handleSubmit}
-          style={{
-            padding: '12px 24px',
-            borderRadius: 'var(--radius, 6px)',
-            border: 'none',
-            background: 'var(--teal, #2a9d8f)',
-            color: '#fff',
-            fontWeight: 700,
-            fontSize: '1rem',
-            cursor: 'pointer',
-            letterSpacing: '0.02em',
-            boxShadow: '0 2px 8px rgba(42,157,143,0.25)',
-          }}
         >
           Submit Scores
         </button>
@@ -818,13 +568,15 @@ ScoringInputComponent.propTypes = {
   heat: PropTypes.shape({
     heat_id: PropTypes.number.isRequired,
     heat_name: PropTypes.string.isRequired,
+    raceNumber: PropTypes.number,
     boats: PropTypes.arrayOf(
       PropTypes.shape({
         boat_id: PropTypes.number.isRequired,
         name: PropTypes.string.isRequired,
         surname: PropTypes.string.isRequired,
         country: PropTypes.string.isRequired,
-        sail_number: PropTypes.number.isRequired,
+        sail_number: PropTypes.oneOfType([PropTypes.number, PropTypes.string])
+          .isRequired,
       }),
     ).isRequired,
   }).isRequired,

@@ -53,31 +53,32 @@ describe('EventForm advanced discard thresholds', () => {
   it('keeps advanced SHRS options hidden by default', async () => {
     render(<EventForm />);
 
-    await waitFor(() => {
-      expect(window.electron.sqlite.eventDB.readAllEvents).toHaveBeenCalled();
-    });
-
     expect(screen.getByLabelText('Advanced SHRS options')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Qualifying Assignment Mode')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Heat Overflow Policy')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Qualifying Discards')).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Qualifying Assignment Mode'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Heat Overflow Policy'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Qualifying Discards'),
+    ).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Finals Discards')).not.toBeInTheDocument();
   });
 
   it('blocks submit when custom qualifying threshold list is invalid', async () => {
     render(<EventForm />);
 
-    await waitFor(() => {
-      expect(window.electron.sqlite.eventDB.readAllEvents).toHaveBeenCalled();
-    });
-
     fillRequiredCreateFields();
 
     fireEvent.click(screen.getByLabelText('Advanced SHRS options'));
 
-    fireEvent.change(screen.getByRole('combobox', { name: /qualifying discards/i }), {
-      target: { value: 'custom' },
-    });
+    fireEvent.change(
+      screen.getByRole('combobox', { name: /qualifying discards/i }),
+      {
+        target: { value: 'custom' },
+      },
+    );
 
     fireEvent.change(screen.getByPlaceholderText('e.g. 4,8,16,24'), {
       target: { value: '5,3,9' },
@@ -97,10 +98,6 @@ describe('EventForm advanced discard thresholds', () => {
 
   it('submits standard discard profiles when advanced is off', async () => {
     render(<EventForm />);
-
-    await waitFor(() => {
-      expect(window.electron.sqlite.eventDB.readAllEvents).toHaveBeenCalled();
-    });
 
     fillRequiredCreateFields();
 

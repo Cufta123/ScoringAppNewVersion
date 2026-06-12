@@ -114,7 +114,6 @@
     "electron-updater": "^6.1.4",
     "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",
-    "font-awesome": "^4.7.0",
     "iso-3166": "^4.3.0",
     "jspdf": "^4.2.0",
     "jspdf-autotable": "^5.0.7",

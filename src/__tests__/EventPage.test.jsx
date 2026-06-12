@@ -2,24 +2,72 @@
 
 import '@testing-library/jest-dom';
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import EventPage from '../renderer/pages/EventPage/EventPage';
-import { confirmAction } from '../renderer/utils/userFeedback';
 
-jest.mock('react-select', () => () => <div>React Select Mock</div>);
-jest.mock('../renderer/components/SailorForm', () => () => <div>Sailor Form Mock</div>);
-jest.mock('../renderer/components/SailorList', () => () => <div>Sailor List Mock</div>);
-jest.mock('../renderer/components/SailorImport', () => () => <div>Sailor Import Mock</div>);
-jest.mock('../renderer/components/HeatComponent', () => () => <div>Heat Component Mock</div>);
-jest.mock('../renderer/components/Navbar', () => ({ onBack, onHeatRaceClick, onOpenLeaderboard }) => (
-  <header>
-    <button type="button" onClick={onBack}>Back</button>
-    {onHeatRaceClick ? <button type="button" onClick={onHeatRaceClick}>Heat Race</button> : null}
-    {onOpenLeaderboard ? <button type="button" onClick={onOpenLeaderboard}>Leaderboard</button> : null}
-  </header>
-));
-jest.mock('../renderer/components/shared/Breadcrumbs', () => () => <nav>Breadcrumbs Mock</nav>);
+jest.mock(
+  'react-select',
+  () =>
+    function () {
+      return <div>React Select Mock</div>;
+    },
+);
+jest.mock(
+  '../renderer/components/SailorForm',
+  () =>
+    function () {
+      return <div>Sailor Form Mock</div>;
+    },
+);
+jest.mock(
+  '../renderer/components/SailorList',
+  () =>
+    function () {
+      return <div>Sailor List Mock</div>;
+    },
+);
+jest.mock(
+  '../renderer/components/SailorImport',
+  () =>
+    function () {
+      return <div>Sailor Import Mock</div>;
+    },
+);
+jest.mock(
+  '../renderer/components/HeatComponent',
+  () =>
+    function () {
+      return <div>Heat Component Mock</div>;
+    },
+);
+jest.mock(
+  '../renderer/components/Navbar',
+  () =>
+    function ({ onHeatRaceClick, onOpenLeaderboard }) {
+      return (
+        <header>
+          {onHeatRaceClick ? (
+            <button type="button" onClick={onHeatRaceClick}>
+              Heat Race
+            </button>
+          ) : null}
+          {onOpenLeaderboard ? (
+            <button type="button" onClick={onOpenLeaderboard}>
+              Leaderboard
+            </button>
+          ) : null}
+        </header>
+      );
+    },
+);
+jest.mock(
+  '../renderer/components/shared/Breadcrumbs',
+  () =>
+    function () {
+      return <nav>Breadcrumbs Mock</nav>;
+    },
+);
 jest.mock('../renderer/utils/printStartingList', () => jest.fn());
 jest.mock('../renderer/utils/userFeedback', () => ({
   confirmAction: jest.fn(),
@@ -52,9 +100,7 @@ describe('EventPage', () => {
       sqlite: {
         eventDB: {
           readBoatsByEvent: jest.fn().mockResolvedValue([]),
-          readAllEvents: jest.fn().mockResolvedValue([{ event_id: 1, is_locked: 0 }]),
-          lockEvent: jest.fn().mockResolvedValue(true),
-          unlockEvent: jest.fn().mockResolvedValue(true),
+          readAllEvents: jest.fn().mockResolvedValue([event]),
           associateBoatWithEvent: jest.fn().mockResolvedValue(true),
           removeBoatFromEvent: jest.fn().mockResolvedValue(true),
         },
@@ -67,10 +113,11 @@ describe('EventPage', () => {
         },
       },
     };
-    confirmAction.mockResolvedValue(true);
   });
 
-  it('redirects to home if event is missing from route state', async () => {
+  it('redirects to home when the event cannot be resolved from the URL', async () => {
+    window.electron.sqlite.eventDB.readAllEvents.mockResolvedValue([]);
+
     renderEventPage('/event/missing');
 
     await waitFor(() => {
@@ -78,9 +125,23 @@ describe('EventPage', () => {
     });
   });
 
+  it('resolves the event from the URL when route state is missing', async () => {
+    renderEventPage('/event/Test Event');
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { name: /test event/i }),
+      ).toBeInTheDocument();
+    });
+  });
+
   it('shows warning banner after races have started', async () => {
-    window.electron.sqlite.heatRaceDB.readAllHeats.mockResolvedValue([{ heat_id: 20 }]);
-    window.electron.sqlite.heatRaceDB.readAllRaces.mockResolvedValue([{ race_id: 7 }]);
+    window.electron.sqlite.heatRaceDB.readAllHeats.mockResolvedValue([
+      { heat_id: 20 },
+    ]);
+    window.electron.sqlite.heatRaceDB.readAllRaces.mockResolvedValue([
+      { race_id: 7 },
+    ]);
 
     renderEventPage({
       pathname: '/event/Test Event',
@@ -94,17 +155,27 @@ describe('EventPage', () => {
     });
   });
 
-  it('locks event after confirmation', async () => {
+  it('shows the locked badge for a locked event', async () => {
+    const lockedEvent = { ...event, is_locked: 1 };
+    window.electron.sqlite.eventDB.readAllEvents.mockResolvedValue([
+      lockedEvent,
+    ]);
+
     renderEventPage({
       pathname: '/event/Test Event',
-      state: { event },
+      state: { event: lockedEvent },
     });
 
-    fireEvent.click(await screen.findByRole('button', { name: /lock event/i }));
-
-    await waitFor(() => {
-      expect(confirmAction).toHaveBeenCalled();
-      expect(window.electron.sqlite.eventDB.lockEvent).toHaveBeenCalledWith(1);
-    });
+    expect(await screen.findByText('Locked')).toBeInTheDocument();
+    expect(
+      screen.getByText(/this event is locked — results are final/i),
+    ).toBeInTheDocument();
+    // Lock controls were removed from the frontend entirely.
+    expect(
+      screen.queryByRole('button', { name: /unlock event/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /^lock event$/i }),
+    ).not.toBeInTheDocument();
   });
 });

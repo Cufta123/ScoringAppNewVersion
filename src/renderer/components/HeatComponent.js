@@ -127,6 +127,7 @@ function HeatComponent({
   event,
   onHeatSelect,
   onStartScoring,
+  onUndoLastRace,
   clickable,
   onQualifyingGroupCountChange,
 }) {
@@ -554,6 +555,13 @@ function HeatComponent({
       return;
     }
 
+    const confirmed = await confirmAction(
+      'Recreate all heats?\n\nThe current heats and any manual boat moves between heats will be discarded, and boats will be re-assigned from scratch.',
+      'Recreate heats',
+      { confirmLabel: 'Recreate heats', cancelLabel: 'Keep current heats' },
+    );
+    if (!confirmed) return;
+
     try {
       await window.electron.sqlite.heatRaceDB.deleteHeatsByEvent(
         event.event_id,
@@ -600,7 +608,7 @@ function HeatComponent({
       return acc;
     }, {});
 
-    return heats.filter((heat) => {
+    return heatsList.filter((heat) => {
       const match = heat.heat_name.match(/([A-Z]+)(\d*)$/);
       if (match) {
         const [, group, suffix] = match;
@@ -708,19 +716,6 @@ function HeatComponent({
     }
   };
 
-  const heatsContainerStyle = {}; // handled by .heats-container CSS class
-
-  const heatColumnStyle = {
-    cursor: clickable ? 'pointer' : 'default',
-  };
-
-  const selectedHeatColumnStyle = {
-    cursor: clickable ? 'pointer' : 'default',
-    borderColor: '#1A6FBF',
-    boxShadow:
-      '0 0 0 3px rgba(26,111,191,.20), 0 4px 16px rgba(26,111,191,.18)',
-  };
-
   const boatNumberColumnStyle = {
     maxWidth: '100px',
   };
@@ -743,78 +738,13 @@ function HeatComponent({
         {pendingFinalHeats > 1 ? 's' : ''} based on current standings. This
         action <strong>cannot be undone</strong>.
       </AppModal>
-      <h2>
-        <i
-          className="fa fa-flag"
-          aria-hidden="true"
-          style={{ marginRight: '8px' }}
-        />
-        Heats
-      </h2>
-      {/* ── Heat setup controls ─── */}
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          gap: '12px',
-          marginBottom: '12px',
-        }}
-      >
-        {!raceHappened && !finalSeriesStarted && (
-          <>
-            <label
-              htmlFor="numHeats"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '.88rem',
-                fontWeight: 600,
-                color: '#6B849A',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              Heats
-              <select
-                id="numHeats"
-                value={numHeats}
-                onChange={(e) => setNumHeats(Number(e.target.value))}
-                disabled={raceHappened || finalSeriesStarted}
-                style={{ width: '72px' }}
-              >
-                {[...Array(10).keys()].map((i) => (
-                  <option key={i + 1} value={i + 1}>
-                    {i + 1}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              onClick={heatsCreated ? handleRecreateHeats : handleCreateHeats}
-              disabled={raceHappened || finalSeriesStarted}
-            >
-              {heatsCreated ? 'Recreate Heats' : 'Create Heats'}
-            </button>
-          </>
-        )}
-        {hasMultipleRounds && (
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={toggleDisplayMode}
-          >
-            {displayLastHeats ? 'Show All Heats' : 'Show Last Heats'}
-          </button>
-        )}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-          }}
-        >
+      {/* ── Section header: title + export controls share one row ─── */}
+      <div className="section-header-row">
+        <h2>
+          <i className="fa fa-flag" aria-hidden="true" />
+          Heats
+        </h2>
+        <div className="list-header-actions">
           <select
             className="compact-select"
             aria-label="New heats format"
@@ -836,22 +766,74 @@ function HeatComponent({
         </div>
       </div>
 
+      {/* ── Heat setup controls ─── */}
+      {(!raceHappened && !finalSeriesStarted) || hasMultipleRounds ? (
+        <div className="heat-toolbar">
+          {!raceHappened && !finalSeriesStarted && (
+            <>
+              <label htmlFor="numHeats" className="heat-count-label">
+                Number of heats
+                <select
+                  id="numHeats"
+                  value={numHeats}
+                  onChange={(e) => setNumHeats(Number(e.target.value))}
+                  disabled={raceHappened || finalSeriesStarted}
+                >
+                  {[...Array(10).keys()].map((i) => (
+                    <option key={i + 1} value={i + 1}>
+                      {i + 1}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={heatsCreated ? handleRecreateHeats : handleCreateHeats}
+                disabled={raceHappened || finalSeriesStarted}
+              >
+                {heatsCreated ? 'Recreate Heats' : 'Create Heats'}
+              </button>
+            </>
+          )}
+          {hasMultipleRounds && (
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={toggleDisplayMode}
+            >
+              {displayLastHeats ? 'Show All Heats' : 'Show Last Heats'}
+            </button>
+          )}
+        </div>
+      ) : null}
+
+      {heatsToDisplay.length === 0 && !heatsCreated && (
+        <div className="info-banner">
+          <i
+            className="fa fa-info-circle"
+            aria-hidden="true"
+            style={{ marginRight: '8px' }}
+          />
+          No heats yet. Choose the number of heats above and press{' '}
+          <strong>Create Heats</strong> — boats will be divided automatically
+          based on country and sail number.
+        </div>
+      )}
+
       {heatsToDisplay.length > 0 && (
-        <div style={heatsContainerStyle} className="heats-container">
+        <div className="heats-container">
           {heatsToDisplay.map((heat) => (
             <div
               key={heat.heat_id}
-              style={
-                heat.heat_id === selectedHeatId
-                  ? selectedHeatColumnStyle
-                  : heatColumnStyle
-              }
-              className="heat-column"
+              className={`heat-column${clickable ? ' clickable' : ''}${
+                heat.heat_id === selectedHeatId ? ' selected' : ''
+              }`}
               onClick={() => handleHeatClick(heat)}
               role="button"
               tabIndex={0}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') {
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
                   handleHeatClick(heat);
                 }
               }}
@@ -893,133 +875,88 @@ function HeatComponent({
                   ))}
                 </tbody>
               </table>
-              {heat.heat_id === selectedHeatId && onStartScoring && (
-                <div
-                  style={{
-                    marginTop: '14px',
-                    paddingTop: '12px',
-                    borderTop: '2px solid #e8f0f8',
-                    display: 'flex',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <button
-                    type="button"
-                    className="btn-success"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onStartScoring();
-                    }}
-                    style={{ width: '100%' }}
-                  >
-                    <i
-                      className="fa fa-play"
-                      aria-hidden="true"
-                      style={{ marginRight: '6px' }}
-                    />
-                    Start Scoring
-                  </button>
-                </div>
-              )}
+              {heat.heat_id === selectedHeatId &&
+                (onStartScoring || onUndoLastRace) && (
+                  <div className="heat-card-actions">
+                    {onStartScoring && (
+                      <button
+                        type="button"
+                        className="btn-success"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onStartScoring();
+                        }}
+                      >
+                        <i className="fa fa-play" aria-hidden="true" /> Start
+                        Scoring
+                      </button>
+                    )}
+                    {onUndoLastRace && heat.raceNumber > 0 && (
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        title={`Delete Race ${heat.raceNumber} in ${heat.heat_name}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onUndoLastRace(heat);
+                        }}
+                      >
+                        <i className="fa fa-undo" aria-hidden="true" /> Undo
+                        Race {heat.raceNumber}
+                      </button>
+                    )}
+                  </div>
+                )}
             </div>
           ))}
         </div>
       )}
 
-      {/* ── Phase transition: Start Final Series ─── */}
-      {/* SHRS 1.1: only show Final Series controls when there are 2+ qualifying heat groups */}
-      {!finalSeriesStarted && numQualifyingGroups >= 2 && (
-        <div
-          style={{
-            marginTop: '24px',
-            paddingTop: '20px',
-            borderTop: '2px solid #e8f0f8',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-start',
-            gap: '10px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      {/* ── Phase transition: Start Final Series + its safety net ─── */}
+      {/* SHRS 1.1: only show Final Series controls when there are 2+ qualifying heat groups.
+          Snapshots sit next to the action they protect. */}
+      {numQualifyingGroups >= 2 && (
+        <div className="final-series-bar">
+          <div className="final-series-actions">
+            {!finalSeriesStarted && (
+              <button
+                type="button"
+                className="btn-success"
+                onClick={handleStartFinalSeries}
+              >
+                <i className="fa fa-flag-checkered" aria-hidden="true" /> Start
+                Final Series
+              </button>
+            )}
             <button
               type="button"
-              className="btn-success"
-              onClick={handleStartFinalSeries}
+              className="btn-ghost"
+              onClick={handleSaveSnapshot}
             >
-              <i
-                className="fa fa-flag-checkered"
-                aria-hidden="true"
-                style={{ marginRight: '6px' }}
-              />
-              Start Final Series
+              Save Snapshot
             </button>
-            <span
-              style={{
-                fontSize: '1rem',
-                fontWeight: 700,
-                color: '#0B5CAB',
-              }}
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={handleRestoreSnapshot}
             >
-              RO MODE: Save snapshot first, then start Final Series.
-            </span>
+              Restore Snapshot
+            </button>
           </div>
-          <span style={{ fontSize: '.85rem', color: '#6B849A' }}>
-            Advances the event to the final fleet stage based on current
-            standings.
-          </span>
-        </div>
-      )}
-
-      {numQualifyingGroups >= 2 && (
-        <div
-          style={{
-            marginTop: '12px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-          }}
-        >
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={handleSaveSnapshot}
-          >
-            Save Snapshot
-          </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={handleRestoreSnapshot}
-          >
-            Restore Snapshot
-          </button>
-          <span style={{ fontSize: '.82rem', color: '#6B849A' }}>
-            Recommended before major actions (for example before final split).
+          <span className="final-series-hint">
+            {finalSeriesStarted
+              ? 'Snapshots let you restore the event state if something goes wrong.'
+              : 'Splits the boats into final fleets (Gold/Silver/…) based on current standings. Save a snapshot first so you can restore the event if something goes wrong.'}
           </span>
         </div>
       )}
 
       {numQualifyingGroups >= 2 && snapshotHistory.length > 0 && (
-        <div
-          style={{
-            marginTop: '10px',
-            padding: '10px 12px',
-            border: '1px solid #D6E2EE',
-            borderRadius: '8px',
-            background: '#F7FBFF',
-          }}
-        >
-          <div
-            style={{ fontSize: '.88rem', fontWeight: 700, marginBottom: '6px' }}
-          >
-            Last snapshots
-          </div>
-          <ul style={{ margin: 0, paddingLeft: '18px' }}>
+        <div className="snapshot-history">
+          <div className="snapshot-history-title">Last snapshots</div>
+          <ul>
             {snapshotHistory.map((item) => (
-              <li
-                key={`${item.fileName}-${item.savedAt}`}
-                style={{ fontSize: '.82rem', color: '#4D6276' }}
-              >
+              <li key={`${item.fileName}-${item.savedAt}`}>
                 {item.fileName} - {new Date(item.savedAt).toLocaleString()}
               </li>
             ))}
@@ -1037,6 +974,7 @@ HeatComponent.propTypes = {
   }).isRequired,
   onHeatSelect: PropTypes.func,
   onStartScoring: PropTypes.func,
+  onUndoLastRace: PropTypes.func,
   onQualifyingGroupCountChange: PropTypes.func,
   clickable: PropTypes.bool.isRequired,
 };
@@ -1044,6 +982,7 @@ HeatComponent.propTypes = {
 HeatComponent.defaultProps = {
   onHeatSelect: () => {},
   onStartScoring: null,
+  onUndoLastRace: null,
   onQualifyingGroupCountChange: null,
 };
 

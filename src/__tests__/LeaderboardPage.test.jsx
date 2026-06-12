@@ -7,49 +7,85 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { confirmAction } from '../renderer/utils/userFeedback';
 
 jest.mock('../renderer/hooks/useLeaderboard', () => jest.fn());
-jest.mock('../renderer/components/Navbar', () => ({ onBack }) => (
-  <header>
-    <button type="button" onClick={onBack}>
-      Back to Event
-    </button>
-  </header>
-));
-jest.mock('../renderer/components/shared/Breadcrumbs', () => ({ items }) => (
-  <nav>
-    {items.map((item) => (
-      <button key={item.label} type="button" onClick={item.onClick}>
-        {item.label}
-      </button>
-    ))}
-  </nav>
-));
-jest.mock('../renderer/components/leaderboard/LeaderboardToolbar', () => () => (
-  <div>Leaderboard Toolbar Mock</div>
-));
-jest.mock('../renderer/components/leaderboard/SectionDivider', () => () => (
-  <div>Section Divider Mock</div>
-));
-jest.mock('../renderer/components/leaderboard/QualifyingTable', () => () => (
-  <div>Qualifying Table Mock</div>
-));
-jest.mock('../renderer/components/leaderboard/FinalFleetTable', () => () => (
-  <div>Final Fleet Table Mock</div>
-));
-jest.mock('../renderer/components/leaderboard/RdgLegend', () => () => (
-  <div>RDG Legend Mock</div>
-));
-jest.mock('../renderer/components/shared/EmptyState', () => ({ title }) => (
-  <div>{title}</div>
-));
-jest.mock('../renderer/components/shared/LoadingState', () => ({ label }) => (
-  <div>{label}</div>
-));
+jest.mock(
+  '../renderer/components/Navbar',
+  () =>
+    function () {
+      return <header>Navbar Mock</header>;
+    },
+);
+jest.mock(
+  '../renderer/components/shared/Breadcrumbs',
+  () =>
+    function ({ items }) {
+      return (
+        <nav>
+          {items.map((item) => (
+            <button key={item.label} type="button" onClick={item.onClick}>
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      );
+    },
+);
+jest.mock(
+  '../renderer/components/leaderboard/LeaderboardToolbar',
+  () =>
+    function () {
+      return <div>Leaderboard Toolbar Mock</div>;
+    },
+);
+jest.mock(
+  '../renderer/components/leaderboard/SectionDivider',
+  () =>
+    function () {
+      return <div>Section Divider Mock</div>;
+    },
+);
+jest.mock(
+  '../renderer/components/leaderboard/QualifyingTable',
+  () =>
+    function () {
+      return <div>Qualifying Table Mock</div>;
+    },
+);
+jest.mock(
+  '../renderer/components/leaderboard/FinalFleetTable',
+  () =>
+    function () {
+      return <div>Final Fleet Table Mock</div>;
+    },
+);
+jest.mock(
+  '../renderer/components/leaderboard/RdgLegend',
+  () =>
+    function () {
+      return <div>RDG Legend Mock</div>;
+    },
+);
+jest.mock(
+  '../renderer/components/shared/EmptyState',
+  () =>
+    function ({ title }) {
+      return <div>{title}</div>;
+    },
+);
+jest.mock(
+  '../renderer/components/shared/LoadingState',
+  () =>
+    function ({ label }) {
+      return <div>{label}</div>;
+    },
+);
 jest.mock('../renderer/utils/userFeedback', () => ({
   confirmAction: jest.fn(),
+  reportError: jest.fn(),
 }));
 
 const useLeaderboard = require('../renderer/hooks/useLeaderboard');
-const LeaderboardPage = require('../renderer/pages/LeaderboardPage/LeaderboardPage').default;
+const LeaderboardPage =
+  require('../renderer/pages/LeaderboardPage/LeaderboardPage').default;
 
 const baseLeaderboardHook = {
   eventLeaderboard: [],
@@ -92,7 +128,10 @@ const renderLeaderboardPage = (entry) =>
       <Routes>
         <Route path="/" element={<div>Home Screen</div>} />
         <Route path="/event/:name" element={<div>Event Screen</div>} />
-        <Route path="/event/:eventName/leaderboard" element={<LeaderboardPage />} />
+        <Route
+          path="/event/:eventName/leaderboard"
+          element={<LeaderboardPage />}
+        />
       </Routes>
     </MemoryRouter>,
   );
@@ -102,13 +141,34 @@ describe('LeaderboardPage', () => {
     jest.clearAllMocks();
     useLeaderboard.mockReturnValue(baseLeaderboardHook);
     confirmAction.mockResolvedValue(true);
+    window.electron = {
+      sqlite: {
+        eventDB: {
+          readAllEvents: jest.fn().mockResolvedValue([event]),
+        },
+      },
+    };
   });
 
-  it('renders nothing when event state is missing', () => {
+  it('redirects home when the event cannot be resolved from the URL', async () => {
+    window.electron.sqlite.eventDB.readAllEvents.mockResolvedValue([]);
+
     renderLeaderboardPage('/event/unknown/leaderboard');
 
-    expect(screen.queryByText('Leaderboard Toolbar Mock')).not.toBeInTheDocument();
-    expect(screen.queryByText('Qualifying Table Mock')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Home Screen')).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByText('Leaderboard Toolbar Mock'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('resolves the event from the URL when route state is missing', async () => {
+    renderLeaderboardPage('/event/Spring Cup/leaderboard');
+
+    expect(
+      await screen.findByText('Leaderboard Toolbar Mock'),
+    ).toBeInTheDocument();
   });
 
   it('renders leaderboard content for valid event', () => {
@@ -133,7 +193,8 @@ describe('LeaderboardPage', () => {
       state: { event },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /back to event/i }));
+    // Navigating away now happens through the breadcrumbs.
+    fireEvent.click(screen.getByRole('button', { name: 'Spring Cup' }));
 
     await waitFor(() => {
       expect(confirmAction).toHaveBeenCalledWith(

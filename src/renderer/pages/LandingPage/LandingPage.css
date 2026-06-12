@@ -1,17 +1,16 @@
 /* LandingPage.css */
 
 .landing-page {
-  min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding: 40px 24px;
+  padding: 16px 24px 48px;
 }
 
 .landing-hero {
   text-align: center;
-  margin-bottom: 40px;
+  margin-bottom: 32px;
 }
 
 .landing-hero h1 {
@@ -27,15 +26,21 @@
 
 .landing-card {
   background: var(--surface);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  border: 1px solid rgba(200, 223, 242, .6);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
   padding: 32px 40px;
   width: 100%;
   max-width: 640px;
+  margin-bottom: 18px;
 }
 
-.landing-actions {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 32px;
+.landing-card > h2 { margin-top: 0; }
+
+.landing-steps {
+  margin: 0;
+  padding-left: 22px;
+  line-height: 1.7;
 }
+
+.landing-steps li { list-style: decimal; }

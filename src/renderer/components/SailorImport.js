@@ -85,14 +85,7 @@ function SailorImport({ eventId, onImportComplete }) {
       />
 
       {/* Action row */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          flexWrap: 'wrap',
-        }}
-      >
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => {
@@ -109,8 +102,7 @@ function SailorImport({ eventId, onImportComplete }) {
         {/* Small inline template link */}
         <button
           type="button"
-          className="btn-ghost"
-          style={{ fontSize: '.88rem', padding: '6px 12px' }}
+          className="btn-ghost btn-sm"
           onClick={downloadTemplate}
           aria-label="Download CSV template"
         >
@@ -120,13 +112,7 @@ function SailorImport({ eventId, onImportComplete }) {
       </div>
 
       {/* Column format hint */}
-      <p
-        style={{
-          fontSize: '.88rem',
-          color: 'var(--text-muted)',
-          margin: '8px 0 0',
-        }}
-      >
+      <p className="muted-note">
         Columns:{' '}
         <code>
           name, surname, birthday (YYYY-MM-DD), sail_number, country (IOC code),
@@ -152,7 +138,8 @@ function SailorImport({ eventId, onImportComplete }) {
             {result.created > 0 && (
               <>
                 <strong>{result.created}</strong> new boat
-                {result.created !== 1 ? 's' : ''} created &nbsp;&bull;&nbsp;{' '}
+                {result.created !== 1 ? 's' : ''} created
+                &nbsp;&bull;&nbsp;{' '}
               </>
             )}
             {result.associated > 0 && (

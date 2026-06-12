@@ -1,7 +1,7 @@
 /* eslint-disable react/require-default-props */
 import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import Navbar from '../../components/Navbar';
 import useLeaderboard from '../../hooks/useLeaderboard';
 import LeaderboardToolbar from '../../components/leaderboard/LeaderboardToolbar';
@@ -12,7 +12,7 @@ import RdgLegend from '../../components/leaderboard/RdgLegend';
 import Breadcrumbs from '../../components/shared/Breadcrumbs';
 import EmptyState from '../../components/shared/EmptyState';
 import LoadingState from '../../components/shared/LoadingState';
-import { confirmAction } from '../../utils/userFeedback';
+import { confirmAction, reportError } from '../../utils/userFeedback';
 import './LeaderboardPage.css';
 
 function LeaderboardContent({ eventId, onUnsavedChange = null }) {
@@ -220,14 +220,37 @@ LeaderboardContent.propTypes = {
 function LeaderboardPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { event } = location.state || {};
+  const { eventName } = useParams();
+  const [event, setEvent] = useState(location.state?.event || null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
+  // Refresh-safe: resolve the event from the URL when router state is gone.
   useEffect(() => {
-    if (!event) {
-      navigate('/');
-    }
-  }, [event, navigate]);
+    if (event) return undefined;
+    let isActive = true;
+
+    const findEventByName = async () => {
+      try {
+        const events = await window.electron.sqlite.eventDB.readAllEvents();
+        if (!isActive) return;
+        const match = (events || []).find((e) => e.event_name === eventName);
+        if (match) {
+          setEvent(match);
+        } else {
+          navigate('/');
+        }
+      } catch (error) {
+        if (!isActive) return;
+        reportError('Could not load event details.', error);
+        navigate('/');
+      }
+    };
+
+    findEventByName();
+    return () => {
+      isActive = false;
+    };
+  }, [event, eventName, navigate]);
 
   if (!event) {
     return null;
@@ -244,16 +267,9 @@ function LeaderboardPage() {
     navigate(target.path, target.options);
   };
 
-  const handleBack = async () => {
-    await navigateWithUnsavedCheck({
-      path: `/event/${event.event_name}`,
-      options: { state: { event } },
-    });
-  };
-
   return (
     <div>
-      <Navbar onBack={handleBack} backLabel="Back to Event" />
+      <Navbar />
       <main
         id="main-content"
         className="leaderboard-page-content"

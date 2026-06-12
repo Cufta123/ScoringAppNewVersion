@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import 'font-awesome/css/font-awesome.min.css';
 import Flag from 'react-world-flags';
 import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
 import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
@@ -11,7 +10,7 @@ function SortTh({ col, label, sortCriteria, sortDirection, onSort }) {
       {label}{' '}
       {sortCriteria === col ? (
         <i
-          className={`fa fa-sort-${sortDirection === 'asc' ? 'asc' : 'desc'}`}
+          className={`fa fa-sort-${sortDirection === 'asc' ? 'up' : 'down'}`}
         />
       ) : (
         <i className="fa fa-sort" style={{ opacity: 0.25 }} />
@@ -28,7 +27,12 @@ SortTh.propTypes = {
   onSort: PropTypes.func.isRequired,
 };
 
-function SailorList({ sailors, onRemoveBoat, onRefreshSailors }) {
+function SailorList({
+  sailors,
+  onRemoveBoat,
+  onRefreshSailors,
+  headerActions,
+}) {
   const [sortCriteria, setSortCriteria] = useState('name');
   const [sortDirection, setSortDirection] = useState('asc');
   const [editingSailorId, setEditingSailorId] = useState(null);
@@ -151,15 +155,29 @@ function SailorList({ sailors, onRemoveBoat, onRefreshSailors }) {
           <i className="fa fa-users" aria-hidden="true" />
           Registered Boats &amp; Sailors
         </h2>
-        <button type="button" className="btn-ghost" onClick={toggleExpand}>
-          <i
-            className={`fa fa-chevron-${isExpanded ? 'up' : 'down'}`}
-            aria-hidden="true"
-          />
-          {isExpanded ? 'Collapse' : 'Expand'}
-        </button>
+        <div className="list-header-actions">
+          {headerActions}
+          <button type="button" className="btn-ghost" onClick={toggleExpand}>
+            <i
+              className={`fa fa-chevron-${isExpanded ? 'up' : 'down'}`}
+              aria-hidden="true"
+            />
+            {isExpanded ? 'Collapse' : 'Expand'}
+          </button>
+        </div>
       </div>
-      {isExpanded && (
+      {isExpanded && sailors.length === 0 && (
+        <div className="info-banner">
+          <i
+            className="fa fa-info-circle"
+            aria-hidden="true"
+            style={{ marginRight: '8px' }}
+          />
+          No sailors registered yet. Use <strong>Add Sailors</strong> above to
+          add them one by one, or import a whole list from a CSV file.
+        </div>
+      )}
+      {isExpanded && sailors.length > 0 && (
         <table>
           <thead>
             <tr>
@@ -315,55 +333,47 @@ function SailorList({ sailors, onRemoveBoat, onRefreshSailors }) {
                 <td>
                   <div className="icon-container">
                     {editingSailorId === sailor.boat_id ? (
-                      <i
-                        className="fa fa-save"
-                        aria-label="Save"
-                        role="button"
-                        tabIndex="0"
+                      <button
+                        type="button"
+                        className="icon-action-btn"
+                        aria-label={`Save changes for ${sailor.name} ${sailor.surname}`}
+                        title="Save changes"
                         onClick={handleSave}
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') handleSave();
-                        }}
-                        style={{
-                          color: 'var(--teal)',
-                          fontSize: '22px',
-                          cursor: 'pointer',
-                        }}
-                      />
+                      >
+                        <i
+                          className="fa fa-save"
+                          aria-hidden="true"
+                          style={{ color: 'var(--teal)' }}
+                        />
+                      </button>
                     ) : (
-                      <i
-                        className="fa fa-pencil"
-                        aria-label="Edit Boat"
-                        role="button"
-                        tabIndex="0"
+                      <button
+                        type="button"
+                        className="icon-action-btn"
+                        aria-label={`Edit ${sailor.name} ${sailor.surname}`}
+                        title="Edit sailor and boat"
                         onClick={() => handleEditClick(sailor)}
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ')
-                            handleEditClick(sailor);
-                        }}
-                        style={{
-                          color: 'var(--ocean)',
-                          fontSize: '22px',
-                          cursor: 'pointer',
-                        }}
-                      />
+                      >
+                        <i
+                          className="fa fa-pencil"
+                          aria-hidden="true"
+                          style={{ color: 'var(--ocean)' }}
+                        />
+                      </button>
                     )}
-                    <i
-                      className="fa fa-trash"
-                      aria-label="Remove Boat"
-                      role="button"
-                      tabIndex="0"
+                    <button
+                      type="button"
+                      className="icon-action-btn"
+                      aria-label={`Remove boat ${sailor.sail_number} from event`}
+                      title="Remove boat from event"
                       onClick={() => handleRemoveWithConfirm(sailor)}
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ')
-                          handleRemoveWithConfirm(sailor);
-                      }}
-                      style={{
-                        color: 'var(--danger)',
-                        fontSize: '22px',
-                        cursor: 'pointer',
-                      }}
-                    />
+                    >
+                      <i
+                        className="fa fa-trash"
+                        aria-hidden="true"
+                        style={{ color: 'var(--danger)' }}
+                      />
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -380,7 +390,8 @@ SailorList.propTypes = {
     PropTypes.shape({
       boat_id: PropTypes.number.isRequired,
       country: PropTypes.string.isRequired,
-      sail_number: PropTypes.number.isRequired,
+      sail_number: PropTypes.oneOfType([PropTypes.number, PropTypes.string])
+        .isRequired,
       model: PropTypes.string.isRequired,
       name: PropTypes.string.isRequired,
       surname: PropTypes.string.isRequired,
@@ -390,6 +401,11 @@ SailorList.propTypes = {
   ).isRequired,
   onRemoveBoat: PropTypes.func.isRequired,
   onRefreshSailors: PropTypes.func.isRequired,
+  headerActions: PropTypes.node,
+};
+
+SailorList.defaultProps = {
+  headerActions: null,
 };
 
 export default SailorList;

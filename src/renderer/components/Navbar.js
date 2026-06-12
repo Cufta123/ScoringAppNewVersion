@@ -1,14 +1,9 @@
 import React from 'react';
+import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
 
-const navBtnBase = {
-  fontSize: '.9rem',
-  padding: '10px 20px',
-};
-
 function Navbar({
-  onBack,
-  backLabel,
+  onOpenGlobalLeaderboard,
   onOpenLeaderboard,
   isEventLocked,
   onHeatRaceClick,
@@ -16,74 +11,37 @@ function Navbar({
   const navigate = useNavigate();
 
   return (
-    <nav
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        flexWrap: 'wrap',
-        padding: '12px 28px',
-        background: 'linear-gradient(90deg, #0F2D4A 0%, #173B5E 100%)',
-        marginBottom: '24px',
-        boxShadow: '0 2px 12px rgba(15,45,74,.25)',
-      }}
-    >
-      {/* Left: back button (if any) */}
-      {onBack && (
-        <button
-          type="button"
-          className="btn-secondary"
-          style={navBtnBase}
-          onClick={onBack}
-          aria-label={backLabel || 'Go back'}
-        >
-          <i
-            className="fa fa-arrow-left"
-            aria-hidden="true"
-            style={{ marginRight: '6px' }}
-          />
-          {backLabel || 'Back'}
-        </button>
-      )}
-
+    <nav className="app-navbar">
       {/* Brand — always visible, clicking takes you home */}
       <button
         type="button"
+        className="app-navbar-brand"
         onClick={() => navigate('/')}
         aria-label="Go to home page"
-        style={{
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          color: '#fff',
-          fontWeight: '800',
-          fontSize: '1.15rem',
-          letterSpacing: '-.2px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '9px',
-          opacity: '.95',
-          padding: 0,
-          marginRight: 'auto',
-        }}
       >
         <i className="fa fa-anchor" aria-hidden="true" />
         IOM Regatta Manager
       </button>
 
-      {/* Right: action buttons */}
+      {/* Right: contextual action buttons */}
+      {onOpenGlobalLeaderboard && (
+        <button
+          type="button"
+          onClick={onOpenGlobalLeaderboard}
+          aria-label="Open global leaderboard"
+        >
+          <i className="fa fa-trophy" aria-hidden="true" />
+          Global Leaderboard
+        </button>
+      )}
+
       {onOpenLeaderboard && (
         <button
           type="button"
-          style={navBtnBase}
           onClick={onOpenLeaderboard}
           aria-label="Open leaderboard"
         >
-          <i
-            className="fa fa-trophy"
-            aria-hidden="true"
-            style={{ marginRight: '6px' }}
-          />
+          <i className="fa fa-trophy" aria-hidden="true" />
           Leaderboard
         </button>
       )}
@@ -92,20 +50,29 @@ function Navbar({
         <button
           type="button"
           className="btn-success"
-          style={navBtnBase}
           onClick={onHeatRaceClick}
           aria-label="Go to scoring"
         >
-          <i
-            className="fa fa-flag-checkered"
-            aria-hidden="true"
-            style={{ marginRight: '6px' }}
-          />
+          <i className="fa fa-flag-checkered" aria-hidden="true" />
           Go to Scoring
         </button>
       )}
     </nav>
   );
 }
+
+Navbar.propTypes = {
+  onOpenGlobalLeaderboard: PropTypes.func,
+  onOpenLeaderboard: PropTypes.func,
+  isEventLocked: PropTypes.bool,
+  onHeatRaceClick: PropTypes.func,
+};
+
+Navbar.defaultProps = {
+  onOpenGlobalLeaderboard: null,
+  onOpenLeaderboard: null,
+  isEventLocked: false,
+  onHeatRaceClick: null,
+};
 
 export default Navbar;

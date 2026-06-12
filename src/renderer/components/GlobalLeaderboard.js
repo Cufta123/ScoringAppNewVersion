@@ -35,10 +35,14 @@ function GlobalLeaderboardComponent() {
       const nameCmp = left.name.localeCompare(right.name);
       if (nameCmp !== 0) return nameCmp;
 
-      return String(left.boat_number).localeCompare(String(right.boat_number), undefined, {
-        numeric: true,
-        sensitivity: 'base',
-      });
+      return String(left.boat_number).localeCompare(
+        String(right.boat_number),
+        undefined,
+        {
+          numeric: true,
+          sensitivity: 'base',
+        },
+      );
     });
 
     return rows;
@@ -49,15 +53,15 @@ function GlobalLeaderboardComponent() {
 
     const fetchGlobalLeaderboard = async () => {
       try {
-        const results = await window.electron.sqlite.heatRaceDB.readGlobalLeaderboard();
+        const results =
+          await window.electron.sqlite.heatRaceDB.readGlobalLeaderboard();
         if (!isActive) return;
 
         setLeaderboard(mapAndSortLeaderboard(results));
+        setLoading(false);
       } catch (error) {
         if (!isActive) return;
         reportError('Could not load global leaderboard.', error);
-      } finally {
-        if (!isActive) return;
         setLoading(false);
       }
     };
@@ -121,14 +125,27 @@ function GlobalLeaderboardComponent() {
 
   return (
     <div className="leaderboard">
-      <h2>Global Leaderboard</h2>
-      <button
-        type="button"
-        onClick={exportToExcel}
-        aria-label="Export global leaderboard to Excel"
-      >
-        Export to Excel
-      </button>
+      <div className="section-header-row">
+        <h2>
+          <i
+            className="fa fa-trophy"
+            aria-hidden="true"
+            style={{ color: '#E6A817' }}
+          />
+          Global Leaderboard
+        </h2>
+        <button
+          type="button"
+          className="btn-ghost"
+          onClick={exportToExcel}
+          aria-label="Export global leaderboard to Excel"
+        >
+          <i className="fa fa-download" aria-hidden="true" /> Export to Excel
+        </button>
+      </div>
+      <p className="muted-note" style={{ margin: '0 0 12px' }}>
+        Combined standings across all locked events. Lower points are better.
+      </p>
       <table>
         <thead>
           <tr>

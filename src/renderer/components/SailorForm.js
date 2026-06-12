@@ -31,7 +31,6 @@ function SailorForm({ onAddSailor, eventId }) {
   const [selectedCountry, setSelectedCountry] = useState('');
   const [sailNumber, setSailNumber] = useState('');
   const [model, setModel] = useState('');
-  const [boats, setBoats] = useState([]);
   const [raceHappened, setRaceHappened] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
 
@@ -41,15 +40,6 @@ function SailorForm({ onAddSailor, eventId }) {
       setClubs(allClubs);
     } catch (error) {
       reportError('Could not load clubs.', error);
-    }
-  };
-
-  const fetchBoats = async () => {
-    try {
-      const allBoats = await window.electron.sqlite.sailorDB.readAllBoats();
-      setBoats(allBoats);
-    } catch (error) {
-      reportError('Could not load boats.', error);
     }
   };
 
@@ -70,7 +60,6 @@ function SailorForm({ onAddSailor, eventId }) {
 
   useEffect(() => {
     fetchClubs();
-    fetchBoats();
     checkIfRaceHappened();
   }, [checkIfRaceHappened]);
 
@@ -187,15 +176,6 @@ function SailorForm({ onAddSailor, eventId }) {
           return; // Exit the function gracefully
         }
       }
-      await onAddSailor({
-        name,
-        surname,
-        subgroup,
-        club_id,
-        selectedCountry,
-        sailNumber,
-        model,
-      });
       setName('');
       setSurname('');
       setSubgroup('');
@@ -204,7 +184,6 @@ function SailorForm({ onAddSailor, eventId }) {
       setSailNumber('');
       setModel('');
 
-      fetchBoats();
       onAddSailor();
       reportInfo('Sailor and boat added successfully.', 'Success');
     } catch (error) {

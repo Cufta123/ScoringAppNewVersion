@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
 import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
 
@@ -161,7 +162,17 @@ const getDiscardExamples = (mode, thresholdsInput) => {
     .join(' | ');
 };
 
-function EventForm() {
+const getAssignmentLabel = (event) =>
+  event.shrs_qualifying_assignment_mode === 'pre-assigned'
+    ? 'Pre-Assignments'
+    : 'Progressive';
+
+const getOverflowPolicyLabel = (event) =>
+  event.shrs_heat_overflow_policy === 'confirm-allow-oversize'
+    ? 'Oversize with confirm'
+    : 'Auto-increase heats';
+
+function EventForm({ onEventCreated }) {
   const [eventName, setEventName] = useState('');
   const [eventLocation, setEventLocation] = useState('');
   const [eventStartDate, setEventStartDate] = useState('');
@@ -180,48 +191,6 @@ function EventForm() {
   );
   const [finalDiscardError, setFinalDiscardError] = useState('');
   const [heatOverflowPolicy, setHeatOverflowPolicy] = useState('auto-increase');
-  const [events, setEvents] = useState([]);
-
-  // Edit state
-  const [editingId, setEditingId] = useState(null);
-  const [editName, setEditName] = useState('');
-  const [editLocation, setEditLocation] = useState('');
-  const [editStartDate, setEditStartDate] = useState('');
-  const [editEndDate, setEditEndDate] = useState('');
-  const [editAdvancedEnabled, setEditAdvancedEnabled] = useState(false);
-  const [editAssignmentMode, setEditAssignmentMode] = useState('progressive');
-  const [editQualifyingDiscardMode, setEditQualifyingDiscardMode] =
-    useState('standard');
-  const [editQualifyingDiscardInput, setEditQualifyingDiscardInput] = useState(
-    DEFAULT_THRESHOLD_PREVIEW,
-  );
-  const [editQualifyingDiscardError, setEditQualifyingDiscardError] =
-    useState('');
-  const [editFinalDiscardMode, setEditFinalDiscardMode] = useState('standard');
-  const [editFinalDiscardInput, setEditFinalDiscardInput] = useState(
-    DEFAULT_THRESHOLD_PREVIEW,
-  );
-  const [editFinalDiscardError, setEditFinalDiscardError] = useState('');
-  const [editHeatOverflowPolicy, setEditHeatOverflowPolicy] =
-    useState('auto-increase');
-  const [editQualifyingDiscardLocked, setEditQualifyingDiscardLocked] =
-    useState(false);
-  const [editFinalDiscardLocked, setEditFinalDiscardLocked] = useState(false);
-
-  const navigate = useNavigate();
-
-  const fetchEvents = async () => {
-    try {
-      const allEvents = await window.electron.sqlite.eventDB.readAllEvents();
-      setEvents(Array.isArray(allEvents) ? allEvents : []);
-    } catch (error) {
-      reportError('Could not load events.', error);
-    }
-  };
-
-  useEffect(() => {
-    fetchEvents();
-  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -283,11 +252,239 @@ function EventForm() {
       setFinalDiscardInput(DEFAULT_THRESHOLD_PREVIEW);
       setFinalDiscardError('');
       setHeatOverflowPolicy('auto-increase');
-      fetchEvents();
+      if (onEventCreated) onEventCreated();
     } catch (error) {
       reportError('Could not create the event.', error);
     }
   };
+
+  const handleQualifyingDiscardModeChange = (value) => {
+    setQualifyingDiscardMode(value);
+    setQualifyingDiscardError('');
+    if (value === 'standard') {
+      setQualifyingDiscardInput(DEFAULT_THRESHOLD_PREVIEW);
+    }
+  };
+
+  const handleFinalDiscardModeChange = (value) => {
+    setFinalDiscardMode(value);
+    setFinalDiscardError('');
+    if (value === 'standard') {
+      setFinalDiscardInput(DEFAULT_THRESHOLD_PREVIEW);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <div className="form-grid-2">
+        <div>
+          <label htmlFor="evtName">
+            Event Name
+            <input
+              id="evtName"
+              type="text"
+              placeholder="e.g. Spring Regatta 2026"
+              value={eventName}
+              onChange={(e) => setEventName(e.target.value)}
+              required
+            />
+          </label>
+        </div>
+        <div>
+          <label htmlFor="evtLocation">
+            Location
+            <input
+              id="evtLocation"
+              type="text"
+              placeholder="e.g. Marina Bay"
+              value={eventLocation}
+              onChange={(e) => setEventLocation(e.target.value)}
+              required
+            />
+          </label>
+        </div>
+        <div>
+          <label htmlFor="evtStart">
+            Start Date
+            <input
+              id="evtStart"
+              type="date"
+              value={eventStartDate}
+              onChange={(e) => setEventStartDate(e.target.value)}
+              required
+            />
+          </label>
+        </div>
+        <div>
+          <label htmlFor="evtEnd">
+            End Date
+            <input
+              id="evtEnd"
+              type="date"
+              value={eventEndDate}
+              min={eventStartDate || undefined}
+              onChange={(e) => setEventEndDate(e.target.value)}
+              required
+            />
+          </label>
+        </div>
+      </div>
+      <label htmlFor="advancedSettingsToggle" className="checkbox-row">
+        <input
+          id="advancedSettingsToggle"
+          type="checkbox"
+          checked={advancedEnabled}
+          onChange={(e) => setAdvancedEnabled(e.target.checked)}
+        />
+        Advanced SHRS options
+      </label>
+
+      {advancedEnabled && (
+        <div className="form-grid-2">
+          <div>
+            <label htmlFor="assignmentMode">
+              Qualifying Assignment Mode
+              <select
+                id="assignmentMode"
+                value={assignmentMode}
+                onChange={(e) => setAssignmentMode(e.target.value)}
+              >
+                <option value="progressive">Progressive Assignment</option>
+                <option value="pre-assigned">Pre-Assignments</option>
+              </select>
+            </label>
+          </div>
+          <div>
+            <label htmlFor="overflowPolicy">
+              Heat Overflow Policy
+              <select
+                id="overflowPolicy"
+                value={heatOverflowPolicy}
+                onChange={(e) => setHeatOverflowPolicy(e.target.value)}
+              >
+                <option value="auto-increase">
+                  Auto-increase number of heats
+                </option>
+                <option value="confirm-allow-oversize">
+                  Allow oversize only after confirm
+                </option>
+              </select>
+            </label>
+          </div>
+          <div>
+            <label htmlFor="qualDiscardProfile">
+              Qualifying Discards
+              <select
+                id="qualDiscardProfile"
+                value={qualifyingDiscardMode}
+                onChange={(e) =>
+                  handleQualifyingDiscardModeChange(e.target.value)
+                }
+              >
+                <option value="standard">Standard SHRS 5.4</option>
+                <option value="custom">Custom thresholds list</option>
+              </select>
+              {qualifyingDiscardMode === 'custom' && (
+                <input
+                  type="text"
+                  value={qualifyingDiscardInput}
+                  onChange={(e) => {
+                    setQualifyingDiscardInput(e.target.value);
+                    const validation = parseThresholdInput(e.target.value);
+                    setQualifyingDiscardError(validation.error || '');
+                  }}
+                  placeholder="e.g. 4,8,16,24"
+                  title="Enter comma-separated thresholds"
+                />
+              )}
+              {qualifyingDiscardError && (
+                <small className="form-error">{qualifyingDiscardError}</small>
+              )}
+              <small className="form-note">
+                {getDiscardSummary(
+                  qualifyingDiscardMode,
+                  qualifyingDiscardInput,
+                )}
+              </small>
+              <small className="form-note">
+                {getDiscardExamples(
+                  qualifyingDiscardMode,
+                  qualifyingDiscardInput,
+                )}
+              </small>
+            </label>
+          </div>
+          <div>
+            <label htmlFor="finalDiscardProfile">
+              Finals Discards
+              <select
+                id="finalDiscardProfile"
+                value={finalDiscardMode}
+                onChange={(e) => handleFinalDiscardModeChange(e.target.value)}
+              >
+                <option value="standard">Standard SHRS 5.4</option>
+                <option value="custom">Custom thresholds list</option>
+              </select>
+              {finalDiscardMode === 'custom' && (
+                <input
+                  type="text"
+                  value={finalDiscardInput}
+                  onChange={(e) => {
+                    setFinalDiscardInput(e.target.value);
+                    const validation = parseThresholdInput(e.target.value);
+                    setFinalDiscardError(validation.error || '');
+                  }}
+                  placeholder="e.g. 4,8,16,24"
+                  title="Enter comma-separated thresholds"
+                />
+              )}
+              {finalDiscardError && (
+                <small className="form-error">{finalDiscardError}</small>
+              )}
+              <small className="form-note">
+                {getDiscardSummary(finalDiscardMode, finalDiscardInput)}
+              </small>
+              <small className="form-note">
+                {getDiscardExamples(finalDiscardMode, finalDiscardInput)}
+              </small>
+            </label>
+          </div>
+        </div>
+      )}
+      <button type="submit" className="btn-success">
+        <i className="fa fa-plus-circle" aria-hidden="true" /> Create Event
+      </button>
+    </form>
+  );
+}
+
+export function EventList({ events, onEventsChanged }) {
+  const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editLocation, setEditLocation] = useState('');
+  const [editStartDate, setEditStartDate] = useState('');
+  const [editEndDate, setEditEndDate] = useState('');
+  const [editAdvancedEnabled, setEditAdvancedEnabled] = useState(false);
+  const [editAssignmentMode, setEditAssignmentMode] = useState('progressive');
+  const [editQualifyingDiscardMode, setEditQualifyingDiscardMode] =
+    useState('standard');
+  const [editQualifyingDiscardInput, setEditQualifyingDiscardInput] = useState(
+    DEFAULT_THRESHOLD_PREVIEW,
+  );
+  const [editQualifyingDiscardError, setEditQualifyingDiscardError] =
+    useState('');
+  const [editFinalDiscardMode, setEditFinalDiscardMode] = useState('standard');
+  const [editFinalDiscardInput, setEditFinalDiscardInput] = useState(
+    DEFAULT_THRESHOLD_PREVIEW,
+  );
+  const [editFinalDiscardError, setEditFinalDiscardError] = useState('');
+  const [editHeatOverflowPolicy, setEditHeatOverflowPolicy] =
+    useState('auto-increase');
+  const [editQualifyingDiscardLocked, setEditQualifyingDiscardLocked] =
+    useState(false);
+  const [editFinalDiscardLocked, setEditFinalDiscardLocked] = useState(false);
+
+  const navigate = useNavigate();
 
   const handleEventClick = (event) => {
     navigate(`/event/${event.event_name}`, { state: { event } });
@@ -394,7 +591,7 @@ function EventForm() {
       );
       setEditingId(null);
       setEditAdvancedEnabled(false);
-      fetchEvents();
+      if (onEventsChanged) onEventsChanged();
     } catch (error) {
       reportError('Could not update the event.', error);
     }
@@ -413,68 +610,10 @@ function EventForm() {
 
     try {
       await window.electron.sqlite.eventDB.deleteEvent(eventId);
-      fetchEvents();
+      if (onEventsChanged) onEventsChanged();
       reportInfo('Event deleted successfully.', 'Success');
     } catch (error) {
       reportError('Could not delete the event.', error);
-    }
-  };
-
-  const fieldStyle = {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '14px',
-    marginBottom: '16px',
-  };
-
-  const settingsFieldStyle = {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '14px',
-    marginBottom: '18px',
-  };
-
-  const advancedToggleLabelStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    gap: '8px',
-    marginBottom: '14px',
-  };
-
-  const checkboxInputStyle = {
-    width: 'auto',
-    padding: 0,
-    border: 'none',
-    borderRadius: 0,
-    boxShadow: 'none',
-    background: 'transparent',
-    margin: 0,
-  };
-
-  const getAssignmentLabel = (event) =>
-    event.shrs_qualifying_assignment_mode === 'pre-assigned'
-      ? 'Pre-Assignments'
-      : 'Progressive';
-
-  const getOverflowPolicyLabel = (event) =>
-    event.shrs_heat_overflow_policy === 'confirm-allow-oversize'
-      ? 'Oversize with confirm'
-      : 'Auto-increase heats';
-
-  const handleQualifyingDiscardModeChange = (value) => {
-    setQualifyingDiscardMode(value);
-    setQualifyingDiscardError('');
-    if (value === 'standard') {
-      setQualifyingDiscardInput(DEFAULT_THRESHOLD_PREVIEW);
-    }
-  };
-
-  const handleFinalDiscardModeChange = (value) => {
-    setFinalDiscardMode(value);
-    setFinalDiscardError('');
-    if (value === 'standard') {
-      setFinalDiscardInput(DEFAULT_THRESHOLD_PREVIEW);
     }
   };
 
@@ -495,570 +634,307 @@ function EventForm() {
   };
 
   return (
-    <div>
-      {/* ── Create form ─── */}
-      <form onSubmit={handleSubmit}>
-        <div style={fieldStyle}>
-          <div>
-            <label htmlFor="evtName">
-              Event Name
-              <input
-                id="evtName"
-                type="text"
-                placeholder="e.g. Spring Regatta 2026"
-                value={eventName}
-                onChange={(e) => setEventName(e.target.value)}
-                required
-              />
-            </label>
-          </div>
-          <div>
-            <label htmlFor="evtLocation">
-              Location
-              <input
-                id="evtLocation"
-                type="text"
-                placeholder="e.g. Marina Bay"
-                value={eventLocation}
-                onChange={(e) => setEventLocation(e.target.value)}
-                required
-              />
-            </label>
-          </div>
-          <div>
-            <label htmlFor="evtStart">
-              Start Date
-              <input
-                id="evtStart"
-                type="date"
-                value={eventStartDate}
-                onChange={(e) => setEventStartDate(e.target.value)}
-                required
-              />
-            </label>
-          </div>
-          <div>
-            <label htmlFor="evtEnd">
-              End Date
-              <input
-                id="evtEnd"
-                type="date"
-                value={eventEndDate}
-                min={eventStartDate || undefined}
-                onChange={(e) => setEventEndDate(e.target.value)}
-                required
-              />
-            </label>
-          </div>
-        </div>
-        <label
-          htmlFor="advancedSettingsToggle"
-          style={advancedToggleLabelStyle}
-        >
-          <input
-            id="advancedSettingsToggle"
-            type="checkbox"
-            style={checkboxInputStyle}
-            checked={advancedEnabled}
-            onChange={(e) => setAdvancedEnabled(e.target.checked)}
-          />
-          Advanced SHRS options
-        </label>
-
-        {advancedEnabled && (
-          <div style={settingsFieldStyle}>
-            <div>
-              <label htmlFor="assignmentMode">
-                Qualifying Assignment Mode
-                <select
-                  id="assignmentMode"
-                  value={assignmentMode}
-                  onChange={(e) => setAssignmentMode(e.target.value)}
-                >
-                  <option value="progressive">Progressive Assignment</option>
-                  <option value="pre-assigned">Pre-Assignments</option>
-                </select>
-              </label>
-            </div>
-            <div>
-              <label htmlFor="overflowPolicy">
-                Heat Overflow Policy
-                <select
-                  id="overflowPolicy"
-                  value={heatOverflowPolicy}
-                  onChange={(e) => setHeatOverflowPolicy(e.target.value)}
-                >
-                  <option value="auto-increase">
-                    Auto-increase number of heats
-                  </option>
-                  <option value="confirm-allow-oversize">
-                    Allow oversize only after confirm
-                  </option>
-                </select>
-              </label>
-            </div>
-            <div>
-              <label htmlFor="qualDiscardProfile">
-                Qualifying Discards
-                <select
-                  id="qualDiscardProfile"
-                  value={qualifyingDiscardMode}
-                  onChange={(e) =>
-                    handleQualifyingDiscardModeChange(e.target.value)
-                  }
-                >
-                  <option value="standard">Standard SHRS 5.4</option>
-                  <option value="custom">Custom thresholds list</option>
-                </select>
-                {qualifyingDiscardMode === 'custom' && (
-                  <input
-                    type="text"
-                    value={qualifyingDiscardInput}
-                    onChange={(e) => {
-                      setQualifyingDiscardInput(e.target.value);
-                      const validation = parseThresholdInput(e.target.value);
-                      setQualifyingDiscardError(validation.error || '');
-                    }}
-                    placeholder="e.g. 4,8,16,24"
-                    title="Enter comma-separated thresholds"
-                  />
-                )}
-                {qualifyingDiscardError && (
-                  <small style={{ color: '#B42318', display: 'block' }}>
-                    {qualifyingDiscardError}
-                  </small>
-                )}
-                <small style={{ color: '#5D6D7E', display: 'block' }}>
-                  {getDiscardSummary(
-                    qualifyingDiscardMode,
-                    qualifyingDiscardInput,
-                  )}
-                </small>
-                <small style={{ color: '#5D6D7E', display: 'block' }}>
-                  {getDiscardExamples(
-                    qualifyingDiscardMode,
-                    qualifyingDiscardInput,
-                  )}
-                </small>
-              </label>
-            </div>
-            <div>
-              <label htmlFor="finalDiscardProfile">
-                Finals Discards
-                <select
-                  id="finalDiscardProfile"
-                  value={finalDiscardMode}
-                  onChange={(e) => handleFinalDiscardModeChange(e.target.value)}
-                >
-                  <option value="standard">Standard SHRS 5.4</option>
-                  <option value="custom">Custom thresholds list</option>
-                </select>
-                {finalDiscardMode === 'custom' && (
-                  <input
-                    type="text"
-                    value={finalDiscardInput}
-                    onChange={(e) => {
-                      setFinalDiscardInput(e.target.value);
-                      const validation = parseThresholdInput(e.target.value);
-                      setFinalDiscardError(validation.error || '');
-                    }}
-                    placeholder="e.g. 4,8,16,24"
-                    title="Enter comma-separated thresholds"
-                  />
-                )}
-                {finalDiscardError && (
-                  <small style={{ color: '#B42318', display: 'block' }}>
-                    {finalDiscardError}
-                  </small>
-                )}
-                <small style={{ color: '#5D6D7E', display: 'block' }}>
-                  {getDiscardSummary(finalDiscardMode, finalDiscardInput)}
-                </small>
-                <small style={{ color: '#5D6D7E', display: 'block' }}>
-                  {getDiscardExamples(finalDiscardMode, finalDiscardInput)}
-                </small>
-              </label>
-            </div>
-          </div>
-        )}
-        <button type="submit" className="btn-success">
-          <i className="fa fa-plus-circle" aria-hidden="true" /> Create Event
-        </button>
-      </form>
-
-      {/* ── Existing events ─── */}
-      {events.length > 0 && (
-        <div style={{ marginTop: '28px' }}>
-          <h2 style={{ marginBottom: '12px' }}>
-            <i
-              className="fa fa-list"
-              aria-hidden="true"
-              style={{ marginRight: '8px' }}
-            />
-            Existing Events
-          </h2>
-          <div
-            style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
-          >
-            {events.map((event) => (
-              <div key={event.event_id}>
-                {editingId === event.event_id ? (
-                  /* ── Inline edit form ─── */
-                  <form
-                    onSubmit={handleEditSubmit}
-                    style={{
-                      background: 'var(--surface)',
-                      border: '1px solid var(--border, #d0d7de)',
-                      borderRadius: 'var(--radius)',
-                      padding: '16px',
-                    }}
-                  >
-                    <div style={fieldStyle}>
-                      <div>
-                        <label htmlFor={`editName-${event.event_id}`}>
-                          Event Name
-                          <input
-                            id={`editName-${event.event_id}`}
-                            type="text"
-                            value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
-                            required
-                          />
-                        </label>
-                      </div>
-                      <div>
-                        <label htmlFor={`editLoc-${event.event_id}`}>
-                          Location
-                          <input
-                            id={`editLoc-${event.event_id}`}
-                            type="text"
-                            value={editLocation}
-                            onChange={(e) => setEditLocation(e.target.value)}
-                            required
-                          />
-                        </label>
-                      </div>
-                      <div>
-                        <label htmlFor={`editStart-${event.event_id}`}>
-                          Start Date
-                          <input
-                            id={`editStart-${event.event_id}`}
-                            type="date"
-                            value={editStartDate}
-                            onChange={(e) => setEditStartDate(e.target.value)}
-                            required
-                          />
-                        </label>
-                      </div>
-                      <div>
-                        <label htmlFor={`editEnd-${event.event_id}`}>
-                          End Date
-                          <input
-                            id={`editEnd-${event.event_id}`}
-                            type="date"
-                            value={editEndDate}
-                            min={editStartDate || undefined}
-                            onChange={(e) => setEditEndDate(e.target.value)}
-                            required
-                          />
-                        </label>
-                      </div>
-                    </div>
-                    <label
-                      htmlFor={`editAdvanced-${event.event_id}`}
-                      style={advancedToggleLabelStyle}
-                    >
-                      <input
-                        id={`editAdvanced-${event.event_id}`}
-                        type="checkbox"
-                        style={checkboxInputStyle}
-                        checked={editAdvancedEnabled}
-                        onChange={(e) =>
-                          setEditAdvancedEnabled(e.target.checked)
-                        }
-                      />
-                      Advanced SHRS options
-                    </label>
-
-                    {editAdvancedEnabled && (
-                      <div style={settingsFieldStyle}>
-                        <div>
-                          <label htmlFor={`editAssignment-${event.event_id}`}>
-                            Qualifying Assignment Mode
-                            <select
-                              id={`editAssignment-${event.event_id}`}
-                              value={editAssignmentMode}
-                              onChange={(e) =>
-                                setEditAssignmentMode(e.target.value)
-                              }
-                            >
-                              <option value="progressive">
-                                Progressive Assignment
-                              </option>
-                              <option value="pre-assigned">
-                                Pre-Assignments
-                              </option>
-                            </select>
-                          </label>
-                        </div>
-                        <div>
-                          <label htmlFor={`editOverflow-${event.event_id}`}>
-                            Heat Overflow Policy
-                            <select
-                              id={`editOverflow-${event.event_id}`}
-                              value={editHeatOverflowPolicy}
-                              onChange={(e) =>
-                                setEditHeatOverflowPolicy(e.target.value)
-                              }
-                            >
-                              <option value="auto-increase">
-                                Auto-increase number of heats
-                              </option>
-                              <option value="confirm-allow-oversize">
-                                Allow oversize only after confirm
-                              </option>
-                            </select>
-                          </label>
-                        </div>
-                        <div>
-                          <label htmlFor={`editQualDiscard-${event.event_id}`}>
-                            Qualifying Discards
-                            <select
-                              id={`editQualDiscard-${event.event_id}`}
-                              value={editQualifyingDiscardMode}
-                              disabled={editQualifyingDiscardLocked}
-                              onChange={(e) =>
-                                handleEditQualifyingDiscardModeChange(
-                                  e.target.value,
-                                )
-                              }
-                            >
-                              <option value="standard">
-                                Standard SHRS 5.4
-                              </option>
-                              <option value="custom">
-                                Custom thresholds list
-                              </option>
-                            </select>
-                            {editQualifyingDiscardMode === 'custom' && (
-                              <input
-                                type="text"
-                                disabled={editQualifyingDiscardLocked}
-                                value={editQualifyingDiscardInput}
-                                onChange={(e) => {
-                                  setEditQualifyingDiscardInput(e.target.value);
-                                  const validation = parseThresholdInput(
-                                    e.target.value,
-                                  );
-                                  setEditQualifyingDiscardError(
-                                    validation.error || '',
-                                  );
-                                }}
-                                placeholder="e.g. 4,8,16,24"
-                                title="Enter comma-separated thresholds"
-                              />
-                            )}
-                            {editQualifyingDiscardError && (
-                              <small
-                                style={{ color: '#B42318', display: 'block' }}
-                              >
-                                {editQualifyingDiscardError}
-                              </small>
-                            )}
-                            <small
-                              style={{ color: '#5D6D7E', display: 'block' }}
-                            >
-                              {getDiscardSummary(
-                                editQualifyingDiscardMode,
-                                editQualifyingDiscardInput,
-                              )}
-                            </small>
-                            <small
-                              style={{ color: '#5D6D7E', display: 'block' }}
-                            >
-                              {getDiscardExamples(
-                                editQualifyingDiscardMode,
-                                editQualifyingDiscardInput,
-                              )}
-                            </small>
-                            {editQualifyingDiscardLocked && (
-                              <small style={{ color: '#6B849A' }}>
-                                Locked after first qualifying race.
-                              </small>
-                            )}
-                          </label>
-                        </div>
-                        <div>
-                          <label htmlFor={`editFinalDiscard-${event.event_id}`}>
-                            Finals Discards
-                            <select
-                              id={`editFinalDiscard-${event.event_id}`}
-                              value={editFinalDiscardMode}
-                              disabled={editFinalDiscardLocked}
-                              onChange={(e) =>
-                                handleEditFinalDiscardModeChange(e.target.value)
-                              }
-                            >
-                              <option value="standard">
-                                Standard SHRS 5.4
-                              </option>
-                              <option value="custom">
-                                Custom thresholds list
-                              </option>
-                            </select>
-                            {editFinalDiscardMode === 'custom' && (
-                              <input
-                                type="text"
-                                disabled={editFinalDiscardLocked}
-                                value={editFinalDiscardInput}
-                                onChange={(e) => {
-                                  setEditFinalDiscardInput(e.target.value);
-                                  const validation = parseThresholdInput(
-                                    e.target.value,
-                                  );
-                                  setEditFinalDiscardError(
-                                    validation.error || '',
-                                  );
-                                }}
-                                placeholder="e.g. 4,8,16,24"
-                                title="Enter comma-separated thresholds"
-                              />
-                            )}
-                            {editFinalDiscardError && (
-                              <small
-                                style={{ color: '#B42318', display: 'block' }}
-                              >
-                                {editFinalDiscardError}
-                              </small>
-                            )}
-                            <small
-                              style={{ color: '#5D6D7E', display: 'block' }}
-                            >
-                              {getDiscardSummary(
-                                editFinalDiscardMode,
-                                editFinalDiscardInput,
-                              )}
-                            </small>
-                            <small
-                              style={{ color: '#5D6D7E', display: 'block' }}
-                            >
-                              {getDiscardExamples(
-                                editFinalDiscardMode,
-                                editFinalDiscardInput,
-                              )}
-                            </small>
-                            {editFinalDiscardLocked && (
-                              <small style={{ color: '#6B849A' }}>
-                                Locked after first final race.
-                              </small>
-                            )}
-                          </label>
-                        </div>
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button type="submit" className="btn-success">
-                        <i className="fa fa-check" aria-hidden="true" /> Save
-                      </button>
-                      <button
-                        type="button"
-                        onClick={cancelEdit}
-                        className="btn-outline"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  /* ── Event row ─── */
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                    }}
-                  >
-                    <button
-                      type="button"
-                      className="event-list-item"
-                      style={{
-                        flex: 1,
-                        minWidth: 0,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'flex-start',
-                        justifyContent: 'center',
-                        gap: '4px',
-                      }}
-                      onClick={() => handleEventClick(event)}
-                    >
-                      <span
-                        style={{
-                          width: '100%',
-                          minWidth: 0,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {event.event_name}
-                        <span
-                          style={{
-                            marginLeft: '10px',
-                            color: '#5D6D7E',
-                            fontWeight: 400,
-                          }}
-                        >
-                          &mdash; {event.event_location}
-                        </span>
-                      </span>
-                      <span className="event-item-meta">
-                        {event.start_date} &rarr; {event.end_date}
-                      </span>
-                      <span
-                        className="event-item-meta"
-                        style={{ marginTop: '4px' }}
-                      >
-                        {getAssignmentLabel(event)}
-                        {' | '}
-                        {getOverflowPolicyLabel(event)}
-                      </span>
-                    </button>
-
-                    {/* Edit button */}
-                    <button
-                      type="button"
-                      aria-label="Edit event"
-                      title="Edit event"
-                      onClick={(e) => startEdit(e, event)}
-                      className="btn-outline btn-sm"
-                      style={{ flexShrink: 0 }}
-                    >
-                      <i className="fa fa-pencil" aria-hidden="true" />
-                    </button>
-
-                    <button
-                      type="button"
-                      aria-label="Delete event"
-                      title="Delete event"
-                      onClick={(e) => {
-                        setEditingId(null);
-                        handleDeleteEvent(e, event.event_id);
-                      }}
-                      className="btn-danger btn-sm"
-                      style={{ flexShrink: 0 }}
-                    >
-                      <i className="fa fa-trash" aria-hidden="true" />
-                    </button>
-                  </div>
-                )}
+    <div className="event-list-stack">
+      {events.map((event) => (
+        <div key={event.event_id}>
+          {editingId === event.event_id ? (
+            /* ── Inline edit form ─── */
+            <form onSubmit={handleEditSubmit} className="inline-edit-form">
+              <div className="form-grid-2">
+                <div>
+                  <label htmlFor={`editName-${event.event_id}`}>
+                    Event Name
+                    <input
+                      id={`editName-${event.event_id}`}
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      required
+                    />
+                  </label>
+                </div>
+                <div>
+                  <label htmlFor={`editLoc-${event.event_id}`}>
+                    Location
+                    <input
+                      id={`editLoc-${event.event_id}`}
+                      type="text"
+                      value={editLocation}
+                      onChange={(e) => setEditLocation(e.target.value)}
+                      required
+                    />
+                  </label>
+                </div>
+                <div>
+                  <label htmlFor={`editStart-${event.event_id}`}>
+                    Start Date
+                    <input
+                      id={`editStart-${event.event_id}`}
+                      type="date"
+                      value={editStartDate}
+                      onChange={(e) => setEditStartDate(e.target.value)}
+                      required
+                    />
+                  </label>
+                </div>
+                <div>
+                  <label htmlFor={`editEnd-${event.event_id}`}>
+                    End Date
+                    <input
+                      id={`editEnd-${event.event_id}`}
+                      type="date"
+                      value={editEndDate}
+                      min={editStartDate || undefined}
+                      onChange={(e) => setEditEndDate(e.target.value)}
+                      required
+                    />
+                  </label>
+                </div>
               </div>
-            ))}
-          </div>
+              <label
+                htmlFor={`editAdvanced-${event.event_id}`}
+                className="checkbox-row"
+              >
+                <input
+                  id={`editAdvanced-${event.event_id}`}
+                  type="checkbox"
+                  checked={editAdvancedEnabled}
+                  onChange={(e) => setEditAdvancedEnabled(e.target.checked)}
+                />
+                Advanced SHRS options
+              </label>
+
+              {editAdvancedEnabled && (
+                <div className="form-grid-2">
+                  <div>
+                    <label htmlFor={`editAssignment-${event.event_id}`}>
+                      Qualifying Assignment Mode
+                      <select
+                        id={`editAssignment-${event.event_id}`}
+                        value={editAssignmentMode}
+                        onChange={(e) => setEditAssignmentMode(e.target.value)}
+                      >
+                        <option value="progressive">
+                          Progressive Assignment
+                        </option>
+                        <option value="pre-assigned">Pre-Assignments</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div>
+                    <label htmlFor={`editOverflow-${event.event_id}`}>
+                      Heat Overflow Policy
+                      <select
+                        id={`editOverflow-${event.event_id}`}
+                        value={editHeatOverflowPolicy}
+                        onChange={(e) =>
+                          setEditHeatOverflowPolicy(e.target.value)
+                        }
+                      >
+                        <option value="auto-increase">
+                          Auto-increase number of heats
+                        </option>
+                        <option value="confirm-allow-oversize">
+                          Allow oversize only after confirm
+                        </option>
+                      </select>
+                    </label>
+                  </div>
+                  <div>
+                    <label htmlFor={`editQualDiscard-${event.event_id}`}>
+                      Qualifying Discards
+                      <select
+                        id={`editQualDiscard-${event.event_id}`}
+                        value={editQualifyingDiscardMode}
+                        disabled={editQualifyingDiscardLocked}
+                        onChange={(e) =>
+                          handleEditQualifyingDiscardModeChange(e.target.value)
+                        }
+                      >
+                        <option value="standard">Standard SHRS 5.4</option>
+                        <option value="custom">Custom thresholds list</option>
+                      </select>
+                      {editQualifyingDiscardMode === 'custom' && (
+                        <input
+                          type="text"
+                          disabled={editQualifyingDiscardLocked}
+                          value={editQualifyingDiscardInput}
+                          onChange={(e) => {
+                            setEditQualifyingDiscardInput(e.target.value);
+                            const validation = parseThresholdInput(
+                              e.target.value,
+                            );
+                            setEditQualifyingDiscardError(
+                              validation.error || '',
+                            );
+                          }}
+                          placeholder="e.g. 4,8,16,24"
+                          title="Enter comma-separated thresholds"
+                        />
+                      )}
+                      {editQualifyingDiscardError && (
+                        <small className="form-error">
+                          {editQualifyingDiscardError}
+                        </small>
+                      )}
+                      <small className="form-note">
+                        {getDiscardSummary(
+                          editQualifyingDiscardMode,
+                          editQualifyingDiscardInput,
+                        )}
+                      </small>
+                      <small className="form-note">
+                        {getDiscardExamples(
+                          editQualifyingDiscardMode,
+                          editQualifyingDiscardInput,
+                        )}
+                      </small>
+                      {editQualifyingDiscardLocked && (
+                        <small className="form-locked-note">
+                          Locked after first qualifying race.
+                        </small>
+                      )}
+                    </label>
+                  </div>
+                  <div>
+                    <label htmlFor={`editFinalDiscard-${event.event_id}`}>
+                      Finals Discards
+                      <select
+                        id={`editFinalDiscard-${event.event_id}`}
+                        value={editFinalDiscardMode}
+                        disabled={editFinalDiscardLocked}
+                        onChange={(e) =>
+                          handleEditFinalDiscardModeChange(e.target.value)
+                        }
+                      >
+                        <option value="standard">Standard SHRS 5.4</option>
+                        <option value="custom">Custom thresholds list</option>
+                      </select>
+                      {editFinalDiscardMode === 'custom' && (
+                        <input
+                          type="text"
+                          disabled={editFinalDiscardLocked}
+                          value={editFinalDiscardInput}
+                          onChange={(e) => {
+                            setEditFinalDiscardInput(e.target.value);
+                            const validation = parseThresholdInput(
+                              e.target.value,
+                            );
+                            setEditFinalDiscardError(validation.error || '');
+                          }}
+                          placeholder="e.g. 4,8,16,24"
+                          title="Enter comma-separated thresholds"
+                        />
+                      )}
+                      {editFinalDiscardError && (
+                        <small className="form-error">
+                          {editFinalDiscardError}
+                        </small>
+                      )}
+                      <small className="form-note">
+                        {getDiscardSummary(
+                          editFinalDiscardMode,
+                          editFinalDiscardInput,
+                        )}
+                      </small>
+                      <small className="form-note">
+                        {getDiscardExamples(
+                          editFinalDiscardMode,
+                          editFinalDiscardInput,
+                        )}
+                      </small>
+                      {editFinalDiscardLocked && (
+                        <small className="form-locked-note">
+                          Locked after first final race.
+                        </small>
+                      )}
+                    </label>
+                  </div>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button type="submit" className="btn-success">
+                  <i className="fa fa-check" aria-hidden="true" /> Save
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelEdit}
+                  className="btn-outline"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : (
+            /* ── Event row ─── */
+            <div className="event-row">
+              <button
+                type="button"
+                className="event-list-item"
+                onClick={() => handleEventClick(event)}
+              >
+                <span className="event-item-title">
+                  {event.event_name}
+                  <span className="event-item-location">
+                    &mdash; {event.event_location}
+                  </span>
+                </span>
+                <span className="event-item-meta">
+                  {event.start_date} &rarr; {event.end_date}
+                </span>
+                <span className="event-item-meta">
+                  {getAssignmentLabel(event)}
+                  {' | '}
+                  {getOverflowPolicyLabel(event)}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                aria-label="Edit event"
+                title="Edit event"
+                onClick={(e) => startEdit(e, event)}
+                className="btn-outline btn-sm"
+              >
+                <i className="fa fa-pencil" aria-hidden="true" />
+              </button>
+
+              <button
+                type="button"
+                aria-label="Delete event"
+                title="Delete event"
+                onClick={(e) => {
+                  setEditingId(null);
+                  handleDeleteEvent(e, event.event_id);
+                }}
+                className="btn-danger btn-sm"
+              >
+                <i className="fa fa-trash" aria-hidden="true" />
+              </button>
+            </div>
+          )}
         </div>
-      )}
+      ))}
     </div>
   );
 }
+
+EventForm.propTypes = {
+  onEventCreated: PropTypes.func,
+};
+
+EventForm.defaultProps = {
+  onEventCreated: null,
+};
+
+EventList.propTypes = {
+  // eslint-disable-next-line react/forbid-prop-types
+  events: PropTypes.arrayOf(PropTypes.object).isRequired,
+  onEventsChanged: PropTypes.func,
+};
+
+EventList.defaultProps = {
+  onEventsChanged: null,
+};
 
 export default EventForm;

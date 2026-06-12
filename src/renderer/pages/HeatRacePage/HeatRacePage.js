@@ -1,6 +1,6 @@
 /* eslint-disable camelcase */
 import React, { useState, useEffect, useCallback } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import HeatComponent from '../../components/HeatComponent';
 import ScoringInputComponent from '../../components/ScoringInputComponent';
 import Navbar from '../../components/Navbar';
@@ -15,19 +15,42 @@ import {
 function HeatRacePage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { event } = location.state || {};
-  const [eventData, setEventData] = useState(event || null);
+  const { eventName } = useParams();
+  const [event, setEvent] = useState(location.state?.event || null);
+  const [eventData, setEventData] = useState(location.state?.event || null);
   const [selectedHeat, setSelectedHeat] = useState(null);
   const [isScoring, setIsScoring] = useState(false);
   const [finalSeriesStarted, setFinalSeriesStarted] = useState(false);
   const [heats, setHeats] = useState([]);
   const [numQualifyingGroups, setNumQualifyingGroups] = useState(0);
 
+  // Refresh-safe: resolve the event from the URL when router state is gone.
   useEffect(() => {
-    if (!event) {
-      navigate('/');
-    }
-  }, [event, navigate]);
+    if (event) return undefined;
+    let isActive = true;
+
+    const findEventByName = async () => {
+      try {
+        const events = await window.electron.sqlite.eventDB.readAllEvents();
+        if (!isActive) return;
+        const match = (events || []).find((e) => e.event_name === eventName);
+        if (match) {
+          setEvent(match);
+        } else {
+          navigate('/');
+        }
+      } catch (error) {
+        if (!isActive) return;
+        reportError('Could not load event details.', error);
+        navigate('/');
+      }
+    };
+
+    findEventByName();
+    return () => {
+      isActive = false;
+    };
+  }, [event, eventName, navigate]);
 
   useEffect(() => {
     const fetchEvent = async () => {
@@ -272,17 +295,10 @@ function HeatRacePage() {
     }
   };
 
-  const handleUndoLastScoredRace = async () => {
-    if (!selectedHeat) {
-      reportInfo(
-        'Please select a heat first by clicking on it, then click Undo Last Race.',
-        'No heat selected',
-      );
-      return;
-    }
-
+  // Contextual action: invoked from inside the selected heat card.
+  const handleUndoLastScoredRace = async (heat) => {
     const confirmed = await confirmAction(
-      `Undo the last scored race in "${selectedHeat.heat_name}"?\n\nThis will permanently delete that race's scores.`,
+      `Undo the last scored race in "${heat.heat_name}"?\n\nThis will permanently delete that race's scores.`,
       'Undo Last Race',
     );
     if (!confirmed) return;
@@ -290,7 +306,7 @@ function HeatRacePage() {
     try {
       const result =
         await window.electron.sqlite.heatRaceDB.undoLastScoredRaceForHeat(
-          selectedHeat.heat_id,
+          heat.heat_id,
         );
       const updatedHeats = await window.electron.sqlite.heatRaceDB.readAllHeats(
         event.event_id,
@@ -352,36 +368,13 @@ function HeatRacePage() {
     checkFinalSeriesStarted();
   }, [checkFinalSeriesStarted]);
 
-  const undoButtonTitle = (() => {
-    if (!selectedHeat) {
-      return 'Select a heat first';
-    }
-    if (selectedHeat.raceNumber) {
-      return `Delete Race ${selectedHeat.raceNumber} in ${selectedHeat.heat_name}`;
-    }
-    return `${selectedHeat.heat_name} has no races to undo`;
-  })();
-
-  const undoButtonSuffix = (() => {
-    if (!selectedHeat) {
-      return '';
-    }
-    if (selectedHeat.raceNumber) {
-      return ` — ${selectedHeat.heat_name}, Race ${selectedHeat.raceNumber}`;
-    }
-    return ` — ${selectedHeat.heat_name} (no races)`;
-  })();
-
   if (!event) {
     return null;
   }
 
   return (
     <div>
-      <Navbar
-        onBack={isScoring ? handleBackToHeats : () => navigate(-1)}
-        backLabel={isScoring ? 'Back to Heats' : 'Back to Event'}
-      />
+      <Navbar />
 
       <main id="main-content" className="page-wrapper" tabIndex={-1}>
         <Breadcrumbs
@@ -392,7 +385,10 @@ function HeatRacePage() {
               onClick: () =>
                 navigate(`/event/${event.event_name}`, { state: { event } }),
             },
-            { label: 'Heat Race' },
+            isScoring
+              ? { label: 'Heat Race', onClick: handleBackToHeats }
+              : { label: 'Heat Race' },
+            ...(isScoring ? [{ label: 'Score Race' }] : []),
           ]}
         />
         {!isScoring ? (
@@ -401,42 +397,28 @@ function HeatRacePage() {
               <i
                 className="fa fa-flag-checkered"
                 aria-hidden="true"
-                style={{ marginRight: '10px', color: '#2471A3' }}
+                style={{ color: '#2471A3' }}
               />
               {eventData?.event_name || 'Race Scoring'}
             </h1>
 
-            {/* ── Management actions ─── */}
-            {!finalSeriesStarted && (
+            {/* ── Round-level management actions ─── */}
+            {/* SHRS 1.1: redistribution (sections 2-4) only applies when there are 2+ heats */}
+            {!finalSeriesStarted && numQualifyingGroups >= 2 && (
               <div className="heatrace-actions">
-                {/* SHRS 1.1: redistribution (sections 2-4) only applies when there are 2+ heats */}
-                {numQualifyingGroups >= 2 && (
-                  <button
-                    type="button"
-                    onClick={handleCreateNewHeatsBasedOnLeaderboard}
-                  >
-                    Create New Heats from Leaderboard
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={handleCreateNewHeatsBasedOnLeaderboard}
+                >
+                  Create New Heats from Leaderboard
+                </button>
                 <button
                   type="button"
                   className="btn-secondary"
-                  onClick={handleUndoLastScoredRace}
-                  disabled={!selectedHeat || !selectedHeat.raceNumber}
-                  title={undoButtonTitle}
+                  onClick={handleUndoLatestHeatRedistribution}
                 >
-                  Undo Last Race
-                  {undoButtonSuffix}
+                  Undo Heat Redistribution
                 </button>
-                {numQualifyingGroups >= 2 && (
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={handleUndoLatestHeatRedistribution}
-                  >
-                    Undo Heat Redistribution
-                  </button>
-                )}
               </div>
             )}
 
@@ -447,9 +429,9 @@ function HeatRacePage() {
                   aria-hidden="true"
                   style={{ marginRight: '8px' }}
                 />
-                Click on a heat below to select it — a{' '}
-                <strong>Start Scoring</strong> button will appear inside the
-                card.
+                Click on a heat below to select it —{' '}
+                <strong>Start Scoring</strong> and{' '}
+                <strong>Undo Last Race</strong> appear inside the card.
               </div>
             )}
 
@@ -459,15 +441,28 @@ function HeatRacePage() {
               heats={heats}
               onHeatSelect={handleHeatSelect}
               onStartScoring={handleStartScoring}
+              onUndoLastRace={
+                !finalSeriesStarted ? handleUndoLastScoredRace : null
+              }
               onQualifyingGroupCountChange={setNumQualifyingGroups}
               clickable
             />
           </>
         ) : (
-          <ScoringInputComponent
-            heat={selectedHeat}
-            onSubmit={handleSubmitScores}
-          />
+          <>
+            <button
+              type="button"
+              className="btn-ghost back-link"
+              onClick={handleBackToHeats}
+            >
+              <i className="fa fa-arrow-left" aria-hidden="true" /> Back to
+              Heats
+            </button>
+            <ScoringInputComponent
+              heat={selectedHeat}
+              onSubmit={handleSubmitScores}
+            />
+          </>
         )}
       </main>
     </div>
