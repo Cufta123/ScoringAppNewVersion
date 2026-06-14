@@ -3,6 +3,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF as JsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import registerPdfUnicodeFont from './registerPdfUnicodeFont';
+import { toSubgroupLabel } from '../../shared/subgroups';
 
 export default async function printNewHeats(event, heats, format = 'excel') {
   if (!Array.isArray(heats) || heats.length === 0) {
@@ -40,7 +41,8 @@ export default async function printNewHeats(event, heats, format = 'excel') {
     : `${safeEventName}_${heatSuffix}`;
 
   const getSubgroup = (boat) =>
-    boat?.subgroup || boat?.category || boat?.category_name || 'N/A';
+    toSubgroupLabel(boat?.subgroup || boat?.category || boat?.category_name) ||
+    'N/A';
 
   const getBoatModel = (boat) => boat?.model || boat?.boat_type || 'N/A';
 

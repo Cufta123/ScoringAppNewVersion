@@ -391,6 +391,17 @@ function HeatRacePage() {
             ...(isScoring ? [{ label: 'Score Race' }] : []),
           ]}
         />
+
+        {/* Always-visible escape hatch back to the event page. */}
+        <button
+          type="button"
+          className="btn-ghost back-link"
+          onClick={() =>
+            navigate(`/event/${event.event_name}`, { state: { event } })
+          }
+        >
+          <i className="fa fa-arrow-left" aria-hidden="true" /> Back to Event
+        </button>
         {!isScoring ? (
           <>
             <h1 style={{ marginBottom: '20px' }}>

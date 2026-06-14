@@ -4,6 +4,11 @@ import {
   getEventDiscardConfig,
   getExcludeCountForConfig,
 } from './discardConfig';
+import {
+  compareScoreArrays,
+  getKeptScores,
+  resolveTiesSequentially,
+} from './scoringUtils';
 
 interface Result {
   boat_id: any;
@@ -34,8 +39,6 @@ interface TieCandidate {
   boat_id: string;
   keptScores: number[];
 }
-
-const nonExcludableStatuses = new Set(['DNE', 'DGM']);
 
 function getScoresForA81(event_id: any, boat_id: any) {
   const scoresQuery = db.prepare(`
@@ -85,30 +88,6 @@ function getRaceScoresForTieBreak(event_id: any, boat_id: any): RaceScoreEntry[]
     );
 }
 
-function compareA81Scores(scoresA: number[], scoresB: number[]) {
-  const maxLength = Math.max(scoresA.length, scoresB.length);
-  for (let i = 0; i < maxLength; i += 1) {
-    const scoreA = scoresA[i] ?? Number.MAX_SAFE_INTEGER;
-    const scoreB = scoresB[i] ?? Number.MAX_SAFE_INTEGER;
-    if (scoreA !== scoreB) {
-      return scoreA - scoreB;
-    }
-  }
-  return 0;
-}
-
-function compareA82LatestFirst(scoresA: number[], scoresB: number[]) {
-  const maxLength = Math.max(scoresA.length, scoresB.length);
-  for (let i = 0; i < maxLength; i += 1) {
-    const scoreA = scoresA[i] ?? Number.MAX_SAFE_INTEGER;
-    const scoreB = scoresB[i] ?? Number.MAX_SAFE_INTEGER;
-    if (scoreA !== scoreB) {
-      return scoreA - scoreB;
-    }
-  }
-  return 0;
-}
-
 function getSharedRaceScoresForTieBreak(
   event_id: any,
   boatAId: string,
@@ -147,32 +126,6 @@ function getSharedRaceScoresForTieBreak(
   const a82B = shared.map((entry) => entry.pointsB);
 
   return { a81A, a81B, a82A, a82B };
-}
-
-function getKeptScores(entries: ScoreEntry[], excludeCount: number): number[] {
-  if (excludeCount <= 0) {
-    return entries.map((entry) => entry.points);
-  }
-
-  const candidates = entries
-    .map((entry, idx) => ({ entry, idx }))
-    .filter(
-      ({ entry }) => !nonExcludableStatuses.has(String(entry.status).toUpperCase()),
-    )
-    .sort(
-      (left, right) =>
-        right.entry.points - left.entry.points ||
-        left.entry.race_number - right.entry.race_number ||
-        left.entry.race_id - right.entry.race_id,
-    );
-
-  const excludedIndexes = new Set(
-    candidates.slice(0, excludeCount).map(({ idx }) => idx),
-  );
-
-  return entries
-    .filter((_entry, idx) => !excludedIndexes.has(idx))
-    .map((entry) => entry.points);
 }
 
 // SHRS 5.7.1 vs 5.7.2: whether an event is single-heat is an event-level
@@ -323,7 +276,7 @@ export default function calculateBoatScores(
           if (isSingleHeatEvent) {
             // SHRS 5.7.1: single-heat events use standard RRS A8.1
             // where excluded scores are NOT used.
-            const singleHeatA81Comparison = compareA81Scores(
+            const singleHeatA81Comparison = compareScoreArrays(
               a.keptScores,
               b.keptScores,
             );
@@ -333,7 +286,7 @@ export default function calculateBoatScores(
           } else {
             // SHRS 5.7.2.2: for shared-heat comparisons in multi-heat
             // events, excluded scores ARE used when applying A8.1.
-            const sharedA81Comparison = compareA81Scores(
+            const sharedA81Comparison = compareScoreArrays(
               sharedScores.a81A,
               sharedScores.a81B,
             );
@@ -342,7 +295,7 @@ export default function calculateBoatScores(
             }
           }
 
-          const sharedA82Comparison = compareA82LatestFirst(
+          const sharedA82Comparison = compareScoreArrays(
             sharedScores.a82A,
             sharedScores.a82B,
           );
@@ -354,7 +307,10 @@ export default function calculateBoatScores(
         }
 
         // Standard A8.1: excluded scores are NOT used.
-        const initialComparison = compareA81Scores(a.keptScores, b.keptScores);
+        const initialComparison = compareScoreArrays(
+          a.keptScores,
+          b.keptScores,
+        );
         if (initialComparison !== 0) {
           return initialComparison;
         }
@@ -363,34 +319,21 @@ export default function calculateBoatScores(
           `Tie detected between Boat ${a.boat_id} and Boat ${b.boat_id}. Applying tie-breaking logic.`,
         );
 
-        const scoresA = getScoresForA82(event_id, a.boat_id); // Retrieve original scores for boat A
-        const scoresB = getScoresForA82(event_id, b.boat_id); // Retrieve original scores for boat B
-
-        const maxLength = Math.max(scoresA.length, scoresB.length);
-        for (let i = 0; i < maxLength; i += 1) {
-          const scoreA = scoresA[i] ?? Number.MAX_SAFE_INTEGER;
-          const scoreB = scoresB[i] ?? Number.MAX_SAFE_INTEGER;
-          console.log(
-            `Comparing race ${i}: Boat ${a.boat_id} score: ${scoreA}, Boat ${b.boat_id} score: ${scoreB}`,
-          );
-          if (scoreA !== scoreB) {
-            console.log(
-              `Tie-breaking: Comparing scores from the last race backward. Boat ${a.boat_id} score: ${scoreA}, Boat ${b.boat_id} score: ${scoreB}`,
-            );
-            return scoreA - scoreB; // Compare scores from the last race backward
-          }
+        // A8.2: compare original scores from the last race backward.
+        const scoresA = getScoresForA82(event_id, a.boat_id);
+        const scoresB = getScoresForA82(event_id, b.boat_id);
+        const a82Comparison = compareScoreArrays(scoresA, scoresB);
+        if (a82Comparison !== 0) {
+          return a82Comparison;
         }
         return String(a.boat_id).localeCompare(String(b.boat_id));
       };
 
       // SHRS 2026 5.7(ii)(3): resolve higher-place tie before lower ties.
-      const remaining = [...sortedScores];
-      const resolvedOrder: TieCandidate[] = [];
-      while (remaining.length > 0) {
-        remaining.sort(compareTieCandidates);
-        const [winner] = remaining.splice(0, 1);
-        resolvedOrder.push(winner);
-      }
+      const resolvedOrder = resolveTiesSequentially(
+        sortedScores,
+        compareTieCandidates,
+      );
 
       resolvedOrder.forEach((boat, index) => {
         const boatIndex = temporaryTable.findIndex(

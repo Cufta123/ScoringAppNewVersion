@@ -80,7 +80,6 @@ const event = {
   event_name: 'Test Event',
   start_date: '2026-04-10',
   end_date: '2026-04-12',
-  is_locked: 0,
 };
 
 const renderEventPage = (initialEntry) =>
@@ -153,29 +152,5 @@ describe('EventPage', () => {
         screen.getByText(/no more sailors or boats can be added/i),
       ).toBeInTheDocument();
     });
-  });
-
-  it('shows the locked badge for a locked event', async () => {
-    const lockedEvent = { ...event, is_locked: 1 };
-    window.electron.sqlite.eventDB.readAllEvents.mockResolvedValue([
-      lockedEvent,
-    ]);
-
-    renderEventPage({
-      pathname: '/event/Test Event',
-      state: { event: lockedEvent },
-    });
-
-    expect(await screen.findByText('Locked')).toBeInTheDocument();
-    expect(
-      screen.getByText(/this event is locked — results are final/i),
-    ).toBeInTheDocument();
-    // Lock controls were removed from the frontend entirely.
-    expect(
-      screen.queryByRole('button', { name: /unlock event/i }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: /^lock event$/i }),
-    ).not.toBeInTheDocument();
   });
 });

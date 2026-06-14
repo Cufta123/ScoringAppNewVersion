@@ -81,8 +81,8 @@ function LandingPage() {
                 <em>Heat Race</em> to score each race.
               </li>
               <li>
-                <strong>Check the leaderboard</strong> at any time — and lock
-                the event when racing is finished.
+                <strong>Check the leaderboard</strong> at any time — and print
+                the starting list, heats and results in PDF, Excel or HTML.
               </li>
             </ol>
           </div>

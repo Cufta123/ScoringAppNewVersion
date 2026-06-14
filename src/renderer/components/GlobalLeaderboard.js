@@ -144,7 +144,7 @@ function GlobalLeaderboardComponent() {
         </button>
       </div>
       <p className="muted-note" style={{ margin: '0 0 12px' }}>
-        Combined standings across all locked events. Lower points are better.
+        Combined standings across all events. Lower points are better.
       </p>
       <table>
         <thead>

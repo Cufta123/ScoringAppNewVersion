@@ -4,6 +4,11 @@ import {
   getEventDiscardConfig,
   getExcludeCountForConfig,
 } from './discardConfig';
+import {
+  compareScoreArrays,
+  getKeptScores,
+  resolveTiesSequentially,
+} from './scoringUtils';
 
 interface Result {
   boat_id: any;
@@ -31,8 +36,6 @@ interface ScoreEntry {
   status: string;
 }
 
-const nonExcludableStatuses = new Set(['DNE', 'DGM']);
-
 function getScoresForA81(event_id: any, boat_id: any, heat_name: any) {
   const scoresQuery = db.prepare(`
     SELECT s.points, COALESCE(s.status, 'FINISHED') as status, s.race_id, r.race_number
@@ -43,32 +46,6 @@ function getScoresForA81(event_id: any, boat_id: any, heat_name: any) {
     ORDER BY points DESC, r.race_number ASC, s.race_id ASC
   `);
   return scoresQuery.all(event_id, boat_id, heat_name) as ScoreEntry[];
-}
-
-function getKeptScores(entries: ScoreEntry[], excludeCount: number): number[] {
-  if (excludeCount <= 0) {
-    return entries.map((entry) => entry.points);
-  }
-
-  const candidates = entries
-    .map((entry, idx) => ({ entry, idx }))
-    .filter(
-      ({ entry }) => !nonExcludableStatuses.has(String(entry.status).toUpperCase()),
-    )
-    .sort(
-      (left, right) =>
-        right.entry.points - left.entry.points ||
-        left.entry.race_number - right.entry.race_number ||
-        left.entry.race_id - right.entry.race_id,
-    );
-
-  const excludedIndexes = new Set(
-    candidates.slice(0, excludeCount).map(({ idx }) => idx),
-  );
-
-  return entries
-    .filter((_entry, idx) => !excludedIndexes.has(idx))
-    .map((entry) => entry.points);
 }
 
 function getScoresForA82(event_id: any, boat_id: any, heat_name: any) {
@@ -84,18 +61,6 @@ function getScoresForA82(event_id: any, boat_id: any, heat_name: any) {
   return scoresQuery
     .all(event_id, boat_id, heat_name)
     .map((row: { points: any }) => row.points);
-}
-
-function compareA81Scores(scoresA: number[], scoresB: number[]) {
-  const maxLength = Math.max(scoresA.length, scoresB.length);
-  for (let i = 0; i < maxLength; i += 1) {
-    const scoreA = scoresA[i] ?? Number.MAX_SAFE_INTEGER;
-    const scoreB = scoresB[i] ?? Number.MAX_SAFE_INTEGER;
-    if (scoreA !== scoreB) {
-      return scoreA - scoreB;
-    }
-  }
-  return 0;
 }
 
 // SHRS 5.4: after 4 races exclude 1, after 8 exclude 2, then +1 per 8 more
@@ -175,35 +140,23 @@ export default function calculateFinalBoatScores(
         // SHRS 5.7(ii)(2): tie-break uses excluded scores (all race scores).
         // Then apply A8.2 from last race backward.
         const compareTieCandidates = (a: TieCandidate, b: TieCandidate) => {
-          const initialComparison = compareA81Scores(
+          const initialComparison = compareScoreArrays(
             a.allScoresForA81,
             b.allScoresForA81,
           );
-
           if (initialComparison !== 0) return initialComparison;
 
-          const scoresA = a.a82Scores;
-          const scoresB = b.a82Scores;
+          const a82Comparison = compareScoreArrays(a.a82Scores, b.a82Scores);
+          if (a82Comparison !== 0) return a82Comparison;
 
-          const maxLength = Math.max(scoresA.length, scoresB.length);
-          for (let i = 0; i < maxLength; i += 1) {
-            const scoreA = scoresA[i] ?? Number.MAX_SAFE_INTEGER;
-            const scoreB = scoresB[i] ?? Number.MAX_SAFE_INTEGER;
-            if (scoreA !== scoreB) {
-              return scoreA - scoreB;
-            }
-          }
           return String(a.boat_id).localeCompare(String(b.boat_id));
         };
 
         // SHRS 2026 5.7(ii)(3): resolve higher-place tie before lower ties.
-        const remaining = [...sortedScores];
-        const resolvedOrder: TieCandidate[] = [];
-        while (remaining.length > 0) {
-          remaining.sort(compareTieCandidates);
-          const [winner] = remaining.splice(0, 1);
-          resolvedOrder.push(winner);
-        }
+        const resolvedOrder = resolveTiesSequentially(
+          sortedScores,
+          compareTieCandidates,
+        );
 
         resolvedOrder.forEach((boat, index) => {
           const boatIndex = table.findIndex((b) => b.boat_id === boat.boat_id);

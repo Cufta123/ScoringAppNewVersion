@@ -52,7 +52,7 @@ Database initialization and schema creation are in `public/Database/DBManager.js
 
 Key tables:
 
-- `Events` (`is_locked` flag controls mutating operations)
+- `Events`
 - `Sailors`
 - `Boats`
 - `Clubs`
@@ -91,13 +91,15 @@ Observed rule implementation details:
 
 When changing scoring logic, update or add tests first.
 
-## 6. Event Locking Contract
+## 6. Event Locking (Removed)
 
-Lock behavior is central and must be preserved:
+Event locking was removed entirely (June 2026):
 
-- `Events.is_locked = 1` should block mutating operations for that event.
-- `EventHandler.lockEvent` also updates `GlobalLeaderboard` ordering.
-- Mutating handlers should check lock state before writes.
+- No `lockEvent`/`unlockEvent` IPC handlers, no lock checks in mutating handlers, no lock UI.
+- New databases no longer create `Events.is_locked`; older databases may still
+  carry the column, but nothing reads or writes it.
+- Do not reintroduce lock checks. (The separate discard-profile locks,
+  `shrs_discard_locked_*`, still exist and are unrelated.)
 
 ## 7. Commands Agents Should Use
 

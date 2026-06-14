@@ -7,7 +7,6 @@ type PrepareStatement = {
 };
 
 type Scenario = {
-  isLocked: number;
   assignmentMode: 'progressive' | 'pre-assigned';
   eventId: number;
   heatType: string;
@@ -63,12 +62,6 @@ const dbMock = {
         get: jest.fn(() => ({
           discard_profile: JSON.stringify({ firstDiscardAt: 4, secondDiscardAt: 8, additionalEvery: 8 }),
         })),
-      };
-    }
-
-    if (sqlContains(sql, 'SELECT is_locked FROM Events WHERE event_id = ?')) {
-      return {
-        get: jest.fn(() => ({ is_locked: currentScenario.isLocked })),
       };
     }
 
@@ -287,7 +280,6 @@ jest.mock('../../public/Database/DBManager', () => ({
 
 function baseScenario(): Scenario {
   return {
-    isLocked: 0,
     assignmentMode: 'progressive',
     eventId: 555,
     heatType: 'Qualifying',

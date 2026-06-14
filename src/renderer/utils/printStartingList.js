@@ -3,6 +3,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF as JsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import registerPdfUnicodeFont from './registerPdfUnicodeFont';
+import { toSubgroupLabel } from '../../shared/subgroups';
 
 export default async function printStartingList(
   event,
@@ -16,7 +17,9 @@ export default async function printStartingList(
   const eventName = event?.event_name || 'event';
 
   const getSubgroup = (sailor) =>
-    sailor?.subgroup || sailor?.category || sailor?.category_name || 'N/A';
+    toSubgroupLabel(
+      sailor?.subgroup || sailor?.category || sailor?.category_name,
+    ) || 'N/A';
 
   const getBoatModel = (sailor) => sailor?.model || sailor?.boat_type || 'N/A';
 

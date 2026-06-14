@@ -1,6 +1,7 @@
 /* eslint-disable camelcase */
 import { ipcMain } from 'electron';
 import { db } from '../../../public/Database/DBManager';
+import { subgroupToCategoryName } from '../../shared/subgroups';
 
 interface SqliteError extends Error {
   code: string;
@@ -259,10 +260,13 @@ ipcMain.handle('importSailors', (_event, rows: ImportRow[]) => {
           continue;
         }
 
-        // Resolve category
+        // Resolve category. Accept either a full category name (e.g. "VETERAN")
+        // or a subgroup code (e.g. "M") so the CSV matches the single-entry form.
+        const resolvedCategoryName =
+          subgroupToCategoryName(category_name) || category_name || 'SENIOR';
         const catRow = db
           .prepare('SELECT category_id FROM Categories WHERE UPPER(category_name) = UPPER(?)')
-          .get(category_name || 'SENIOR') as { category_id: number } | undefined;
+          .get(resolvedCategoryName) as { category_id: number } | undefined;
         const category_id = catRow?.category_id ?? 3; // default SENIOR
 
         // Upsert club

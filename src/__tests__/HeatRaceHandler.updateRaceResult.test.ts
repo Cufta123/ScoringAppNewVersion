@@ -18,7 +18,6 @@ jest.mock('electron', () => ({
 
 type Scenario = {
   eventId: number;
-  isLocked: number;
   heatType: string;
   maxBoats: number;
   currentPosition: number;
@@ -140,12 +139,6 @@ const dbMock = {
       };
     }
 
-    if (sqlContains(sql, 'SELECT is_locked FROM Events WHERE event_id = ?')) {
-      return {
-        get: jest.fn(() => ({ is_locked: currentScenario.isLocked })),
-      };
-    }
-
     throw new Error(`Unhandled SQL in test mock: ${sql}`);
   }),
   transaction: jest.fn((cb: (...args: any[]) => any) => (...args: any[]) => cb(...args)),
@@ -158,7 +151,6 @@ jest.mock('../../public/Database/DBManager', () => ({
 function baseScenario(): Scenario {
   return {
     eventId: 99,
-    isLocked: 0,
     heatType: 'Qualifying',
     maxBoats: 10,
     currentPosition: 3,

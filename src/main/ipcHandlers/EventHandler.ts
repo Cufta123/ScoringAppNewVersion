@@ -40,13 +40,6 @@ ipcMain.on('ipc-example', async (event, arg) => {
   event.reply('ipc-example', msgTemplate('pongSailor'));
 });
 
-const checkEventLocked = (event_id: any) => {
-  const query = `SELECT is_locked FROM Events WHERE event_id = ?`;
-  const checkQuery = db.prepare(query);
-  const result = checkQuery.get(event_id);
-  return result.is_locked === 1;
-};
-
 ipcMain.handle('readAllEvents', async () => {
   try {
     const events = await db.prepare('SELECT * FROM Events').all();
@@ -120,9 +113,6 @@ ipcMain.handle(
 );
 
 ipcMain.handle('associateBoatWithEvent', async (event, boat_id, event_id) => {
-  if (checkEventLocked(event_id)) {
-    throw new Error('Event is locked.');
-  }
   try {
     const result = db
       .prepare('INSERT INTO Boat_Event (boat_id, event_id) VALUES (?, ?)')
@@ -168,129 +158,6 @@ ipcMain.handle('removeBoatFromEvent', async (event, boat_id, event_id) => {
     );
   } catch (error) {
     log(`Error removing boat from event: ${error}`);
-    throw error;
-  }
-});
-
-ipcMain.handle('lockEvent', async (event, event_id) => {
-  try {
-    // Check if the final series has started
-    const heats = db
-      .prepare('SELECT * FROM Heats WHERE event_id = ?')
-      .all(event_id);
-    const finalHeats = heats.filter(
-      (heat: { heat_type: string }) => heat.heat_type === 'Final',
-    );
-    const finalSeriesStarted = finalHeats.length > 0;
-
-    let leaderboard;
-    if (finalSeriesStarted) {
-      leaderboard = db
-        .prepare(
-          `
-        SELECT
-          fl.boat_id,
-          COALESCE(lb.total_points_event, 0) + fl.total_points_final AS overall_points,
-          fl.total_points_final,
-          COALESCE(lb.total_points_event, 0) AS total_points_event,
-          fl.placement_group,
-          fl.place AS final_place,
-          b.sail_number AS boat_number,
-          b.model AS boat_type,
-          s.name,
-          s.surname,
-          b.country
-        FROM FinalLeaderboard fl
-        LEFT JOIN Leaderboard lb ON lb.boat_id = fl.boat_id AND lb.event_id = fl.event_id
-        LEFT JOIN Boats b ON fl.boat_id = b.boat_id
-        LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id
-        WHERE fl.event_id = ?
-        ORDER BY CASE fl.placement_group
-          WHEN 'Gold' THEN 1
-          WHEN 'Silver' THEN 2
-          WHEN 'Bronze' THEN 3
-          WHEN 'Copper' THEN 4
-          ELSE 5
-        END,
-        overall_points ASC,
-        fl.place ASC
-      `,
-        )
-        .all(event_id);
-    } else {
-      leaderboard = db
-        .prepare(
-          `
-        SELECT
-          lb.boat_id,
-          lb.total_points_event,
-          b.sail_number AS boat_number,
-          b.model AS boat_type,
-          s.name,
-          s.surname,
-          b.country
-        FROM Leaderboard lb
-        LEFT JOIN Boats b ON lb.boat_id = b.boat_id
-        LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id
-        WHERE lb.event_id = ?
-        ORDER BY lb.total_points_event ASC
-      `,
-        )
-        .all(event_id);
-    }
-
-    // Update the global leaderboard
-    const updateQuery = db.prepare(`
-      INSERT INTO GlobalLeaderboard (boat_id, total_points_global)
-      VALUES (?, ?)
-      ON CONFLICT(boat_id) DO UPDATE SET total_points_global = excluded.total_points_global
-    `);
-
-    let rank = 1;
-    const groupOrder = ['Gold', 'Silver', 'Bronze', 'Copper', 'General'];
-    if (finalSeriesStarted) {
-      groupOrder.forEach((group) => {
-        const groupBoats = leaderboard.filter(
-          (entry: { placement_group: string }) =>
-            entry.placement_group === group,
-        );
-        groupBoats.forEach((entry: { boat_id: any }) => {
-          updateQuery.run(entry.boat_id, rank);
-          rank += 1;
-        });
-      });
-    } else {
-      leaderboard.forEach((entry: { boat_id: any }) => {
-        updateQuery.run(entry.boat_id, rank);
-        rank += 1;
-      });
-    }
-
-    // Lock the event
-    db.prepare('UPDATE Events SET is_locked = 1 WHERE event_id = ?').run(
-      event_id,
-    );
-
-    console.log('Event locked and global leaderboard updated successfully.');
-    return { success: true };
-  } catch (error) {
-    console.error(
-      'Error locking event and updating global leaderboard:',
-      error,
-    );
-    throw error;
-  }
-});
-
-ipcMain.handle('unlockEvent', async (event, event_id) => {
-  try {
-    const query = `UPDATE Events SET is_locked = 0 WHERE event_id = ?`;
-    const updateQuery = db.prepare(query);
-    updateQuery.run(event_id);
-    console.log(`Event ${event_id} unlocked.`);
-    return { success: true };
-  } catch (error) {
-    console.error('Error unlocking event:', error);
     throw error;
   }
 });

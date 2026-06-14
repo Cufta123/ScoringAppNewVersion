@@ -52,9 +52,6 @@ function EventPage() {
   const [selectedBoats, setSelectedBoats] = useState([]);
   const [addSailorMode, setAddSailorMode] = useState('single');
   const [raceHappened, setRaceHappened] = useState(false);
-  const [isEventLocked, setIsEventLocked] = useState(
-    location.state?.event?.is_locked === 1,
-  );
   const [startingListFormat, setStartingListFormat] = useState('excel');
 
   const fetchBoatsWithSailors = useCallback(async () => {
@@ -102,32 +99,13 @@ function EventPage() {
     }
   }, [eventId]);
 
-  const fetchEventLockStatus = useCallback(async () => {
-    if (!eventId) return;
-
-    try {
-      const events = await window.electron.sqlite.eventDB.readAllEvents();
-      const currentEvent = events.find((e) => e.event_id === eventId);
-      setIsEventLocked(currentEvent?.is_locked === 1);
-    } catch (error) {
-      reportError('Could not load event lock status.', error);
-    }
-  }, [eventId]);
-
   useEffect(() => {
     if (event) {
       fetchBoatsWithSailors();
       fetchAllBoats();
       checkIfRaceHappened();
-      fetchEventLockStatus();
     }
-  }, [
-    event,
-    fetchBoatsWithSailors,
-    fetchAllBoats,
-    checkIfRaceHappened,
-    fetchEventLockStatus,
-  ]);
+  }, [event, fetchBoatsWithSailors, fetchAllBoats, checkIfRaceHappened]);
 
   const handleAddSailor = () => {
     fetchBoatsWithSailors();
@@ -219,17 +197,6 @@ function EventPage() {
     }
   };
 
-  useEffect(() => {
-    // Ensure that the allBoats state is updated when boats state changes
-    setAllBoats((prevBoats) => {
-      const updatedBoats = prevBoats.filter(
-        (boat) =>
-          !boats.some((eventBoat) => eventBoat.boat_id === boat.boat_id),
-      );
-      return updatedBoats;
-    });
-  }, [boats]);
-
   if (!event) {
     return null; // Render nothing while the event is being resolved
   }
@@ -247,7 +214,6 @@ function EventPage() {
     <div>
       <Navbar
         onOpenLeaderboard={handleOpenLeaderboard}
-        isEventLocked={isEventLocked}
         onHeatRaceClick={handleHeatRaceClick}
       />
 
@@ -267,30 +233,24 @@ function EventPage() {
             </h1>
             <p>
               {event.start_date} &rarr; {event.end_date}
-              {isEventLocked && (
-                <span className="locked-badge">
-                  <i className="fa fa-lock" aria-hidden="true" /> Locked
-                </span>
-              )}
             </p>
           </div>
         </div>
 
         {/* ── Warning banner ─── */}
-        {(raceHappened || isEventLocked) && (
+        {raceHappened && (
           <div className="warning">
             <i
               className="fa fa-exclamation-triangle"
               aria-hidden="true"
               style={{ marginRight: '8px' }}
             />
-            {isEventLocked
-              ? 'This event is locked — results are final and nothing can be changed.'
-              : 'No more sailors or boats can be added because a race has already been scored.'}
+            No more sailors or boats can be added because a race has already
+            been scored.
           </div>
         )}
 
-        {!raceHappened && !isEventLocked && (
+        {!raceHappened && (
           <>
             {/* ── Add sailors ─── */}
             <div className="section-block">

@@ -7,15 +7,7 @@ import { toast } from 'react-toastify';
 import { reportError, reportInfo } from '../utils/userFeedback';
 
 import iocCountries from '../constants/iocCountries.json';
-
-// Plain-language labels (category IDs map to the seeded Categories table).
-const SUBGROUP_OPTIONS = [
-  { value: 'M', label: 'M — Masters (Veteran)', categoryId: 4 },
-  { value: 'GM', label: 'GM — Grand Masters (Master)', categoryId: 5 },
-  { value: 'L', label: 'L — Open (Senior)', categoryId: 3 },
-  { value: 'U25', label: 'U25 — Under 25 (Junior)', categoryId: 2 },
-  { value: 'U16', label: 'U16 — Under 16 (Kadet)', categoryId: 1 },
-];
+import { SUBGROUP_OPTIONS } from '../../shared/subgroups';
 
 function SailorForm({ onAddSailor, eventId }) {
   SailorForm.propTypes = {

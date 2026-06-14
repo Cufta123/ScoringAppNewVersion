@@ -42,8 +42,6 @@ export type Channels =
   | 'readFinalLeaderboard'
   | 'readOverallLeaderboard'
   | 'startFinalSeriesAtomic'
-  | 'lockEvent'
-  | 'unlockEvent'
   | 'updateEvent'
   | 'deleteEvent'
   | 'updateRaceResult'
@@ -284,22 +282,6 @@ const electronHandler = {
           );
         } catch (error) {
           console.error('Error invoking removeBoatFromEvent IPC:', error);
-          return false;
-        }
-      },
-      async lockEvent(event_id: string) {
-        try {
-          return await ipcRenderer.invoke('lockEvent', event_id);
-        } catch (error) {
-          console.error('Error invoking lockEvent IPC:', error);
-          return false;
-        }
-      },
-      async unlockEvent(event_id: string) {
-        try {
-          return await ipcRenderer.invoke('unlockEvent', event_id);
-        } catch (error) {
-          console.error('Error invoking unlockEvent IPC:', error);
           return false;
         }
       },

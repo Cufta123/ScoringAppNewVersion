@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import Flag from 'react-world-flags';
 import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
+import { toSubgroupLabel } from '../../shared/subgroups';
 import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
+
+const EXPANDED_STORAGE_KEY = 'sailorListExpanded';
 
 function SortTh({ col, label, sortCriteria, sortDirection, onSort }) {
   return (
@@ -41,14 +44,14 @@ function SailorList({
   const [categories, setCategories] = useState([]);
 
   useEffect(() => {
-    const savedIsExpanded = localStorage.getItem('isExpanded');
+    const savedIsExpanded = localStorage.getItem(EXPANDED_STORAGE_KEY);
     if (savedIsExpanded !== null) {
       setIsExpanded(JSON.parse(savedIsExpanded));
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('isExpanded', JSON.stringify(isExpanded));
+    localStorage.setItem(EXPANDED_STORAGE_KEY, JSON.stringify(isExpanded));
   }, [isExpanded]);
 
   const handleSort = (col) => {
@@ -218,7 +221,7 @@ function SailorList({
               />
               <SortTh
                 col="category"
-                label="Category"
+                label="Subgroup"
                 sortCriteria={sortCriteria}
                 sortDirection={sortDirection}
                 onSort={handleSort}
@@ -322,12 +325,13 @@ function SailorList({
                           key={category.category_id}
                           value={category.category_name}
                         >
-                          {category.category_name}
+                          {toSubgroupLabel(category.category_name) ||
+                            category.category_name}
                         </option>
                       ))}
                     </select>
                   ) : (
-                    sailor.category
+                    toSubgroupLabel(sailor.category) || sailor.category
                   )}
                 </td>
                 <td>

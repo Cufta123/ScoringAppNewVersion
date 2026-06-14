@@ -5,8 +5,8 @@ import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
 import printNewHeats from '../utils/printNewHeats';
 import AppModal from './shared/AppModal';
 import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
-
-const nonExcludableFleetAssignmentStatuses = new Set(['DNE', 'DGM']);
+import { getExcludeCount } from '../utils/leaderboardUtils';
+import { computeAdjustedFleetTotals } from '../../shared/fleetAssignment';
 
 function parseNumberCsv(value) {
   if (!value) return [];
@@ -14,54 +14,6 @@ function parseNumberCsv(value) {
     .split(',')
     .map((entry) => Number(entry))
     .filter((entry) => !Number.isNaN(entry));
-}
-
-function parseStatusCsv(value, expectedLength) {
-  const statuses = value
-    ? String(value)
-        .split(',')
-        .map((entry) => entry.trim().toUpperCase())
-    : [];
-
-  // Keep status and points arrays aligned for exclusion logic.
-  while (statuses.length < expectedLength) {
-    statuses.push('FINISHED');
-  }
-
-  return statuses.slice(0, expectedLength);
-}
-
-function getExcludeCount(racesCount) {
-  if (racesCount < 4) return 0;
-  if (racesCount < 8) return 1;
-  return 2 + Math.floor((racesCount - 8) / 8);
-}
-
-function parseDiscardThresholdsFromProfile(discardProfile) {
-  if (!discardProfile || discardProfile === 'standard') return null;
-  try {
-    const parsed = JSON.parse(discardProfile);
-    if (!Array.isArray(parsed?.thresholds)) return null;
-    const thresholds = parsed.thresholds
-      .map((entry) => Number(entry))
-      .filter((entry) => Number.isInteger(entry) && entry > 0);
-    if (thresholds.length !== parsed.thresholds.length) return null;
-
-    for (let index = 1; index < thresholds.length; index += 1) {
-      if (thresholds[index] <= thresholds[index - 1]) return null;
-    }
-    return thresholds;
-  } catch (_error) {
-    return null;
-  }
-}
-
-function getExcludeCountForProfile(racesCount, discardProfile) {
-  const thresholds = parseDiscardThresholdsFromProfile(discardProfile);
-  if (!thresholds || thresholds.length === 0) {
-    return getExcludeCount(racesCount);
-  }
-  return thresholds.filter((threshold) => racesCount >= threshold).length;
 }
 
 function getCompletedQualifyingRaceCountFromLeaderboard(leaderboardRows) {
@@ -80,46 +32,9 @@ export function buildAdjustedFleetLeaderboard(
   applyShs43TemporarySecondDiscard = true,
   qualifyingDiscardProfile = 'standard',
 ) {
-  return leaderboard.map((boat) => {
-    const rawPoints = parseNumberCsv(boat.race_points);
-    const rawStatuses = parseStatusCsv(boat.race_statuses, rawPoints.length);
-    const raceEntries = rawPoints.map((points, idx) => ({
-      points,
-      status: rawStatuses[idx] || 'FINISHED',
-      raceIndex: idx,
-    }));
-
-    const n = raceEntries.length;
-    let excludeCount = getExcludeCountForProfile(n, qualifyingDiscardProfile);
-
-    // SHRS 4.3: optionally exclude second-worst when 5 < n < 8,
-    // only for final fleet assignment ranking.
-    if (applyShs43TemporarySecondDiscard && n > 5 && n < 8) {
-      excludeCount += 1;
-    }
-
-    const excludableCandidates = raceEntries
-      .map((entry, idx) => ({ ...entry, idx }))
-      .filter(
-        (entry) =>
-          !nonExcludableFleetAssignmentStatuses.has(
-            String(entry.status || 'FINISHED'),
-          ),
-      )
-      .sort(
-        (left, right) =>
-          right.points - left.points || right.raceIndex - left.raceIndex,
-      );
-
-    const excludedIndexes = new Set(
-      excludableCandidates.slice(0, excludeCount).map((entry) => entry.idx),
-    );
-
-    const totalPoints = raceEntries.reduce((sum, entry, idx) => {
-      return excludedIndexes.has(idx) ? sum : sum + entry.points;
-    }, 0);
-
-    return { boat_id: boat.boat_id, totalPoints };
+  return computeAdjustedFleetTotals(leaderboard, {
+    applyShs43TemporarySecondDiscard,
+    getExcludeCount: (n) => getExcludeCount(n, qualifyingDiscardProfile),
   });
 }
 
@@ -832,7 +747,7 @@ function HeatComponent({
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
+                if (clickable && (e.key === 'Enter' || e.key === ' ')) {
                   e.preventDefault();
                   handleHeatClick(heat);
                 }

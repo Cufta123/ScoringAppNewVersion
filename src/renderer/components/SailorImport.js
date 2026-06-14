@@ -3,19 +3,12 @@ import PropTypes from 'prop-types';
 import Papa from 'papaparse';
 
 const TEMPLATE_CSV =
-  'name,surname,birthday,sail_number,country,model,club_name,category_name\nJohn,Doe,2000-06-15,12345,CRO,Laser,YC Zagreb,SENIOR\nJane,Smith,2005-03-22,67890,SVN,Optimist,JK Piran,KADET';
+  'name,surname,birthday,sail_number,country,model,club_name,category_name\nJohn,Doe,,12345,CRO,Laser,YC Zagreb,M\nJane,Smith,,67890,SVN,Optimist,JK Piran,U16';
 
 function SailorImport({ eventId, onImportComplete }) {
-  const REQUIRED_COLUMNS = [
-    'name',
-    'surname',
-    'birthday',
-    'sail_number',
-    'country',
-    'model',
-    'club_name',
-    'category_name',
-  ];
+  // Only name, surname, sail number and country are required — matching the
+  // single-entry form. birthday, model, club and subgroup are optional.
+  const REQUIRED_COLUMNS = ['name', 'surname', 'sail_number', 'country'];
 
   const fileInputRef = useRef(null);
   const [busy, setBusy] = useState(false);
@@ -113,11 +106,10 @@ function SailorImport({ eventId, onImportComplete }) {
 
       {/* Column format hint */}
       <p className="muted-note">
-        Columns:{' '}
-        <code>
-          name, surname, birthday (YYYY-MM-DD), sail_number, country (IOC code),
-          model, club_name, category_name
-        </code>
+        Required: <code>name, surname, sail_number, country (IOC code)</code>.
+        Optional:{' '}
+        <code>birthday (YYYY-MM-DD), model, club_name, category_name</code> —
+        category accepts a subgroup code (M, GM, L, U25, U16) or a full name.
       </p>
 
       {/* Result */}
@@ -130,43 +122,56 @@ function SailorImport({ eventId, onImportComplete }) {
               ))}
             </ul>
           )}
-          <span>
-            <i
-              className="fa fa-check-circle"
-              style={{ color: 'var(--teal)', marginRight: 6 }}
-            />
-            {result.created > 0 && (
-              <>
-                <strong>{result.created}</strong> new boat
-                {result.created !== 1 ? 's' : ''} created
-                &nbsp;&bull;&nbsp;{' '}
-              </>
-            )}
-            {result.associated > 0 && (
-              <>
-                <strong>{result.associated}</strong> existing boat
-                {result.associated !== 1 ? 's' : ''} added to event
-                &nbsp;&bull;&nbsp;{' '}
-              </>
-            )}
-            {result.alreadyInEvent > 0 && (
-              <>
-                <strong>{result.alreadyInEvent}</strong> already in event
-                &nbsp;&bull;&nbsp;{' '}
-              </>
-            )}
-            {result.invalid > 0 && (
-              <>
-                <strong>{result.invalid}</strong> invalid row
-                {result.invalid !== 1 ? 's' : ''} skipped
-              </>
-            )}
-            {result.created === 0 &&
-              result.associated === 0 &&
-              result.invalid === 0 &&
-              result.alreadyInEvent > 0 &&
-              ' — all boats were already registered'}
-          </span>
+          {/* Only show the import summary for an actual import result (the parse
+              and missing-column failures above carry no counts). */}
+          {typeof result.created === 'number' && (
+            <span>
+              <i
+                className={`fa ${
+                  result.created > 0 || result.associated > 0
+                    ? 'fa-check-circle'
+                    : 'fa-info-circle'
+                }`}
+                style={{ color: 'var(--teal)', marginRight: 6 }}
+              />
+              {result.created > 0 && (
+                <>
+                  <strong>{result.created}</strong> new boat
+                  {result.created !== 1 ? 's' : ''} created
+                  &nbsp;&bull;&nbsp;{' '}
+                </>
+              )}
+              {result.associated > 0 && (
+                <>
+                  <strong>{result.associated}</strong> existing boat
+                  {result.associated !== 1 ? 's' : ''} added to event
+                  &nbsp;&bull;&nbsp;{' '}
+                </>
+              )}
+              {result.alreadyInEvent > 0 && (
+                <>
+                  <strong>{result.alreadyInEvent}</strong> already in event
+                  &nbsp;&bull;&nbsp;{' '}
+                </>
+              )}
+              {result.invalid > 0 && (
+                <>
+                  <strong>{result.invalid}</strong> invalid row
+                  {result.invalid !== 1 ? 's' : ''} skipped
+                </>
+              )}
+              {result.created === 0 &&
+                result.associated === 0 &&
+                result.invalid === 0 &&
+                result.alreadyInEvent > 0 &&
+                ' — all boats were already registered'}
+              {result.created === 0 &&
+                result.associated === 0 &&
+                result.invalid === 0 &&
+                !result.alreadyInEvent &&
+                'No rows were imported.'}
+            </span>
+          )}
         </div>
       )}
     </div>

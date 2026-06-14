@@ -5,7 +5,6 @@ import { useNavigate } from 'react-router-dom';
 function Navbar({
   onOpenGlobalLeaderboard,
   onOpenLeaderboard,
-  isEventLocked,
   onHeatRaceClick,
 }) {
   const navigate = useNavigate();
@@ -46,7 +45,7 @@ function Navbar({
         </button>
       )}
 
-      {onHeatRaceClick && !isEventLocked && (
+      {onHeatRaceClick && (
         <button
           type="button"
           className="btn-success"
@@ -64,14 +63,12 @@ function Navbar({
 Navbar.propTypes = {
   onOpenGlobalLeaderboard: PropTypes.func,
   onOpenLeaderboard: PropTypes.func,
-  isEventLocked: PropTypes.bool,
   onHeatRaceClick: PropTypes.func,
 };
 
 Navbar.defaultProps = {
   onOpenGlobalLeaderboard: null,
   onOpenLeaderboard: null,
-  isEventLocked: false,
   onHeatRaceClick: null,
 };
 

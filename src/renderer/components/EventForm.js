@@ -203,6 +203,30 @@ function EventForm({ onEventCreated }) {
       return;
     }
 
+    // Event routes are keyed by name (/event/:name), so duplicate names would
+    // collide on navigation. Block them before inserting.
+    try {
+      const existingEvents =
+        await window.electron.sqlite.eventDB.readAllEvents();
+      const nameTaken =
+        Array.isArray(existingEvents) &&
+        existingEvents.some(
+          (existing) =>
+            (existing.event_name || '').trim().toLowerCase() ===
+            eventName.trim().toLowerCase(),
+        );
+      if (nameTaken) {
+        reportInfo(
+          'An event with this name already exists. Please choose a different name.',
+          'Event name already in use',
+        );
+        return;
+      }
+    } catch (error) {
+      reportError('Could not verify the event name.', error);
+      return;
+    }
+
     if (advancedEnabled && qualifyingDiscardMode === 'custom') {
       const validation = parseThresholdInput(qualifyingDiscardInput);
       setQualifyingDiscardError(validation.error || '');
@@ -540,6 +564,22 @@ export function EventList({ events, onEventsChanged }) {
       reportInfo(
         'The end date is before the start date. Please pick an end date that is the same day or later.',
         'Check the event dates',
+      );
+      return;
+    }
+
+    // Event routes are keyed by name, so a rename must not collide with another
+    // existing event (the event being edited is excluded by event_id).
+    const renameCollides = events.some(
+      (existing) =>
+        existing.event_id !== editingId &&
+        (existing.event_name || '').trim().toLowerCase() ===
+          editName.trim().toLowerCase(),
+    );
+    if (renameCollides) {
+      reportInfo(
+        'Another event already uses this name. Please choose a different name.',
+        'Event name already in use',
       );
       return;
     }

@@ -17,7 +17,6 @@ jest.mock('electron', () => ({
 }));
 
 const runCalls: Array<{ sql: string; args: any[] }> = [];
-let isLocked = 0;
 let missingScoreRows: Array<{ race_id: number; boat_id: number }> = [];
 
 function sqlContains(sql: string, fragment: string) {
@@ -86,12 +85,6 @@ const dbMock = {
       };
     }
 
-    if (sqlContains(sql, 'SELECT is_locked FROM Events WHERE event_id = ?')) {
-      return {
-        get: jest.fn(() => ({ is_locked: isLocked })),
-      };
-    }
-
     if (sqlContains(sql, 'DELETE FROM Leaderboard WHERE event_id = ?')) {
       return {
         run: jest.fn(() => ({ changes: 1 })),
@@ -150,7 +143,6 @@ describe('HeatRaceHandler insertRace default DNS scoring', () => {
 
   beforeEach(() => {
     runCalls.length = 0;
-    isLocked = 0;
     missingScoreRows = [];
     dbMock.prepare.mockClear();
   });
@@ -172,15 +164,6 @@ describe('HeatRaceHandler insertRace default DNS scoring', () => {
         [777, 2, 5, 5],
         [777, 3, 5, 5],
       ]),
-    );
-  });
-
-  it('rejects insertRace when event is locked', async () => {
-    isLocked = 1;
-    const handler = handlerRegistry.insertRace;
-
-    await expect(handler({}, 55, 3)).rejects.toThrow(
-      'Cannot insert race for locked event.',
     );
   });
 

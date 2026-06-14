@@ -40,7 +40,6 @@ const initializeSchema = () => {
       event_location TEXT NOT NULL,
       start_date TEXT NOT NULL,
       end_date TEXT NOT NULL,
-      is_locked INTEGER DEFAULT 0,
       shrs_version TEXT NOT NULL DEFAULT '2026-1',
       shrs_qualifying_assignment_mode TEXT NOT NULL DEFAULT 'progressive',
       shrs_discard_profile_qualifying TEXT NOT NULL DEFAULT 'standard',

@@ -64,10 +64,6 @@ function sqlContains(sql: string, fragment: string) {
 
 const dbMock = {
   prepare: jest.fn((sql: string): PrepareStatement => {
-    if (sqlContains(sql, 'SELECT is_locked FROM Events WHERE event_id = ?')) {
-      return { get: jest.fn(() => ({ is_locked: 0 })) };
-    }
-
     if (sqlContains(sql, 'SELECT shrs_heat_overflow_policy FROM Events WHERE event_id = ?')) {
       return { get: jest.fn(() => ({ shrs_heat_overflow_policy: heatOverflowPolicy })) };
     }

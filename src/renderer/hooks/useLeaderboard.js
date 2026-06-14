@@ -157,23 +157,26 @@ export default function useLeaderboard(eventId) {
       return Number.isNaN(n) ? null : n;
     };
 
-    const sharedRacePairs = [...sharedIds].map((raceId) => {
-      const riA = boatA.race_ids.indexOf(raceId);
-      const riB = boatB.race_ids.indexOf(raceId);
-      const rawA = boatA.races?.[riA];
-      const rawB = boatB.races?.[riB];
-      const scoreA = parseScore(rawA);
-      const scoreB = parseScore(rawB);
-      return {
-        raceId,
-        scoreA,
-        scoreB,
-        excludedA: typeof rawA === 'string' && rawA.startsWith('('),
-        excludedB: typeof rawB === 'string' && rawB.startsWith('('),
-        displayA: scoreA ?? '–',
-        displayB: scoreB ?? '–',
-      };
-    });
+    const buildRacePairs = (entryA, entryB, raceIds) =>
+      [...raceIds].map((raceId) => {
+        const riA = entryA.race_ids.indexOf(raceId);
+        const riB = entryB.race_ids.indexOf(raceId);
+        const rawA = entryA.races?.[riA];
+        const rawB = entryB.races?.[riB];
+        const scoreA = parseScore(rawA);
+        const scoreB = parseScore(rawB);
+        return {
+          raceId,
+          scoreA,
+          scoreB,
+          excludedA: typeof rawA === 'string' && rawA.startsWith('('),
+          excludedB: typeof rawB === 'string' && rawB.startsWith('('),
+          displayA: scoreA ?? '–',
+          displayB: scoreB ?? '–',
+        };
+      });
+
+    const sharedRacePairs = buildRacePairs(boatA, boatB, sharedIds);
 
     // Compute shared qualifying race IDs from the eventLeaderboard entries
     const qualA = eventLeaderboard.find(
@@ -188,23 +191,7 @@ export default function useLeaderboard(eventId) {
         : new Set();
     const sharedQualRacePairs =
       finalSeriesStarted && qualA && qualB
-        ? [...sharedQualIds].map((raceId) => {
-            const riA = qualA.race_ids.indexOf(raceId);
-            const riB = qualB.race_ids.indexOf(raceId);
-            const rawA = qualA.races?.[riA];
-            const rawB = qualB.races?.[riB];
-            const scoreA = parseScore(rawA);
-            const scoreB = parseScore(rawB);
-            return {
-              raceId,
-              scoreA,
-              scoreB,
-              excludedA: typeof rawA === 'string' && rawA.startsWith('('),
-              excludedB: typeof rawB === 'string' && rawB.startsWith('('),
-              displayA: scoreA ?? '–',
-              displayB: scoreB ?? '–',
-            };
-          })
+        ? buildRacePairs(qualA, qualB, sharedQualIds)
         : [];
 
     // ── Tie-breaking helpers ──────────────────────────────────────────────
@@ -223,22 +210,9 @@ export default function useLeaderboard(eventId) {
       const sortedA = [...filtered.map((p) => p.scoreA)].sort((x, y) => x - y);
       const sortedB = [...filtered.map((p) => p.scoreB)].sort((x, y) => x - y);
       for (let i = 0; i < sortedA.length; i += 1) {
-        if (sortedA[i] < sortedB[i])
+        if (sortedA[i] !== sortedB[i])
           return {
-            winner: boatA,
-            detail: `best-to-worst: ${sortedA[i]} vs ${sortedB[i]} at position ${i + 1}`,
-            comparison: {
-              mode: 'A8.1',
-              scoreA: sortedA[i],
-              scoreB: sortedB[i],
-              position: i + 1,
-              sortedA,
-              sortedB,
-            },
-          };
-        if (sortedB[i] < sortedA[i])
-          return {
-            winner: boatB,
+            winner: sortedA[i] < sortedB[i] ? boatA : boatB,
             detail: `best-to-worst: ${sortedA[i]} vs ${sortedB[i]} at position ${i + 1}`,
             comparison: {
               mode: 'A8.1',
@@ -259,21 +233,9 @@ export default function useLeaderboard(eventId) {
       if (valid.length === 0) return null;
       for (let i = valid.length - 1; i >= 0; i -= 1) {
         const { scoreA, scoreB, raceId } = valid[i];
-        if (scoreA < scoreB)
+        if (scoreA !== scoreB)
           return {
-            winner: boatA,
-            detail: `last-race-backward: ${scoreA} vs ${scoreB}`,
-            comparison: {
-              mode: 'A8.2',
-              scoreA,
-              scoreB,
-              raceId,
-              validPairs: valid,
-            },
-          };
-        if (scoreB < scoreA)
-          return {
-            winner: boatB,
+            winner: scoreA < scoreB ? boatA : boatB,
             detail: `last-race-backward: ${scoreA} vs ${scoreB}`,
             comparison: {
               mode: 'A8.2',
@@ -310,22 +272,9 @@ export default function useLeaderboard(eventId) {
       for (let i = 0; i < maxLen; i += 1) {
         const a = i < vA.length ? vA[i] : Infinity;
         const b = i < vB.length ? vB[i] : Infinity;
-        if (a < b)
+        if (a !== b)
           return {
-            winner: boatA,
-            detail: `best-to-worst: ${a} vs ${b} at position ${i + 1}`,
-            comparison: {
-              mode: 'A8.1',
-              scoreA: a,
-              scoreB: b,
-              position: i + 1,
-              sortedA: vA,
-              sortedB: vB,
-            },
-          };
-        if (b < a)
-          return {
-            winner: boatB,
+            winner: a < b ? boatA : boatB,
             detail: `best-to-worst: ${a} vs ${b} at position ${i + 1}`,
             comparison: {
               mode: 'A8.1',
@@ -347,29 +296,17 @@ export default function useLeaderboard(eventId) {
       for (let i = maxLen - 1; i >= 0; i -= 1) {
         const a = vA[i]?.score;
         const b = vB[i]?.score;
-        if (a != null && b != null) {
-          if (a < b)
-            return {
-              winner: boatA,
-              detail: `last-race-backward: ${a} vs ${b}`,
-              comparison: {
-                mode: 'A8.2',
-                scoreA: a,
-                scoreB: b,
-                raceIndex: i,
-              },
-            };
-          if (b < a)
-            return {
-              winner: boatB,
-              detail: `last-race-backward: ${a} vs ${b}`,
-              comparison: {
-                mode: 'A8.2',
-                scoreA: a,
-                scoreB: b,
-                raceIndex: i,
-              },
-            };
+        if (a != null && b != null && a !== b) {
+          return {
+            winner: a < b ? boatA : boatB,
+            detail: `last-race-backward: ${a} vs ${b}`,
+            comparison: {
+              mode: 'A8.2',
+              scoreA: a,
+              scoreB: b,
+              raceIndex: i,
+            },
+          };
         }
       }
       return null;
@@ -662,7 +599,7 @@ export default function useLeaderboard(eventId) {
       try {
         await window.electron.sqlite.heatRaceDB.updateEventLeaderboard(eventId);
       } catch (_) {
-        // Event may be locked; continue with existing DB values
+        // Recompute may fail; continue with existing DB values
       }
 
       // Recompute the final leaderboard so FinalLeaderboard is always current
@@ -673,7 +610,7 @@ export default function useLeaderboard(eventId) {
             eventId,
           );
         } catch (_) {
-          // Event may be locked; continue with existing DB values
+          // Recompute may fail; continue with existing DB values
         }
       }
 
@@ -861,15 +798,12 @@ export default function useLeaderboard(eventId) {
 
     let newPosition;
     if (newStatus === 'RDG1') {
-      const entry = cloned.find((e) => e.boat_id === boatId);
-      newPosition = entry
-        ? computeRdgAverage(
-            entry.races,
-            entry.race_statuses,
-            raceIndex,
-            penaltyPosition,
-          )
-        : penaltyPosition;
+      newPosition = computeRdgAverage(
+        targetEntry.races,
+        targetEntry.race_statuses,
+        raceIndex,
+        penaltyPosition,
+      );
       setRdgMeta((prev) => ({
         ...prev,
         [`${boatId}-${raceIndex}`]: { type: 'RDG1' },

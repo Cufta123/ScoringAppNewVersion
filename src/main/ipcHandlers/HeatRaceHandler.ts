@@ -18,15 +18,14 @@ import {
   getEventDiscardConfig,
   getExcludeCountForConfig,
 } from '../functions/discardConfig';
+import {
+  compareScoreArrays,
+  getKeptScores,
+  resolveTiesSequentially,
+} from '../functions/scoringUtils';
+import { computeAdjustedFleetTotals } from '../../shared/fleetAssignment';
 
 console.log('HeatRaceHandler.ts loaded');
-
-const isEventLocked = (event_id: any) => {
-  const query = `SELECT is_locked FROM Events WHERE event_id = ?`;
-  const checkQuery = db.prepare(query);
-  const result = checkQuery.get(event_id);
-  return result.is_locked === 1;
-};
 
 const getEventQualifyingAssignmentMode = (event_id: any): string => {
   const row = db
@@ -215,7 +214,6 @@ function restoreEventSnapshot(
            event_location = ?,
            start_date = ?,
            end_date = ?,
-           is_locked = ?,
            shrs_version = ?,
            shrs_qualifying_assignment_mode = ?,
            shrs_discard_profile_qualifying = ?,
@@ -229,7 +227,6 @@ function restoreEventSnapshot(
       eventRow.event_location,
       eventRow.start_date,
       eventRow.end_date,
-      eventRow.is_locked,
       eventRow.shrs_version,
       eventRow.shrs_qualifying_assignment_mode,
       eventRow.shrs_discard_profile_qualifying,
@@ -368,7 +365,6 @@ const statusRankMap = new Map<string, number>(
 
 const rdgStatuses = ['RDG1', 'RDG2', 'RDG3'];
 const scoringPenaltyStatuses = new Set(['ZFP', 'SCP', 'T1']);
-const nonExcludableStatuses = new Set(['DNE', 'DGM']);
 const mandatoryDisplaceStatuses = new Set(['DSQ', 'RET', 'DNE', 'DGM']);
 const penaltyStatuses = [
   'DNF',
@@ -432,44 +428,7 @@ function getKeptSeriesPoints(
   discardConfig: DiscardConfig,
 ): number[] {
   const excludeCount = getExcludeCountForConfig(scores.length, discardConfig);
-  if (excludeCount <= 0) {
-    return scores.map((entry) => entry.points);
-  }
-
-  const candidates = scores
-    .map((entry, idx) => ({ entry, idx }))
-    .filter(
-      ({ entry }) =>
-        !nonExcludableStatuses.has(String(entry.status ?? 'FINISHED').toUpperCase()),
-    )
-    .sort(
-      (left, right) =>
-        right.entry.points - left.entry.points ||
-        (left.entry.race_number ?? Number.MAX_SAFE_INTEGER) -
-          (right.entry.race_number ?? Number.MAX_SAFE_INTEGER) ||
-        (left.entry.race_id ?? Number.MAX_SAFE_INTEGER) -
-          (right.entry.race_id ?? Number.MAX_SAFE_INTEGER),
-    );
-
-  const excludedIndexes = new Set(
-    candidates.slice(0, excludeCount).map(({ idx }) => idx),
-  );
-
-  return scores
-    .filter((_entry, idx) => !excludedIndexes.has(idx))
-    .map((entry) => entry.points);
-}
-
-function compareScoreArrays(scoresA: number[], scoresB: number[]): number {
-  const maxLength = Math.max(scoresA.length, scoresB.length);
-  for (let i = 0; i < maxLength; i += 1) {
-    const scoreA = scoresA[i] ?? Number.MAX_SAFE_INTEGER;
-    const scoreB = scoresB[i] ?? Number.MAX_SAFE_INTEGER;
-    if (scoreA !== scoreB) {
-      return scoreA - scoreB;
-    }
-  }
-  return 0;
+  return getKeptScores(scores, excludeCount);
 }
 
 type OverallRaceScore = {
@@ -611,28 +570,14 @@ function resolveOverallTieGroupSequentially<T extends { boat_id: any }>(
   rows: T[],
   getTiePacket: (boatId: any) => OverallTiePacket,
 ): T[] {
-  const remaining = [...rows];
-  const resolved: T[] = [];
-
-  // SHRS 2026 5.7(ii)(3): resolve the highest-place tie first,
-  // then re-apply tie-break on the remaining tied boats.
-  while (remaining.length > 0) {
-    remaining.sort((left, right) => {
-      const leftPacket = getTiePacket(left.boat_id);
-      const rightPacket = getTiePacket(right.boat_id);
-      return compareOverallTiePackets(
-        left.boat_id,
-        right.boat_id,
-        leftPacket,
-        rightPacket,
-      );
-    });
-
-    const [winner] = remaining.splice(0, 1);
-    resolved.push(winner);
-  }
-
-  return resolved;
+  return resolveTiesSequentially(rows, (left, right) =>
+    compareOverallTiePackets(
+      left.boat_id,
+      right.boat_id,
+      getTiePacket(left.boat_id),
+      getTiePacket(right.boat_id),
+    ),
+  );
 }
 
 function normalizeStatus(status: unknown): string {
@@ -647,6 +592,42 @@ function buildAlphanumericKey(country: unknown, sail_number: unknown): string {
   const countryCode = String(country ?? '').toUpperCase();
   const sail = String(sail_number ?? '').toUpperCase();
   return `${countryCode}-${sail}`;
+}
+
+type SeededRow = {
+  position: number | null;
+  status: string;
+  country: string | null;
+  sail_number: string | number | null;
+};
+
+// SHRS 5.3 seeding order: finishers by position, then penalised boats by
+// status displacement rank, with alphanumeric sail key as final tie-break.
+function compareSeededRows(left: SeededRow, right: SeededRow): number {
+  const leftStatusRank = statusRankMap.get(left.status);
+  const rightStatusRank = statusRankMap.get(right.status);
+  const leftIsFinisher = leftStatusRank === undefined;
+  const rightIsFinisher = rightStatusRank === undefined;
+
+  if (leftIsFinisher && rightIsFinisher) {
+    const leftPosition = left.position ?? Number.MAX_SAFE_INTEGER;
+    const rightPosition = right.position ?? Number.MAX_SAFE_INTEGER;
+    if (leftPosition !== rightPosition) {
+      return leftPosition - rightPosition;
+    }
+  } else if (leftIsFinisher !== rightIsFinisher) {
+    return leftIsFinisher ? -1 : 1;
+  } else {
+    const leftRank = leftStatusRank ?? Number.MAX_SAFE_INTEGER;
+    const rightRank = rightStatusRank ?? Number.MAX_SAFE_INTEGER;
+    if (leftRank !== rightRank) {
+      return leftRank - rightRank;
+    }
+  }
+
+  return buildAlphanumericKey(left.country, left.sail_number).localeCompare(
+    buildAlphanumericKey(right.country, right.sail_number),
+  );
 }
 
 function getHeatBaseFromName(heat_name: string): string {
@@ -812,14 +793,11 @@ function applyRaceResultUpdate(
   let points = finalPosition;
   if (!isRdg && penaltyStatuses.includes(status)) {
     if (isScoringPenalty) {
-      finalPosition = Number(new_position);
       points = getScoringPenaltyPoints(finalPosition, maxBoats, status);
     } else {
       finalPosition = maxBoats + 1;
       points = finalPosition;
     }
-  } else {
-    points = finalPosition;
   }
 
   const currentResult = db
@@ -1073,32 +1051,7 @@ function getSeedingResultsFromLastRace(
       ),
   );
 
-  seedingRows.sort((left, right) => {
-    const leftStatusRank = statusRankMap.get(left.status);
-    const rightStatusRank = statusRankMap.get(right.status);
-    const leftIsFinisher = leftStatusRank === undefined;
-    const rightIsFinisher = rightStatusRank === undefined;
-
-    if (leftIsFinisher && rightIsFinisher) {
-      const leftPosition = left.position ?? Number.MAX_SAFE_INTEGER;
-      const rightPosition = right.position ?? Number.MAX_SAFE_INTEGER;
-      if (leftPosition !== rightPosition) {
-        return leftPosition - rightPosition;
-      }
-    } else if (leftIsFinisher !== rightIsFinisher) {
-      return leftIsFinisher ? -1 : 1;
-    } else {
-      const leftRank = leftStatusRank ?? Number.MAX_SAFE_INTEGER;
-      const rightRank = rightStatusRank ?? Number.MAX_SAFE_INTEGER;
-      if (leftRank !== rightRank) {
-        return leftRank - rightRank;
-      }
-    }
-
-    return buildAlphanumericKey(left.country, left.sail_number).localeCompare(
-      buildAlphanumericKey(right.country, right.sail_number),
-    );
-  });
+  seedingRows.sort(compareSeededRows);
 
   return seedingRows.map((row) => ({ boat_id: row.boat_id }));
 }
@@ -1157,32 +1110,7 @@ function getRankedBoatsInHeatForRace(heat_id: number, race_id: number) {
       }),
     );
 
-  rows.sort((left, right) => {
-    const leftStatusRank = statusRankMap.get(left.status);
-    const rightStatusRank = statusRankMap.get(right.status);
-    const leftIsFinisher = leftStatusRank === undefined;
-    const rightIsFinisher = rightStatusRank === undefined;
-
-    if (leftIsFinisher && rightIsFinisher) {
-      const leftPosition = left.position ?? Number.MAX_SAFE_INTEGER;
-      const rightPosition = right.position ?? Number.MAX_SAFE_INTEGER;
-      if (leftPosition !== rightPosition) {
-        return leftPosition - rightPosition;
-      }
-    } else if (leftIsFinisher !== rightIsFinisher) {
-      return leftIsFinisher ? -1 : 1;
-    } else {
-      const leftRank = leftStatusRank ?? Number.MAX_SAFE_INTEGER;
-      const rightRank = rightStatusRank ?? Number.MAX_SAFE_INTEGER;
-      if (leftRank !== rightRank) {
-        return leftRank - rightRank;
-      }
-    }
-
-    return buildAlphanumericKey(left.country, left.sail_number).localeCompare(
-      buildAlphanumericKey(right.country, right.sail_number),
-    );
-  });
+  rows.sort(compareSeededRows);
 
   return rows;
 }
@@ -1223,28 +1151,6 @@ function getAssignmentRowsForHeatRace(heat_id: number, race_id: number) {
   return rankedRows.map((row) => ({ boat_id: row.boat_id }));
 }
 
-function parseNumberCsv(value: unknown): number[] {
-  if (value == null) return [];
-  return String(value)
-    .split(',')
-    .map((entry) => Number(entry))
-    .filter((entry) => !Number.isNaN(entry));
-}
-
-function parseStatusCsv(value: unknown, expectedLength: number): string[] {
-  const statuses = value != null
-    ? String(value)
-      .split(',')
-      .map((entry) => entry.trim().toUpperCase())
-    : [];
-
-  while (statuses.length < expectedLength) {
-    statuses.push('FINISHED');
-  }
-
-  return statuses.slice(0, expectedLength);
-}
-
 function buildAdjustedFleetLeaderboard(
   leaderboard: Array<{
     boat_id: number;
@@ -1254,41 +1160,10 @@ function buildAdjustedFleetLeaderboard(
   qualifyingDiscardConfig: DiscardConfig,
   applyShs43TemporarySecondDiscard = true,
 ): Array<{ boat_id: number; totalPoints: number }> {
-  return leaderboard.map((boat) => {
-    const rawPoints = parseNumberCsv(boat.race_points);
-    const rawStatuses = parseStatusCsv(boat.race_statuses, rawPoints.length);
-    const raceEntries = rawPoints.map((points, idx) => ({
-      points,
-      status: rawStatuses[idx] || 'FINISHED',
-      raceIndex: idx,
-    }));
-
-    const n = raceEntries.length;
-    let excludeCount = getExcludeCountForConfig(n, qualifyingDiscardConfig);
-    if (applyShs43TemporarySecondDiscard && n > 5 && n < 8) {
-      excludeCount += 1;
-    }
-
-    const excludableCandidates = raceEntries
-      .map((entry, idx) => ({ ...entry, idx }))
-      .filter(
-        (entry) =>
-          !nonExcludableStatuses.has(String(entry.status || 'FINISHED')),
-      )
-      .sort(
-        (left, right) =>
-          right.points - left.points || right.raceIndex - left.raceIndex,
-      );
-
-    const excludedIndexes = new Set(
-      excludableCandidates.slice(0, excludeCount).map((entry) => entry.idx),
-    );
-
-    const totalPoints = raceEntries.reduce((sum, entry, idx) => {
-      return excludedIndexes.has(idx) ? sum : sum + entry.points;
-    }, 0);
-
-    return { boat_id: boat.boat_id, totalPoints };
+  return computeAdjustedFleetTotals(leaderboard, {
+    applyShs43TemporarySecondDiscard,
+    getExcludeCount: (n: number) =>
+      getExcludeCountForConfig(n, qualifyingDiscardConfig),
   });
 }
 
@@ -1366,9 +1241,6 @@ ipcMain.handle('restoreEventSnapshotFromFile', async (_event, event_id) => {
 });
 
 ipcMain.handle('insertHeat', async (event, event_id, heat_name, heat_type) => {
-  if (isEventLocked(event_id)) {
-    throw new Error('Cannot insert heat for locked event.');
-  }
   try {
     const result = db
       .prepare(
@@ -1416,9 +1288,6 @@ ipcMain.handle('insertHeatBoat', async (event, heat_id, boat_id) => {
   }
 });
 ipcMain.handle('deleteHeatsByEvent', async (event, event_id) => {
-  if (isEventLocked(event_id)) {
-    throw new Error('Cannot insert heat for locked event.');
-  }
   try {
     // Delete Scores for all races in heats belonging to this event
     db.prepare(
@@ -1511,10 +1380,6 @@ ipcMain.handle('insertRace', async (event, heat_id, race_number) => {
       throw new Error('Heat not found.');
     }
 
-    if (isEventLocked(heatRow.event_id)) {
-      throw new Error('Cannot insert race for locked event.');
-    }
-
     const result = db
       .prepare('INSERT INTO Races (heat_id, race_number) VALUES (?, ?)')
       .run(heat_id, race_number);
@@ -1553,10 +1418,6 @@ ipcMain.handle(
 
       if (raceRow?.event_id == null) {
         throw new Error('Race not found.');
-      }
-
-      if (isEventLocked(raceRow.event_id)) {
-        throw new Error('Cannot insert score for locked event.');
       }
 
       const normalizedStatus = normalizeScoreStatus(status);
@@ -1632,9 +1493,6 @@ ipcMain.handle('updateEventLeaderboard', async (event, event_id) => {
 });
 
 ipcMain.handle('updateGlobalLeaderboard', async (event, event_id) => {
-  if (isEventLocked(event_id)) {
-    throw new Error('Cannot insert heat for locked event.');
-  }
   try {
     const query = `
       SELECT boat_id, RANK() OVER (ORDER BY total_points_event ASC) as final_position
@@ -1683,10 +1541,6 @@ ipcMain.handle(
     allow_oversize_confirm = false,
     apply_shrs43_temporary_second_discard = true,
   ) => {
-  if (isEventLocked(event_id)) {
-    throw new Error('Cannot start final series for locked event.');
-  }
-
   try {
     const allHeats = db
       .prepare('SELECT heat_id, heat_name, heat_type FROM Heats WHERE event_id = ?')
@@ -1851,9 +1705,6 @@ ipcMain.handle(
 );
 
 ipcMain.handle('createNewHeatsBasedOnLeaderboard', async (event, event_id) => {
-  if (isEventLocked(event_id)) {
-    throw new Error('Cannot insert heat for locked event.');
-  }
   try {
     const latestHeats = getLatestQualifyingHeats(event_id);
     checkRaceCountForLatestHeats(latestHeats, db);
@@ -1997,10 +1848,6 @@ ipcMain.handle('undoLastScoredRaceForHeat', async (event, heat_id) => {
       throw new Error('Heat not found.');
     }
 
-    if (isEventLocked(heatRow.event_id)) {
-      throw new Error('Cannot undo a race for a locked event.');
-    }
-
     const lastRace = db
       .prepare(
         `SELECT race_id, race_number
@@ -2041,10 +1888,6 @@ ipcMain.handle('undoLastScoredRaceForHeat', async (event, heat_id) => {
 });
 
 ipcMain.handle('undoLastScoredRace', async (event, event_id) => {
-  if (isEventLocked(event_id)) {
-    throw new Error('Cannot undo race for locked event.');
-  }
-
   try {
     const latestHeats = getLatestQualifyingHeats(event_id);
     checkRaceCountForLatestHeats(latestHeats, db);
@@ -2107,10 +1950,6 @@ ipcMain.handle('undoLastScoredRace', async (event, event_id) => {
 });
 
 ipcMain.handle('undoLatestHeatRedistribution', async (event, event_id) => {
-  if (isEventLocked(event_id)) {
-    throw new Error('Cannot undo heat redistribution for locked event.');
-  }
-
   try {
     const latestHeats = getLatestQualifyingHeats(event_id);
     const hasRaceQuery = db.prepare(
@@ -2327,9 +2166,6 @@ ipcMain.handle('readGlobalLeaderboard', async () => {
 });
 
 ipcMain.handle('updateFinalLeaderboard', async (event, event_id) => {
-  if (isEventLocked(event_id)) {
-    throw new Error('Cannot update final leaderboard for locked event.');
-  }
   try {
     recomputeFinalLeaderboard(event_id);
     console.log('Final leaderboard updated successfully.');
@@ -2489,23 +2325,15 @@ ipcMain.handle('readOverallLeaderboard', async (event, event_id) => {
       return tiePacketCache.get(boatId) as OverallTiePacket;
     };
 
+    const fleetRanks: Record<string, number> = {
+      Gold: 1,
+      Silver: 2,
+      Bronze: 3,
+      Copper: 4,
+    };
     results.sort((left: any, right: any) => {
-      const fleetRank = (fleet: string) => {
-        switch (fleet) {
-          case 'Gold':
-            return 1;
-          case 'Silver':
-            return 2;
-          case 'Bronze':
-            return 3;
-          case 'Copper':
-            return 4;
-          default:
-            return 999;
-        }
-      };
-      const leftFleetRank = fleetRank(left.placement_group);
-      const rightFleetRank = fleetRank(right.placement_group);
+      const leftFleetRank = fleetRanks[left.placement_group] ?? 999;
+      const rightFleetRank = fleetRanks[right.placement_group] ?? 999;
       if (leftFleetRank !== rightFleetRank) {
         return leftFleetRank - rightFleetRank;
       }
