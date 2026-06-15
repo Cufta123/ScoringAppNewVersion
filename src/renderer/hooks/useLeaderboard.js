@@ -20,6 +20,11 @@ import {
   getNextCompareSelection,
 } from '../utils/compareUtils';
 import { confirmAction, reportError } from '../utils/userFeedback';
+import escapeHtml from '../utils/escapeHtml';
+import {
+  getScoringPenaltyPoints,
+  scoringPenaltyStatuses,
+} from '../../shared/scoringPenalty';
 import { eventDB, heatRaceDB } from '../api/db';
 
 export default function useLeaderboard(eventId) {
@@ -49,7 +54,6 @@ export default function useLeaderboard(eventId) {
 
   const roundToNearestTenthHalfUp = (value) =>
     Math.round((value + Number.EPSILON) * 10) / 10;
-  const scoringPenaltyStatuses = new Set(['ZFP', 'SCP', 'T1']);
   const activeDiscardProfile = finalSeriesStarted
     ? discardProfiles.final
     : discardProfiles.qualifying;
@@ -496,10 +500,37 @@ export default function useLeaderboard(eventId) {
       if (!scoringPenaltyStatuses.has(status)) return race;
       const place = parseFloat(String(race).replace(/[()]/g, ''));
       if (Number.isNaN(place)) return race;
-      const rate = status === 'T1' ? 0.3 : 0.2;
-      const penaltyPlaces = Math.floor(maxBoats * rate + 0.5 + Number.EPSILON);
-      return Math.min(place + penaltyPlaces, maxBoats + 1);
+      return getScoringPenaltyPoints(place, maxBoats, status);
     });
+  };
+
+  // Recompute the score-derived fields shared by every edit path: convert the
+  // place cells to penalty points, run discards, and expose both the discard-
+  // marked races and the score fields. Callers spread in the totals and pick
+  // whether to adopt `markedRaces` (save keeps the original `races`).
+  const recomputeEntryScores = (rawRaces, statuses, penaltyPosition) => {
+    const scoreValues = toScoreValuesForTotal(
+      rawRaces,
+      statuses,
+      penaltyPosition,
+    );
+    const { markedRaces, total } = applyExclusions(
+      rawRaces,
+      statuses,
+      scoreValues,
+      activeDiscardProfile,
+    );
+    return {
+      markedRaces,
+      scoreFields: {
+        // Store the scored points (not the raw place) so the Gross column and
+        // any race_points consumer match the backend's read-mode semantics.
+        race_points: scoreValues.map(String),
+        total_points_event: total,
+        total_points_final: total,
+        computed_total: total,
+      },
+    };
   };
 
   const handleRaceChange = (
@@ -605,27 +636,16 @@ export default function useLeaderboard(eventId) {
         rawRaces[raceIndex] = String(newPosition);
         newStatuses[raceIndex] = newStatus;
       }
-      const scoreValues = toScoreValuesForTotal(
+      const { markedRaces, scoreFields } = recomputeEntryScores(
         rawRaces,
         newStatuses,
         penaltyPosition,
       );
-      const { markedRaces, total } = applyExclusions(
-        rawRaces,
-        newStatuses,
-        scoreValues,
-        activeDiscardProfile,
-      );
       return {
         ...entry,
         races: markedRaces,
-        // Store the scored points (not the raw place) so the Gross column and
-        // any race_points consumer match the backend's read-mode semantics.
-        race_points: scoreValues.map((value) => String(value)),
+        ...scoreFields,
         race_statuses: newStatuses,
-        total_points_event: total,
-        total_points_final: total,
-        computed_total: total,
       };
     });
 
@@ -674,25 +694,16 @@ export default function useLeaderboard(eventId) {
     rawRaces[raceIndex] = String(avg);
     entryStatuses[raceIndex] = 'RDG2';
 
-    const scoreValues = toScoreValuesForTotal(
+    const { markedRaces, scoreFields } = recomputeEntryScores(
       rawRaces,
       entryStatuses,
       penaltyPosition,
     );
-    const { markedRaces, total } = applyExclusions(
-      rawRaces,
-      entryStatuses,
-      scoreValues,
-      activeDiscardProfile,
-    );
     const updatedEntry = {
       ...entry,
       races: markedRaces,
-      race_points: scoreValues.map((value) => String(value)),
+      ...scoreFields,
       race_statuses: entryStatuses,
-      total_points_event: total,
-      total_points_final: total,
-      computed_total: total,
     };
 
     const qualLabels = [...(selectedQualIndices || new Set())]
@@ -724,24 +735,13 @@ export default function useLeaderboard(eventId) {
         const rawRaces = entry.races.map((r) => String(r).replace(/[()]/g, ''));
         const statuses =
           entry.race_statuses || entry.races.map(() => 'FINISHED');
-        const scoreValues = toScoreValuesForTotal(
+        // Save keeps the original `races`, so only the score fields are taken.
+        const { scoreFields } = recomputeEntryScores(
           rawRaces,
           statuses,
           penaltyPosition,
         );
-        const { total } = applyExclusions(
-          rawRaces,
-          statuses,
-          scoreValues,
-          activeDiscardProfile,
-        );
-        return {
-          ...entry,
-          race_points: scoreValues.map((value) => String(value)),
-          total_points_event: total,
-          total_points_final: total,
-          computed_total: total,
-        };
+        return { ...entry, ...scoreFields };
       });
 
       const originalSource =
@@ -1067,14 +1067,6 @@ export default function useLeaderboard(eventId) {
   const exportToHTML = async () => {
     const { header, sections } = buildExportData();
     const { safeEventName, raceNumber, seriesLabel } = await getExportMeta();
-    const escapeHtml = (value) =>
-      String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-
     const thCells = header.map((h) => `<th>${escapeHtml(h)}</th>`).join('');
     let tableBody = '';
     sections.forEach(({ title, rows }) => {

@@ -308,19 +308,26 @@ function ScoringInputComponent({ heat, onSubmit }) {
     }
   };
 
-  const getPlaceDisplay = (sailNumber) => {
+  // Render a boat's finishing place + penalty code. Position-keeping penalties
+  // (ZFP/SCP/T1) retain the finishing place, so show it alongside the code;
+  // other penalties have no finishing place, so the code alone is correct.
+  // `sep`/`placeSuffix`/`emptyFallback` adapt it to each display context.
+  const formatPlaceDisplay = (
+    sailNumber,
+    { sep = ' · ', placeSuffix = '', emptyFallback = '—' } = {},
+  ) => {
+    const place = placeNumbers[sailNumber];
+    const placeText = `${place}${placeSuffix}`;
     const penalty = penalties[sailNumber];
     if (penalty) {
-      // Position-keeping penalties (ZFP/SCP/T1) retain the boat's finishing
-      // place, so show it alongside the code (e.g. "3 · ZFP"). Other penalties
-      // have no finishing place, so the code alone is correct.
-      if (POSITION_KEEPING_PENALTIES.has(penalty) && placeNumbers[sailNumber]) {
-        return `${placeNumbers[sailNumber]} · ${penalty}`;
-      }
-      return penalty;
+      return POSITION_KEEPING_PENALTIES.has(penalty) && place
+        ? `${placeText}${sep}${penalty}`
+        : penalty;
     }
-    return placeNumbers[sailNumber] || '—';
+    return place ? placeText : emptyFallback;
   };
+
+  const getPlaceDisplay = (sailNumber) => formatPlaceDisplay(sailNumber);
 
   const isInvalidSail = (sailNumber) =>
     invalidBoatNumbers
@@ -486,15 +493,7 @@ function ScoringInputComponent({ heat, onSubmit }) {
                 onDrop={handleDrop}
               >
                 <span className="finish-place">
-                  {(() => {
-                    const penalty = penalties[number];
-                    if (!penalty) return `${placeNumbers[number]}.`;
-                    // Position-keeping penalties keep their finishing place, so
-                    // show it (e.g. "3. ZFP"); other penalties show only the code.
-                    return POSITION_KEEPING_PENALTIES.has(penalty)
-                      ? `${placeNumbers[number]}. ${penalty}`
-                      : penalty;
-                  })()}
+                  {formatPlaceDisplay(number, { sep: ' ', placeSuffix: '.' })}
                 </span>
                 <span className="finish-label">
                   Sail #{number}

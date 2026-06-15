@@ -5,6 +5,15 @@
 // its own module so the scoring rules have one home and can be unit-tested
 // independently of the IPC handler wiring.
 
+// Scoring-penalty math lives in src/shared so the renderer's edit-mode preview
+// can score these penalties identically. Re-exported here to keep this module
+// the single import surface for the scoring vocabulary.
+export {
+  scoringPenaltyStatuses,
+  roundHalfUp,
+  getScoringPenaltyPoints,
+} from '../../shared/scoringPenalty';
+
 // SHRS 2026-1 (5.3) is source-of-truth for displacement order.
 // Appendix-only statuses are appended as fallback when SHRS text is silent.
 export const shrsPrimaryStatusOrder = [
@@ -31,7 +40,6 @@ export const statusRankMap = new Map<string, number>(
 );
 
 export const rdgStatuses = ['RDG1', 'RDG2', 'RDG3'];
-export const scoringPenaltyStatuses = new Set(['ZFP', 'SCP', 'T1']);
 export const mandatoryDisplaceStatuses = new Set(['DSQ', 'RET', 'DNE', 'DGM']);
 export const penaltyStatuses = [
   'DNF',
@@ -72,22 +80,6 @@ export function normalizeScoreStatus(status: unknown): string {
     throw new Error(`Unsupported score status: ${status}`);
   }
   return normalized;
-}
-
-export function roundHalfUp(value: number): number {
-  return Math.floor(value + 0.5 + Number.EPSILON);
-}
-
-export function getScoringPenaltyPoints(
-  finishingPosition: number,
-  maxBoats: number,
-  status?: string,
-): number {
-  // RRS 44.3(c): ZFP/SCP = 20% of boats, rounded to nearest whole number
-  // (0.5 rounded up). RRS Appendix T1 = 30%, calculated the same way.
-  const penaltyRate = status === 'T1' ? 0.3 : 0.2;
-  const penaltyPlaces = roundHalfUp(maxBoats * penaltyRate);
-  return Math.min(finishingPosition + penaltyPlaces, maxBoats + 1);
 }
 
 export function normalizeStatus(status: unknown): string {
