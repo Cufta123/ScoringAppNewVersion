@@ -1,12 +1,25 @@
 /* eslint-disable camelcase */
 
-const normalizeGroup = (group) => group || 'General';
+import type { CompareEntry, PlacementGroup } from '../types';
+
+const normalizeGroup = (group?: PlacementGroup | null): string =>
+  group || 'General';
+
+interface GetOtherTiedCountArgs<E extends CompareEntry> {
+  allEntries: E[];
+  boatA: CompareEntry;
+  boatB: CompareEntry;
+  totalA: number;
+  totalB: number;
+  finalSeriesStarted: boolean;
+  getTotal: (entry: E) => number;
+}
 
 /**
  * Count how many boats other than A/B have the same total score.
  * In final series, this is scoped to A/B's shared placement group.
  */
-export const getOtherTiedCount = ({
+export const getOtherTiedCount = <E extends CompareEntry>({
   allEntries,
   boatA,
   boatB,
@@ -14,8 +27,8 @@ export const getOtherTiedCount = ({
   totalB,
   finalSeriesStarted,
   getTotal,
-}) => {
-  let selectedPlacementGroup = null;
+}: GetOtherTiedCountArgs<E>): number => {
+  let selectedPlacementGroup: string | null = null;
   if (
     finalSeriesStarted &&
     boatA?.placement_group &&
@@ -42,18 +55,27 @@ export const getOtherTiedCount = ({
   }).length;
 };
 
+interface GetNextCompareSelectionArgs<E extends CompareEntry> {
+  previousSelectedBoatIds: number[];
+  clickedBoatId: number;
+  compareMode: boolean;
+  finalSeriesStarted: boolean;
+  allEntries: E[];
+  clickedPlacementGroup?: PlacementGroup | null;
+}
+
 /**
  * Compare-mode selection state transition.
  * In final series, keeps selection within one placement group.
  */
-export const getNextCompareSelection = ({
+export const getNextCompareSelection = <E extends CompareEntry>({
   previousSelectedBoatIds,
   clickedBoatId,
   compareMode,
   finalSeriesStarted,
   allEntries,
   clickedPlacementGroup = null,
-}) => {
+}: GetNextCompareSelectionArgs<E>): number[] => {
   if (!compareMode) return previousSelectedBoatIds;
 
   if (previousSelectedBoatIds.includes(clickedBoatId)) {

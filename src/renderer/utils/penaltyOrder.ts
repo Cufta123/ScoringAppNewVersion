@@ -32,15 +32,16 @@ export const EFFECTIVE_PENALTY_ORDER = [
   ...APPENDIX_FALLBACK_PENALTY_ORDER,
 ];
 
-const penaltyOrderIndex = new Map(
-  EFFECTIVE_PENALTY_ORDER.map((status, index) => [status, index]),
+const penaltyOrderIndex = new Map<string, number>(
+  EFFECTIVE_PENALTY_ORDER.map((status, index): [string, number] => [
+    status,
+    index,
+  ]),
 );
 
 // Lower rank = recorded earlier. Unknown statuses sort last.
-export const getPenaltyRank = (status) =>
-  penaltyOrderIndex.has(status)
-    ? penaltyOrderIndex.get(status)
-    : EFFECTIVE_PENALTY_ORDER.length;
+export const getPenaltyRank = (status: string): number =>
+  penaltyOrderIndex.get(status) ?? EFFECTIVE_PENALTY_ORDER.length;
 
 /**
  * Order boats for the heat result: boats that keep their place (no penalty or a
@@ -48,18 +49,18 @@ export const getPenaltyRank = (status) =>
  * appended in SHRS 5.3 severity order, ties broken alphanumerically by sail
  * number (RRS A10 / SHRS 5.3).
  *
- * @param {string[]} boats - sail numbers in their current display order
- * @param {Record<string,string>} penaltiesByBoat - sail number -> status code
- * @param {(a:string,b:string)=>number} compareBoatNumbers - sail-number tiebreak
- * @returns {string[]} ordered sail numbers
+ * @param boats - sail numbers in their current display order
+ * @param penaltiesByBoat - sail number -> status code
+ * @param compareBoatNumbers - sail-number tiebreak
+ * @returns ordered sail numbers
  */
 export function orderBoatsByPenalty(
-  boats,
-  penaltiesByBoat,
-  compareBoatNumbers,
-) {
-  const withPosition = [];
-  const displaced = [];
+  boats: string[],
+  penaltiesByBoat: Record<string, string>,
+  compareBoatNumbers: (a: string, b: string) => number,
+): string[] {
+  const withPosition: string[] = [];
+  const displaced: string[] = [];
 
   boats.forEach((boatNumber) => {
     const penalty = penaltiesByBoat[boatNumber];

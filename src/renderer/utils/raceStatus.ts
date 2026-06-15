@@ -10,7 +10,7 @@ import { heatRaceDB } from '../api/db';
 // (HeatComponent deliberately does NOT use this: it already loads per-heat
 // race counts for display and derives the same flag from that data, so calling
 // here would just duplicate a fetch it has already made.)
-export const checkRaceHappened = async (eventId) => {
+export const checkRaceHappened = async (eventId: number): Promise<boolean> => {
   const heats = await heatRaceDB.readAllHeats(eventId);
   const races = await Promise.all(
     heats.map((heat) => heatRaceDB.readAllRaces(heat.heat_id)),

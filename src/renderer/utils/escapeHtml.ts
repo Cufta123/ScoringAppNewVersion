@@ -1,7 +1,7 @@
 // Escapes a value for safe interpolation into generated HTML export documents.
 // Sailor/club/event names are free text and can contain &, <, >, " or ', which
 // would otherwise corrupt the markup (or inject content) in the HTML exports.
-const HTML_ESCAPES = {
+const HTML_ESCAPES: Record<string, string> = {
   '&': '&amp;',
   '<': '&lt;',
   '>': '&gt;',
@@ -9,6 +9,6 @@ const HTML_ESCAPES = {
   "'": '&#39;',
 };
 
-export default function escapeHtml(value) {
+export default function escapeHtml(value: unknown): string {
   return String(value ?? '').replace(/[&<>"']/g, (char) => HTML_ESCAPES[char]);
 }
