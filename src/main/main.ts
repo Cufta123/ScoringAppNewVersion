@@ -1,5 +1,5 @@
 import path from 'path';
-import { app, BrowserWindow, shell, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, dialog, session } from 'electron';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 import './ipcHandlers/SailorHandler';
@@ -19,6 +19,42 @@ const isDebug =
 if (isDebug) {
   require('electron-debug')();
 }
+
+// Content-Security-Policy applied to every renderer response. The renderer only
+// loads same-origin bundles plus data: URIs (inline flag SVGs, webpack-inlined
+// fonts) and uses inline style attributes, so we can keep this tight. In
+// development webpack's eval source maps and HMR websocket need looser rules.
+const buildContentSecurityPolicy = (): string => {
+  const scriptSrc = isDebug
+    ? "script-src 'self' 'unsafe-eval'"
+    : "script-src 'self'";
+  const connectSrc = isDebug
+    ? "connect-src 'self' ws://localhost:* http://localhost:*"
+    : "connect-src 'self'";
+
+  return [
+    "default-src 'self'",
+    scriptSrc,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data:",
+    "font-src 'self' data:",
+    connectSrc,
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ].join('; ');
+};
+
+const applyContentSecurityPolicy = () => {
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [buildContentSecurityPolicy()],
+      },
+    });
+  });
+};
 
 const installExtensions = async () => {
   const installer = require('electron-devtools-installer');
@@ -56,6 +92,8 @@ const createWindow = async () => {
         ? path.join(__dirname, 'preload.js')
         : path.join(__dirname, '../../.erb/dll/preload.js'),
       contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
     },
   });
 
@@ -99,6 +137,7 @@ app.on('window-all-closed', () => {
 app
   .whenReady()
   .then(() => {
+    applyContentSecurityPolicy();
     createWindow();
     app.on('activate', () => {
       if (mainWindow === null) createWindow();

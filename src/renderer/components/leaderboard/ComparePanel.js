@@ -56,7 +56,7 @@ function ComparePanel({ show, compareInfo, selectedBoatIds }) {
       return (
         <div className="compare-hint">
           {selectedBoatIds.length === 0
-            ? 'Click two rows to compare (SHRS 5.6 tie-breaking).'
+            ? 'Click two rows to compare (SHRS 5.7 tie-breaking).'
             : 'Select one more competitor to compare.'}
         </div>
       );
@@ -153,7 +153,6 @@ function ComparePanel({ show, compareInfo, selectedBoatIds }) {
                 </div>
               </div>
             )}
-
           </div>
         )}
 
@@ -358,7 +357,7 @@ function ComparePanel({ show, compareInfo, selectedBoatIds }) {
           <div className="compare-muted compare-no-shared">
             No shared heats found.
             {tied
-              ? ' SHRS 5.6(ii)(b): full RRS A8.1 and A8.2 apply without modification.'
+              ? ' SHRS 5.7(ii)(4): full RRS A8.1 and A8.2 apply without modification.'
               : ''}
           </div>
         )}

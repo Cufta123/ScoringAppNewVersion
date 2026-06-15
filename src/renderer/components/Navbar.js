@@ -3,9 +3,9 @@ import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
 
 function Navbar({
-  onOpenGlobalLeaderboard,
-  onOpenLeaderboard,
-  onHeatRaceClick,
+  onOpenGlobalLeaderboard = null,
+  onOpenLeaderboard = null,
+  onHeatRaceClick = null,
 }) {
   const navigate = useNavigate();
 
@@ -64,12 +64,6 @@ Navbar.propTypes = {
   onOpenGlobalLeaderboard: PropTypes.func,
   onOpenLeaderboard: PropTypes.func,
   onHeatRaceClick: PropTypes.func,
-};
-
-Navbar.defaultProps = {
-  onOpenGlobalLeaderboard: null,
-  onOpenLeaderboard: null,
-  onHeatRaceClick: null,
 };
 
 export default Navbar;

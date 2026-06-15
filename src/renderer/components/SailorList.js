@@ -4,6 +4,7 @@ import Flag from 'react-world-flags';
 import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
 import { toSubgroupLabel } from '../../shared/subgroups';
 import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
+import { sailorDB } from '../api/db';
 
 const EXPANDED_STORAGE_KEY = 'sailorListExpanded';
 
@@ -34,7 +35,7 @@ function SailorList({
   sailors,
   onRemoveBoat,
   onRefreshSailors,
-  headerActions,
+  headerActions = null,
 }) {
   const [sortCriteria, setSortCriteria] = useState('name');
   const [sortDirection, setSortDirection] = useState('asc');
@@ -72,7 +73,7 @@ function SailorList({
 
   useEffect(() => {
     const fetchCategories = async () => {
-      const result = await window.electron.sqlite.sailorDB.readAllCategories();
+      const result = await sailorDB.readAllCategories();
       if (result) {
         setCategories(result);
       } else {
@@ -109,8 +110,7 @@ function SailorList({
         model: editedSailor.model,
       };
 
-      const result =
-        await window.electron.sqlite.sailorDB.updateSailor(sailorData);
+      const result = await sailorDB.updateSailor(sailorData);
 
       if (!result) {
         reportError('Could not save sailor changes.');
@@ -406,10 +406,6 @@ SailorList.propTypes = {
   onRemoveBoat: PropTypes.func.isRequired,
   onRefreshSailors: PropTypes.func.isRequired,
   headerActions: PropTypes.node,
-};
-
-SailorList.defaultProps = {
-  headerActions: null,
 };
 
 export default SailorList;

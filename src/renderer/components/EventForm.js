@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
 import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
+import { eventDB } from '../api/db';
 
 const DEFAULT_DISCARD_CONFIG = {
   firstDiscardAt: 4,
@@ -172,7 +173,7 @@ const getOverflowPolicyLabel = (event) =>
     ? 'Oversize with confirm'
     : 'Auto-increase heats';
 
-function EventForm({ onEventCreated }) {
+function EventForm({ onEventCreated = null }) {
   const [eventName, setEventName] = useState('');
   const [eventLocation, setEventLocation] = useState('');
   const [eventStartDate, setEventStartDate] = useState('');
@@ -206,8 +207,7 @@ function EventForm({ onEventCreated }) {
     // Event routes are keyed by name (/event/:name), so duplicate names would
     // collide on navigation. Block them before inserting.
     try {
-      const existingEvents =
-        await window.electron.sqlite.eventDB.readAllEvents();
+      const existingEvents = await eventDB.readAllEvents();
       const nameTaken =
         Array.isArray(existingEvents) &&
         existingEvents.some(
@@ -246,7 +246,7 @@ function EventForm({ onEventCreated }) {
     }
 
     try {
-      await window.electron.sqlite.eventDB.insertEvent(
+      await eventDB.insertEvent(
         eventName,
         eventLocation,
         eventStartDate,
@@ -482,7 +482,7 @@ function EventForm({ onEventCreated }) {
   );
 }
 
-export function EventList({ events, onEventsChanged }) {
+export function EventList({ events, onEventsChanged = null }) {
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState('');
   const [editLocation, setEditLocation] = useState('');
@@ -611,7 +611,7 @@ export function EventList({ events, onEventsChanged }) {
     }
 
     try {
-      await window.electron.sqlite.eventDB.updateEvent(
+      await eventDB.updateEvent(
         editingId,
         editName,
         editLocation,
@@ -649,7 +649,7 @@ export function EventList({ events, onEventsChanged }) {
     if (!confirmed) return;
 
     try {
-      await window.electron.sqlite.eventDB.deleteEvent(eventId);
+      await eventDB.deleteEvent(eventId);
       if (onEventsChanged) onEventsChanged();
       reportInfo('Event deleted successfully.', 'Success');
     } catch (error) {
@@ -963,18 +963,10 @@ EventForm.propTypes = {
   onEventCreated: PropTypes.func,
 };
 
-EventForm.defaultProps = {
-  onEventCreated: null,
-};
-
 EventList.propTypes = {
   // eslint-disable-next-line react/forbid-prop-types
   events: PropTypes.arrayOf(PropTypes.object).isRequired,
   onEventsChanged: PropTypes.func,
-};
-
-EventList.defaultProps = {
-  onEventsChanged: null,
 };
 
 export default EventForm;

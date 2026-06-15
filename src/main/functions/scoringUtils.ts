@@ -31,16 +31,16 @@ export function compareScoreArrays(
 }
 
 /**
- * Apply SHRS 5.4 exclusions: drop the worst `excludeCount` excludable scores
- * (DNE/DGM are never excluded) and return the remaining points in the
- * original entry order. Worst-score ties are broken by earliest race.
+ * Determine which entry indexes are excluded under SHRS 5.4: the worst
+ * `excludeCount` excludable scores (DNE/DGM are never excluded). Worst-score
+ * ties are broken by earliest race. Returns a set of indexes into `entries`.
  */
-export function getKeptScores(
+export function getExcludedIndexes(
   entries: KeptScoreEntry[],
   excludeCount: number,
-): number[] {
+): Set<number> {
   if (excludeCount <= 0) {
-    return entries.map((entry) => entry.points);
+    return new Set();
   }
 
   const candidates = entries
@@ -60,9 +60,23 @@ export function getKeptScores(
           (right.entry.race_id ?? Number.MAX_SAFE_INTEGER),
     );
 
-  const excludedIndexes = new Set(
-    candidates.slice(0, excludeCount).map(({ idx }) => idx),
-  );
+  return new Set(candidates.slice(0, excludeCount).map(({ idx }) => idx));
+}
+
+/**
+ * Apply SHRS 5.4 exclusions: drop the worst `excludeCount` excludable scores
+ * (DNE/DGM are never excluded) and return the remaining points in the
+ * original entry order. Worst-score ties are broken by earliest race.
+ */
+export function getKeptScores(
+  entries: KeptScoreEntry[],
+  excludeCount: number,
+): number[] {
+  if (excludeCount <= 0) {
+    return entries.map((entry) => entry.points);
+  }
+
+  const excludedIndexes = getExcludedIndexes(entries, excludeCount);
 
   return entries
     .filter((_entry, idx) => !excludedIndexes.has(idx))

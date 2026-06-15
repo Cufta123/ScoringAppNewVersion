@@ -93,6 +93,18 @@ describe('useLeaderboard scoring/edit flow', () => {
           saveLeaderboardRaceResultsAtomic: jest
             .fn()
             .mockResolvedValue({ success: true, updatedCount: 1 }),
+          getMaxHeatSize: jest.fn().mockResolvedValue(0),
+          explainTieBreak: jest.fn().mockResolvedValue({
+            tied: false,
+            totalA: 0,
+            totalB: 0,
+            winnerBoatId: null,
+            route: null,
+            steps: [],
+            raceGrid: [],
+            sharedRacePairs: [],
+            sharedQualRacePairs: [],
+          }),
         },
       },
     };
@@ -393,6 +405,20 @@ describe('useLeaderboard scoring/edit flow', () => {
       },
     ]);
 
+    // b1 and b2 are tied at 7; the backend reports the tie and the renderer
+    // assembles the tied-group display from the loaded entries.
+    window.electron.sqlite.heatRaceDB.explainTieBreak.mockResolvedValueOnce({
+      tied: true,
+      totalA: 7,
+      totalB: 7,
+      winnerBoatId: 'b1',
+      route: { rule: 'SHRS 5.7(i)', note: '' },
+      steps: [],
+      raceGrid: [],
+      sharedRacePairs: [],
+      sharedQualRacePairs: [],
+    });
+
     const { result } = renderHook(() => useLeaderboard(88));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -405,7 +431,7 @@ describe('useLeaderboard scoring/edit flow', () => {
       result.current.handleCompareRowClick('b2');
     });
 
-    expect(result.current.compareInfo.tied).toBe(true);
+    await waitFor(() => expect(result.current.compareInfo?.tied).toBe(true));
     expect(result.current.compareInfo.otherTiedCount).toBe(1);
     expect(
       result.current.compareInfo.tiedGroupEntries.map((row) => row.boat_id),

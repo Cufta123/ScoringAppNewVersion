@@ -35,12 +35,12 @@ interface ScoreEntry {
   status: string;
 }
 
-interface TieCandidate {
+export interface TieCandidate {
   boat_id: string;
   keptScores: number[];
 }
 
-function getScoresForA81(event_id: any, boat_id: any) {
+export function getScoresForA81(event_id: any, boat_id: any) {
   const scoresQuery = db.prepare(`
     SELECT s.points, COALESCE(s.status, 'FINISHED') as status, s.race_id, r.race_number
     FROM Scores s
@@ -52,7 +52,7 @@ function getScoresForA81(event_id: any, boat_id: any) {
   return scoresQuery.all(event_id, boat_id) as ScoreEntry[];
 }
 
-function getScoresForA82(event_id: any, boat_id: any) {
+export function getScoresForA82(event_id: any, boat_id: any) {
   const scoresQuery = db.prepare(`
     SELECT s.points
     FROM Scores s
@@ -67,7 +67,10 @@ function getScoresForA82(event_id: any, boat_id: any) {
     .map((row: { points: any }) => row.points);
 }
 
-function getRaceScoresForTieBreak(event_id: any, boat_id: any): RaceScoreEntry[] {
+export function getRaceScoresForTieBreak(
+  event_id: any,
+  boat_id: any,
+): RaceScoreEntry[] {
   const scoresQuery = db.prepare(`
     SELECT s.race_id, r.race_number, s.points
     FROM Scores s
@@ -79,16 +82,14 @@ function getRaceScoresForTieBreak(event_id: any, boat_id: any): RaceScoreEntry[]
 
   return scoresQuery
     .all(event_id, boat_id)
-    .map(
-      (row: { race_id: number; race_number: number; points: number }) => ({
-        race_id: row.race_id,
-        race_number: row.race_number,
-        points: row.points,
-      }),
-    );
+    .map((row: { race_id: number; race_number: number; points: number }) => ({
+      race_id: row.race_id,
+      race_number: row.race_number,
+      points: row.points,
+    }));
 }
 
-function getSharedRaceScoresForTieBreak(
+export function getSharedRaceScoresForTieBreak(
   event_id: any,
   boatAId: string,
   boatBId: string,
@@ -133,7 +134,10 @@ function getSharedRaceScoresForTieBreak(
 // when every boat raced exactly the same set of races; otherwise two tied
 // boats that happen to share all their races must still be compared under
 // the multi-heat rules (SHRS 5.7.2.2 uses excluded scores).
-function detectSingleHeatEvent(event_id: any, boatIds: string[]): boolean {
+export function detectSingleHeatEvent(
+  event_id: any,
+  boatIds: string[],
+): boolean {
   let reference: Set<number> | null = null;
   for (let i = 0; i < boatIds.length; i += 1) {
     const raceIds = new Set(
@@ -156,6 +160,77 @@ function detectSingleHeatEvent(event_id: any, boatIds: string[]): boolean {
   return true;
 }
 
+// A8.1 + SHRS 5.7: compare two tied qualifying boats. Shared-heat scores are
+// compared first (excluded scores included for multi-heat events per
+// 5.7.2.2; standard A8.1 with excluded scores omitted for single-heat
+// events), then A8.2 (last race backward). Boats that never shared a heat
+// fall back to plain RRS A8.1/A8.2 (5.7.2.5).
+export function compareQualifyingTieCandidates(
+  event_id: any,
+  a: TieCandidate,
+  b: TieCandidate,
+  isSingleHeatEvent: boolean,
+): number {
+  const sharedScores = getSharedRaceScoresForTieBreak(
+    event_id,
+    a.boat_id,
+    b.boat_id,
+  );
+
+  if (sharedScores) {
+    if (isSingleHeatEvent) {
+      // SHRS 5.7.1: single-heat events use standard RRS A8.1
+      // where excluded scores are NOT used.
+      const singleHeatA81Comparison = compareScoreArrays(
+        a.keptScores,
+        b.keptScores,
+      );
+      if (singleHeatA81Comparison !== 0) {
+        return singleHeatA81Comparison;
+      }
+    } else {
+      // SHRS 5.7.2.2: for shared-heat comparisons in multi-heat
+      // events, excluded scores ARE used when applying A8.1.
+      const sharedA81Comparison = compareScoreArrays(
+        sharedScores.a81A,
+        sharedScores.a81B,
+      );
+      if (sharedA81Comparison !== 0) {
+        return sharedA81Comparison;
+      }
+    }
+
+    const sharedA82Comparison = compareScoreArrays(
+      sharedScores.a82A,
+      sharedScores.a82B,
+    );
+    if (sharedA82Comparison !== 0) {
+      return sharedA82Comparison;
+    }
+
+    return String(a.boat_id).localeCompare(String(b.boat_id));
+  }
+
+  // Standard A8.1: excluded scores are NOT used.
+  const initialComparison = compareScoreArrays(a.keptScores, b.keptScores);
+  if (initialComparison !== 0) {
+    return initialComparison;
+  }
+
+  console.log(
+    `Tie detected between Boat ${a.boat_id} and Boat ${b.boat_id}. Applying tie-breaking logic.`,
+  );
+
+  // A8.2: compare original scores from the last race backward.
+  const scoresA = getScoresForA82(event_id, a.boat_id);
+  const scoresB = getScoresForA82(event_id, b.boat_id);
+  const a82Comparison = compareScoreArrays(scoresA, scoresB);
+  if (a82Comparison !== 0) {
+    return a82Comparison;
+  }
+  return String(a.boat_id).localeCompare(String(b.boat_id));
+}
+
 // SHRS 5.4: after 4 races exclude 1, after 8 exclude 2, then +1 per 8 more
 export default function calculateBoatScores(
   results: Result[],
@@ -175,7 +250,10 @@ export default function calculateBoatScores(
     const scoreEntries = getScoresForA81(event_id, boat_id);
 
     // Determine the number of scores to exclude per SHRS 5.4
-    const excludeCount = getExcludeCountForConfig(number_of_races, discardConfig);
+    const excludeCount = getExcludeCountForConfig(
+      number_of_races,
+      discardConfig,
+    );
     console.log(
       `Boat ID: ${boat_id}, Number of Races: ${number_of_races}, Places to Exclude: ${excludeCount}`,
     );
@@ -264,75 +342,9 @@ export default function calculateBoatScores(
         };
       });
 
-      // A8.1 + SHRS 5.7: Compare shared-heat A81 scores first, then A82 (last race backward)
-      const compareTieCandidates = (a: TieCandidate, b: TieCandidate) => {
-        const sharedScores = getSharedRaceScoresForTieBreak(
-          event_id,
-          a.boat_id,
-          b.boat_id,
-        );
-
-        if (sharedScores) {
-          if (isSingleHeatEvent) {
-            // SHRS 5.7.1: single-heat events use standard RRS A8.1
-            // where excluded scores are NOT used.
-            const singleHeatA81Comparison = compareScoreArrays(
-              a.keptScores,
-              b.keptScores,
-            );
-            if (singleHeatA81Comparison !== 0) {
-              return singleHeatA81Comparison;
-            }
-          } else {
-            // SHRS 5.7.2.2: for shared-heat comparisons in multi-heat
-            // events, excluded scores ARE used when applying A8.1.
-            const sharedA81Comparison = compareScoreArrays(
-              sharedScores.a81A,
-              sharedScores.a81B,
-            );
-            if (sharedA81Comparison !== 0) {
-              return sharedA81Comparison;
-            }
-          }
-
-          const sharedA82Comparison = compareScoreArrays(
-            sharedScores.a82A,
-            sharedScores.a82B,
-          );
-          if (sharedA82Comparison !== 0) {
-            return sharedA82Comparison;
-          }
-
-          return String(a.boat_id).localeCompare(String(b.boat_id));
-        }
-
-        // Standard A8.1: excluded scores are NOT used.
-        const initialComparison = compareScoreArrays(
-          a.keptScores,
-          b.keptScores,
-        );
-        if (initialComparison !== 0) {
-          return initialComparison;
-        }
-
-        console.log(
-          `Tie detected between Boat ${a.boat_id} and Boat ${b.boat_id}. Applying tie-breaking logic.`,
-        );
-
-        // A8.2: compare original scores from the last race backward.
-        const scoresA = getScoresForA82(event_id, a.boat_id);
-        const scoresB = getScoresForA82(event_id, b.boat_id);
-        const a82Comparison = compareScoreArrays(scoresA, scoresB);
-        if (a82Comparison !== 0) {
-          return a82Comparison;
-        }
-        return String(a.boat_id).localeCompare(String(b.boat_id));
-      };
-
       // SHRS 2026 5.7(ii)(3): resolve higher-place tie before lower ties.
-      const resolvedOrder = resolveTiesSequentially(
-        sortedScores,
-        compareTieCandidates,
+      const resolvedOrder = resolveTiesSequentially(sortedScores, (a, b) =>
+        compareQualifyingTieCandidates(event_id, a, b, isSingleHeatEvent),
       );
 
       resolvedOrder.forEach((boat, index) => {

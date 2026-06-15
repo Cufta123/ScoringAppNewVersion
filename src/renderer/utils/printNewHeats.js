@@ -4,6 +4,7 @@ import { jsPDF as JsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import registerPdfUnicodeFont from './registerPdfUnicodeFont';
 import { toSubgroupLabel } from '../../shared/subgroups';
+import { heatRaceDB } from '../api/db';
 
 export default async function printNewHeats(event, heats, format = 'excel') {
   if (!Array.isArray(heats) || heats.length === 0) {
@@ -46,18 +47,13 @@ export default async function printNewHeats(event, heats, format = 'excel') {
 
   const getBoatModel = (boat) => boat?.model || boat?.boat_type || 'N/A';
 
-  // Ensure boats are present for each visible heat before exporting.
+  // Ensure boats are present for each visible heat before exporting. If a
+  // lookup fails we let the error propagate so the caller reports it, rather
+  // than silently exporting a document with boats missing from a heat.
   await Promise.all(
     heats.map(async (heat) => {
       if (!Array.isArray(heat.boats) || heat.boats.length === 0) {
-        try {
-          const boats = await window.electron.sqlite.heatRaceDB.readBoatsByHeat(
-            heat.heat_id,
-          );
-          heat.boats = boats;
-        } catch (_) {
-          heat.boats = [];
-        }
+        heat.boats = await heatRaceDB.readBoatsByHeat(heat.heat_id);
       }
     }),
   );

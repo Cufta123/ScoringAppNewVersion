@@ -6,6 +6,7 @@ import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
 import EmptyState from './shared/EmptyState';
 import LoadingState from './shared/LoadingState';
 import { reportError } from '../utils/userFeedback';
+import { heatRaceDB } from '../api/db';
 
 function GlobalLeaderboardComponent() {
   const [leaderboard, setLeaderboard] = useState([]);
@@ -53,8 +54,7 @@ function GlobalLeaderboardComponent() {
 
     const fetchGlobalLeaderboard = async () => {
       try {
-        const results =
-          await window.electron.sqlite.heatRaceDB.readGlobalLeaderboard();
+        const results = await heatRaceDB.readGlobalLeaderboard();
         if (!isActive) return;
 
         setLeaderboard(mapAndSortLeaderboard(results));

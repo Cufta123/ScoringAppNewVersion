@@ -162,15 +162,31 @@ describe('T1 integration: scoring flow to leaderboard display', () => {
           readAllRaces: jest.fn().mockImplementation(async (heatId) => racesByHeat[heatId] || []),
           readBoatsByHeat: jest.fn().mockResolvedValue(boats),
           getMaxHeatSize: jest.fn().mockResolvedValue(10),
-          insertRace: jest.fn().mockImplementation(async (heatId, raceNumber) => {
-            const raceId = 900 + raceNumber;
-            racesByHeat[heatId] = [...(racesByHeat[heatId] || []), { race_id: raceId, heat_id: heatId, race_number: raceNumber }];
-            return { lastInsertRowid: raceId };
-          }),
-          insertScore: jest.fn().mockImplementation(async (raceId, boatId, position, points, status) => {
-            savedScores.push({ raceId, boatId, position, points, status });
-            return true;
-          }),
+          submitHeatRaceScoresAtomic: jest
+            .fn()
+            .mockImplementation(async ({ heat_id, placeNumbers }) => {
+              const raceId = 901;
+              racesByHeat[heat_id] = [
+                ...(racesByHeat[heat_id] || []),
+                { race_id: raceId, heat_id, race_number: 1 },
+              ];
+              placeNumbers.forEach(({ boatNumber, place, status }) => {
+                const boat = boats.find(
+                  (b) => String(b.sail_number) === String(boatNumber),
+                );
+                // The real penalty math is covered by the handler-level test;
+                // here we only need a T1 row to reach the leaderboard view.
+                const points = status === 'T1' ? 5 : place;
+                savedScores.push({
+                  raceId,
+                  boatId: boat.boat_id,
+                  position: place,
+                  points,
+                  status,
+                });
+              });
+              return { ok: true, raceNumber: 1, raceId };
+            }),
           updateEventLeaderboard: jest.fn().mockResolvedValue(true),
           updateFinalLeaderboard: jest.fn().mockResolvedValue(true),
           readFinalLeaderboard: jest.fn().mockResolvedValue([]),
@@ -208,26 +224,16 @@ describe('T1 integration: scoring flow to leaderboard display', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Submit Scores' }));
 
     await waitFor(() => {
-      expect(window.electron.sqlite.heatRaceDB.insertScore).toHaveBeenCalledTimes(2);
+      expect(
+        window.electron.sqlite.heatRaceDB.submitHeatRaceScoresAtomic,
+      ).toHaveBeenCalledTimes(1);
     });
 
-    expect(window.electron.sqlite.heatRaceDB.insertScore).toHaveBeenNthCalledWith(
-      1,
-      901,
-      1,
-      1,
-      1,
-      'FINISHED',
-    );
-
-    // maxHeatSize=10 -> RRS T1 penalty = 30% rounded half-up = 3, place=2 => points=5
-    expect(window.electron.sqlite.heatRaceDB.insertScore).toHaveBeenNthCalledWith(
-      2,
-      901,
-      2,
-      2,
-      5,
-      'T1',
+    const submittedPayload =
+      window.electron.sqlite.heatRaceDB.submitHeatRaceScoresAtomic.mock
+        .calls[0][0];
+    expect(submittedPayload.placeNumbers).toEqual(
+      expect.arrayContaining([expect.objectContaining({ status: 'T1' })]),
     );
 
     unmount();

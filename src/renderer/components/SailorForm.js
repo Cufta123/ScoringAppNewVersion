@@ -8,6 +8,7 @@ import { reportError, reportInfo } from '../utils/userFeedback';
 
 import iocCountries from '../constants/iocCountries.json';
 import { SUBGROUP_OPTIONS } from '../../shared/subgroups';
+import { eventDB, heatRaceDB, sailorDB } from '../api/db';
 
 function SailorForm({ onAddSailor, eventId }) {
   SailorForm.propTypes = {
@@ -28,7 +29,7 @@ function SailorForm({ onAddSailor, eventId }) {
 
   const fetchClubs = async () => {
     try {
-      const allClubs = await window.electron.sqlite.sailorDB.readAllClubs();
+      const allClubs = await sailorDB.readAllClubs();
       setClubs(allClubs);
     } catch (error) {
       reportError('Could not load clubs.', error);
@@ -37,10 +38,9 @@ function SailorForm({ onAddSailor, eventId }) {
 
   const checkIfRaceHappened = useCallback(async () => {
     try {
-      const heats =
-        await window.electron.sqlite.heatRaceDB.readAllHeats(eventId);
+      const heats = await heatRaceDB.readAllHeats(eventId);
       const racePromises = heats.map((heat) =>
-        window.electron.sqlite.heatRaceDB.readAllRaces(heat.heat_id),
+        heatRaceDB.readAllRaces(heat.heat_id),
       );
       const races = await Promise.all(racePromises);
       const anyRaceHappened = races.some((raceArray) => raceArray.length > 0);
@@ -83,10 +83,7 @@ function SailorForm({ onAddSailor, eventId }) {
       )?.club_id;
       if (!club_id) {
         try {
-          const result = await window.electron.sqlite.sailorDB.insertClub(
-            club,
-            selectedCountry,
-          );
+          const result = await sailorDB.insertClub(club, selectedCountry);
           club_id = result.lastInsertRowid;
 
           // Update the clubs state with the newly added club
@@ -95,23 +92,42 @@ function SailorForm({ onAddSailor, eventId }) {
             { club_id, club_name: club, country: selectedCountry },
           ]);
         } catch (error) {
-          if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-            const existingClub = clubs.find(
-              (c) => c.club_name === club && c.country === selectedCountry,
-            );
-            if (existingClub) {
-              club_id = existingClub.club_id;
-            } else {
-              throw new Error('Club exists but could not retrieve its ID');
-            }
-          } else {
+          // IPC strips custom error fields (e.g. `code`), so also match the
+          // message, which does survive the bridge.
+          const isDuplicateClub =
+            error?.code === 'SQLITE_CONSTRAINT_UNIQUE' ||
+            /unique/i.test(String(error?.message || ''));
+
+          if (!isDuplicateClub) {
             reportError('There was an error inserting the club.', error);
             return; // Exit the function gracefully
+          }
+
+          // The club already exists in the DB but was missing from local
+          // state. Re-fetch so we can resolve its id and continue instead of
+          // surfacing a misleading error.
+          try {
+            const allClubs = await sailorDB.readAllClubs();
+            const existingClub = (allClubs || []).find(
+              (c) => c.club_name === club && c.country === selectedCountry,
+            );
+            if (!existingClub) {
+              reportError(
+                'This club already exists but its details could not be loaded. Please try again.',
+                error,
+              );
+              return;
+            }
+            club_id = existingClub.club_id;
+            setClubs(allClubs);
+          } catch (refetchError) {
+            reportError('Could not load existing club details.', refetchError);
+            return;
           }
         }
       }
 
-      const allSailors = await window.electron.sqlite.sailorDB.readAllSailors();
+      const allSailors = await sailorDB.readAllSailors();
       let sailor_id = allSailors.find(
         (s) =>
           s.name === name && s.surname === surname && s.birthday === birthday,
@@ -119,14 +135,13 @@ function SailorForm({ onAddSailor, eventId }) {
 
       if (!sailor_id) {
         try {
-          const sailorResult =
-            await window.electron.sqlite.sailorDB.insertSailor(
-              name,
-              surname,
-              birthday,
-              category_id,
-              club_id,
-            );
+          const sailorResult = await sailorDB.insertSailor(
+            name,
+            surname,
+            birthday,
+            category_id,
+            club_id,
+          );
           sailor_id = sailorResult.lastInsertRowid;
         } catch (error) {
           reportError('There was an error inserting the sailor.', error);
@@ -134,13 +149,12 @@ function SailorForm({ onAddSailor, eventId }) {
         }
       }
 
-      const eventBoats =
-        await window.electron.sqlite.eventDB.readBoatsByEvent(eventId);
+      const eventBoats = await eventDB.readBoatsByEvent(eventId);
 
       let boat_id = null;
 
       try {
-        const boatResult = await window.electron.sqlite.sailorDB.insertBoat(
+        const boatResult = await sailorDB.insertBoat(
           sailNumber,
           selectedCountry,
           model,
@@ -156,10 +170,7 @@ function SailorForm({ onAddSailor, eventId }) {
 
       if (!existingAssociation) {
         try {
-          await window.electron.sqlite.eventDB.associateBoatWithEvent(
-            boat_id,
-            eventId,
-          );
+          await eventDB.associateBoatWithEvent(boat_id, eventId);
         } catch (error) {
           reportError(
             'There was an error associating the boat with the event.',

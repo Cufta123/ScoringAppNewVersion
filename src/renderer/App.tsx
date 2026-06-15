@@ -9,6 +9,7 @@ import EventPage from './pages/EventPage/EventPage';
 import HeatRacePage from './pages/HeatRacePage/HeatRacePage';
 import LeaderboardPage from './pages/LeaderboardPage/LeaderboardPage';
 import GlobalLeaderboardPage from './pages/GlobalLeaderboardPage/GlobalLeaderboardPage';
+import ConfirmDialogHost from './components/shared/ConfirmDialogHost';
 import { reportError } from './utils/userFeedback';
 
 function App() {
@@ -55,6 +56,7 @@ function App() {
         draggable
         pauseOnHover
       />
+      <ConfirmDialogHost />
     </Router>
   );
 }

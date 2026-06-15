@@ -7,6 +7,84 @@ import {
   getExcludeCount,
 } from '../renderer/utils/leaderboardUtils';
 import useLeaderboard from '../renderer/hooks/useLeaderboard';
+import realExplainTieBreak from '../main/functions/explainTieBreak';
+import { db } from '../../public/Database/DBManager';
+
+jest.mock('../../public/Database/DBManager', () => ({
+  db: { prepare: jest.fn() },
+}));
+
+const mockPrepare = db.prepare;
+
+// Serve every query explainTieBreak issues (qualifying, all in one heat) from
+// the two boats' score arrays so the UI exercises the real backend tie-break.
+function setupDb(a, b) {
+  const toRaces = (points) =>
+    points.map((p, i) => ({
+      race_id: i + 1,
+      race_number: i + 1,
+      points: p,
+      status: 'FINISHED',
+      heat_type: 'Qualifying',
+      heat_name: 'Heat A',
+    }));
+  const data = { A: toRaces(a), B: toRaces(b) };
+
+  mockPrepare.mockImplementation((sql) => {
+    const flat = sql.replace(/\s+/g, ' ');
+    return {
+      get: () =>
+        flat.includes('discard_profile')
+          ? { discard_profile: 'standard' }
+          : undefined,
+      all: (_eventId, boatId, heatType) => {
+        if (flat.includes('SELECT DISTINCT s.boat_id')) {
+          return [{ boat_id: 'A' }, { boat_id: 'B' }];
+        }
+        const races = data[boatId] || [];
+        if (flat.includes("IN ('Qualifying', 'Final')")) {
+          return races.map((r) => ({ ...r }));
+        }
+        if (
+          flat.includes('h.heat_type = ?') &&
+          flat.includes('ORDER BY r.race_number ASC')
+        ) {
+          return heatType === 'Qualifying'
+            ? [...races].sort(
+                (x, y) =>
+                  x.race_number - y.race_number || x.race_id - y.race_id,
+              )
+            : [];
+        }
+        if (flat.includes('ORDER BY r.race_number DESC, s.race_id DESC')) {
+          return [...races]
+            .sort(
+              (x, y) => y.race_number - x.race_number || y.race_id - x.race_id,
+            )
+            .map((r) => ({
+              race_id: r.race_id,
+              race_number: r.race_number,
+              points: r.points,
+            }));
+        }
+        if (flat.includes('ORDER BY points DESC')) {
+          return [...races].sort(
+            (x, y) =>
+              y.points - x.points ||
+              x.race_number - y.race_number ||
+              x.race_id - y.race_id,
+          );
+        }
+        if (flat.includes('ORDER BY r.race_number DESC')) {
+          return [...races]
+            .sort((x, y) => y.race_number - x.race_number)
+            .map((r) => ({ points: r.points }));
+        }
+        return [];
+      },
+    };
+  });
+}
 
 jest.mock('exceljs', () => {
   return function ExcelJS() {
@@ -85,7 +163,11 @@ describe('Property-based: leaderboard exclusions invariants', () => {
         statuses.push(statusesPool[randInt(prng, 0, statusesPool.length - 1)]);
       }
 
-      const { markedRaces, total } = applyExclusions(raw, statuses, scoreValues);
+      const { markedRaces, total } = applyExclusions(
+        raw,
+        statuses,
+        scoreValues,
+      );
       const excludeCount = getExcludeCount(races);
       const excludedIdx = markedRaces
         .map((v, idx) => (String(v).startsWith('(') ? idx : -1))
@@ -132,6 +214,10 @@ describe('Property-based: tie-break winner invariants', () => {
           readLeaderboard: jest.fn(),
           readOverallLeaderboard: jest.fn().mockResolvedValue([]),
           updateRaceResult: jest.fn().mockResolvedValue(true),
+          getMaxHeatSize: jest.fn().mockResolvedValue(0),
+          explainTieBreak: jest.fn((eventId, x, y, isFinal) =>
+            Promise.resolve(realExplainTieBreak(eventId, x, y, isFinal)),
+          ),
         },
       },
     };
@@ -141,15 +227,32 @@ describe('Property-based: tie-break winner invariants', () => {
     const prng = makePrng(1701);
     let checked = 0;
 
-    while (checked < 40) {
-      const a = [randInt(prng, 1, 12), randInt(prng, 1, 12), randInt(prng, 1, 12)];
-      const b = [randInt(prng, 1, 12), randInt(prng, 1, 12), randInt(prng, 1, 12)];
-      const expected = expectedTieBreakWinner(a, b);
+    const sum = (arr) => arr.reduce((acc, v) => acc + v, 0);
 
+    while (checked < 40) {
+      const a = [
+        randInt(prng, 1, 12),
+        randInt(prng, 1, 12),
+        randInt(prng, 1, 12),
+      ];
+      const b = [
+        randInt(prng, 1, 12),
+        randInt(prng, 1, 12),
+        randInt(prng, 1, 12),
+      ];
+
+      // The backend only applies a tie-break when series totals are equal
+      // (3 races => no discards, so the total is the raw sum).
+      if (sum(a) !== sum(b)) {
+        continue;
+      }
+
+      const expected = expectedTieBreakWinner(a, b);
       if (!expected) {
         continue;
       }
 
+      setupDb(a, b);
       window.electron.sqlite.heatRaceDB.readLeaderboard.mockResolvedValueOnce([
         {
           boat_id: 'A',
@@ -181,7 +284,9 @@ describe('Property-based: tie-break winner invariants', () => {
         },
       ]);
 
-      const { result, unmount } = renderHook(() => useLeaderboard(1000 + checked));
+      const { result, unmount } = renderHook(() =>
+        useLeaderboard(1000 + checked),
+      );
 
       await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -194,8 +299,11 @@ describe('Property-based: tie-break winner invariants', () => {
         result.current.handleCompareRowClick('B');
       });
 
-      const winnerId = result.current.compareInfo?.tieBreak?.winner?.boat_id;
-      expect(winnerId).toBe(expected === 'A' ? 'A' : 'B');
+      await waitFor(() =>
+        expect(result.current.compareInfo?.tieBreak?.winner?.boat_id).toBe(
+          expected === 'A' ? 'A' : 'B',
+        ),
+      );
 
       unmount();
       checked += 1;

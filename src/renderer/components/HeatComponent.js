@@ -7,6 +7,7 @@ import AppModal from './shared/AppModal';
 import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
 import { getExcludeCount } from '../utils/leaderboardUtils';
 import { computeAdjustedFleetTotals } from '../../shared/fleetAssignment';
+import { eventDB, heatRaceDB } from '../api/db';
 
 function parseNumberCsv(value) {
   if (!value) return [];
@@ -40,11 +41,12 @@ export function buildAdjustedFleetLeaderboard(
 
 function HeatComponent({
   event,
-  onHeatSelect,
-  onStartScoring,
-  onUndoLastRace,
+  onHeatSelect = () => {},
+  onStartScoring = null,
+  onUndoLastRace = null,
   clickable,
-  onQualifyingGroupCountChange,
+  onQualifyingGroupCountChange = null,
+  refreshToken = 0,
 }) {
   const [heats, setHeats] = useState([]);
   const [numHeats, setNumHeats] = useState(5); // Default number of heats
@@ -110,14 +112,10 @@ function HeatComponent({
 
   const handleDisplayHeats = useCallback(async () => {
     try {
-      const heatsToDisplay =
-        await window.electron.sqlite.heatRaceDB.readAllHeats(event.event_id);
+      const heatsToDisplay = await heatRaceDB.readAllHeats(event.event_id);
       const heatDetailsPromises = heatsToDisplay.map(async (heat) => {
-        const boatsInHeat =
-          await window.electron.sqlite.heatRaceDB.readBoatsByHeat(heat.heat_id);
-        const races = await window.electron.sqlite.heatRaceDB.readAllRaces(
-          heat.heat_id,
-        );
+        const boatsInHeat = await heatRaceDB.readBoatsByHeat(heat.heat_id);
+        const races = await heatRaceDB.readAllRaces(heat.heat_id);
         return {
           ...heat,
           boats: boatsInHeat,
@@ -160,9 +158,7 @@ function HeatComponent({
 
   const checkFinalSeriesStarted = useCallback(async () => {
     try {
-      const allHeats = await window.electron.sqlite.heatRaceDB.readAllHeats(
-        event.event_id,
-      );
+      const allHeats = await heatRaceDB.readAllHeats(event.event_id);
       const finalHeats = allHeats.filter((heat) => heat.heat_type === 'Final');
       if (finalHeats.length > 0) {
         setFinalSeriesStarted(true);
@@ -194,13 +190,13 @@ function HeatComponent({
 
     try {
       if (allowOversize) {
-        await window.electron.sqlite.heatRaceDB.startFinalSeriesAtomic(
+        await heatRaceDB.startFinalSeriesAtomic(
           event.event_id,
           true,
           applyShs43TemporarySecondDiscard,
         );
       } else {
-        await window.electron.sqlite.heatRaceDB.startFinalSeriesAtomic(
+        await heatRaceDB.startFinalSeriesAtomic(
           event.event_id,
           false,
           applyShs43TemporarySecondDiscard,
@@ -233,9 +229,7 @@ function HeatComponent({
   const handleStartFinalSeries = async () => {
     if (finalSeriesStarted) return;
     try {
-      const allHeats = await window.electron.sqlite.heatRaceDB.readAllHeats(
-        event.event_id,
-      );
+      const allHeats = await heatRaceDB.readAllHeats(event.event_id);
       const qualifyingHeats = allHeats.filter(
         (heat) => heat.heat_type === 'Qualifying',
       );
@@ -276,9 +270,7 @@ function HeatComponent({
       const latestHeats = Object.values(latestByGroup).map((e) => e.heat);
       const raceCounts = await Promise.all(
         latestHeats.map(async (heat) => {
-          const races = await window.electron.sqlite.heatRaceDB.readAllRaces(
-            heat.heat_id,
-          );
+          const races = await heatRaceDB.readAllRaces(heat.heat_id);
           return { name: heat.heat_name, count: races.length };
         }),
       );
@@ -302,10 +294,9 @@ function HeatComponent({
         'function'
       ) {
         try {
-          const leaderboardRows =
-            await window.electron.sqlite.heatRaceDB.readLeaderboard(
-              event.event_id,
-            );
+          const leaderboardRows = await heatRaceDB.readLeaderboard(
+            event.event_id,
+          );
           const fromLeaderboard =
             getCompletedQualifyingRaceCountFromLeaderboard(leaderboardRows);
           if (fromLeaderboard > 0) {
@@ -334,10 +325,9 @@ function HeatComponent({
         );
 
         if (saveSnapshotNow) {
-          const snapshotResult =
-            await window.electron.sqlite.heatRaceDB.exportEventSnapshotToFile(
-              event.event_id,
-            );
+          const snapshotResult = await heatRaceDB.exportEventSnapshotToFile(
+            event.event_id,
+          );
 
           if (snapshotResult?.canceled) {
             const proceedWithoutSnapshot = await confirmAction(
@@ -389,11 +379,8 @@ function HeatComponent({
     }
 
     try {
-      const eventBoats = await window.electron.sqlite.eventDB.readBoatsByEvent(
-        event.event_id,
-      );
-      const existingHeats =
-        await window.electron.sqlite.heatRaceDB.readAllHeats(event.event_id);
+      const eventBoats = await eventDB.readBoatsByEvent(event.event_id);
+      const existingHeats = await heatRaceDB.readAllHeats(event.event_id);
 
       if (existingHeats.length > 0) {
         reportInfo('Heats already exist for this event.', 'Action blocked');
@@ -412,18 +399,12 @@ function HeatComponent({
         const heatName = `Heat ${String.fromCharCode(65 + i)}1`;
         const heatType = 'Qualifying';
         heatPromises.push(
-          window.electron.sqlite.heatRaceDB.insertHeat(
-            event.event_id,
-            heatName,
-            heatType,
-          ),
+          heatRaceDB.insertHeat(event.event_id, heatName, heatType),
         );
       }
       await Promise.all(heatPromises);
 
-      const FetchedHeats = await window.electron.sqlite.heatRaceDB.readAllHeats(
-        event.event_id,
-      );
+      const FetchedHeats = await heatRaceDB.readAllHeats(event.event_id);
 
       // SHRS 3.1: Assign boats using snake/zigzag pattern
       // A, B, C, D, E, E, D, C, B, A, A, B, C, D, E ...
@@ -435,10 +416,7 @@ function HeatComponent({
       for (let i = 0; i < eventBoats.length; i += 1) {
         const heat = FetchedHeats[heatIndex];
         heatBoatPromises.push(
-          window.electron.sqlite.heatRaceDB.insertHeatBoat(
-            heat.heat_id,
-            eventBoats[i].boat_id,
-          ),
+          heatRaceDB.insertHeatBoat(heat.heat_id, eventBoats[i].boat_id),
         );
 
         // Move to next heat in snake order
@@ -478,19 +456,20 @@ function HeatComponent({
     if (!confirmed) return;
 
     try {
-      await window.electron.sqlite.heatRaceDB.deleteHeatsByEvent(
-        event.event_id,
-      );
+      await heatRaceDB.deleteHeatsByEvent(event.event_id);
       await handleCreateHeats();
     } catch (error) {
       reportError('Could not recreate heats.', error);
     }
   };
 
+  // Re-fetch when the event changes or when the parent bumps `refreshToken`
+  // (e.g. after creating new heats or undoing a redistribution). Driving this
+  // through a dependency keeps child state intact instead of forcing a remount.
   useEffect(() => {
     setRaceHappened(false); // Reset raceHappened state when event changes
     handleDisplayHeats();
-  }, [event, handleDisplayHeats]);
+  }, [event, handleDisplayHeats, refreshToken]);
 
   const handleHeatClick = (heat) => {
     if (clickable) {
@@ -554,7 +533,7 @@ function HeatComponent({
     }
 
     try {
-      await window.electron.sqlite.heatRaceDB.transferBoatBetweenHeats(
+      await heatRaceDB.transferBoatBetweenHeats(
         fromHeatId,
         toHeatId,
         boat.boat_id,
@@ -594,10 +573,7 @@ function HeatComponent({
 
   const handleSaveSnapshot = async () => {
     try {
-      const result =
-        await window.electron.sqlite.heatRaceDB.exportEventSnapshotToFile(
-          event.event_id,
-        );
+      const result = await heatRaceDB.exportEventSnapshotToFile(event.event_id);
       if (result?.canceled) return;
       rememberSnapshot(result?.filePath);
       reportInfo('Recovery snapshot saved successfully.', 'Snapshot saved');
@@ -615,10 +591,9 @@ function HeatComponent({
     if (!confirmed) return;
 
     try {
-      const result =
-        await window.electron.sqlite.heatRaceDB.restoreEventSnapshotFromFile(
-          event.event_id,
-        );
+      const result = await heatRaceDB.restoreEventSnapshotFromFile(
+        event.event_id,
+      );
       if (result?.canceled) return;
 
       setFinalSeriesStarted(false);
@@ -892,13 +867,7 @@ HeatComponent.propTypes = {
   onUndoLastRace: PropTypes.func,
   onQualifyingGroupCountChange: PropTypes.func,
   clickable: PropTypes.bool.isRequired,
-};
-
-HeatComponent.defaultProps = {
-  onHeatSelect: () => {},
-  onStartScoring: null,
-  onUndoLastRace: null,
-  onQualifyingGroupCountChange: null,
+  refreshToken: PropTypes.number,
 };
 
 export default HeatComponent;

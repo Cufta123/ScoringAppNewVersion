@@ -4,6 +4,7 @@ import EventForm, { EventList } from '../../components/EventForm';
 import Navbar from '../../components/Navbar';
 import { reportError } from '../../utils/userFeedback';
 import './LandingPage.css';
+import { eventDB } from '../../api/db';
 
 function LandingPage() {
   const navigate = useNavigate();
@@ -12,7 +13,7 @@ function LandingPage() {
 
   const refreshEvents = useCallback(async () => {
     try {
-      const allEvents = await window.electron.sqlite.eventDB.readAllEvents();
+      const allEvents = await eventDB.readAllEvents();
       setEvents(Array.isArray(allEvents) ? allEvents : []);
     } catch (error) {
       reportError('Could not load events.', error);

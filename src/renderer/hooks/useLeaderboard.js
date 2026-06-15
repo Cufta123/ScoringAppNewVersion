@@ -20,6 +20,7 @@ import {
   getNextCompareSelection,
 } from '../utils/compareUtils';
 import { confirmAction, reportError } from '../utils/userFeedback';
+import { eventDB, heatRaceDB } from '../api/db';
 
 export default function useLeaderboard(eventId) {
   const [leaderboard, setLeaderboard] = useState([]);
@@ -42,6 +43,9 @@ export default function useLeaderboard(eventId) {
   const [rdgMeta, setRdgMeta] = useState({});
   // rdg2Picker: the open multi-race selector state for one specific cell
   const [rdg2Picker, setRdg2Picker] = useState(null);
+  // Largest-heat size per series, used for SHRS 5.2 penalty scoring
+  // (penalty points = largest heat size + 1). Sourced from the main process.
+  const [maxHeatSizes, setMaxHeatSizes] = useState({ qualifying: 0, final: 0 });
 
   const roundToNearestTenthHalfUp = (value) =>
     Math.round((value + Number.EPSILON) * 10) / 10;
@@ -49,6 +53,14 @@ export default function useLeaderboard(eventId) {
   const activeDiscardProfile = finalSeriesStarted
     ? discardProfiles.final
     : discardProfiles.qualifying;
+
+  // SHRS 5.2: a non-position-keeping penalty scores largest-heat-size + 1.
+  // Falls back to the entry count only if heat sizes are not yet loaded.
+  const getPenaltyPosition = (entryCount) => {
+    const isFinalEdit = finalSeriesStarted && activeTab !== 'event';
+    const size = isFinalEdit ? maxHeatSizes.final : maxHeatSizes.qualifying;
+    return (size || entryCount) + 1;
+  };
 
   const sanitizeFilenamePart = (value, fallback = 'event') => {
     const raw = String(value ?? '').trim();
@@ -59,7 +71,7 @@ export default function useLeaderboard(eventId) {
   const getExportMeta = async () => {
     let eventName = `event_${eventId}`;
     try {
-      const events = await window.electron.sqlite.eventDB.readAllEvents();
+      const events = await eventDB.readAllEvents();
       if (Array.isArray(events)) {
         const match = events.find(
           (event) => String(event.event_id) === String(eventId),
@@ -128,392 +140,35 @@ export default function useLeaderboard(eventId) {
     );
   };
 
-  const compareInfo = useMemo(() => {
-    if (selectedBoatIds.length !== 2) return null;
-    // When final series has started, compare using final series pool so totals
-    // and tie-breaking operate on final series points only.
-    const allEntries = finalSeriesStarted ? leaderboard : eventLeaderboard;
+  // compareInfo is the tie-break comparison shown in the compare panel. The
+  // authoritative SHRS 5.7 decision (winner, route, steps, race grid) comes
+  // from the main process so the panel can never disagree with the ranking.
+  // Only display assembly (names, tied-group listing) stays here.
+  const [compareInfo, setCompareInfo] = useState(null);
 
-    const boatA = allEntries.find((e) => e.boat_id === selectedBoatIds[0]);
-    const boatB = allEntries.find((e) => e.boat_id === selectedBoatIds[1]);
-    if (!boatA || !boatB) return null;
+  useEffect(() => {
+    let cancelled = false;
 
-    const sharedIds = new Set(
-      boatA.race_ids.filter((id) => boatB.race_ids.includes(id)),
-    );
-
-    const totalA = finalSeriesStarted
-      ? (boatA.total_points_combined ?? boatA.computed_total ?? 0)
-      : (boatA.computed_total ?? 0);
-    const totalB = finalSeriesStarted
-      ? (boatB.total_points_combined ?? boatB.computed_total ?? 0)
-      : (boatB.computed_total ?? 0);
-    const tied = totalA === totalB;
-
-    const parseScore = (val) => {
-      if (val === undefined || val === null) return null;
-      const str = String(val).replace(/[()]/g, '');
-      const n = parseFloat(str);
-      return Number.isNaN(n) ? null : n;
-    };
-
-    const buildRacePairs = (entryA, entryB, raceIds) =>
-      [...raceIds].map((raceId) => {
-        const riA = entryA.race_ids.indexOf(raceId);
-        const riB = entryB.race_ids.indexOf(raceId);
-        const rawA = entryA.races?.[riA];
-        const rawB = entryB.races?.[riB];
-        const scoreA = parseScore(rawA);
-        const scoreB = parseScore(rawB);
-        return {
-          raceId,
-          scoreA,
-          scoreB,
-          excludedA: typeof rawA === 'string' && rawA.startsWith('('),
-          excludedB: typeof rawB === 'string' && rawB.startsWith('('),
-          displayA: scoreA ?? '–',
-          displayB: scoreB ?? '–',
-        };
-      });
-
-    const sharedRacePairs = buildRacePairs(boatA, boatB, sharedIds);
-
-    // Compute shared qualifying race IDs from the eventLeaderboard entries
-    const qualA = eventLeaderboard.find(
-      (e) => e.boat_id === selectedBoatIds[0],
-    );
-    const qualB = eventLeaderboard.find(
-      (e) => e.boat_id === selectedBoatIds[1],
-    );
-    const sharedQualIds =
-      finalSeriesStarted && qualA && qualB
-        ? new Set(qualA.race_ids.filter((id) => qualB.race_ids.includes(id)))
-        : new Set();
-    const sharedQualRacePairs =
-      finalSeriesStarted && qualA && qualB
-        ? buildRacePairs(qualA, qualB, sharedQualIds)
-        : [];
-
-    // ── Tie-breaking helpers ──────────────────────────────────────────────
-
-    // A8.1 on race pairs. When useExcluded is false, pairs with excluded
-    // scores are filtered out (standard A8.1). When true, all scores are
-    // kept (SHRS 5.6(ii)(a)(2) modification).
-    const applyA81OnPairs = (pairs, useExcluded) => {
-      let filtered = pairs.filter(
-        (p) => p.scoreA !== null && p.scoreB !== null,
-      );
-      if (!useExcluded) {
-        filtered = filtered.filter((p) => !p.excludedA && !p.excludedB);
-      }
-      if (filtered.length === 0) return null;
-      const sortedA = [...filtered.map((p) => p.scoreA)].sort((x, y) => x - y);
-      const sortedB = [...filtered.map((p) => p.scoreB)].sort((x, y) => x - y);
-      for (let i = 0; i < sortedA.length; i += 1) {
-        if (sortedA[i] !== sortedB[i])
-          return {
-            winner: sortedA[i] < sortedB[i] ? boatA : boatB,
-            detail: `best-to-worst: ${sortedA[i]} vs ${sortedB[i]} at position ${i + 1}`,
-            comparison: {
-              mode: 'A8.1',
-              scoreA: sortedA[i],
-              scoreB: sortedB[i],
-              position: i + 1,
-              sortedA,
-              sortedB,
-            },
-          };
-      }
-      return null;
-    };
-
-    // A8.2: compare last race, then second-to-last, etc.
-    const applyA82OnPairs = (pairs) => {
-      const valid = pairs.filter((p) => p.scoreA !== null && p.scoreB !== null);
-      if (valid.length === 0) return null;
-      for (let i = valid.length - 1; i >= 0; i -= 1) {
-        const { scoreA, scoreB, raceId } = valid[i];
-        if (scoreA !== scoreB)
-          return {
-            winner: scoreA < scoreB ? boatA : boatB,
-            detail: `last-race-backward: ${scoreA} vs ${scoreB}`,
-            comparison: {
-              mode: 'A8.2',
-              scoreA,
-              scoreB,
-              raceId,
-              validPairs: valid,
-            },
-          };
-      }
-      return null;
-    };
-
-    // A8.1 / A8.2 on individual boat score arrays (for when boats have no
-    // shared heats and we must compare each boat's own race list).
-    const parseScoreEntry = (val) => ({
-      score: parseScore(val),
-      excluded: typeof val === 'string' && val.startsWith('('),
-    });
-
-    const applyA81Individual = (aEntries, bEntries, useExcluded) => {
-      const sA = useExcluded ? aEntries : aEntries.filter((s) => !s.excluded);
-      const sB = useExcluded ? bEntries : bEntries.filter((s) => !s.excluded);
-      const vA = sA
-        .filter((s) => s.score !== null)
-        .map((s) => s.score)
-        .sort((x, y) => x - y);
-      const vB = sB
-        .filter((s) => s.score !== null)
-        .map((s) => s.score)
-        .sort((x, y) => x - y);
-      if (vA.length === 0 || vB.length === 0) return null;
-      const maxLen = Math.max(vA.length, vB.length);
-      for (let i = 0; i < maxLen; i += 1) {
-        const a = i < vA.length ? vA[i] : Infinity;
-        const b = i < vB.length ? vB[i] : Infinity;
-        if (a !== b)
-          return {
-            winner: a < b ? boatA : boatB,
-            detail: `best-to-worst: ${a} vs ${b} at position ${i + 1}`,
-            comparison: {
-              mode: 'A8.1',
-              scoreA: a,
-              scoreB: b,
-              position: i + 1,
-              sortedA: vA,
-              sortedB: vB,
-            },
-          };
-      }
-      return null;
-    };
-
-    const applyA82Individual = (aEntries, bEntries) => {
-      const vA = aEntries.filter((s) => s.score !== null);
-      const vB = bEntries.filter((s) => s.score !== null);
-      const maxLen = Math.max(vA.length, vB.length);
-      for (let i = maxLen - 1; i >= 0; i -= 1) {
-        const a = vA[i]?.score;
-        const b = vB[i]?.score;
-        if (a != null && b != null && a !== b) {
-          return {
-            winner: a < b ? boatA : boatB,
-            detail: `last-race-backward: ${a} vs ${b}`,
-            comparison: {
-              mode: 'A8.2',
-              scoreA: a,
-              scoreB: b,
-              raceIndex: i,
-            },
-          };
-        }
-      }
-      return null;
-    };
-
-    // ── Apply tie-breaking per SHRS 5.6 ──────────────────────────────────
-    let tieBreak = null;
-    let routeStep = null;
-    let raceGrid = [];
-    if (tied) {
-      const steps = [];
-      let winner = null;
-
-      const allSharedPairs = finalSeriesStarted
-        ? [...(sharedQualRacePairs || []), ...sharedRacePairs]
-        : sharedRacePairs;
-
-      // Detect multi-heat: if boats don't share every race they're in
-      // different heats (at least partially).
-      const allUniqueIds = new Set([...boatA.race_ids, ...boatB.race_ids]);
-      const isMultiHeat = allSharedPairs.length < allUniqueIds.size;
-      const boatAScores = (boatA.races || []).map(parseScoreEntry);
-      const boatBScores = (boatB.races || []).map(parseScoreEntry);
-
-      if (!isMultiHeat) {
-        routeStep = {
-          rule: 'SHRS 5.6(i)',
-          note: 'All compared races were sailed in the same heat. Standard RRS A8.1 then A8.2 apply.',
-        };
-
-        // A8.1: excluded scores NOT used (standard rule)
-        const a81Res = applyA81Individual(boatAScores, boatBScores, false);
-        if (a81Res) {
-          steps.push({
-            rule: 'RRS A8.1',
-            note: `Excluded scores not used. ${a81Res.detail}`,
-            subtitle: 'Compare non-excluded scores, best to worst.',
-            comparison: a81Res.comparison,
-            resolved: true,
-          });
-          winner = a81Res.winner;
-        } else {
-          steps.push({
-            rule: 'RRS A8.1',
-            note: 'Excluded scores not used. All non-excluded scores identical — still tied.',
-            subtitle: 'Compare non-excluded scores, best to worst.',
-            resolved: false,
-          });
-
-          // A8.2: excluded scores ARE used
-          const a82Res = applyA82OnPairs(allSharedPairs);
-          if (a82Res) {
-            steps.push({
-              rule: 'RRS A8.2',
-              note: `Excluded scores used. ${a82Res.detail}`,
-              subtitle: 'Compare all scores from last race backward.',
-              comparison: a82Res.comparison,
-              resolved: true,
-            });
-            winner = a82Res.winner;
-          } else {
-            steps.push({
-              rule: 'RRS A8.2',
-              note: 'Excluded scores used. All scores identical — still tied.',
-              subtitle: 'Compare all scores from last race backward.',
-              resolved: false,
-            });
-          }
-        }
-      } else if (allSharedPairs.length > 0) {
-        routeStep = {
-          rule: 'SHRS 5.6(ii)(a)',
-          note: `Multiple-heat event. ${allSharedPairs.length} shared-heat race(s) are eligible for tie-break comparison.`,
-        };
-
-        // A8.1 + SHRS 5.6(ii)(a)(2): excluded scores ARE used
-        const a81Res = applyA81OnPairs(allSharedPairs, true);
-        if (a81Res) {
-          steps.push({
-            rule: 'RRS A8.1 + SHRS 5.6(ii)(a)(2)',
-            note: `Excluded scores included (SHRS modification of A8.1). ${a81Res.detail}`,
-            subtitle: 'Compare shared-heat scores, including excluded scores.',
-            comparison: a81Res.comparison,
-            resolved: true,
-          });
-          winner = a81Res.winner;
-        } else {
-          steps.push({
-            rule: 'RRS A8.1 + SHRS 5.6(ii)(a)(2)',
-            note: 'Excluded scores included (SHRS modification of A8.1). All scores identical — still tied.',
-            subtitle: 'Compare shared-heat scores, including excluded scores.',
-            resolved: false,
-          });
-
-          const a82Res = applyA82OnPairs(allSharedPairs);
-          if (a82Res) {
-            steps.push({
-              rule: 'RRS A8.2',
-              note: `Shared-heat scores, last-race-backward. ${a82Res.detail}`,
-              subtitle: 'Compare shared-heat scores from last race backward.',
-              comparison: a82Res.comparison,
-              resolved: true,
-            });
-            winner = a82Res.winner;
-          } else {
-            steps.push({
-              rule: 'RRS A8.2',
-              note: 'Shared-heat scores, last-race-backward. All identical — still tied.',
-              subtitle: 'Compare shared-heat scores from last race backward.',
-              resolved: false,
-            });
-          }
-        }
-      } else {
-        routeStep = {
-          rule: 'SHRS 5.6(ii)(b)',
-          note: 'No shared heats were found. Standard RRS A8.1 and A8.2 are applied without SHRS modification.',
-        };
-
-        // Standard A8.1: excluded scores NOT used
-        const a81Res = applyA81Individual(boatAScores, boatBScores, false);
-        if (a81Res) {
-          steps.push({
-            rule: 'RRS A8.1',
-            note: `Excluded scores not used. ${a81Res.detail}`,
-            subtitle: 'Compare non-excluded scores, best to worst.',
-            comparison: a81Res.comparison,
-            resolved: true,
-          });
-          winner = a81Res.winner;
-        } else {
-          steps.push({
-            rule: 'RRS A8.1',
-            note: 'Excluded scores not used. All non-excluded scores identical — still tied.',
-            subtitle: 'Compare non-excluded scores, best to worst.',
-            resolved: false,
-          });
-
-          // Standard A8.2: excluded scores ARE used
-          const a82Res = applyA82Individual(boatAScores, boatBScores);
-          if (a82Res) {
-            steps.push({
-              rule: 'RRS A8.2',
-              note: `Excluded scores used. ${a82Res.detail}`,
-              subtitle: 'Compare all scores from last race backward.',
-              comparison: a82Res.comparison,
-              resolved: true,
-            });
-            winner = a82Res.winner;
-          } else {
-            steps.push({
-              rule: 'RRS A8.2',
-              note: 'Excluded scores used. All scores identical — still tied.',
-              subtitle: 'Compare all scores from last race backward.',
-              resolved: false,
-            });
-          }
-        }
-      }
-
-      const resolvedStep = steps.find((s) => s.resolved);
-
-      if (allSharedPairs.length > 0) {
-        const breakerRaceId = resolvedStep?.comparison?.raceId ?? null;
-        raceGrid = allSharedPairs.map((pair, idx) => ({
-          key: String(pair.raceId),
-          label: `R${idx + 1}`,
-          scoreA: pair.displayA,
-          scoreB: pair.displayB,
-          excludedA: pair.excludedA,
-          excludedB: pair.excludedB,
-          shared: true,
-          isBreaker: breakerRaceId != null && pair.raceId === breakerRaceId,
-        }));
-      } else {
-        const maxLen = Math.max(boatAScores.length, boatBScores.length);
-        raceGrid = Array.from({ length: maxLen }, (_unused, idx) => {
-          const a = boatAScores[idx];
-          const b = boatBScores[idx];
-          return {
-            key: `ind-${idx}`,
-            label: `R${idx + 1}`,
-            scoreA: a?.score ?? '–',
-            scoreB: b?.score ?? '–',
-            excludedA: Boolean(a?.excluded),
-            excludedB: Boolean(b?.excluded),
-            shared: false,
-            isBreaker: false,
-          };
-        });
-      }
-
-      tieBreak = {
-        steps,
-        winner,
-        rule: resolvedStep?.rule || steps[0]?.rule || 'SHRS 5.6',
-        detail:
-          resolvedStep?.note ||
-          'Tie could not be broken after all applicable rules.',
-      };
+    if (selectedBoatIds.length !== 2) {
+      setCompareInfo(null);
+      return undefined;
     }
 
-    // How many other boats (besides A and B) share the same total score?
+    const allEntries = finalSeriesStarted ? leaderboard : eventLeaderboard;
+    const boatA = allEntries.find((e) => e.boat_id === selectedBoatIds[0]);
+    const boatB = allEntries.find((e) => e.boat_id === selectedBoatIds[1]);
+    if (!boatA || !boatB) {
+      setCompareInfo(null);
+      return undefined;
+    }
+
     const getTotal = (e) =>
       finalSeriesStarted
         ? (e.total_points_combined ?? e.computed_total ?? 0)
         : (e.computed_total ?? 0);
+    const totalA = getTotal(boatA);
+    const totalB = getTotal(boatB);
+
     const otherTiedCount = getOtherTiedCount({
       allEntries,
       boatA,
@@ -554,30 +209,69 @@ export default function useLeaderboard(eventId) {
         return String(a.boat_id).localeCompare(String(b.boat_id));
       });
 
-    return {
-      boatA,
-      boatB,
-      totalA,
-      totalB,
-      tied,
-      tieBreak,
-      routeStep,
-      raceGrid,
-      sharedIds,
-      sharedRacePairs,
-      sharedQualIds,
-      sharedQualRacePairs,
-      otherTiedCount,
-      tiedGroupEntries,
+    (async () => {
+      try {
+        const res = await heatRaceDB.explainTieBreak(
+          eventId,
+          boatA.boat_id,
+          boatB.boat_id,
+          finalSeriesStarted,
+        );
+        if (cancelled || !res) return;
+        const winner =
+          res.winnerBoatId != null
+            ? allEntries.find(
+                (e) => String(e.boat_id) === String(res.winnerBoatId),
+              ) || null
+            : null;
+        const sharedIds = new Set(
+          (res.sharedRacePairs || []).map((pair) => pair.raceId),
+        );
+        setCompareInfo({
+          boatA,
+          boatB,
+          totalA: res.totalA ?? totalA,
+          totalB: res.totalB ?? totalB,
+          tied: res.tied,
+          tieBreak: res.tied
+            ? {
+                steps: res.steps || [],
+                winner,
+                rule: res.route?.rule || 'SHRS 5.7',
+                detail: res.route?.note || '',
+              }
+            : null,
+          routeStep: res.route || null,
+          raceGrid: res.raceGrid || [],
+          sharedRacePairs: res.sharedRacePairs || [],
+          sharedQualRacePairs: res.sharedQualRacePairs || [],
+          sharedIds,
+          otherTiedCount,
+          tiedGroupEntries,
+        });
+      } catch (error) {
+        if (!cancelled) {
+          reportError('Could not compute tie-break comparison.', error);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
     };
-  }, [selectedBoatIds, finalSeriesStarted, eventLeaderboard, leaderboard]);
+  }, [
+    selectedBoatIds,
+    finalSeriesStarted,
+    eventLeaderboard,
+    leaderboard,
+    eventId,
+  ]);
 
   // ─── Data fetching ───────────────────────────────────────────────────────────
 
   const checkFinalSeriesStarted = useCallback(async () => {
     try {
-      const heats =
-        await window.electron.sqlite.heatRaceDB.readAllHeats(eventId);
+      const heats = await heatRaceDB.readAllHeats(eventId);
       const finalHeats = heats.filter((heat) => heat.heat_type === 'Final');
       if (finalHeats.length > 0) {
         setFinalSeriesStarted(true);
@@ -592,12 +286,32 @@ export default function useLeaderboard(eventId) {
     checkFinalSeriesStarted();
   }, [checkFinalSeriesStarted]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [qualifying, final] = await Promise.all([
+          heatRaceDB.getMaxHeatSize(eventId, 'Qualifying'),
+          heatRaceDB.getMaxHeatSize(eventId, 'Final'),
+        ]);
+        if (!cancelled) {
+          setMaxHeatSizes({ qualifying: qualifying || 0, final: final || 0 });
+        }
+      } catch (_) {
+        // Keep fallback heat sizes; penalty position falls back to entry count.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, finalSeriesStarted]);
+
   const fetchLeaderboard = useCallback(async () => {
     try {
       // Recompute the event leaderboard in the DB so that place values
-      // reflect correct exclusions and SHRS 5.6 tie-breaking.
+      // reflect correct exclusions and SHRS 5.7 tie-breaking.
       try {
-        await window.electron.sqlite.heatRaceDB.updateEventLeaderboard(eventId);
+        await heatRaceDB.updateEventLeaderboard(eventId);
       } catch (_) {
         // Recompute may fail; continue with existing DB values
       }
@@ -606,19 +320,17 @@ export default function useLeaderboard(eventId) {
       // before reading (matches the pattern used for the qualifying leaderboard).
       if (finalSeriesStarted) {
         try {
-          await window.electron.sqlite.heatRaceDB.updateFinalLeaderboard(
-            eventId,
-          );
+          await heatRaceDB.updateFinalLeaderboard(eventId);
         } catch (_) {
           // Recompute may fail; continue with existing DB values
         }
       }
 
       const resultsTuple = await Promise.all([
-        window.electron.sqlite.heatRaceDB.readFinalLeaderboard(eventId),
-        window.electron.sqlite.heatRaceDB.readLeaderboard(eventId),
+        heatRaceDB.readFinalLeaderboard(eventId),
+        heatRaceDB.readLeaderboard(eventId),
         finalSeriesStarted
-          ? window.electron.sqlite.heatRaceDB.readOverallLeaderboard(eventId)
+          ? heatRaceDB.readOverallLeaderboard(eventId)
           : Promise.resolve([]),
       ]);
       const [finalResults, eventResults, overallResults] = resultsTuple || [
@@ -627,7 +339,7 @@ export default function useLeaderboard(eventId) {
         [],
       ];
 
-      const events = await window.electron.sqlite.eventDB.readAllEvents();
+      const events = await eventDB.readAllEvents();
       const currentEvent = Array.isArray(events)
         ? events.find((event) => String(event.event_id) === String(eventId))
         : null;
@@ -794,7 +506,7 @@ export default function useLeaderboard(eventId) {
       Number.isNaN(fallbackInput)
     )
       return;
-    const penaltyPosition = cloned.length + 1;
+    const penaltyPosition = getPenaltyPosition(cloned.length);
 
     let newPosition;
     if (newStatus === 'RDG1') {
@@ -900,7 +612,7 @@ export default function useLeaderboard(eventId) {
       return;
     }
 
-    const penaltyPosition = cloned.length + 1;
+    const penaltyPosition = getPenaltyPosition(cloned.length);
 
     // RRS A9(b): average of her points in the selected group of races.
     // Penalty scores are her points and are included.
@@ -1046,7 +758,7 @@ export default function useLeaderboard(eventId) {
         );
       }
 
-      await window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic(
+      await heatRaceDB.saveLeaderboardRaceResultsAtomic(
         eventId,
         updateOperations,
         shiftPositions,

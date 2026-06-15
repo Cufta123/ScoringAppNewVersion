@@ -95,25 +95,16 @@ describe('HeatRacePage', () => {
         },
         heatRaceDB: {
           readAllHeats: jest.fn().mockResolvedValue([heat]),
-          readAllRaces: jest
+          readAllRaces: jest.fn().mockResolvedValue([]),
+          submitHeatRaceScoresAtomic: jest
             .fn()
-            .mockResolvedValueOnce([])
-            .mockResolvedValueOnce([]),
-          getMaxHeatSize: jest.fn().mockResolvedValue(10),
-          readBoatsByHeat: jest.fn().mockResolvedValue([
-            { boat_id: 1, sail_number: 101 },
-            { boat_id: 2, sail_number: 102 },
-          ]),
-          insertRace: jest.fn().mockResolvedValue({ lastInsertRowid: 999 }),
-          insertScore: jest.fn().mockResolvedValue(true),
-          updateEventLeaderboard: jest.fn().mockResolvedValue(true),
-          updateFinalLeaderboard: jest.fn().mockResolvedValue(true),
+            .mockResolvedValue({ ok: true, raceNumber: 1, raceId: 999 }),
         },
       },
     };
   });
 
-  it('keeps submitted position for displacing penalties and applies SHRS 5.2 points', async () => {
+  it('delegates score submission to the atomic main-process handler', async () => {
     render(
       <MemoryRouter
         initialEntries={[
@@ -133,25 +124,21 @@ describe('HeatRacePage', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Submit scoring mock' }));
 
     await waitFor(() => {
-      expect(window.electron.sqlite.heatRaceDB.insertScore).toHaveBeenCalledTimes(2);
+      expect(
+        window.electron.sqlite.heatRaceDB.submitHeatRaceScoresAtomic,
+      ).toHaveBeenCalledTimes(1);
     });
 
-    expect(window.electron.sqlite.heatRaceDB.insertScore).toHaveBeenNthCalledWith(
-      1,
-      999,
-      1,
-      1,
-      1,
-      'FINISHED',
-    );
-
-    expect(window.electron.sqlite.heatRaceDB.insertScore).toHaveBeenNthCalledWith(
-      2,
-      999,
-      2,
-      2,
-      11,
-      'DNF',
-    );
+    expect(
+      window.electron.sqlite.heatRaceDB.submitHeatRaceScoresAtomic,
+    ).toHaveBeenCalledWith({
+      event_id: 1,
+      heat_id: 10,
+      placeNumbers: [
+        { boatNumber: 101, place: 1, status: 'FINISHED' },
+        { boatNumber: 102, place: 2, status: 'DNF' },
+      ],
+      isFinalSeries: false,
+    });
   });
 });

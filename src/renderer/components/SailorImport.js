@@ -1,11 +1,12 @@
 import React, { useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import Papa from 'papaparse';
+import { sailorDB } from '../api/db';
 
 const TEMPLATE_CSV =
   'name,surname,birthday,sail_number,country,model,club_name,category_name\nJohn,Doe,,12345,CRO,Laser,YC Zagreb,M\nJane,Smith,,67890,SVN,Optimist,JK Piran,U16';
 
-function SailorImport({ eventId, onImportComplete }) {
+function SailorImport({ eventId, onImportComplete = null }) {
   // Only name, surname, sail number and country are required — matching the
   // single-entry form. birthday, model, club and subgroup are optional.
   const REQUIRED_COLUMNS = ['name', 'surname', 'sail_number', 'country'];
@@ -55,7 +56,7 @@ function SailorImport({ eventId, onImportComplete }) {
           setBusy(false);
           return;
         }
-        const res = await window.electron.sqlite.sailorDB.importSailors(
+        const res = await sailorDB.importSailors(
           data.map((r) => ({ ...r, eventId })),
         );
         setResult(res);
@@ -181,10 +182,6 @@ function SailorImport({ eventId, onImportComplete }) {
 SailorImport.propTypes = {
   eventId: PropTypes.number.isRequired,
   onImportComplete: PropTypes.func,
-};
-
-SailorImport.defaultProps = {
-  onImportComplete: null,
 };
 
 export default SailorImport;

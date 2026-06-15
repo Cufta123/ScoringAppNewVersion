@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { reportError, reportInfo } from '../utils/userFeedback';
+import { heatRaceDB } from '../api/db';
 
 const POSITION_KEEPING_PENALTIES = new Set(['ZFP', 'SCP', 'T1']);
 // SHRS 2023 (5.3) is the primary order used by this app.
@@ -113,9 +114,7 @@ function ScoringInputComponent({ heat, onSubmit }) {
 
     const fetchBoats = async () => {
       try {
-        const boats = await window.electron.sqlite.heatRaceDB.readBoatsByHeat(
-          heat.heat_id,
-        );
+        const boats = await heatRaceDB.readBoatsByHeat(heat.heat_id);
         if (!isActive) return;
         setValidBoats(boats.map((boat) => boat.sail_number));
       } catch (error) {
@@ -409,7 +408,14 @@ function ScoringInputComponent({ heat, onSubmit }) {
                   >
                     <td>
                       {boat.name} {boat.surname}
-                      {added && <span className="scoring-added-check">✓</span>}
+                      {/* Always rendered (hidden until added) so adding the
+                          check never reflows the row. */}
+                      <span
+                        className={`scoring-added-check${added ? '' : ' is-placeholder'}`}
+                        aria-hidden={!added}
+                      >
+                        ✓
+                      </span>
                     </td>
                     <td>{boat.country}</td>
                     <td className="scoring-sail-cell">{boat.sail_number}</td>
@@ -453,15 +459,32 @@ function ScoringInputComponent({ heat, onSubmit }) {
             : ''}
         </h2>
 
-        {/* Progress indicator so the user always knows how many boats remain */}
-        <p
-          aria-live="polite"
-          className={`finish-progress${allScored ? ' is-done' : ''}`}
-        >
-          {allScored
-            ? `All ${totalBoats} boats scored — ready to submit ✓`
-            : `${scoredCount} of ${totalBoats} boats scored — ${totalBoats - scoredCount} remaining`}
-        </p>
+        {/* Sticky action bar: progress + submit stay visible no matter how
+            long the finish list grows. */}
+        <div className="finish-actionbar">
+          {/* Progress indicator so the user always knows how many boats remain */}
+          <p
+            aria-live="polite"
+            className={`finish-progress${allScored ? ' is-done' : ''}`}
+          >
+            {allScored
+              ? `All ${totalBoats} boats scored — ready to submit ✓`
+              : `${scoredCount} of ${totalBoats} boats scored — ${totalBoats - scoredCount} remaining`}
+          </p>
+          <button
+            type="button"
+            className={`btn-success submit-scores-btn${allScored ? '' : ' is-unavailable'}`}
+            aria-disabled={!allScored}
+            title={
+              allScored
+                ? undefined
+                : 'Score every boat (a place or a penalty) before submitting'
+            }
+            onClick={handleSubmit}
+          >
+            Submit Scores
+          </button>
+        </div>
 
         {/* Manual number input */}
         <div className="finish-add-row">
@@ -550,15 +573,6 @@ function ScoringInputComponent({ heat, onSubmit }) {
             {invalidBoatNumbers.length === 1 ? '' : 's'} in finish order
           </div>
         )}
-
-        {/* Submit */}
-        <button
-          type="button"
-          className="btn-success submit-scores-btn"
-          onClick={handleSubmit}
-        >
-          Submit Scores
-        </button>
       </div>
     </div>
   );

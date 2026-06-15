@@ -3,6 +3,7 @@
 import '@testing-library/jest-dom';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import calculateBoatScores from '../main/functions/calculateBoatScores';
+import realExplainTieBreak from '../main/functions/explainTieBreak';
 import useLeaderboard from '../renderer/hooks/useLeaderboard';
 import { db } from '../../public/Database/DBManager';
 
@@ -94,11 +95,45 @@ function setupMockDb(scoresA81Map, scoresA82Map, raceScoresMap) {
       }
       return undefined;
     },
-    all: (_eventId, boatId) => {
-      if (sql.includes('SELECT s.race_id, r.race_number, s.points')) {
-        return raceScoresMap[boatId] || [];
+    all: (_eventId, boatId, heatType) => {
+      const flat = sql.replace(/\s+/g, ' ');
+      if (flat.includes('SELECT DISTINCT s.boat_id')) {
+        return [{ boat_id: 'A' }, { boat_id: 'B' }];
       }
-      if (sql.includes('ORDER BY points DESC')) {
+      const races = (raceScoresMap[boatId] || []).map((r) => ({
+        ...r,
+        status: 'FINISHED',
+        heat_type: 'Qualifying',
+        heat_name: 'Heat A',
+      }));
+      // Overall (combined) packet query.
+      if (flat.includes("IN ('Qualifying', 'Final')")) {
+        return races;
+      }
+      // getSeriesRaceDisplay: heat_type filtered, race_number ASC.
+      if (
+        flat.includes('h.heat_type = ?') &&
+        flat.includes('ORDER BY r.race_number ASC')
+      ) {
+        return heatType === 'Qualifying'
+          ? [...races].sort(
+              (x, y) => x.race_number - y.race_number || x.race_id - y.race_id,
+            )
+          : [];
+      }
+      // getRaceScoresForTieBreak: race_number DESC, race_id DESC.
+      if (flat.includes('ORDER BY r.race_number DESC, s.race_id DESC')) {
+        return [...races]
+          .sort(
+            (x, y) => y.race_number - x.race_number || y.race_id - x.race_id,
+          )
+          .map((r) => ({
+            race_id: r.race_id,
+            race_number: r.race_number,
+            points: r.points,
+          }));
+      }
+      if (flat.includes('ORDER BY points DESC')) {
         return (scoresA81Map[boatId] || []).map((row) => ({
           points: row.points,
           status: row.status || 'FINISHED',
@@ -106,7 +141,7 @@ function setupMockDb(scoresA81Map, scoresA82Map, raceScoresMap) {
           race_number: row.race_number,
         }));
       }
-      if (sql.includes('ORDER BY r.race_number DESC')) {
+      if (flat.includes('ORDER BY r.race_number DESC')) {
         return (scoresA82Map[boatId] || []).map((points) => ({ points }));
       }
       return [];
@@ -115,8 +150,9 @@ function setupMockDb(scoresA81Map, scoresA82Map, raceScoresMap) {
 }
 
 function buildScenario(mode, aPoints, bPoints) {
-  const length = aPoints.length;
-  const sharedCount = mode === 'shared' ? Math.max(1, Math.floor(length / 2)) : 0;
+  const { length } = aPoints;
+  const sharedCount =
+    mode === 'shared' ? Math.max(1, Math.floor(length / 2)) : 0;
 
   const racesA = [];
   const racesB = [];
@@ -128,15 +164,29 @@ function buildScenario(mode, aPoints, bPoints) {
     const raceIdA = shared ? 3000 + i : 1000 + i;
     const raceIdB = shared ? 3000 + i : 2000 + i;
 
-    racesA.push({ race_id: raceIdA, race_number: raceNumber, points: aPoints[i] });
-    racesB.push({ race_id: raceIdB, race_number: raceNumber, points: bPoints[i] });
+    racesA.push({
+      race_id: raceIdA,
+      race_number: raceNumber,
+      points: aPoints[i],
+    });
+    racesB.push({
+      race_id: raceIdB,
+      race_number: raceNumber,
+      points: bPoints[i],
+    });
   }
 
   const scoresA81A = [...racesA].sort(
-    (x, y) => y.points - x.points || x.race_number - y.race_number || x.race_id - y.race_id,
+    (x, y) =>
+      y.points - x.points ||
+      x.race_number - y.race_number ||
+      x.race_id - y.race_id,
   );
   const scoresA81B = [...racesB].sort(
-    (x, y) => y.points - x.points || x.race_number - y.race_number || x.race_id - y.race_id,
+    (x, y) =>
+      y.points - x.points ||
+      x.race_number - y.race_number ||
+      x.race_id - y.race_id,
   );
 
   const scoresA82A = [...racesA]
@@ -206,14 +256,16 @@ describe('Property-based backend/UI tie-break parity', () => {
           readLeaderboard: jest.fn(),
           readOverallLeaderboard: jest.fn().mockResolvedValue([]),
           updateRaceResult: jest.fn().mockResolvedValue(true),
+          getMaxHeatSize: jest.fn().mockResolvedValue(0),
+          explainTieBreak: jest.fn((eventId, x, y, isFinal) =>
+            Promise.resolve(realExplainTieBreak(eventId, x, y, isFinal)),
+          ),
         },
       },
     };
   });
 
-  it(
-    'matches backend winner with UI tie-break winner for shared and non-shared random scenarios',
-    async () => {
+  it('matches backend winner with UI tie-break winner for shared and non-shared random scenarios', async () => {
     const prng = makePrng(20260410);
     let checkedShared = 0;
     let checkedNonShared = 0;
@@ -226,13 +278,23 @@ describe('Property-based backend/UI tie-break parity', () => {
 
       const { backend, uiRows } = buildScenario(mode, pair.a, pair.b);
 
-      setupMockDb(backend.scoresA81Map, backend.scoresA82Map, backend.raceScoresMap);
+      setupMockDb(
+        backend.scoresA81Map,
+        backend.scoresA82Map,
+        backend.raceScoresMap,
+      );
       const pointsMap = new Map();
       const backendTable = calculateBoatScores(backend.results, 1, pointsMap);
-      const backendWinner = backendTable.find((row) => row.place === 1)?.boat_id;
+      const backendWinner = backendTable.find(
+        (row) => row.place === 1,
+      )?.boat_id;
 
-      window.electron.sqlite.heatRaceDB.readLeaderboard.mockResolvedValueOnce(uiRows);
-      const { result, unmount } = renderHook(() => useLeaderboard(9000 + trial));
+      window.electron.sqlite.heatRaceDB.readLeaderboard.mockResolvedValueOnce(
+        uiRows,
+      );
+      const { result, unmount } = renderHook(() =>
+        useLeaderboard(9000 + trial),
+      );
       await waitFor(() => expect(result.current.loading).toBe(false));
 
       act(() => {
@@ -243,6 +305,10 @@ describe('Property-based backend/UI tie-break parity', () => {
         result.current.handleCompareRowClick('A');
         result.current.handleCompareRowClick('B');
       });
+
+      // compareInfo is now resolved asynchronously from the backend.
+      // eslint-disable-next-line no-await-in-loop
+      await waitFor(() => expect(result.current.compareInfo).not.toBeNull());
 
       const uiWinner = result.current.compareInfo?.tieBreak?.winner?.boat_id;
 
@@ -259,7 +325,5 @@ describe('Property-based backend/UI tie-break parity', () => {
 
     expect(checkedShared).toBeGreaterThanOrEqual(6);
     expect(checkedNonShared).toBeGreaterThanOrEqual(6);
-    },
-    20000,
-  );
+  }, 20000);
 });

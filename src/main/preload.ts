@@ -4,9 +4,16 @@
 /* eslint no-unused-vars: off */
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
+// Keep this union in sync with the channels registered via `ipcMain.handle`/
+// `ipcMain.on` in `src/main` and `src/main/ipcHandlers`. It is enforced on
+// every `invokeChannel`/`makeInvoker` call below, so an out-of-sync entry fails
+// the build.
 export type Channels =
   | 'ipc-example'
+  | 'dialog:openFile'
   | 'readAllSailors'
+  | 'updateSailor'
+  | 'readBoatsByHeat'
   | 'insertSailor'
   | 'readAllCategories'
   | 'readAllClubs'
@@ -28,7 +35,6 @@ export type Channels =
   | 'updateScore'
   | 'deleteScore'
   | 'deleteHeatsByEvent'
-  | 'recreateHeats'
   | 'updateEventLeaderboard'
   | 'updateGlobalLeaderboard'
   | 'createNewHeatsBasedOnLeaderboard'
@@ -46,7 +52,9 @@ export type Channels =
   | 'deleteEvent'
   | 'updateRaceResult'
   | 'saveLeaderboardRaceResultsAtomic'
+  | 'submitHeatRaceScoresAtomic'
   | 'getMaxHeatSize'
+  | 'explainTieBreak'
   | 'exportEventSnapshotToFile'
   | 'restoreEventSnapshotFromFile'
   | 'importSailors';
@@ -67,6 +75,24 @@ const toErrorMessage = (error: unknown): string => {
   return 'Unknown IPC error.';
 };
 
+// Typed wrapper around ipcRenderer.invoke. Restricting the channel to the
+// `Channels` union makes the contract compile-time enforced: invoking a channel
+// that no main-process handler registers becomes a type error.
+const invokeChannel = (channel: Channels, ...args: unknown[]): Promise<any> =>
+  ipcRenderer.invoke(channel, ...args);
+
+// Factory for the common case: forward args to a channel and let any IPC
+// rejection propagate to the caller. Centralising this removes ~40 copies of
+// identical try/catch boilerplate and keeps error handling consistent (callers
+// always see a thrown error, never a `false` sentinel).
+const makeInvoker =
+  (channel: Channels) =>
+  (...args: unknown[]): Promise<any> =>
+    invokeChannel(channel, ...args);
+
+// Wraps every exposed sqlite method so a resolved `false` (legacy failure
+// signal from some handlers) is converted to a thrown error, and any failure is
+// logged once, centrally, for diagnostics.
 const wrapSqliteApi = <T extends Record<string, any>>(api: T): T => {
   const wrapped = {} as T;
 
@@ -85,11 +111,16 @@ const wrapSqliteApi = <T extends Record<string, any>>(api: T): T => {
         }
 
         wrappedGroup[methodName] = async (...args: unknown[]) => {
-          const result = await methodValue(...args);
-          if (result === false) {
-            throw new Error(`Operation failed: ${groupName}.${methodName}`);
+          try {
+            const result = await methodValue(...args);
+            if (result === false) {
+              throw new Error(`Operation failed: ${groupName}.${methodName}`);
+            }
+            return result;
+          } catch (error) {
+            console.error(`IPC error in ${groupName}.${methodName}:`, error);
+            throw error;
           }
-          return result;
         };
       },
     );
@@ -120,534 +151,70 @@ const electronHandler = {
   },
   sqlite: {
     sailorDB: {
-      async readAllSailors() {
-        try {
-          return await ipcRenderer.invoke('readAllSailors');
-        } catch (error) {
-          console.error('Error invoking readAllSailors IPC:', error);
-          return false;
-        }
-      },
-      async updateSailor(sailorData: Record<string, unknown>) {
-        try {
-          return await ipcRenderer.invoke('updateSailor', sailorData);
-        } catch (error) {
-          console.error('Error invoking updateSailor IPC:', error);
-          return false;
-        }
-      },
-      async insertSailor(
-        name: string,
-        surname: string,
-        birthday: string,
-        category_id: string,
-        club_id: string,
-      ) {
-        try {
-          return await ipcRenderer.invoke(
-            'insertSailor',
-            name,
-            surname,
-            birthday,
-            category_id,
-            club_id,
-          );
-        } catch (error) {
-          console.error('Error invoking insertSailor IPC:', error);
-          return false;
-        }
-      },
-      async insertClub(club_name: string, country: string) {
-        try {
-          return await ipcRenderer.invoke('insertClub', club_name, country);
-        } catch (error) {
-          console.error('Error invoking insertClub IPC:', error);
-          return false;
-        }
-      },
-      async insertBoat(
-        sail_number: string,
-        country: string,
-        model: string,
-        sailor_id: string,
-      ) {
-        try {
-          return await ipcRenderer.invoke(
-            'insertBoat',
-            sail_number,
-            country,
-            model,
-            sailor_id,
-          );
-        } catch (error) {
-          console.error('Error invoking insertBoat IPC:', error);
-          return false;
-        }
-      },
-      async readAllCategories() {
-        try {
-          return await ipcRenderer.invoke('readAllCategories');
-        } catch (error) {
-          console.error('Error invoking readAllCategories IPC:', error);
-          return false;
-        }
-      },
-      async readAllClubs() {
-        try {
-          return await ipcRenderer.invoke('readAllClubs');
-        } catch (error) {
-          console.error('Error invoking readAllClubs IPC:', error);
-          return false;
-        }
-      },
-      async readAllBoats() {
-        try {
-          return await ipcRenderer.invoke('readAllBoats');
-        } catch (error) {
-          console.error('Error invoking readAllBoats IPC:', error);
-          return false;
-        }
-      },
+      readAllSailors: makeInvoker('readAllSailors'),
+      updateSailor: makeInvoker('updateSailor'),
+      insertSailor: makeInvoker('insertSailor'),
+      insertClub: makeInvoker('insertClub'),
+      insertBoat: makeInvoker('insertBoat'),
+      readAllCategories: makeInvoker('readAllCategories'),
+      readAllClubs: makeInvoker('readAllClubs'),
+      readAllBoats: makeInvoker('readAllBoats'),
+      // Special-cased: callers render the returned summary object even on
+      // failure, so resolve a zero-result shape instead of throwing.
       async importSailors(rows: unknown[]) {
         try {
-          return await ipcRenderer.invoke('importSailors', rows);
+          return await invokeChannel('importSailors', rows);
         } catch (error) {
           console.error('Error invoking importSailors IPC:', error);
-          return { imported: 0, skipped: 0, errors: [(error as Error).message] };
+          return { imported: 0, skipped: 0, errors: [toErrorMessage(error)] };
         }
       },
     },
     eventDB: {
-      async readAllEvents() {
-        try {
-          return await ipcRenderer.invoke('readAllEvents');
-        } catch (error) {
-          console.error('Error invoking readAllEvents IPC: ', error);
-          return false;
-        }
-      },
-      async insertEvent(
-        event_name: string,
-        event_location: string,
-        start_date: string,
-        end_date: string,
-        shrs_qualifying_assignment_mode = 'progressive',
-        shrs_discard_profile_qualifying = 'standard',
-        shrs_discard_profile_final = 'standard',
-        shrs_heat_overflow_policy = 'auto-increase',
-      ) {
-        try {
-          return await ipcRenderer.invoke(
-            'insertEvent',
-            event_name,
-            event_location,
-            start_date,
-            end_date,
-            shrs_qualifying_assignment_mode,
-            shrs_discard_profile_qualifying,
-            shrs_discard_profile_final,
-            shrs_heat_overflow_policy,
-          );
-        } catch (error) {
-          console.error('Error invoking insertEvent IPC:', error);
-          return false;
-        }
-      },
-      async associateBoatWithEvent(boat_id: string, event_id: string) {
-        try {
-          return await ipcRenderer.invoke(
-            'associateBoatWithEvent',
-            boat_id,
-            event_id,
-          );
-        } catch (error) {
-          console.error('Error invoking associateBoatWithEvent IPC:', error);
-          return false;
-        }
-      },
-      async readBoatsByEvent(event_id: string) {
-        try {
-          return await ipcRenderer.invoke('readBoatsByEvent', event_id);
-        } catch (error) {
-          console.error('Error invoking readBoatsByEvent IPC:', error);
-          return false;
-        }
-      },
-      async removeBoatFromEvent(boat_id: string, event_id: string) {
-        try {
-          return await ipcRenderer.invoke(
-            'removeBoatFromEvent',
-            boat_id,
-            event_id,
-          );
-        } catch (error) {
-          console.error('Error invoking removeBoatFromEvent IPC:', error);
-          return false;
-        }
-      },
-      async updateEvent(
-        event_id: string,
-        event_name: string,
-        event_location: string,
-        start_date: string,
-        end_date: string,
-        shrs_qualifying_assignment_mode = 'progressive',
-        shrs_discard_profile_qualifying = 'standard',
-        shrs_discard_profile_final = 'standard',
-        shrs_heat_overflow_policy = 'auto-increase',
-      ) {
-        try {
-          return await ipcRenderer.invoke(
-            'updateEvent',
-            event_id,
-            event_name,
-            event_location,
-            start_date,
-            end_date,
-            shrs_qualifying_assignment_mode,
-            shrs_discard_profile_qualifying,
-            shrs_discard_profile_final,
-            shrs_heat_overflow_policy,
-          );
-        } catch (error) {
-          console.error('Error invoking updateEvent IPC:', error);
-          return false;
-        }
-      },
-      async deleteEvent(event_id: string) {
-        try {
-          return await ipcRenderer.invoke('deleteEvent', event_id);
-        } catch (error) {
-          console.error('Error invoking deleteEvent IPC:', error);
-          return false;
-        }
-      },
+      readAllEvents: makeInvoker('readAllEvents'),
+      insertEvent: makeInvoker('insertEvent'),
+      associateBoatWithEvent: makeInvoker('associateBoatWithEvent'),
+      readBoatsByEvent: makeInvoker('readBoatsByEvent'),
+      removeBoatFromEvent: makeInvoker('removeBoatFromEvent'),
+      updateEvent: makeInvoker('updateEvent'),
+      deleteEvent: makeInvoker('deleteEvent'),
     },
     heatRaceDB: {
-      async readAllHeats(event_id: string) {
-        try {
-          return await ipcRenderer.invoke('readAllHeats', event_id);
-        } catch (error) {
-          console.error('Error invoking readAllHeats IPC:', error);
-          return false;
-        }
-      },
-      async insertHeat(event_id: string, heat_name: string, heat_type: string) {
-        try {
-          return await ipcRenderer.invoke(
-            'insertHeat',
-            event_id,
-            heat_name,
-            heat_type,
-          );
-        } catch (error) {
-          console.error('Error invoking insertHeat IPC:', error);
-          return false;
-        }
-      },
-      async deleteHeatsByEvent(event_id: string) {
-        try {
-          return await ipcRenderer.invoke('deleteHeatsByEvent', event_id);
-        } catch (error) {
-          console.error('Error invoking deleteHeatsByEvent IPC:', error);
-          return false;
-        }
-      },
-      async insertHeatBoat(heat_id: string, boat_id: string) {
-        try {
-          return await ipcRenderer.invoke('insertHeatBoat', heat_id, boat_id);
-        } catch (error) {
-          console.error('Error invoking insertHeatBoat IPC:', error);
-          return false;
-        }
-      },
-      async readBoatsByHeat(heat_id: string) {
-        try {
-          return await ipcRenderer.invoke('readBoatsByHeat', heat_id);
-        } catch (error) {
-          console.error('Error invoking readBoatsByHeat IPC:', error);
-          return false;
-        }
-      },
-      async readAllRaces(heat_id: string) {
-        try {
-          return await ipcRenderer.invoke('readAllRaces', heat_id);
-        } catch (error) {
-          console.error('Error invoking readAllRaces IPC:', error);
-          return false;
-        }
-      },
-      async insertRace(heat_id: string, race_number: number) {
-        try {
-          return await ipcRenderer.invoke('insertRace', heat_id, race_number);
-        } catch (error) {
-          throw error;
-        }
-      },
-      async readAllScores(race_id: string) {
-        try {
-          return await ipcRenderer.invoke('readAllScores', race_id);
-        } catch (error) {
-          console.error('Error invoking readAllScores IPC:', error);
-          return false;
-        }
-      },
-      async insertScore(
-        race_id: string,
-        boat_id: string,
-        position: string,
-        points: number,
-        status: string,
-      ) {
-        try {
-          return await ipcRenderer.invoke(
-            'insertScore',
-            race_id,
-            boat_id,
-            position,
-            points,
-            status,
-          );
-        } catch (error) {
-          throw error;
-        }
-      },
-      async updateScore(
-        score_id: string,
-        position: string,
-        points: number,
-        status: string,
-      ) {
-        try {
-          return await ipcRenderer.invoke(
-            'updateScore',
-            score_id,
-            position,
-            points,
-            status,
-          );
-        } catch (error) {
-          console.error('Error invoking updateScore IPC:', error);
-          return false;
-        }
-      },
-      async deleteScore(score_id: string) {
-        try {
-          return await ipcRenderer.invoke('deleteScore', score_id);
-        } catch (error) {
-          console.error('Error invoking deleteScore IPC:', error);
-          return false;
-        }
-      },
-      async recreateHeats(event_id: string, numHeats: number) {
-        try {
-          return await ipcRenderer.invoke('recreateHeats', event_id, numHeats);
-        } catch (error) {
-          console.error('Error invoking recreateHeats IPC:', error);
-          return false;
-        }
-      },
-      async updateEventLeaderboard(event_id: string) {
-        try {
-          return await ipcRenderer.invoke('updateEventLeaderboard', event_id);
-        } catch (error) {
-          console.error('Error invoking updateEventLeaderboard IPC:', error);
-          return false;
-        }
-      },
-      async updateGlobalLeaderboard(event_id: string) {
-        try {
-          return await ipcRenderer.invoke('updateGlobalLeaderboard', event_id);
-        } catch (error) {
-          console.error('Error invoking updateGlobalLeaderboard IPC:', error);
-          return false;
-        }
-      },
-      createNewHeatsBasedOnLeaderboard: async (event_id: string) => {
-        try {
-          return await ipcRenderer.invoke(
-            'createNewHeatsBasedOnLeaderboard',
-            event_id,
-          );
-        } catch (error) {
-          throw error;
-        }
-      },
-      async undoLastScoredRaceForHeat(heat_id: number) {
-        try {
-          return await ipcRenderer.invoke('undoLastScoredRaceForHeat', heat_id);
-        } catch (error) {
-          throw error;
-        }
-      },
-      async undoLastScoredRace(event_id: string) {
-        try {
-          return await ipcRenderer.invoke('undoLastScoredRace', event_id);
-        } catch (error) {
-          throw error;
-        }
-      },
-      async undoLatestHeatRedistribution(event_id: string) {
-        try {
-          return await ipcRenderer.invoke(
-            'undoLatestHeatRedistribution',
-            event_id,
-          );
-        } catch (error) {
-          throw error;
-        }
-      },
-      async transferBoatBetweenHeats(
-        from_heat_id: string,
-        to_heat_id: string,
-        boat_id: string,
-      ) {
-        try {
-          return await ipcRenderer.invoke(
-            'transferBoatBetweenHeats',
-            from_heat_id,
-            to_heat_id,
-            boat_id,
-          );
-        } catch (error) {
-          console.error('Error invoking transferBoatBetweenHeats IPC:', error);
-          return false;
-        }
-      },
-      async readLeaderboard(event_id: string) {
-        try {
-          return await ipcRenderer.invoke('readLeaderboard', event_id);
-        } catch (error) {
-          console.error('Error invoking readLeaderboard IPC:', error);
-          return false;
-        }
-      },
-      async readGlobalLeaderboard() {
-        try {
-          return await ipcRenderer.invoke('readGlobalLeaderboard');
-        } catch (error) {
-          console.error('Error invoking readGlobalLeaderboard IPC:', error);
-          return false;
-        }
-      },
-      async updateFinalLeaderboard(event_id: string) {
-        try {
-          return await ipcRenderer.invoke('updateFinalLeaderboard', event_id);
-        } catch (error) {
-          console.error('Error invoking updateFinalLeaderboard IPC:', error);
-          return false;
-        }
-      },
-      async updateRaceResult(
-        event_id: string,
-        race_id: string,
-        boat_id: string,
-        new_position: string,
-        shift_positions: boolean,
-        new_status: string,
-      ) {
-        try {
-          return await ipcRenderer.invoke(
-            'updateRaceResult',
-            event_id,
-            race_id,
-            boat_id,
-            new_position,
-            shift_positions,
-            new_status,
-          );
-        } catch (error) {
-          console.error('Error invoking updateRaceResult IPC:', error);
-          return false;
-        }
-      },
-      async saveLeaderboardRaceResultsAtomic(
-        event_id: string,
-        operations: Array<{
-          raceId: string;
-          boatId: string;
-          newPosition: number;
-          entryStatus: string;
-        }>,
-        shift_positions: boolean,
-        updateFinalLeaderboard = false,
-      ) {
-        try {
-          return await ipcRenderer.invoke(
-            'saveLeaderboardRaceResultsAtomic',
-            event_id,
-            operations,
-            shift_positions,
-            updateFinalLeaderboard,
-          );
-        } catch (error) {
-          console.error(
-            'Error invoking saveLeaderboardRaceResultsAtomic IPC:',
-            error,
-          );
-          return false;
-        }
-      },
-      async readFinalLeaderboard(event_id: string) {
-        try {
-          return await ipcRenderer.invoke('readFinalLeaderboard', event_id);
-        } catch (error) {
-          console.error('Error invoking readFinalLeaderboard IPC:', error);
-          return false;
-        }
-      },
-      async readOverallLeaderboard(event_id: string) {
-        try {
-          return await ipcRenderer.invoke('readOverallLeaderboard', event_id);
-        } catch (error) {
-          console.error('Error invoking readOverallLeaderboard IPC:', error);
-          return false;
-        }
-      },
-      async startFinalSeriesAtomic(
-        event_id: string,
-        allow_oversize_confirm = false,
-        apply_shrs43_temporary_second_discard = true,
-      ) {
-        try {
-          return await ipcRenderer.invoke(
-            'startFinalSeriesAtomic',
-            event_id,
-            allow_oversize_confirm,
-            apply_shrs43_temporary_second_discard,
-          );
-        } catch (error) {
-          throw error;
-        }
-      },
-      async getMaxHeatSize(event_id: string, heat_type?: string) {
-        try {
-          return await ipcRenderer.invoke(
-            'getMaxHeatSize',
-            event_id,
-            heat_type,
-          );
-        } catch (error) {
-          console.error('Error invoking getMaxHeatSize IPC:', error);
-          throw new Error(toErrorMessage(error));
-        }
-      },
-      async exportEventSnapshotToFile(event_id: string) {
-        try {
-          return await ipcRenderer.invoke('exportEventSnapshotToFile', event_id);
-        } catch (error) {
-          console.error('Error invoking exportEventSnapshotToFile IPC:', error);
-          throw new Error(toErrorMessage(error));
-        }
-      },
-      async restoreEventSnapshotFromFile(event_id: string) {
-        try {
-          return await ipcRenderer.invoke('restoreEventSnapshotFromFile', event_id);
-        } catch (error) {
-          console.error('Error invoking restoreEventSnapshotFromFile IPC:', error);
-          throw new Error(toErrorMessage(error));
-        }
-      },
+      readAllHeats: makeInvoker('readAllHeats'),
+      insertHeat: makeInvoker('insertHeat'),
+      deleteHeatsByEvent: makeInvoker('deleteHeatsByEvent'),
+      insertHeatBoat: makeInvoker('insertHeatBoat'),
+      readBoatsByHeat: makeInvoker('readBoatsByHeat'),
+      readAllRaces: makeInvoker('readAllRaces'),
+      insertRace: makeInvoker('insertRace'),
+      readAllScores: makeInvoker('readAllScores'),
+      insertScore: makeInvoker('insertScore'),
+      updateScore: makeInvoker('updateScore'),
+      deleteScore: makeInvoker('deleteScore'),
+      updateEventLeaderboard: makeInvoker('updateEventLeaderboard'),
+      updateGlobalLeaderboard: makeInvoker('updateGlobalLeaderboard'),
+      createNewHeatsBasedOnLeaderboard: makeInvoker(
+        'createNewHeatsBasedOnLeaderboard',
+      ),
+      undoLastScoredRaceForHeat: makeInvoker('undoLastScoredRaceForHeat'),
+      undoLastScoredRace: makeInvoker('undoLastScoredRace'),
+      undoLatestHeatRedistribution: makeInvoker('undoLatestHeatRedistribution'),
+      transferBoatBetweenHeats: makeInvoker('transferBoatBetweenHeats'),
+      readLeaderboard: makeInvoker('readLeaderboard'),
+      readGlobalLeaderboard: makeInvoker('readGlobalLeaderboard'),
+      updateFinalLeaderboard: makeInvoker('updateFinalLeaderboard'),
+      updateRaceResult: makeInvoker('updateRaceResult'),
+      saveLeaderboardRaceResultsAtomic: makeInvoker(
+        'saveLeaderboardRaceResultsAtomic',
+      ),
+      submitHeatRaceScoresAtomic: makeInvoker('submitHeatRaceScoresAtomic'),
+      readFinalLeaderboard: makeInvoker('readFinalLeaderboard'),
+      readOverallLeaderboard: makeInvoker('readOverallLeaderboard'),
+      startFinalSeriesAtomic: makeInvoker('startFinalSeriesAtomic'),
+      getMaxHeatSize: makeInvoker('getMaxHeatSize'),
+      explainTieBreak: makeInvoker('explainTieBreak'),
+      exportEventSnapshotToFile: makeInvoker('exportEventSnapshotToFile'),
+      restoreEventSnapshotFromFile: makeInvoker('restoreEventSnapshotFromFile'),
     },
   },
 };

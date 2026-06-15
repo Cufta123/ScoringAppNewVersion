@@ -11,7 +11,7 @@ function Rdg2Picker({
   rdg2Picker,
   setRdg2Picker,
   confirmRdg2,
-  qualifyingEntry,
+  qualifyingEntry = null,
 }) {
   if (!rdg2Picker?.anchorRect) return null;
 
@@ -217,10 +217,6 @@ Rdg2Picker.propTypes = {
   qualifyingEntry: PropTypes.shape({
     races: PropTypes.array,
   }),
-};
-
-Rdg2Picker.defaultProps = {
-  qualifyingEntry: null,
 };
 
 export default Rdg2Picker;

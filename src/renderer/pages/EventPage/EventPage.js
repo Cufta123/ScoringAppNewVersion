@@ -10,6 +10,7 @@ import './EventPage.css';
 import HeatComponent from '../../components/HeatComponent';
 import printStartingList from '../../utils/printStartingList';
 import { reportError, reportInfo } from '../../utils/userFeedback';
+import { eventDB, heatRaceDB, sailorDB } from '../../api/db';
 
 function EventPage() {
   const location = useLocation();
@@ -26,7 +27,7 @@ function EventPage() {
 
     const findEventByName = async () => {
       try {
-        const events = await window.electron.sqlite.eventDB.readAllEvents();
+        const events = await eventDB.readAllEvents();
         if (!isActive) return;
         const match = (events || []).find((e) => e.event_name === name);
         if (match) {
@@ -58,8 +59,7 @@ function EventPage() {
     if (!eventId) return;
 
     try {
-      const boatsWithSailors =
-        await window.electron.sqlite.eventDB.readBoatsByEvent(eventId);
+      const boatsWithSailors = await eventDB.readBoatsByEvent(eventId);
       const mappedBoats = boatsWithSailors.map((boat) => ({
         ...boat,
         sailor: boat.name,
@@ -75,7 +75,7 @@ function EventPage() {
 
   const fetchAllBoats = useCallback(async () => {
     try {
-      const fetchedBoats = await window.electron.sqlite.sailorDB.readAllBoats();
+      const fetchedBoats = await sailorDB.readAllBoats();
       setAllBoats(fetchedBoats);
     } catch (error) {
       reportError('Could not load all boats.', error);
@@ -86,10 +86,9 @@ function EventPage() {
     if (!eventId) return;
 
     try {
-      const heats =
-        await window.electron.sqlite.heatRaceDB.readAllHeats(eventId);
+      const heats = await heatRaceDB.readAllHeats(eventId);
       const racePromises = heats.map((heat) =>
-        window.electron.sqlite.heatRaceDB.readAllRaces(heat.heat_id),
+        heatRaceDB.readAllRaces(heat.heat_id),
       );
       const races = await Promise.all(racePromises);
       const anyRaceHappened = races.some((raceArray) => raceArray.length > 0);
@@ -135,10 +134,7 @@ function EventPage() {
       const boatIds = selectedBoats.map((option) => option.value);
       await Promise.all(
         boatIds.map((boatId) =>
-          window.electron.sqlite.eventDB.associateBoatWithEvent(
-            boatId,
-            event.event_id,
-          ),
+          eventDB.associateBoatWithEvent(boatId, event.event_id),
         ),
       );
       fetchBoatsWithSailors();
@@ -161,8 +157,7 @@ function EventPage() {
 
   const handlePrintStartingList = async () => {
     try {
-      const boatsForEvent =
-        await window.electron.sqlite.eventDB.readBoatsByEvent(event.event_id);
+      const boatsForEvent = await eventDB.readBoatsByEvent(event.event_id);
       await printStartingList(
         event,
         Array.isArray(boatsForEvent) ? boatsForEvent : [],
@@ -175,10 +170,7 @@ function EventPage() {
 
   const handleRemoveBoat = async (boatId) => {
     try {
-      await window.electron.sqlite.eventDB.removeBoatFromEvent(
-        boatId,
-        event.event_id,
-      );
+      await eventDB.removeBoatFromEvent(boatId, event.event_id);
 
       // Find the removed boat
       const removedBoat = boats.find((boat) => boat.boat_id === boatId);

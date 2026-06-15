@@ -11,18 +11,24 @@ import {
   reportError,
   reportInfo,
 } from '../../utils/userFeedback';
+import { eventDB, heatRaceDB } from '../../api/db';
 
 function HeatRacePage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { eventName } = useParams();
   const [event, setEvent] = useState(location.state?.event || null);
-  const [eventData, setEventData] = useState(location.state?.event || null);
   const [selectedHeat, setSelectedHeat] = useState(null);
   const [isScoring, setIsScoring] = useState(false);
   const [finalSeriesStarted, setFinalSeriesStarted] = useState(false);
-  const [heats, setHeats] = useState([]);
+  // Bumped to tell HeatComponent to re-fetch its heats after a round-level
+  // action (create-from-leaderboard, undo) without forcing a full remount.
+  const [heatsRefreshToken, setHeatsRefreshToken] = useState(0);
   const [numQualifyingGroups, setNumQualifyingGroups] = useState(0);
+
+  const refreshHeats = useCallback(() => {
+    setHeatsRefreshToken((token) => token + 1);
+  }, []);
 
   // Refresh-safe: resolve the event from the URL when router state is gone.
   useEffect(() => {
@@ -31,7 +37,7 @@ function HeatRacePage() {
 
     const findEventByName = async () => {
       try {
-        const events = await window.electron.sqlite.eventDB.readAllEvents();
+        const events = await eventDB.readAllEvents();
         if (!isActive) return;
         const match = (events || []).find((e) => e.event_name === eventName);
         if (match) {
@@ -52,22 +58,6 @@ function HeatRacePage() {
     };
   }, [event, eventName, navigate]);
 
-  useEffect(() => {
-    const fetchEvent = async () => {
-      try {
-        const fetchedEventData =
-          await window.electron.sqlite.eventDB.readEventById(event.event_id);
-        setEventData(fetchedEventData);
-      } catch (error) {
-        reportError('Could not load event details.', error);
-      }
-    };
-
-    if (!eventData && event) {
-      fetchEvent();
-    }
-  }, [eventData, event]);
-
   const handleHeatSelect = (heat) => {
     setSelectedHeat(heat);
   };
@@ -80,103 +70,37 @@ function HeatRacePage() {
     setIsScoring(false);
   };
 
-  const doAllHeatsHaveSameNumberOfRaces = async (event_id) => {
-    try {
-      const results =
-        await window.electron.sqlite.heatRaceDB.readAllHeats(event_id);
-
-      // Find the latest heats by suffix
-      const latestHeats = results.reduce((acc, heat) => {
-        const match = heat.heat_name.match(/Heat ([A-Z]+)(\d*)/);
-        if (match) {
-          const [, base, suffix] = match;
-          const numericSuffix = suffix ? parseInt(suffix, 10) : 0;
-          acc[base] = acc[base] || { suffix: -1, heat: null }; // Initialize suffix to -1 for heats without a number
-          if (numericSuffix > acc[base].suffix) {
-            acc[base] = { suffix: numericSuffix, heat };
-          }
-        }
-        return acc;
-      }, {});
-
-      // Extract only the latest heats
-      const lastHeats = Object.values(latestHeats).map((entry) => entry.heat);
-
-      // Check race count for the latest heats
-      const raceCounts = await Promise.all(
-        lastHeats.map(async (heat) => {
-          const races = await window.electron.sqlite.heatRaceDB.readAllRaces(
-            heat.heat_id,
-          );
-          return races.length;
-        }),
-      );
-
-      // Ensure all latest heats have the same number of races
-      return raceCounts.every((count) => count === raceCounts[0]);
-    } catch (error) {
-      reportError('Could not validate race counts across heats.', error);
-      return false;
-    }
-  };
-
   const handleSubmitScores = async (placeNumbers) => {
     try {
-      const races = await window.electron.sqlite.heatRaceDB.readAllRaces(
-        selectedHeat.heat_id,
-      );
-      const nextRaceNumber = races.length + 1;
-
       // SHRS 3.2 warning: in a multi-heat qualifying series each heat group
       // should only ever race once before redistribution. Warn any time the
       // user tries to score a second (or later) race on a qualifying heat.
-      if (
-        !finalSeriesStarted &&
-        numQualifyingGroups >= 2 &&
-        races.length >= 1
-      ) {
-        const proceed = await confirmAction(
-          `Warning: "${selectedHeat.heat_name}" has already completed Race ${races.length}.\n\n` +
-            `According to SHRS 3.2 boats should be redistributed before racing again.\n\n` +
-            `Press OK to score Race ${nextRaceNumber} anyway, or Cancel to go back and use "Create New Heats from Leaderboard" first.`,
-          'Scoring warning',
-        );
-        if (!proceed) return;
+      if (!finalSeriesStarted && numQualifyingGroups >= 2) {
+        const races = await heatRaceDB.readAllRaces(selectedHeat.heat_id);
+        if (races.length >= 1) {
+          const nextRaceNumber = races.length + 1;
+          const proceed = await confirmAction(
+            `Warning: "${selectedHeat.heat_name}" has already completed Race ${races.length}.\n\n` +
+              `According to SHRS 3.2 boats should be redistributed before racing again.\n\n` +
+              `Press OK to score Race ${nextRaceNumber} anyway, or Cancel to go back and use "Create New Heats from Leaderboard" first.`,
+            'Scoring warning',
+          );
+          if (!proceed) return;
+        }
       }
 
-      // SHRS 5.2: penalty score = number of boats in the largest heat + 1
-      const heatType = finalSeriesStarted ? 'Final' : 'Qualifying';
-      const maxHeatSize =
-        await window.electron.sqlite.heatRaceDB.getMaxHeatSize(
-          event.event_id,
-          heatType,
-        );
-      const penaltyPlace = (maxHeatSize || placeNumbers.length) + 1;
-      // RRS 44.3(c): ZFP/SCP = 20% of boats; RRS Appendix T1 = 30%.
-      // Rounded to nearest whole number, 0.5 rounded up.
-      const heatSizeForPenalty = maxHeatSize || placeNumbers.length;
-      const getScoringPenaltyPlaces = (status) =>
-        Math.floor(heatSizeForPenalty * (status === 'T1' ? 0.3 : 0.2) + 0.5);
-      const scoringPenaltyStatuses = new Set(['ZFP', 'SCP', 'T1']);
+      // Penalty math, race + score inserts, and the leaderboard recompute all
+      // happen atomically in the main process (see submitHeatRaceScoresAtomic).
+      const result = await heatRaceDB.submitHeatRaceScoresAtomic({
+        event_id: event.event_id,
+        heat_id: selectedHeat.heat_id,
+        placeNumbers,
+        isFinalSeries: finalSeriesStarted,
+      });
 
-      const boats = await window.electron.sqlite.heatRaceDB.readBoatsByHeat(
-        selectedHeat.heat_id,
-      );
-
-      const normalizeSailNumber = (value) => String(value).trim();
-      const boatsBySail = new Map(
-        boats.map((boat) => [normalizeSailNumber(boat.sail_number), boat]),
-      );
-
-      const unmatchedBoatNumbers = placeNumbers
-        .map(({ boatNumber }) => boatNumber)
-        .filter(
-          (boatNumber) => !boatsBySail.has(normalizeSailNumber(boatNumber)),
-        );
-
-      if (unmatchedBoatNumbers.length > 0) {
+      if (result?.ok === false && result.reason === 'UNMATCHED_SAILS') {
         reportInfo(
-          `Cannot save scores because these sail numbers are not in ${selectedHeat.heat_name}: ${unmatchedBoatNumbers.join(', ')}.\n\n` +
+          `Cannot save scores because these sail numbers are not in ${selectedHeat.heat_name}: ${result.unmatched.join(', ')}.\n\n` +
             'What to do:\n' +
             '1) Go back to heats and re-open scoring for this heat.\n' +
             '2) Check that each sail number belongs to the selected heat.\n' +
@@ -186,79 +110,9 @@ function HeatRacePage() {
         return;
       }
 
-      const { lastInsertRowid: raceId } =
-        await window.electron.sqlite.heatRaceDB.insertRace(
-          selectedHeat.heat_id,
-          nextRaceNumber,
-        );
-
-      const scorePromises = placeNumbers.map(
-        async ({ boatNumber, place, status }) => {
-          const boatDetails = boatsBySail.get(normalizeSailNumber(boatNumber));
-          if (!boatDetails) {
-            throw new Error(
-              `Boat with sail number ${boatNumber} is not assigned to selected heat.`,
-            );
-          }
-
-          let finalPosition = place;
-          let finalPoints = place;
-
-          if (status !== 'FINISHED') {
-            if (scoringPenaltyStatuses.has(status)) {
-              finalPosition = place;
-              finalPoints = Math.min(
-                place + getScoringPenaltyPlaces(status),
-                penaltyPlace,
-              );
-            } else {
-              finalPosition = place || penaltyPlace;
-              finalPoints = penaltyPlace;
-            }
-          }
-
-          await window.electron.sqlite.heatRaceDB.insertScore(
-            raceId,
-            boatDetails.boat_id,
-            finalPosition,
-            finalPoints,
-            status,
-          );
-        },
-      );
-
-      await Promise.all(scorePromises);
-
-      if (!finalSeriesStarted) {
-        const allHeatsEqual = await doAllHeatsHaveSameNumberOfRaces(
-          event.event_id,
-        );
-        if (allHeatsEqual) {
-          await window.electron.sqlite.heatRaceDB.updateEventLeaderboard(
-            event.event_id,
-          );
-        }
-      } else {
-        await window.electron.sqlite.heatRaceDB.updateFinalLeaderboard(
-          event.event_id,
-        );
-      }
-
       setIsScoring(false);
-      setSelectedHeat({ ...selectedHeat, raceNumber: nextRaceNumber });
+      setSelectedHeat({ ...selectedHeat, raceNumber: result.raceNumber });
     } catch (error) {
-      const message = String(error?.message || '');
-      if (message.includes('not assigned to selected heat')) {
-        reportInfo(
-          `${message}\n\n` +
-            'What to do:\n' +
-            '1) Return to the heat list and open scoring again.\n' +
-            '2) Verify sail numbers in the selected heat.\n' +
-            '3) Submit the race once more.',
-          'Invalid sail number mapping',
-        );
-        return;
-      }
       reportError('Could not save race scores.', error);
     }
   };
@@ -279,17 +133,13 @@ function HeatRacePage() {
     if (!confirmed) return;
 
     try {
-      const result =
-        await window.electron.sqlite.heatRaceDB.createNewHeatsBasedOnLeaderboard(
-          event.event_id,
-        );
+      const result = await heatRaceDB.createNewHeatsBasedOnLeaderboard(
+        event.event_id,
+      );
       if (result?.advisory) {
         reportInfo(result.advisory, 'SHRS advisory');
       }
-      const updatedHeats = await window.electron.sqlite.heatRaceDB.readAllHeats(
-        event.event_id,
-      );
-      setHeats(updatedHeats);
+      refreshHeats();
     } catch (error) {
       reportError('Could not create new heats from leaderboard.', error);
     }
@@ -304,14 +154,8 @@ function HeatRacePage() {
     if (!confirmed) return;
 
     try {
-      const result =
-        await window.electron.sqlite.heatRaceDB.undoLastScoredRaceForHeat(
-          heat.heat_id,
-        );
-      const updatedHeats = await window.electron.sqlite.heatRaceDB.readAllHeats(
-        event.event_id,
-      );
-      setHeats(updatedHeats);
+      const result = await heatRaceDB.undoLastScoredRaceForHeat(heat.heat_id);
+      refreshHeats();
       reportInfo(
         `Race ${result.raceNumber} in "${result.heatName}" has been undone.\n${result.removedScores} score(s) removed.`,
         'Success',
@@ -331,14 +175,10 @@ function HeatRacePage() {
     }
 
     try {
-      const result =
-        await window.electron.sqlite.heatRaceDB.undoLatestHeatRedistribution(
-          event.event_id,
-        );
-      const updatedHeats = await window.electron.sqlite.heatRaceDB.readAllHeats(
+      const result = await heatRaceDB.undoLatestHeatRedistribution(
         event.event_id,
       );
-      setHeats(updatedHeats);
+      refreshHeats();
       reportInfo(
         `Heat redistribution undone. Removed ${result.removedHeats} heats and ${result.removedAssignments} assignments.`,
         'Success',
@@ -352,9 +192,7 @@ function HeatRacePage() {
     if (!event?.event_id) return;
 
     try {
-      const allHeats = await window.electron.sqlite.heatRaceDB.readAllHeats(
-        event.event_id,
-      );
+      const allHeats = await heatRaceDB.readAllHeats(event.event_id);
       const finalHeats = allHeats.filter((heat) => heat.heat_type === 'Final');
       if (finalHeats.length > 0) {
         setFinalSeriesStarted(true);
@@ -392,16 +230,20 @@ function HeatRacePage() {
           ]}
         />
 
-        {/* Always-visible escape hatch back to the event page. */}
-        <button
-          type="button"
-          className="btn-ghost back-link"
-          onClick={() =>
-            navigate(`/event/${event.event_name}`, { state: { event } })
-          }
-        >
-          <i className="fa fa-arrow-left" aria-hidden="true" /> Back to Event
-        </button>
+        {/* Back to the event page. In the scoring view the "Back to Heats"
+            button below is the relevant step back, so only show this one in the
+            heat-list view to avoid two stacked back buttons. */}
+        {!isScoring && (
+          <button
+            type="button"
+            className="btn-ghost back-link"
+            onClick={() =>
+              navigate(`/event/${event.event_name}`, { state: { event } })
+            }
+          >
+            <i className="fa fa-arrow-left" aria-hidden="true" /> Back to Event
+          </button>
+        )}
         {!isScoring ? (
           <>
             <h1 style={{ marginBottom: '20px' }}>
@@ -410,7 +252,7 @@ function HeatRacePage() {
                 aria-hidden="true"
                 style={{ color: '#2471A3' }}
               />
-              {eventData?.event_name || 'Race Scoring'}
+              {event?.event_name || 'Race Scoring'}
             </h1>
 
             {/* ── Round-level management actions ─── */}
@@ -447,9 +289,8 @@ function HeatRacePage() {
             )}
 
             <HeatComponent
-              key={JSON.stringify(heats)}
               event={event}
-              heats={heats}
+              refreshToken={heatsRefreshToken}
               onHeatSelect={handleHeatSelect}
               onStartScoring={handleStartScoring}
               onUndoLastRace={

@@ -13,6 +13,9 @@ module.exports = {
     '@typescript-eslint/no-shadow': 'error',
     'no-unused-vars': 'off',
     '@typescript-eslint/no-unused-vars': 'error',
+    // React is removing defaultProps for function components, so optional props
+    // are defaulted via destructuring default parameters instead.
+    'react/require-default-props': ['error', { functions: 'defaultArguments' }],
   },
   parserOptions: {
     ecmaVersion: 2022,

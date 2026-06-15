@@ -14,6 +14,7 @@ import EmptyState from '../../components/shared/EmptyState';
 import LoadingState from '../../components/shared/LoadingState';
 import { confirmAction, reportError } from '../../utils/userFeedback';
 import './LeaderboardPage.css';
+import { eventDB } from '../../api/db';
 
 function LeaderboardContent({ eventId, onUnsavedChange = null }) {
   const {
@@ -231,7 +232,7 @@ function LeaderboardPage() {
 
     const findEventByName = async () => {
       try {
-        const events = await window.electron.sqlite.eventDB.readAllEvents();
+        const events = await eventDB.readAllEvents();
         if (!isActive) return;
         const match = (events || []).find((e) => e.event_name === eventName);
         if (match) {

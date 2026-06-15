@@ -1334,7 +1334,23 @@ small.form-locked-note {
   border-radius: 0;
   box-shadow: none;
   font-size: .9rem;
+  /* Fixed layout keeps columns from resizing when the check mark appears or a
+     place cell changes from "—" to a number, which was causing the table to
+     jitter on every click. */
+  table-layout: fixed;
+  width: 100%;
 }
+
+.scoring-table th:nth-child(1),
+.scoring-table td:nth-child(1) { width: 36%; }
+.scoring-table th:nth-child(2),
+.scoring-table td:nth-child(2) { width: 12%; }
+.scoring-table th:nth-child(3),
+.scoring-table td:nth-child(3) { width: 16%; }
+.scoring-table th:nth-child(4),
+.scoring-table td:nth-child(4) { width: 14%; }
+.scoring-table th:nth-child(5),
+.scoring-table td:nth-child(5) { width: 22%; }
 
 .scoring-table th {
   position: static;
@@ -1377,6 +1393,9 @@ small.form-locked-note {
   font-size: .8rem;
 }
 
+/* Keeps the check's footprint reserved so the row never shifts when added. */
+.scoring-added-check.is-placeholder { visibility: hidden; }
+
 .scoring-place-cell {
   text-align: center;
   font-weight: 600;
@@ -1388,7 +1407,11 @@ small.form-locked-note {
 .scoring-sail-cell { font-weight: 600; }
 
 select.penalty-select {
-  width: auto;
+  /* Fill the (fixed-width) column instead of growing to the longest option
+     label, which previously stretched the table to the right. */
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   padding: 4px 6px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
@@ -1519,10 +1542,42 @@ button.finish-remove-btn:hover { background: var(--danger-light); }
   box-shadow: 0 1px 4px rgba(214,59,47,.3);
 }
 
+/* Progress + Submit pinned to the top of the Finish Order panel so they stay
+   visible however long the finish list grows. The solid background masks the
+   list scrolling underneath. */
+.finish-actionbar {
+  position: sticky;
+  top: 8px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--bg);
+  padding: 6px 0;
+}
+
+.finish-actionbar .finish-progress { margin: 0; }
+
 button.submit-scores-btn {
-  align-self: stretch;
-  padding: 12px 24px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding: 10px 22px;
   font-size: 1rem;
+}
+
+/* "Unavailable" look while not all boats are scored. The button stays clickable
+   on purpose so the click still surfaces the validation message explaining what
+   is missing — only the appearance is disabled. */
+button.submit-scores-btn.is-unavailable {
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+button.submit-scores-btn.is-unavailable:hover {
+  background: var(--bg-subtle);
 }
 
 @media (max-width: 900px) {
