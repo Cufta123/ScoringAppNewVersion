@@ -29,7 +29,10 @@ describe('assignBoatsToNewHeatsZigZag', () => {
       // SHRS snake pattern for 2 heats: A, B, B, A
       expect(result.map((a) => a.heatId)).toEqual([0, 1, 1, 0]);
       expect(result.map((a) => a.boatId)).toEqual([
-        'boat1', 'boat2', 'boat3', 'boat4',
+        'boat1',
+        'boat2',
+        'boat3',
+        'boat4',
       ]);
     });
 
@@ -62,12 +65,14 @@ describe('assignBoatsToNewHeatsZigZag', () => {
         2,
       );
       // With 2 heats and 4 boats: 0,1,1,0 (zig-zag: go right, repeat boundary, go left)
-      const heatIds = result.map((a) => a.heatId);
       // First boat always goes to heat 0, all boats should be assigned
       expect(result).toHaveLength(4);
       // Each boat should be present
       expect(result.map((a) => a.boatId)).toEqual([
-        'boat1', 'boat2', 'boat3', 'boat4',
+        'boat1',
+        'boat2',
+        'boat3',
+        'boat4',
       ]);
     });
 

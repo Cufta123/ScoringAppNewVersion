@@ -9,6 +9,7 @@ import './ipcHandlers/HeatRaceHandler';
 let mainWindow: BrowserWindow | null = null;
 
 if (process.env.NODE_ENV === 'production') {
+  // eslint-disable-next-line global-require
   const sourceMapSupport = require('source-map-support');
   sourceMapSupport.install();
 }
@@ -17,6 +18,7 @@ const isDebug =
   process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true';
 
 if (isDebug) {
+  // eslint-disable-next-line global-require
   require('electron-debug')();
 }
 
@@ -57,6 +59,7 @@ const applyContentSecurityPolicy = () => {
 };
 
 const installExtensions = async () => {
+  // eslint-disable-next-line global-require
   const installer = require('electron-devtools-installer');
   const forceDownload = !!process.env.UPGRADE_EXTENSIONS;
   const extensions = ['REACT_DEVELOPER_TOOLS'];
@@ -142,5 +145,6 @@ app
     app.on('activate', () => {
       if (mainWindow === null) createWindow();
     });
+    return null;
   })
   .catch(console.log);

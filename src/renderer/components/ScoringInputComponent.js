@@ -1,24 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { reportError, reportInfo } from '../utils/userFeedback';
+import {
+  POSITION_KEEPING_PENALTIES,
+  orderBoatsByPenalty,
+} from '../utils/penaltyOrder';
 import { heatRaceDB } from '../api/db';
 
-const POSITION_KEEPING_PENALTIES = new Set(['ZFP', 'SCP', 'T1']);
-// SHRS 2023 (5.3) is the primary order used by this app.
-const SHRS_PENALTY_ORDER = [
-  'DNF',
-  'RET',
-  'NSC',
-  'OCS',
-  'DNS',
-  'DNC',
-  'WTH',
-  'UFD',
-  'BFD',
-  'DSQ',
-  'DNE',
-];
-const APPENDIX_FALLBACK_PENALTY_ORDER = ['DGM', 'DPI'];
 // Plain-language labels so non-expert scorers know what each code means.
 const PENALTY_OPTIONS = [
   { value: 'ZFP', label: 'ZFP — 20% penalty (keeps finish place)' },
@@ -38,13 +26,6 @@ const PENALTY_OPTIONS = [
   { value: 'DGM', label: 'DGM — Disqualified, gross misconduct' },
   { value: 'DPI', label: 'DPI — Discretionary penalty' },
 ];
-const EFFECTIVE_PENALTY_ORDER = [
-  ...SHRS_PENALTY_ORDER,
-  ...APPENDIX_FALLBACK_PENALTY_ORDER,
-];
-const penaltyOrderIndex = new Map(
-  EFFECTIVE_PENALTY_ORDER.map((status, index) => [status, index]),
-);
 
 function ScoringInputComponent({ heat, onSubmit }) {
   const [inputValue, setInputValue] = useState('');
@@ -62,10 +43,6 @@ function ScoringInputComponent({ heat, onSubmit }) {
       numeric: true,
       sensitivity: 'base',
     });
-  const getPenaltyRank = (status) =>
-    penaltyOrderIndex.has(status)
-      ? penaltyOrderIndex.get(status)
-      : EFFECTIVE_PENALTY_ORDER.length;
   const buildPlaceNumbers = (orderedBoats) => {
     const newPlaceNumbers = {};
     orderedBoats.forEach((boat, index) => {
@@ -73,28 +50,8 @@ function ScoringInputComponent({ heat, onSubmit }) {
     });
     return newPlaceNumbers;
   };
-  const getOrderedBoatNumbers = (boats, penaltiesByBoat) => {
-    const withPosition = [];
-    const displaced = [];
-
-    boats.forEach((boatNumber) => {
-      const penalty = penaltiesByBoat[boatNumber];
-      if (!penalty || POSITION_KEEPING_PENALTIES.has(penalty)) {
-        withPosition.push(boatNumber);
-        return;
-      }
-      displaced.push(boatNumber);
-    });
-
-    displaced.sort((a, b) => {
-      const penaltyRankDiff =
-        getPenaltyRank(penaltiesByBoat[a]) - getPenaltyRank(penaltiesByBoat[b]);
-      if (penaltyRankDiff !== 0) return penaltyRankDiff;
-      return compareBoatNumbers(a, b);
-    });
-
-    return [...withPosition, ...displaced];
-  };
+  const getOrderedBoatNumbers = (boats, penaltiesByBoat) =>
+    orderBoatsByPenalty(boats, penaltiesByBoat, compareBoatNumbers);
   const isValidBoatNumber = (boatNumber) =>
     validBoats
       .map((value) => normalizeBoatNumber(value))

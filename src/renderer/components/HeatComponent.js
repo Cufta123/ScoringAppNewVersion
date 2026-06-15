@@ -9,25 +9,6 @@ import { getExcludeCount } from '../utils/leaderboardUtils';
 import { computeAdjustedFleetTotals } from '../../shared/fleetAssignment';
 import { eventDB, heatRaceDB } from '../api/db';
 
-function parseNumberCsv(value) {
-  if (!value) return [];
-  return String(value)
-    .split(',')
-    .map((entry) => Number(entry))
-    .filter((entry) => !Number.isNaN(entry));
-}
-
-function getCompletedQualifyingRaceCountFromLeaderboard(leaderboardRows) {
-  if (!Array.isArray(leaderboardRows) || leaderboardRows.length === 0) {
-    return 0;
-  }
-
-  return leaderboardRows.reduce((maxCount, row) => {
-    const racePoints = parseNumberCsv(row?.race_points);
-    return Math.max(maxCount, racePoints.length);
-  }, 0);
-}
-
 export function buildAdjustedFleetLeaderboard(
   leaderboard,
   applyShs43TemporarySecondDiscard = true,
@@ -229,85 +210,33 @@ function HeatComponent({
   const handleStartFinalSeries = async () => {
     if (finalSeriesStarted) return;
     try {
-      const allHeats = await heatRaceDB.readAllHeats(event.event_id);
-      const qualifyingHeats = allHeats.filter(
-        (heat) => heat.heat_type === 'Qualifying',
+      // SHRS eligibility (group counting, equal-race-count, Rule 4.3 window) is
+      // computed in the main process; the renderer only renders prompts.
+      const eligibility = await heatRaceDB.getFinalSeriesEligibility(
+        event.event_id,
       );
-      const uniqueGroups = new Set(
-        qualifyingHeats
-          .map((heat) => {
-            const m = heat.heat_name.match(/Heat ([A-Z])/);
-            return m ? m[1] : null;
-          })
-          .filter(Boolean),
-      );
-      const numFinalHeats = uniqueGroups.size;
-      if (numFinalHeats < 2) {
-        // Should not be reachable because the button is hidden when numQualifyingGroups < 2,
-        // but guard just in case.
-        reportInfo(
-          numFinalHeats === 0
-            ? 'No qualifying heats found. Please create heats before starting the Final Series.'
-            : 'With only one heat the event is a single-fleet event (SHRS 1.1) — no Final Series applies.',
-          'Cannot start final series',
-        );
+
+      if (!eligibility.ok) {
+        let message;
+        if (eligibility.reason === 'NO_HEATS') {
+          message =
+            'No qualifying heats found. Please create heats before starting the Final Series.';
+        } else if (eligibility.reason === 'SINGLE_FLEET') {
+          message =
+            'With only one heat the event is a single-fleet event (SHRS 1.1) — no Final Series applies.';
+        } else {
+          const breakdown = (eligibility.raceCountBreakdown || [])
+            .map((r) => `${r.name}: ${r.count} race(s)`)
+            .join('\n');
+          message = `Cannot start the Final Series — not all heats have the same number of races:\n\n${breakdown}\n\nFinish the current round first.`;
+        }
+        reportInfo(message, 'Cannot start final series');
         return;
       }
 
-      // All latest qualifying heats must have the same number of completed races
-      // before the Final Series can start — otherwise rankings are unequal.
-      const latestByGroup = qualifyingHeats.reduce((acc, heat) => {
-        const m = heat.heat_name.match(/Heat ([A-Z]+)(\d*)/);
-        if (m) {
-          const [, base, suffix] = m;
-          const num = suffix ? parseInt(suffix, 10) : 0;
-          if (!acc[base] || num > acc[base].num) {
-            acc[base] = { num, heat };
-          }
-        }
-        return acc;
-      }, {});
-      const latestHeats = Object.values(latestByGroup).map((e) => e.heat);
-      const raceCounts = await Promise.all(
-        latestHeats.map(async (heat) => {
-          const races = await heatRaceDB.readAllRaces(heat.heat_id);
-          return { name: heat.heat_name, count: races.length };
-        }),
-      );
-      const uniqueCounts = [...new Set(raceCounts.map((r) => r.count))];
-      if (uniqueCounts.length > 1) {
-        const breakdown = raceCounts
-          .map((r) => `${r.name}: ${r.count} race(s)`)
-          .join('\n');
-        reportInfo(
-          `Cannot start the Final Series — not all heats have the same number of races:\n\n${breakdown}\n\nFinish the current round first.`,
-          'Cannot start final series',
-        );
-        return;
-      }
+      const { numFinalHeats, rule43Applies } = eligibility;
 
-      // Prefer completed-race count derived from leaderboard points. This avoids
-      // missing SHRS 4.3 prompt when next-round heats/races are created but not sailed.
-      let completedQualifyingRaces = uniqueCounts[0] || 0;
-      if (
-        typeof window?.electron?.sqlite?.heatRaceDB?.readLeaderboard ===
-        'function'
-      ) {
-        try {
-          const leaderboardRows = await heatRaceDB.readLeaderboard(
-            event.event_id,
-          );
-          const fromLeaderboard =
-            getCompletedQualifyingRaceCountFromLeaderboard(leaderboardRows);
-          if (fromLeaderboard > 0) {
-            completedQualifyingRaces = fromLeaderboard;
-          }
-        } catch (_error) {
-          // Keep fallback count from latest heat race rows.
-        }
-      }
-
-      if (uniqueCounts[0] === 0) {
+      if (eligibility.noRacesCompleted) {
         const proceed = await confirmAction(
           'No qualifying races have been completed yet. Boats will be assigned to fleets based on their initial seeding only.\n\nStart the Final Series anyway?',
           'Start Final Series',
@@ -346,7 +275,7 @@ function HeatComponent({
       }
 
       let applyShs43TemporarySecondDiscard = true;
-      if (completedQualifyingRaces > 5 && completedQualifyingRaces < 8) {
+      if (rule43Applies) {
         applyShs43TemporarySecondDiscard = await confirmAction(
           "SHRS 2026-1 Rule 4.3 applies for 6-7 completed qualifying races.\n\nConfirm: Apply Rule 4.3 and temporarily exclude each boat's second worst race score only for final-fleet ranking.\nCancel: Do not apply Rule 4.3 and keep ranking without this temporary second exclusion.",
           'Apply SHRS 2026-1 Rule 4.3?',

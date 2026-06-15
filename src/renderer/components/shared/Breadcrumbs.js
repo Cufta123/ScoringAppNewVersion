@@ -9,7 +9,7 @@ function Breadcrumbs({ items }) {
       {items.map((item, index) => {
         const isLast = index === items.length - 1;
         return (
-          <span key={`${item.label}-${index}`} className="breadcrumbs-item">
+          <span key={`crumb-${item.label}`} className="breadcrumbs-item">
             {item.onClick && !isLast ? (
               <button
                 type="button"
@@ -19,7 +19,9 @@ function Breadcrumbs({ items }) {
                 {item.label}
               </button>
             ) : (
-              <span aria-current={isLast ? 'page' : undefined}>{item.label}</span>
+              <span aria-current={isLast ? 'page' : undefined}>
+                {item.label}
+              </span>
             )}
             {!isLast && <span className="breadcrumbs-separator">/</span>}
           </span>

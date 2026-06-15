@@ -23,59 +23,69 @@ jest.mock('jspdf', () => ({ jsPDF: jest.fn() }));
 jest.mock('jspdf-autotable', () => jest.fn());
 jest.mock('../renderer/utils/registerPdfUnicodeFont', () => jest.fn());
 
-jest.mock('../renderer/components/Navbar', () => ({ onBack, backLabel }) => (
-  <header>
-    <button type="button" onClick={onBack}>
-      {backLabel}
-    </button>
-  </header>
-));
+jest.mock(
+  '../renderer/components/Navbar',
+  () =>
+    function ({ onBack, backLabel }) {
+      return (
+        <header>
+          <button type="button" onClick={onBack}>
+            {backLabel}
+          </button>
+        </header>
+      );
+    },
+);
 
-jest.mock('../renderer/components/shared/Breadcrumbs', () => () => (
-  <nav>Breadcrumbs Mock</nav>
-));
+jest.mock(
+  '../renderer/components/shared/Breadcrumbs',
+  () =>
+    function () {
+      return <nav>Breadcrumbs Mock</nav>;
+    },
+);
 
-jest.mock('../renderer/components/HeatComponent', () => ({
-  onHeatSelect,
-  onStartScoring,
-  onQualifyingGroupCountChange,
-}) => {
-  React.useEffect(() => {
-    onQualifyingGroupCountChange(1);
-  }, [onQualifyingGroupCountChange]);
+jest.mock(
+  '../renderer/components/HeatComponent',
+  () =>
+    function ({ onHeatSelect, onStartScoring, onQualifyingGroupCountChange }) {
+      React.useEffect(() => {
+        onQualifyingGroupCountChange(1);
+      }, [onQualifyingGroupCountChange]);
 
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        onHeatSelect({
-          heat_id: 10,
-          heat_name: 'Heat A1',
-          heat_type: 'Qualifying',
-          boats: [
-            {
-              boat_id: 1,
-              sail_number: 101,
-              name: 'Ana',
-              surname: 'A',
-              country: 'CRO',
-            },
-            {
-              boat_id: 2,
-              sail_number: 102,
-              name: 'Bruno',
-              surname: 'B',
-              country: 'CRO',
-            },
-          ],
-        });
-        onStartScoring();
-      }}
-    >
-      Start scoring mock
-    </button>
-  );
-});
+      return (
+        <button
+          type="button"
+          onClick={() => {
+            onHeatSelect({
+              heat_id: 10,
+              heat_name: 'Heat A1',
+              heat_type: 'Qualifying',
+              boats: [
+                {
+                  boat_id: 1,
+                  sail_number: 101,
+                  name: 'Ana',
+                  surname: 'A',
+                  country: 'CRO',
+                },
+                {
+                  boat_id: 2,
+                  sail_number: 102,
+                  name: 'Bruno',
+                  surname: 'B',
+                  country: 'CRO',
+                },
+              ],
+            });
+            onStartScoring();
+          }}
+        >
+          Start scoring mock
+        </button>
+      );
+    },
+);
 
 jest.mock('../renderer/utils/userFeedback', () => ({
   confirmAction: jest.fn().mockResolvedValue(true),
@@ -129,8 +139,12 @@ describe('T1 integration: scoring flow to leaderboard display', () => {
       if (savedScores.length === 0) return [];
 
       const latestRaceId = savedScores[savedScores.length - 1].raceId;
-      const latestRaceScores = savedScores.filter((row) => row.raceId === latestRaceId);
-      const ranked = [...latestRaceScores].sort((a, b) => a.points - b.points || a.position - b.position);
+      const latestRaceScores = savedScores.filter(
+        (row) => row.raceId === latestRaceId,
+      );
+      const ranked = [...latestRaceScores].sort(
+        (a, b) => a.points - b.points || a.position - b.position,
+      );
 
       return ranked.map((row, index) => {
         const boat = boats.find((b) => b.boat_id === row.boatId);
@@ -159,7 +173,9 @@ describe('T1 integration: scoring flow to leaderboard display', () => {
         },
         heatRaceDB: {
           readAllHeats: jest.fn().mockImplementation(async () => heats),
-          readAllRaces: jest.fn().mockImplementation(async (heatId) => racesByHeat[heatId] || []),
+          readAllRaces: jest
+            .fn()
+            .mockImplementation(async (heatId) => racesByHeat[heatId] || []),
           readBoatsByHeat: jest.fn().mockResolvedValue(boats),
           getMaxHeatSize: jest.fn().mockResolvedValue(10),
           submitHeatRaceScoresAtomic: jest
@@ -191,7 +207,9 @@ describe('T1 integration: scoring flow to leaderboard display', () => {
           updateFinalLeaderboard: jest.fn().mockResolvedValue(true),
           readFinalLeaderboard: jest.fn().mockResolvedValue([]),
           readOverallLeaderboard: jest.fn().mockResolvedValue([]),
-          readLeaderboard: jest.fn().mockImplementation(async () => buildLeaderboardRows()),
+          readLeaderboard: jest
+            .fn()
+            .mockImplementation(async () => buildLeaderboardRows()),
         },
       },
     };
@@ -208,12 +226,17 @@ describe('T1 integration: scoring flow to leaderboard display', () => {
         ]}
       >
         <Routes>
-          <Route path="/event/:eventName/heat-race" element={<HeatRacePage />} />
+          <Route
+            path="/event/:eventName/heat-race"
+            element={<HeatRacePage />}
+          />
         </Routes>
       </MemoryRouter>,
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Start scoring mock' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Start scoring mock' }),
+    );
 
     fireEvent.click(await screen.findByText('Ana A'));
 
@@ -248,7 +271,10 @@ describe('T1 integration: scoring flow to leaderboard display', () => {
         ]}
       >
         <Routes>
-          <Route path="/event/:eventName/leaderboard" element={<LeaderboardPage />} />
+          <Route
+            path="/event/:eventName/leaderboard"
+            element={<LeaderboardPage />}
+          />
         </Routes>
       </MemoryRouter>,
     );

@@ -1,7 +1,7 @@
-export {};
-
 import fs from 'fs';
 import path from 'path';
+
+export {};
 
 type ParsedBoat = {
   originalRank: number;
@@ -123,7 +123,9 @@ function parseRows(table: string): ParsedBoat[] {
   return rows.map((line) => {
     const tokens = line.split(/\s+/);
     const originalRank = Number(tokens[0]);
-    const countryIndex = tokens.findIndex((token, idx) => idx > 0 && /^[A-Z]{3}$/.test(token));
+    const countryIndex = tokens.findIndex(
+      (token, idx) => idx > 0 && /^[A-Z]{3}$/.test(token),
+    );
     if (countryIndex < 2) {
       throw new Error(`Cannot parse row: ${line}`);
     }
@@ -136,7 +138,9 @@ function parseRows(table: string): ParsedBoat[] {
     const overall = Number(overallToken);
 
     const name = tokens.slice(1, countryIndex).join(' ');
-    const boatType = tokens.slice(countryIndex + 2, tokens.length - 9).join(' ');
+    const boatType = tokens
+      .slice(countryIndex + 2, tokens.length - 9)
+      .join(' ');
     const qParsed = qTokens.map(parseRaceToken);
 
     return {
@@ -156,7 +160,8 @@ function parseRows(table: string): ParsedBoat[] {
 
 function computeAdjusted(boats: ParsedBoat[]): AdjustedBoat[] {
   const adjusted = boats.map((boat) => {
-    const excludeCount = boat.qPoints.length > 5 && boat.qPoints.length < 8 ? 2 : 1;
+    const excludeCount =
+      boat.qPoints.length > 5 && boat.qPoints.length < 8 ? 2 : 1;
     const candidates = boat.qPoints
       .map((points, idx) => ({ points, idx, status: boat.qStatuses[idx] }))
       .filter((x) => !NON_EXCLUDABLE.has(x.status))
@@ -177,7 +182,10 @@ function computeAdjusted(boats: ParsedBoat[]): AdjustedBoat[] {
     };
   });
 
-  adjusted.sort((a, b) => a.adjustedPoints - b.adjustedPoints || a.originalRank - b.originalRank);
+  adjusted.sort(
+    (a, b) =>
+      a.adjustedPoints - b.adjustedPoints || a.originalRank - b.originalRank,
+  );
 
   adjusted.forEach((boat, idx) => {
     const adjustedRank = idx + 1;
@@ -206,20 +214,29 @@ describe('SHRS final fleet detailed report', () => {
     expect(parsed).toHaveLength(77);
 
     const adjusted = computeAdjusted(parsed);
-    const byOriginalRank = [...adjusted].sort((a, b) => a.originalRank - b.originalRank);
+    const byOriginalRank = [...adjusted].sort(
+      (a, b) => a.originalRank - b.originalRank,
+    );
     const marco = adjusted.find((b) => b.name === 'Marco Bagnara');
 
     expect(marco).toBeDefined();
 
     const reportLines: string[] = [];
     reportLines.push('SHRS Final Fleet Detailed Analysis (7 qualifying races)');
-    reportLines.push('Rule used for fleet split: SHRS 4.2 temporary second worst score excluded (total 2 exclusions at 7 races).');
+    reportLines.push(
+      'Rule used for fleet split: SHRS 4.2 temporary second worst score excluded (total 2 exclusions at 7 races).',
+    );
     reportLines.push('Penalty status points used in this reconstruction: 21.');
     reportLines.push('');
 
     if (marco) {
       const delta = marco.originalRank - marco.adjustedRank;
-      const movement = delta > 0 ? `up ${delta}` : delta < 0 ? `down ${Math.abs(delta)}` : 'no change';
+      const movement =
+        delta > 0
+          ? `up ${delta}`
+          : delta < 0
+            ? `down ${Math.abs(delta)}`
+            : 'no change';
       reportLines.push(
         `Marco Bagnara: original #${marco.originalRank}, adjusted #${marco.adjustedRank}, fleet ${marco.fleet}, movement ${movement}.`,
       );
@@ -242,11 +259,17 @@ describe('SHRS final fleet detailed report', () => {
       const rows = adjusted.filter((b) => b.fleet === fleet);
       reportLines.push(`${fleet} (${rows.length}):`);
       rows.forEach((b) => {
-        reportLines.push(`  #${b.adjustedRank} ${b.name} (${b.country} ${b.sail}) [orig ${b.originalRank}] pts=${b.adjustedPoints}`);
+        reportLines.push(
+          `  #${b.adjustedRank} ${b.name} (${b.country} ${b.sail}) [orig ${b.originalRank}] pts=${b.adjustedPoints}`,
+        );
       });
     });
 
-    const outPath = path.join(__dirname, 'artifacts', 'shrs.final-assignment.detailed.txt');
+    const outPath = path.join(
+      __dirname,
+      'artifacts',
+      'shrs.final-assignment.detailed.txt',
+    );
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
     fs.writeFileSync(outPath, reportLines.join('\n'), 'utf8');
 

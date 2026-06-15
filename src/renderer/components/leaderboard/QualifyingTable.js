@@ -145,8 +145,14 @@ function QualifyingTable({
                 return (
                   <th
                     key={`qh-r${i + 1}`}
-                    aria-label={colIsShared ? `Q${i + 1} shared race` : `Q${i + 1}`}
-                    title={colIsShared ? 'Shared race with compared competitor' : undefined}
+                    aria-label={
+                      colIsShared ? `Q${i + 1} shared race` : `Q${i + 1}`
+                    }
+                    title={
+                      colIsShared
+                        ? 'Shared race with compared competitor'
+                        : undefined
+                    }
                     style={{
                       textAlign: 'center',
                       padding: '7px 10px',
@@ -173,7 +179,10 @@ function QualifyingTable({
                 const v = parseFloat(String(r).replace(/[()]/g, ''));
                 return sum + (Number.isNaN(v) ? 0 : v);
               }, 0);
-              const overallNet = entry.computed_total ?? entry.total_points_event;
+              const overallNet =
+                entry.computed_total ?? entry.total_points_event;
+              const stripeBackground =
+                index % 2 === 0 ? '#fff' : 'var(--surface, #f5f7fa)';
 
               return (
                 <tr
@@ -182,9 +191,7 @@ function QualifyingTable({
                   style={{
                     background: isSelected
                       ? 'rgba(42, 157, 143, 0.15)'
-                      : index % 2 === 0
-                        ? '#fff'
-                        : 'var(--surface, #f5f7fa)',
+                      : stripeBackground,
                     borderBottom: '1px solid var(--border, #dde3ea)',
                     cursor: compareMode ? 'pointer' : 'default',
                     outline: isSelected
@@ -194,7 +201,13 @@ function QualifyingTable({
                   }}
                 >
                   {/* Rank */}
-                  <td style={{ padding: '8px 12px', fontWeight: 700, color: 'var(--navy)' }}>
+                  <td
+                    style={{
+                      padding: '8px 12px',
+                      fontWeight: 700,
+                      color: 'var(--navy)',
+                    }}
+                  >
                     {entry.place ?? index + 1}
                   </td>
 
@@ -205,8 +218,17 @@ function QualifyingTable({
 
                   {/* Country + flag */}
                   <td style={{ padding: '8px 12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Flag code={getFlagCode(entry.country)} style={{ width: '24px' }} />
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <Flag
+                        code={getFlagCode(entry.country)}
+                        style={{ width: '24px' }}
+                      />
                       {entry.country}
                     </div>
                   </td>
@@ -249,7 +271,9 @@ function QualifyingTable({
                       borderRight: '2px solid rgba(42,157,143,0.3)',
                     }}
                   >
-                    {overallNet != null && !Number.isNaN(overallNet) ? overallNet : '–'}
+                    {overallNet != null && !Number.isNaN(overallNet)
+                      ? overallNet
+                      : '–'}
                   </td>
 
                   {/* Race score cells */}
@@ -264,7 +288,7 @@ function QualifyingTable({
                         false);
                     return (
                       <ScoreCell
-                        key={`ev-${entry.boat_id}-${ri}`}
+                        key={`ev-${entry.boat_id}-${raceId}`}
                         race={race}
                         raceStatus={raceStatus}
                         raceIndex={ri}

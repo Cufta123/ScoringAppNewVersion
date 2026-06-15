@@ -53,7 +53,10 @@ function sqlContains(sql: string, fragment: string) {
 
 const dbMock = {
   prepare: jest.fn((sql: string): PrepareStatement => {
-    if (sqlContains(sql, 'SELECT COUNT(*) as cnt') && sqlContains(sql, "h.heat_type = 'Final'")) {
+    if (
+      sqlContains(sql, 'SELECT COUNT(*) as cnt') &&
+      sqlContains(sql, "h.heat_type = 'Final'")
+    ) {
       return {
         get: jest.fn(() => ({ cnt: currentScenario.completedFinalRaceCount })),
       };
@@ -65,28 +68,45 @@ const dbMock = {
       sqlContains(sql, 'overall_points')
     ) {
       return {
-        all: jest.fn(() => currentScenario.overallRows.map((row) => ({ ...row }))),
-      };
-    }
-
-    if (
-      sqlContains(sql, 'SELECT s.race_id, r.race_number, s.points, h.heat_type, h.heat_name') &&
-      sqlContains(sql, 'h.heat_type IN (\'Qualifying\', \'Final\')')
-    ) {
-      return {
-        all: jest.fn((_eventId: number, boatId: string) =>
-          (currentScenario.tieScoresByBoatId[boatId] ?? []).map((row) => ({ ...row })),
+        all: jest.fn(() =>
+          currentScenario.overallRows.map((row) => ({ ...row })),
         ),
       };
     }
 
-    if (sqlContains(sql, 'SELECT shrs_discard_profile_qualifying as discard_profile FROM Events WHERE event_id = ?')) {
+    if (
+      sqlContains(
+        sql,
+        'SELECT s.race_id, r.race_number, s.points, h.heat_type, h.heat_name',
+      ) &&
+      sqlContains(sql, "h.heat_type IN ('Qualifying', 'Final')")
+    ) {
+      return {
+        all: jest.fn((_eventId: number, boatId: string) =>
+          (currentScenario.tieScoresByBoatId[boatId] ?? []).map((row) => ({
+            ...row,
+          })),
+        ),
+      };
+    }
+
+    if (
+      sqlContains(
+        sql,
+        'SELECT shrs_discard_profile_qualifying as discard_profile FROM Events WHERE event_id = ?',
+      )
+    ) {
       return {
         get: jest.fn(() => ({ discard_profile: 'standard' })),
       };
     }
 
-    if (sqlContains(sql, 'SELECT shrs_discard_profile_final as discard_profile FROM Events WHERE event_id = ?')) {
+    if (
+      sqlContains(
+        sql,
+        'SELECT shrs_discard_profile_final as discard_profile FROM Events WHERE event_id = ?',
+      )
+    ) {
       return {
         get: jest.fn(() => ({ discard_profile: 'standard' })),
       };
@@ -98,7 +118,9 @@ const dbMock = {
       sqlContains(sql, "'Qualifying' AS placement_group")
     ) {
       return {
-        all: jest.fn(() => currentScenario.qualifyingFallbackRows.map((row) => ({ ...row }))),
+        all: jest.fn(() =>
+          currentScenario.qualifyingFallbackRows.map((row) => ({ ...row })),
+        ),
       };
     }
 
@@ -159,34 +181,178 @@ describe('HeatRaceHandler readOverallLeaderboard tie-break stress tests', () => 
 
     currentScenario.tieScoresByBoatId = {
       A: [
-        { race_id: 1, race_number: 1, points: 6, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-        { race_id: 2, race_number: 2, points: 2, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-        { race_id: 3, race_number: 3, points: 2, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-        { race_id: 4, race_number: 4, points: 2, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-        { race_id: 101, race_number: 1, points: 6, heat_type: 'Final', heat_name: 'Final Gold' },
-        { race_id: 102, race_number: 2, points: 2, heat_type: 'Final', heat_name: 'Final Gold' },
-        { race_id: 103, race_number: 3, points: 2, heat_type: 'Final', heat_name: 'Final Gold' },
-        { race_id: 104, race_number: 4, points: 2, heat_type: 'Final', heat_name: 'Final Gold' },
+        {
+          race_id: 1,
+          race_number: 1,
+          points: 6,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 2,
+          race_number: 2,
+          points: 2,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 3,
+          race_number: 3,
+          points: 2,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 4,
+          race_number: 4,
+          points: 2,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 101,
+          race_number: 1,
+          points: 6,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+        {
+          race_id: 102,
+          race_number: 2,
+          points: 2,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+        {
+          race_id: 103,
+          race_number: 3,
+          points: 2,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+        {
+          race_id: 104,
+          race_number: 4,
+          points: 2,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
       ],
       B: [
-        { race_id: 1, race_number: 1, points: 5, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-        { race_id: 2, race_number: 2, points: 3, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-        { race_id: 3, race_number: 3, points: 2, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-        { race_id: 4, race_number: 4, points: 2, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-        { race_id: 101, race_number: 1, points: 7, heat_type: 'Final', heat_name: 'Final Gold' },
-        { race_id: 102, race_number: 2, points: 2, heat_type: 'Final', heat_name: 'Final Gold' },
-        { race_id: 103, race_number: 3, points: 2, heat_type: 'Final', heat_name: 'Final Gold' },
-        { race_id: 104, race_number: 4, points: 1, heat_type: 'Final', heat_name: 'Final Gold' },
+        {
+          race_id: 1,
+          race_number: 1,
+          points: 5,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 2,
+          race_number: 2,
+          points: 3,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 3,
+          race_number: 3,
+          points: 2,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 4,
+          race_number: 4,
+          points: 2,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 101,
+          race_number: 1,
+          points: 7,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+        {
+          race_id: 102,
+          race_number: 2,
+          points: 2,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+        {
+          race_id: 103,
+          race_number: 3,
+          points: 2,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+        {
+          race_id: 104,
+          race_number: 4,
+          points: 1,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
       ],
       C: [
-        { race_id: 1, race_number: 1, points: 4, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-        { race_id: 2, race_number: 2, points: 4, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-        { race_id: 3, race_number: 3, points: 2, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-        { race_id: 4, race_number: 4, points: 2, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-        { race_id: 101, race_number: 1, points: 8, heat_type: 'Final', heat_name: 'Final Gold' },
-        { race_id: 102, race_number: 2, points: 1, heat_type: 'Final', heat_name: 'Final Gold' },
-        { race_id: 103, race_number: 3, points: 1, heat_type: 'Final', heat_name: 'Final Gold' },
-        { race_id: 104, race_number: 4, points: 2, heat_type: 'Final', heat_name: 'Final Gold' },
+        {
+          race_id: 1,
+          race_number: 1,
+          points: 4,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 2,
+          race_number: 2,
+          points: 4,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 3,
+          race_number: 3,
+          points: 2,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 4,
+          race_number: 4,
+          points: 2,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 101,
+          race_number: 1,
+          points: 8,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+        {
+          race_id: 102,
+          race_number: 2,
+          points: 1,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+        {
+          race_id: 103,
+          race_number: 3,
+          points: 1,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+        {
+          race_id: 104,
+          race_number: 4,
+          points: 2,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
       ],
     };
 
@@ -226,14 +392,62 @@ describe('HeatRaceHandler readOverallLeaderboard tie-break stress tests', () => 
     ];
 
     const identicalScores: ScoreRow[] = [
-      { race_id: 1, race_number: 1, points: 4, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-      { race_id: 2, race_number: 2, points: 1, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-      { race_id: 3, race_number: 3, points: 1, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-      { race_id: 4, race_number: 4, points: 2, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-      { race_id: 101, race_number: 1, points: 4, heat_type: 'Final', heat_name: 'Final Gold' },
-      { race_id: 102, race_number: 2, points: 1, heat_type: 'Final', heat_name: 'Final Gold' },
-      { race_id: 103, race_number: 3, points: 1, heat_type: 'Final', heat_name: 'Final Gold' },
-      { race_id: 104, race_number: 4, points: 2, heat_type: 'Final', heat_name: 'Final Gold' },
+      {
+        race_id: 1,
+        race_number: 1,
+        points: 4,
+        heat_type: 'Qualifying',
+        heat_name: 'Heat A1',
+      },
+      {
+        race_id: 2,
+        race_number: 2,
+        points: 1,
+        heat_type: 'Qualifying',
+        heat_name: 'Heat A1',
+      },
+      {
+        race_id: 3,
+        race_number: 3,
+        points: 1,
+        heat_type: 'Qualifying',
+        heat_name: 'Heat A1',
+      },
+      {
+        race_id: 4,
+        race_number: 4,
+        points: 2,
+        heat_type: 'Qualifying',
+        heat_name: 'Heat A1',
+      },
+      {
+        race_id: 101,
+        race_number: 1,
+        points: 4,
+        heat_type: 'Final',
+        heat_name: 'Final Gold',
+      },
+      {
+        race_id: 102,
+        race_number: 2,
+        points: 1,
+        heat_type: 'Final',
+        heat_name: 'Final Gold',
+      },
+      {
+        race_id: 103,
+        race_number: 3,
+        points: 1,
+        heat_type: 'Final',
+        heat_name: 'Final Gold',
+      },
+      {
+        race_id: 104,
+        race_number: 4,
+        points: 2,
+        heat_type: 'Final',
+        heat_name: 'Final Gold',
+      },
     ];
 
     currentScenario.tieScoresByBoatId = {
@@ -271,14 +485,50 @@ describe('HeatRaceHandler readOverallLeaderboard tie-break stress tests', () => 
     // Shared races have inverted race_id/race_number ordering intentionally.
     currentScenario.tieScoresByBoatId = {
       A: [
-        { race_id: 200, race_number: 1, points: 1, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-        { race_id: 100, race_number: 2, points: 3, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-        { race_id: 300, race_number: 3, points: 6, heat_type: 'Final', heat_name: 'Final Gold' },
+        {
+          race_id: 200,
+          race_number: 1,
+          points: 1,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 100,
+          race_number: 2,
+          points: 3,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 300,
+          race_number: 3,
+          points: 6,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
       ],
       B: [
-        { race_id: 200, race_number: 1, points: 3, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-        { race_id: 100, race_number: 2, points: 1, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-        { race_id: 301, race_number: 3, points: 6, heat_type: 'Final', heat_name: 'Final Gold' },
+        {
+          race_id: 200,
+          race_number: 1,
+          points: 3,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 100,
+          race_number: 2,
+          points: 1,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 301,
+          race_number: 3,
+          points: 6,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
       ],
     };
 
@@ -316,24 +566,120 @@ describe('HeatRaceHandler readOverallLeaderboard tie-break stress tests', () => 
     // (including excluded): X's worst is 9, Y's worst is 7, so Y wins.
     currentScenario.tieScoresByBoatId = {
       X: [
-        { race_id: 1, race_number: 1, points: 9, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-        { race_id: 2, race_number: 2, points: 3, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-        { race_id: 3, race_number: 3, points: 2, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-        { race_id: 4, race_number: 4, points: 1, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-        { race_id: 101, race_number: 1, points: 2, heat_type: 'Final', heat_name: 'Final Gold' },
-        { race_id: 102, race_number: 2, points: 2, heat_type: 'Final', heat_name: 'Final Gold' },
-        { race_id: 103, race_number: 3, points: 2, heat_type: 'Final', heat_name: 'Final Gold' },
-        { race_id: 104, race_number: 4, points: 1, heat_type: 'Final', heat_name: 'Final Gold' },
+        {
+          race_id: 1,
+          race_number: 1,
+          points: 9,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 2,
+          race_number: 2,
+          points: 3,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 3,
+          race_number: 3,
+          points: 2,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 4,
+          race_number: 4,
+          points: 1,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 101,
+          race_number: 1,
+          points: 2,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+        {
+          race_id: 102,
+          race_number: 2,
+          points: 2,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+        {
+          race_id: 103,
+          race_number: 3,
+          points: 2,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+        {
+          race_id: 104,
+          race_number: 4,
+          points: 1,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
       ],
       Y: [
-        { race_id: 1, race_number: 1, points: 7, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-        { race_id: 2, race_number: 2, points: 1, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-        { race_id: 3, race_number: 3, points: 2, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-        { race_id: 4, race_number: 4, points: 3, heat_type: 'Qualifying', heat_name: 'Heat A1' },
-        { race_id: 101, race_number: 1, points: 2, heat_type: 'Final', heat_name: 'Final Gold' },
-        { race_id: 102, race_number: 2, points: 1, heat_type: 'Final', heat_name: 'Final Gold' },
-        { race_id: 103, race_number: 3, points: 2, heat_type: 'Final', heat_name: 'Final Gold' },
-        { race_id: 104, race_number: 4, points: 2, heat_type: 'Final', heat_name: 'Final Gold' },
+        {
+          race_id: 1,
+          race_number: 1,
+          points: 7,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 2,
+          race_number: 2,
+          points: 1,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 3,
+          race_number: 3,
+          points: 2,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 4,
+          race_number: 4,
+          points: 3,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 101,
+          race_number: 1,
+          points: 2,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+        {
+          race_id: 102,
+          race_number: 2,
+          points: 1,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+        {
+          race_id: 103,
+          race_number: 3,
+          points: 2,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+        {
+          race_id: 104,
+          race_number: 4,
+          points: 2,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
       ],
     };
 

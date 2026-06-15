@@ -1,9 +1,9 @@
-export {};
-
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { spawnSync } from 'child_process';
+
+export {};
 
 describe('Scores unique index migration safety (temp sqlite file)', () => {
   let tempDbPath = '';

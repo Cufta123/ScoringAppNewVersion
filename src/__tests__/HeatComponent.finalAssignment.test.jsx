@@ -1,6 +1,6 @@
-jest.mock('../renderer/utils/printNewHeats', () => jest.fn());
-
 import { buildAdjustedFleetLeaderboard } from '../renderer/components/HeatComponent';
+
+jest.mock('../renderer/utils/printNewHeats', () => jest.fn());
 
 describe('HeatComponent final fleet assignment scoring', () => {
   it('uses race points (not positions) when building assignment totals', () => {

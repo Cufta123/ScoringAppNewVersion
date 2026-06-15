@@ -90,7 +90,9 @@ const dbMock = {
     if (sql.startsWith('SELECT boat_id FROM Heat_Boat WHERE heat_id')) {
       return {
         all: (heatId: number) =>
-          (state.boatsByHeat[heatId] || []).map((b) => ({ boat_id: b.boat_id })),
+          (state.boatsByHeat[heatId] || []).map((b) => ({
+            boat_id: b.boat_id,
+          })),
       };
     }
     // Seed default DNS write (status literal 'DNS').
@@ -99,19 +101,29 @@ const dbMock = {
       sql.includes("'DNS'")
     ) {
       return {
-        run: (position: number, points: number, raceId: number, boatId: number) =>
-          upsertScore(raceId, boatId, position, points, 'DNS', true),
+        run: (
+          position: number,
+          points: number,
+          raceId: number,
+          boatId: number,
+        ) => upsertScore(raceId, boatId, position, points, 'DNS', true),
       };
     }
     if (sql.includes("VALUES (?, ?, ?, ?, 'DNS')")) {
       return {
-        run: (raceId: number, boatId: number, position: number, points: number) =>
-          upsertScore(raceId, boatId, position, points, 'DNS', false),
+        run: (
+          raceId: number,
+          boatId: number,
+          position: number,
+          points: number,
+        ) => upsertScore(raceId, boatId, position, points, 'DNS', false),
       };
     }
     // Per-boat scored write (status bound).
     if (
-      sql.startsWith('UPDATE Scores SET position = ?, points = ?, status = ?') &&
+      sql.startsWith(
+        'UPDATE Scores SET position = ?, points = ?, status = ?',
+      ) &&
       sql.includes('WHERE race_id = ? AND boat_id = ?')
     ) {
       return {
@@ -136,7 +148,10 @@ const dbMock = {
       };
     }
     // Tie-scoring read of FINISHED rows.
-    if (sql.includes("status = 'FINISHED'") && sql.includes('ORDER BY position')) {
+    if (
+      sql.includes("status = 'FINISHED'") &&
+      sql.includes('ORDER BY position')
+    ) {
       return {
         all: (raceId: number) =>
           [...state.scores.values()]
@@ -145,10 +160,16 @@ const dbMock = {
             .map((s) => ({ score_id: s.score_id, position: s.position })),
       };
     }
-    if (sql.startsWith('UPDATE Scores SET position = ?, points = ? WHERE score_id = ?')) {
+    if (
+      sql.startsWith(
+        'UPDATE Scores SET position = ?, points = ? WHERE score_id = ?',
+      )
+    ) {
       return {
         run: (position: number, points: number, scoreId: number) => {
-          const row = [...state.scores.values()].find((s) => s.score_id === scoreId);
+          const row = [...state.scores.values()].find(
+            (s) => s.score_id === scoreId,
+          );
           if (row) {
             row.position = position;
             row.points = points;
@@ -157,7 +178,10 @@ const dbMock = {
         },
       };
     }
-    if (sql.includes('SELECT h.event_id, h.heat_type') && sql.includes('FROM Races r')) {
+    if (
+      sql.includes('SELECT h.event_id, h.heat_type') &&
+      sql.includes('FROM Races r')
+    ) {
       return { get: () => ({ event_id: 1, heat_type: 'Qualifying' }) };
     }
     if (sql.includes('UPDATE Events SET shrs_discard_locked_qualifying')) {
@@ -255,7 +279,7 @@ describe('submitHeatRaceScoresAtomic handler', () => {
     );
 
     expect(result).toMatchObject({ ok: true, raceNumber: 1 });
-    const raceId = result.raceId;
+    const { raceId } = result;
 
     // FINISHED winner keeps place 1 / 1 point (after tie scoring).
     expect(scoreForBoat(raceId, 1)).toMatchObject({

@@ -74,9 +74,7 @@ export default function calculateFinalBoatScores(
   results.forEach((result) => {
     const { boat_id, heat_name } = result;
     const groupNameMatch =
-      typeof heat_name === 'string'
-        ? heat_name.match(/^Final\s+(.+)$/i)
-        : null;
+      typeof heat_name === 'string' ? heat_name.match(/^Final\s+(.+)$/i) : null;
     const groupName = groupNameMatch?.[1] ?? String(heat_name);
 
     if (!groupTables.has(groupName)) {
@@ -116,7 +114,7 @@ export default function calculateFinalBoatScores(
       {} as Record<number, string[]>,
     );
 
-    Object.entries(boatsWithSamePoints).forEach(([totalPoints, boatIds]) => {
+    Object.entries(boatsWithSamePoints).forEach(([, boatIds]) => {
       if (boatIds.length > 1) {
         const sortedScores: TieCandidate[] = boatIds.map((boat_id) => {
           const boatHeatName =
@@ -126,9 +124,7 @@ export default function calculateFinalBoatScores(
           const a82Scores = getScoresForA82(event_id, boat_id, boatHeatName);
           const allScoresForA81 = scoreEntries
             .map((entry) => entry.points)
-            .sort(
-            (a: number, b: number) => a - b,
-          );
+            .sort((a: number, b: number) => a - b);
           return {
             boat_id,
             heat_name: boatHeatName,

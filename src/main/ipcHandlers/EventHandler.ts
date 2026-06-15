@@ -17,7 +17,9 @@ const allowedHeatOverflowPolicies = new Set([
 ]);
 
 const normalizeAssignmentMode = (value: unknown): string => {
-  const normalized = String(value ?? 'progressive').trim().toLowerCase();
+  const normalized = String(value ?? 'progressive')
+    .trim()
+    .toLowerCase();
   if (!allowedAssignmentModes.has(normalized)) {
     return 'progressive';
   }
@@ -25,7 +27,9 @@ const normalizeAssignmentMode = (value: unknown): string => {
 };
 
 const normalizeHeatOverflowPolicy = (value: unknown): string => {
-  const normalized = String(value ?? 'auto-increase').trim().toLowerCase();
+  const normalized = String(value ?? 'auto-increase')
+    .trim()
+    .toLowerCase();
   if (!allowedHeatOverflowPolicies.has(normalized)) {
     return 'auto-increase';
   }
@@ -304,7 +308,9 @@ ipcMain.handle('deleteEvent', async (event, event_id) => {
 
       // Delete Leaderboard and FinalLeaderboard entries
       db.prepare('DELETE FROM Leaderboard WHERE event_id = ?').run(event_id);
-      db.prepare('DELETE FROM FinalLeaderboard WHERE event_id = ?').run(event_id);
+      db.prepare('DELETE FROM FinalLeaderboard WHERE event_id = ?').run(
+        event_id,
+      );
 
       // Finally delete the event itself
       db.prepare('DELETE FROM Events WHERE event_id = ?').run(event_id);

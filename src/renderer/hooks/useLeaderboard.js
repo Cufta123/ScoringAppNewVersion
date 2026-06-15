@@ -224,8 +224,13 @@ export default function useLeaderboard(eventId) {
                 (e) => String(e.boat_id) === String(res.winnerBoatId),
               ) || null
             : null;
+        // Race IDs are strings in the leaderboard rows (CSV-split), so the
+        // shared-race highlight sets must be strings to match table cells.
         const sharedIds = new Set(
-          (res.sharedRacePairs || []).map((pair) => pair.raceId),
+          (res.sharedRacePairs || []).map((pair) => String(pair.raceId)),
+        );
+        const sharedQualIds = new Set(
+          (res.sharedQualRacePairs || []).map((pair) => String(pair.raceId)),
         );
         setCompareInfo({
           boatA,
@@ -246,6 +251,7 @@ export default function useLeaderboard(eventId) {
           sharedRacePairs: res.sharedRacePairs || [],
           sharedQualRacePairs: res.sharedQualRacePairs || [],
           sharedIds,
+          sharedQualIds,
           otherTiedCount,
           tiedGroupEntries,
         });

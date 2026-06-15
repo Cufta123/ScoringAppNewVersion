@@ -39,7 +39,10 @@ const dbMock = {
       sqlContains(sql, 'FROM Races r')
     ) {
       return {
-        get: jest.fn(() => ({ event_id: currentScenario.eventId, heat_type: currentScenario.heatType })),
+        get: jest.fn(() => ({
+          event_id: currentScenario.eventId,
+          heat_type: currentScenario.heatType,
+        })),
       };
     }
 
@@ -48,7 +51,10 @@ const dbMock = {
       sqlContains(sql, 'JOIN Races r ON r.heat_id = h.heat_id')
     ) {
       return {
-        get: jest.fn(() => ({ heat_id: 77, heat_type: currentScenario.heatType })),
+        get: jest.fn(() => ({
+          heat_id: 77,
+          heat_type: currentScenario.heatType,
+        })),
       };
     }
 
@@ -87,20 +93,33 @@ const dbMock = {
 
     if (
       sqlContains(sql, 'FROM Heat_Boat hb') &&
-      sqlContains(sql, 'LEFT JOIN Scores sc ON sc.race_id = ? AND sc.boat_id = hb.boat_id')
+      sqlContains(
+        sql,
+        'LEFT JOIN Scores sc ON sc.race_id = ? AND sc.boat_id = hb.boat_id',
+      )
     ) {
       return {
         all: jest.fn(() => []),
       };
     }
 
-    if (sqlContains(sql, 'UPDATE Events SET shrs_discard_locked_qualifying = 1 WHERE event_id = ?')) {
+    if (
+      sqlContains(
+        sql,
+        'UPDATE Events SET shrs_discard_locked_qualifying = 1 WHERE event_id = ?',
+      )
+    ) {
       return {
         run: jest.fn(() => ({ changes: 1 })),
       };
     }
 
-    if (sqlContains(sql, 'UPDATE Events SET shrs_discard_locked_final = 1 WHERE event_id = ?')) {
+    if (
+      sqlContains(
+        sql,
+        'UPDATE Events SET shrs_discard_locked_final = 1 WHERE event_id = ?',
+      )
+    ) {
       return {
         run: jest.fn(() => ({ changes: 1 })),
       };
@@ -115,7 +134,12 @@ const dbMock = {
       };
     }
 
-    if (sqlContains(sql, 'INSERT INTO Leaderboard (boat_id, total_points_event, event_id, place)')) {
+    if (
+      sqlContains(
+        sql,
+        'INSERT INTO Leaderboard (boat_id, total_points_event, event_id, place)',
+      )
+    ) {
       return {
         run: jest.fn((...args: any[]) => {
           runCalls.push({ sql, args });
@@ -141,7 +165,11 @@ const dbMock = {
 
     throw new Error(`Unhandled SQL in test mock: ${sql}`);
   }),
-  transaction: jest.fn((cb: (...args: any[]) => any) => (...args: any[]) => cb(...args)),
+  transaction: jest.fn(
+    (cb: (...args: any[]) => any) =>
+      (...args: any[]) =>
+        cb(...args),
+  ),
 };
 
 jest.mock('../../public/Database/DBManager', () => ({
@@ -196,7 +224,10 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     await handler({}, 99, 500, 'B1', 3, false, 'ZFP');
 
     const updateMain = runCalls.find((call) =>
-      sqlContains(call.sql, 'UPDATE Scores SET position = ?, points = ?, status = ?'),
+      sqlContains(
+        call.sql,
+        'UPDATE Scores SET position = ?, points = ?, status = ?',
+      ),
     );
     expect(updateMain).toBeDefined();
     // maxBoats=10 -> 20% = 2 places, ZFP points = 3 + 2 = 5
@@ -209,7 +240,10 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     await handler({}, 99, 500, 'B1', 5, false, 'SCP');
 
     const updateMain = runCalls.find((call) =>
-      sqlContains(call.sql, 'UPDATE Scores SET position = ?, points = ?, status = ?'),
+      sqlContains(
+        call.sql,
+        'UPDATE Scores SET position = ?, points = ?, status = ?',
+      ),
     );
     // maxBoats=5 -> 20% = 1 place => 5+1=6, equals cap maxBoats+1
     expect(updateMain?.args.slice(0, 3)).toEqual([5, 6, 'SCP']);
@@ -221,7 +255,10 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     await handler({}, 99, 500, 'B1', 2, false, 'ZFP');
 
     const updateMain = runCalls.find((call) =>
-      sqlContains(call.sql, 'UPDATE Scores SET position = ?, points = ?, status = ?'),
+      sqlContains(
+        call.sql,
+        'UPDATE Scores SET position = ?, points = ?, status = ?',
+      ),
     );
     // maxBoats=5 -> 20% = 1 place (no min-2 floor), ZFP points = 2 + 1 = 3
     expect(updateMain?.args.slice(0, 3)).toEqual([2, 3, 'ZFP']);
@@ -232,7 +269,10 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     await handler({}, 99, 500, 'B1', 4, false, 'T1');
 
     const updateMain = runCalls.find((call) =>
-      sqlContains(call.sql, 'UPDATE Scores SET position = ?, points = ?, status = ?'),
+      sqlContains(
+        call.sql,
+        'UPDATE Scores SET position = ?, points = ?, status = ?',
+      ),
     );
     // maxBoats=10 -> 30% = 3 places, T1 points = 4 + 3 = 7
     expect(updateMain?.args.slice(0, 3)).toEqual([4, 7, 'T1']);
@@ -244,7 +284,10 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     await handler({}, 99, 500, 'B1', 2, false, 'RAF');
 
     const updateMain = runCalls.find((call) =>
-      sqlContains(call.sql, 'UPDATE Scores SET position = ?, points = ?, status = ?'),
+      sqlContains(
+        call.sql,
+        'UPDATE Scores SET position = ?, points = ?, status = ?',
+      ),
     );
     expect(updateMain?.args.slice(0, 3)).toEqual([11, 11, 'RET']);
   });
@@ -257,7 +300,10 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     await handler({}, 99, 500, 'B1', 4, false, 'DSQ');
 
     const shiftCall = runCalls.find((call) =>
-      sqlContains(call.sql, 'WHERE race_id = ? AND status = \'FINISHED\' AND position > ?'),
+      sqlContains(
+        call.sql,
+        "WHERE race_id = ? AND status = 'FINISHED' AND position > ?",
+      ),
     );
     expect(shiftCall).toBeDefined();
     expect(shiftCall?.args).toEqual([500, 4]);
@@ -271,7 +317,10 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     await handler({}, 99, 500, 'B1', 2, false, 'RET');
 
     const shiftCall = runCalls.find((call) =>
-      sqlContains(call.sql, 'WHERE race_id = ? AND status = \'FINISHED\' AND position > ?'),
+      sqlContains(
+        call.sql,
+        "WHERE race_id = ? AND status = 'FINISHED' AND position > ?",
+      ),
     );
     expect(shiftCall).toBeDefined();
     expect(shiftCall?.args).toEqual([500, 2]);
@@ -285,7 +334,10 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     await handler({}, 99, 500, 'B1', 3, false, 'DNE');
 
     const shiftCall = runCalls.find((call) =>
-      sqlContains(call.sql, 'WHERE race_id = ? AND status = \'FINISHED\' AND position > ?'),
+      sqlContains(
+        call.sql,
+        "WHERE race_id = ? AND status = 'FINISHED' AND position > ?",
+      ),
     );
     expect(shiftCall).toBeDefined();
     expect(shiftCall?.args).toEqual([500, 3]);
@@ -299,7 +351,10 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     await handler({}, 99, 500, 'B1', 5, false, 'DGM');
 
     const shiftCall = runCalls.find((call) =>
-      sqlContains(call.sql, 'WHERE race_id = ? AND status = \'FINISHED\' AND position > ?'),
+      sqlContains(
+        call.sql,
+        "WHERE race_id = ? AND status = 'FINISHED' AND position > ?",
+      ),
     );
     expect(shiftCall).toBeDefined();
     expect(shiftCall?.args).toEqual([500, 5]);
@@ -313,7 +368,10 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     await handler({}, 99, 500, 'B1', 3, false, 'DSQ');
 
     const shiftCall = runCalls.find((call) =>
-      sqlContains(call.sql, 'WHERE race_id = ? AND status = \'FINISHED\' AND position > ?'),
+      sqlContains(
+        call.sql,
+        "WHERE race_id = ? AND status = 'FINISHED' AND position > ?",
+      ),
     );
     expect(shiftCall).toBeUndefined();
   });
@@ -326,7 +384,10 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     await handler({}, 99, 500, 'B1', 4, false, 'DPI');
 
     const shiftCall = runCalls.find((call) =>
-      sqlContains(call.sql, 'WHERE race_id = ? AND status = \'FINISHED\' AND position > ?'),
+      sqlContains(
+        call.sql,
+        "WHERE race_id = ? AND status = 'FINISHED' AND position > ?",
+      ),
     );
     expect(shiftCall).toBeUndefined();
   });
@@ -365,7 +426,10 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     await handler({}, 99, 500, 'B1', 8, false, 'RDG2');
 
     const updateMain = runCalls.find((call) =>
-      sqlContains(call.sql, 'UPDATE Scores SET position = ?, points = ?, status = ?'),
+      sqlContains(
+        call.sql,
+        'UPDATE Scores SET position = ?, points = ?, status = ?',
+      ),
     );
     expect(updateMain?.args.slice(0, 3)).toEqual([8, 8, 'RDG2']);
   });
@@ -439,7 +503,10 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
       await handler({}, 99, 500, 'B1', newPosition, false, newStatus);
 
       const hasMandatoryShift = runCalls.some((call) =>
-        sqlContains(call.sql, 'WHERE race_id = ? AND status = \'FINISHED\' AND position > ?'),
+        sqlContains(
+          call.sql,
+          "WHERE race_id = ? AND status = 'FINISHED' AND position > ?",
+        ),
       );
 
       const expectedShift =
@@ -514,7 +581,10 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
       await handler({}, 99, 500, 'B1', newPosition, false, newStatus);
 
       const shiftCalls = runCalls.filter((call) =>
-        sqlContains(call.sql, 'WHERE race_id = ? AND status = \'FINISHED\' AND position > ?'),
+        sqlContains(
+          call.sql,
+          "WHERE race_id = ? AND status = 'FINISHED' AND position > ?",
+        ),
       );
 
       const expectedShift =
@@ -543,7 +613,10 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     await handler({}, 99, 500, 'B1', 1, false, 'FINISHED');
 
     const tieUpdateCalls = runCalls.filter((call) =>
-      sqlContains(call.sql, 'UPDATE Scores SET position = ?, points = ? WHERE score_id = ?'),
+      sqlContains(
+        call.sql,
+        'UPDATE Scores SET position = ?, points = ? WHERE score_id = ?',
+      ),
     );
 
     expect(tieUpdateCalls).toEqual(
@@ -566,5 +639,4 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     expect(selectSql).toContain('ORDER BY score_id DESC');
     expect(selectSql).toContain('LIMIT 1');
   });
-
 });

@@ -33,7 +33,13 @@ function setupMockDb(
   scoresA81: Record<
     string,
     Array<
-      number | { points: number; status?: string; race_id?: number; race_number?: number }
+      | number
+      | {
+          points: number;
+          status?: string;
+          race_id?: number;
+          race_number?: number;
+        }
     >
   >,
   scoresA82: Record<string, number[]> = {},
@@ -42,7 +48,11 @@ function setupMockDb(
     Array<{ race_id: number; race_number: number; points: number }>
   > = {},
   discardConfig:
-    | { firstDiscardAt: number; secondDiscardAt: number; additionalEvery: number }
+    | {
+        firstDiscardAt: number;
+        secondDiscardAt: number;
+        additionalEvery: number;
+      }
     | { thresholds: number[] } = {
     firstDiscardAt: 4,
     secondDiscardAt: 8,
@@ -51,7 +61,11 @@ function setupMockDb(
 ) {
   mockPrepare.mockImplementation((sql: string) => ({
     get: (_eventId: unknown) => {
-      if (sql.includes('SELECT shrs_discard_profile_qualifying as discard_profile')) {
+      if (
+        sql.includes(
+          'SELECT shrs_discard_profile_qualifying as discard_profile',
+        )
+      ) {
         return { discard_profile: JSON.stringify(discardConfig) };
       }
       return undefined;
@@ -265,7 +279,9 @@ describe('Basic ranking (no ties)', () => {
       makeResult('boatC', 1),
       makeResult('boatD', 1),
     ]);
-    const places = Object.values(result).map((r) => r.place).sort((a, b) => a - b);
+    const places = Object.values(result)
+      .map((r) => r.place)
+      .sort((a, b) => a - b);
     expect(places).toEqual([1, 2, 3, 4]);
   });
 
@@ -373,11 +389,6 @@ describe('Tie-breaking A82 (compare latest race backward)', () => {
         boatC: [4, 4], // oldest = 4 → race1=4
       },
     );
-    const result = run([
-      makeResult('boatA', 2),
-      makeResult('boatB', 2),
-      makeResult('boatC', 2),
-    ]);
     // All have total 6, A81 same... but wait, boatA [4,2] sorted=[2,4], boatB [4,3] sorted=[3,4] → differ!
     // Let me re-examine: boatA [4,2] total=6 sorted=[2,4]
     //                    boatB [4,3] total=7 sorted=[3,4] — NOT a tie on total!
@@ -677,10 +688,10 @@ describe('Mixed scenario: some boats tied, some not', () => {
     // boatC total 5, sorted ASC [4,1]=[1,4] – loses tie to boatB
     // boatD total 9 – overall last
     setupMockDb({
-      boatA: [2, 1],  // total 3, sorted [1,2]
-      boatB: [3, 2],  // total 5, sorted [2,3]
-      boatC: [4, 1],  // total 5, sorted [1,4]
-      boatD: [5, 4],  // total 9
+      boatA: [2, 1], // total 3, sorted [1,2]
+      boatB: [3, 2], // total 5, sorted [2,3]
+      boatC: [4, 1], // total 5, sorted [1,4]
+      boatD: [5, 4], // total 9
     });
     const result = run([
       makeResult('boatA', 2),

@@ -16,7 +16,10 @@ type Scenario = {
   latestHeats: { heat_name: string; heat_id: number }[];
   raceCountByHeatId: Record<number, number>;
   latestRaceByHeatId: Record<number, { race_id: number; race_number: number }>;
-  boatsByHeatId?: Record<number, { boat_id: string; country: string; sail_number: number }[]>;
+  boatsByHeatId?: Record<
+    number,
+    { boat_id: string; country: string; sail_number: number }[]
+  >;
   rankedRowsByHeatId: Record<
     number,
     {
@@ -56,11 +59,18 @@ function sqlContains(sql: string, fragment: string) {
 const dbMock = {
   prepare: jest.fn((sql: string): PrepareStatement => {
     if (
-      sqlContains(sql, 'SELECT shrs_discard_profile_qualifying as discard_profile FROM Events WHERE event_id = ?')
+      sqlContains(
+        sql,
+        'SELECT shrs_discard_profile_qualifying as discard_profile FROM Events WHERE event_id = ?',
+      )
     ) {
       return {
         get: jest.fn(() => ({
-          discard_profile: JSON.stringify({ firstDiscardAt: 4, secondDiscardAt: 8, additionalEvery: 8 }),
+          discard_profile: JSON.stringify({
+            firstDiscardAt: 4,
+            secondDiscardAt: 8,
+            additionalEvery: 8,
+          }),
         })),
       };
     }
@@ -71,13 +81,16 @@ const dbMock = {
     ) {
       return {
         get: jest.fn((race_id: number) => {
-          const raceByHeat = Object.entries(currentScenario.latestRaceByHeatId).find(
-            ([, race]) => race.race_id === race_id,
-          );
+          const raceByHeat = Object.entries(
+            currentScenario.latestRaceByHeatId,
+          ).find(([, race]) => race.race_id === race_id);
           if (!raceByHeat) {
             return undefined;
           }
-          return { heat_id: Number(raceByHeat[0]), heat_type: currentScenario.heatType };
+          return {
+            heat_id: Number(raceByHeat[0]),
+            heat_type: currentScenario.heatType,
+          };
         }),
       };
     }
@@ -87,7 +100,10 @@ const dbMock = {
       sqlContains(sql, 'FROM Races r')
     ) {
       return {
-        get: jest.fn(() => ({ event_id: currentScenario.eventId, heat_type: currentScenario.heatType })),
+        get: jest.fn(() => ({
+          event_id: currentScenario.eventId,
+          heat_type: currentScenario.heatType,
+        })),
       };
     }
 
@@ -116,13 +132,23 @@ const dbMock = {
       };
     }
 
-    if (sqlContains(sql, 'UPDATE Events SET shrs_discard_locked_qualifying = 1 WHERE event_id = ?')) {
+    if (
+      sqlContains(
+        sql,
+        'UPDATE Events SET shrs_discard_locked_qualifying = 1 WHERE event_id = ?',
+      )
+    ) {
       return {
         run: jest.fn(() => ({ changes: 1 })),
       };
     }
 
-    if (sqlContains(sql, 'UPDATE Events SET shrs_discard_locked_final = 1 WHERE event_id = ?')) {
+    if (
+      sqlContains(
+        sql,
+        'UPDATE Events SET shrs_discard_locked_final = 1 WHERE event_id = ?',
+      )
+    ) {
       return {
         run: jest.fn(() => ({ changes: 1 })),
       };
@@ -140,7 +166,12 @@ const dbMock = {
       };
     }
 
-    if (sqlContains(sql, 'INSERT INTO Leaderboard (boat_id, total_points_event, event_id, place)')) {
+    if (
+      sqlContains(
+        sql,
+        'INSERT INTO Leaderboard (boat_id, total_points_event, event_id, place)',
+      )
+    ) {
       return {
         run: jest.fn(() => ({ changes: 1 })),
       };
@@ -149,11 +180,16 @@ const dbMock = {
     if (sql.toUpperCase().includes('UPDATE SCORES SET')) {
       return {
         run: jest.fn((...args: any[]) => {
-          if (sqlContains(sql, 'UPDATE Scores SET position = ?, points = ?, status = ? WHERE race_id = ? AND boat_id = ?')) {
+          if (
+            sqlContains(
+              sql,
+              'UPDATE Scores SET position = ?, points = ?, status = ? WHERE race_id = ? AND boat_id = ?',
+            )
+          ) {
             const [position, _points, status, race_id, boat_id] = args;
-            const sourceHeat = Object.entries(currentScenario.latestRaceByHeatId).find(
-              ([, race]) => race.race_id === race_id,
-            );
+            const sourceHeat = Object.entries(
+              currentScenario.latestRaceByHeatId,
+            ).find(([, race]) => race.race_id === race_id);
             if (sourceHeat) {
               const heatId = Number(sourceHeat[0]);
               const rows = currentScenario.rankedRowsByHeatId[heatId] || [];
@@ -165,11 +201,15 @@ const dbMock = {
                   status,
                 };
                 // Simulate post-race protest impact that would normally reshuffle ordering.
-                currentScenario.rankedRowsByHeatId[heatId] = [...rows].sort((a, b) => {
-                  const aPos = a.position == null ? Number.MAX_SAFE_INTEGER : a.position;
-                  const bPos = b.position == null ? Number.MAX_SAFE_INTEGER : b.position;
-                  return aPos - bPos;
-                });
+                currentScenario.rankedRowsByHeatId[heatId] = [...rows].sort(
+                  (a, b) => {
+                    const aPos =
+                      a.position == null ? Number.MAX_SAFE_INTEGER : a.position;
+                    const bPos =
+                      b.position == null ? Number.MAX_SAFE_INTEGER : b.position;
+                    return aPos - bPos;
+                  },
+                );
               }
             }
           }
@@ -202,7 +242,12 @@ const dbMock = {
       };
     }
 
-    if (sqlContains(sql, 'SELECT COUNT(*) as race_count FROM Races WHERE heat_id = ?')) {
+    if (
+      sqlContains(
+        sql,
+        'SELECT COUNT(*) as race_count FROM Races WHERE heat_id = ?',
+      )
+    ) {
       return {
         get: jest.fn((heat_id: number) => ({
           race_count: currentScenario.raceCountByHeatId[heat_id] ?? 0,
@@ -216,14 +261,19 @@ const dbMock = {
       sqlContains(sql, 'LIMIT 1')
     ) {
       return {
-        get: jest.fn((heat_id: number) => currentScenario.latestRaceByHeatId[heat_id]),
+        get: jest.fn(
+          (heat_id: number) => currentScenario.latestRaceByHeatId[heat_id],
+        ),
       };
     }
 
     if (
       sqlContains(sql, 'FROM Heat_Boat hb') &&
       sqlContains(sql, 'JOIN Boats b ON b.boat_id = hb.boat_id') &&
-      sqlContains(sql, 'ORDER BY b.country ASC, b.sail_number ASC, hb.boat_id ASC')
+      sqlContains(
+        sql,
+        'ORDER BY b.country ASC, b.sail_number ASC, hb.boat_id ASC',
+      )
     ) {
       return {
         all: jest.fn((heat_id: number) => {
@@ -235,7 +285,10 @@ const dbMock = {
 
     if (
       sqlContains(sql, 'FROM Heat_Boat hb') &&
-      sqlContains(sql, 'LEFT JOIN Scores sc ON sc.race_id = ? AND sc.boat_id = hb.boat_id')
+      sqlContains(
+        sql,
+        'LEFT JOIN Scores sc ON sc.race_id = ? AND sc.boat_id = hb.boat_id',
+      )
     ) {
       return {
         all: jest.fn((race_id: number, heat_id: number) => {
@@ -252,15 +305,19 @@ const dbMock = {
       )
     ) {
       return {
-        run: jest.fn((event_id: number, heat_name: string, heat_type: string) => {
-          const new_heat_id = 200 + insertedHeats.length;
-          insertedHeats.push({ event_id, heat_name, heat_type, new_heat_id });
-          return { lastInsertRowid: new_heat_id, changes: 1 };
-        }),
+        run: jest.fn(
+          (event_id: number, heat_name: string, heat_type: string) => {
+            const new_heat_id = 200 + insertedHeats.length;
+            insertedHeats.push({ event_id, heat_name, heat_type, new_heat_id });
+            return { lastInsertRowid: new_heat_id, changes: 1 };
+          },
+        ),
       };
     }
 
-    if (sqlContains(sql, 'INSERT INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)')) {
+    if (
+      sqlContains(sql, 'INSERT INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)')
+    ) {
       return {
         run: jest.fn((heat_id: number, boat_id: string) => {
           insertedHeatBoats.push({ heat_id, boat_id });
@@ -271,7 +328,11 @@ const dbMock = {
 
     throw new Error(`Unhandled SQL in test mock: ${sql}`);
   }),
-  transaction: jest.fn((cb: (...args: any[]) => any) => (...args: any[]) => cb(...args)),
+  transaction: jest.fn(
+    (cb: (...args: any[]) => any) =>
+      (...args: any[]) =>
+        cb(...args),
+  ),
 };
 
 jest.mock('../../public/Database/DBManager', () => ({
@@ -555,7 +616,7 @@ describe('HeatRaceHandler createNewHeatsBasedOnLeaderboard', () => {
       },
     ];
 
-    const updateRaceResult = handlerRegistry.updateRaceResult;
+    const { updateRaceResult } = handlerRegistry;
     await updateRaceResult(
       {},
       555,
@@ -596,20 +657,26 @@ describe('HeatRaceHandler createNewHeatsBasedOnLeaderboard', () => {
       20: { race_id: raceIdOffset + 20, race_number: 2 },
     };
 
-    currentScenario.rankedRowsByHeatId[10] = Array.from({ length: 7 }, (_v, i) => ({
-      boat_id: `A${i + 1}`,
-      position: i + 1,
-      status: 'FINISHED',
-      country: 'CRO',
-      sail_number: i + 1,
-    }));
-    currentScenario.rankedRowsByHeatId[20] = Array.from({ length: 7 }, (_v, i) => ({
-      boat_id: `B${i + 1}`,
-      position: i + 1,
-      status: 'FINISHED',
-      country: 'AUS',
-      sail_number: i + 1,
-    }));
+    currentScenario.rankedRowsByHeatId[10] = Array.from(
+      { length: 7 },
+      (_v, i) => ({
+        boat_id: `A${i + 1}`,
+        position: i + 1,
+        status: 'FINISHED',
+        country: 'CRO',
+        sail_number: i + 1,
+      }),
+    );
+    currentScenario.rankedRowsByHeatId[20] = Array.from(
+      { length: 7 },
+      (_v, i) => ({
+        boat_id: `B${i + 1}`,
+        position: i + 1,
+        status: 'FINISHED',
+        country: 'AUS',
+        sail_number: i + 1,
+      }),
+    );
 
     const handler = handlerRegistry.createNewHeatsBasedOnLeaderboard;
     const result = await handler({}, 555);

@@ -437,4 +437,72 @@ describe('useLeaderboard scoring/edit flow', () => {
       result.current.compareInfo.tiedGroupEntries.map((row) => row.boat_id),
     ).toEqual(['b1', 'b2', 'b3']);
   });
+
+  it('exposes shared-race ids as strings so leaderboard cells highlight', async () => {
+    window.electron.sqlite.heatRaceDB.readLeaderboard.mockResolvedValueOnce([
+      {
+        boat_id: 'b1',
+        name: 'Ana',
+        surname: 'A',
+        country: 'CRO',
+        boat_number: '101',
+        boat_type: 'IOM',
+        place: 1,
+        total_points_event: 5,
+        race_positions: '1,4',
+        race_points: '1,4',
+        race_ids: '101,102',
+        race_statuses: 'FINISHED,FINISHED',
+      },
+      {
+        boat_id: 'b2',
+        name: 'Bruno',
+        surname: 'B',
+        country: 'CRO',
+        boat_number: '102',
+        boat_type: 'IOM',
+        place: 2,
+        total_points_event: 5,
+        race_positions: '2,3',
+        race_points: '2,3',
+        race_ids: '101,102',
+        race_statuses: 'FINISHED,FINISHED',
+      },
+    ]);
+
+    // Backend returns numeric race ids; the hook must coerce them to strings so
+    // they match the CSV-split (string) race_ids the leaderboard cells use.
+    window.electron.sqlite.heatRaceDB.explainTieBreak.mockResolvedValueOnce({
+      tied: true,
+      totalA: 5,
+      totalB: 5,
+      winnerBoatId: 'b1',
+      route: { rule: 'SHRS 5.7(i)', note: '' },
+      steps: [],
+      raceGrid: [],
+      sharedRacePairs: [
+        { raceId: 101, displayA: 1, displayB: 2 },
+        { raceId: 102, displayA: 4, displayB: 3 },
+      ],
+      sharedQualRacePairs: [{ raceId: 101, displayA: 1, displayB: 2 }],
+    });
+
+    const { result } = renderHook(() => useLeaderboard(91));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => {
+      result.current.setCompareMode(true);
+    });
+    act(() => {
+      result.current.handleCompareRowClick('b1');
+      result.current.handleCompareRowClick('b2');
+    });
+
+    await waitFor(() => expect(result.current.compareInfo).not.toBeNull());
+    const { sharedIds, sharedQualIds } = result.current.compareInfo;
+    expect(sharedIds.has('101')).toBe(true);
+    expect(sharedIds.has('102')).toBe(true);
+    expect(sharedIds.has(101)).toBe(false); // not numbers
+    expect(sharedQualIds.has('101')).toBe(true);
+  });
 });

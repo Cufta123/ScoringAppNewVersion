@@ -56,6 +56,20 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
       .fn()
       .mockResolvedValue({ success: true, createdHeats: 2, assignedBoats: 4 });
     const readLeaderboard = jest.fn().mockResolvedValue([]);
+    // Eligibility is computed in the main process; the renderer only renders
+    // prompts from it. Default: two fleets, one completed race, no Rule 4.3.
+    const getFinalSeriesEligibility = jest.fn().mockResolvedValue({
+      ok: true,
+      reason: 'OK',
+      numFinalHeats: 2,
+      completedQualifyingRaces: 1,
+      rule43Applies: false,
+      noRacesCompleted: false,
+      raceCountBreakdown: [
+        { name: 'Heat A1', count: 1 },
+        { name: 'Heat B1', count: 1 },
+      ],
+    });
 
     window.electron = {
       sqlite: {
@@ -65,6 +79,7 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
           readAllRaces,
           readLeaderboard,
           startFinalSeriesAtomic,
+          getFinalSeriesEligibility,
         },
       },
     };
@@ -116,11 +131,9 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
       ).toHaveBeenCalledTimes(1);
     });
 
-    expect(window.electron.sqlite.heatRaceDB.startFinalSeriesAtomic).toHaveBeenCalledWith(
-      77,
-      false,
-      true,
-    );
+    expect(
+      window.electron.sqlite.heatRaceDB.startFinalSeriesAtomic,
+    ).toHaveBeenCalledWith(77, false, true);
 
     expect(reportErrorMock).not.toHaveBeenCalled();
     expect(reportInfoMock).toHaveBeenCalledWith(
@@ -130,16 +143,20 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
   });
 
   it('asks for SHRS 2026-1 Rule 4.3 choice at 6 races and applies it when confirmed', async () => {
-    window.electron.sqlite.heatRaceDB.readAllRaces = jest
+    window.electron.sqlite.heatRaceDB.getFinalSeriesEligibility = jest
       .fn()
-      .mockResolvedValue([
-        { race_id: 301, race_number: 1 },
-        { race_id: 302, race_number: 2 },
-        { race_id: 303, race_number: 3 },
-        { race_id: 304, race_number: 4 },
-        { race_id: 305, race_number: 5 },
-        { race_id: 306, race_number: 6 },
-      ]);
+      .mockResolvedValue({
+        ok: true,
+        reason: 'OK',
+        numFinalHeats: 2,
+        completedQualifyingRaces: 6,
+        rule43Applies: true,
+        noRacesCompleted: false,
+        raceCountBreakdown: [
+          { name: 'Heat A1', count: 6 },
+          { name: 'Heat B1', count: 6 },
+        ],
+      });
 
     render(
       <HeatComponent
@@ -173,7 +190,9 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
 
     await waitFor(() => {
       expect(confirmActionMock).toHaveBeenCalledWith(
-        expect.stringContaining('SHRS 2026-1 Rule 4.3 applies for 6-7 completed qualifying races.'),
+        expect.stringContaining(
+          'SHRS 2026-1 Rule 4.3 applies for 6-7 completed qualifying races.',
+        ),
         'Apply SHRS 2026-1 Rule 4.3?',
         {
           confirmLabel: 'Apply Rule 4.3',
@@ -183,24 +202,26 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
       );
     });
 
-    expect(window.electron.sqlite.heatRaceDB.startFinalSeriesAtomic).toHaveBeenCalledWith(
-      77,
-      false,
-      true,
-    );
+    expect(
+      window.electron.sqlite.heatRaceDB.startFinalSeriesAtomic,
+    ).toHaveBeenCalledWith(77, false, true);
   });
 
   it('asks SHRS 4.3 choice before showing the final start confirmation modal', async () => {
-    window.electron.sqlite.heatRaceDB.readAllRaces = jest
+    window.electron.sqlite.heatRaceDB.getFinalSeriesEligibility = jest
       .fn()
-      .mockResolvedValue([
-        { race_id: 301, race_number: 1 },
-        { race_id: 302, race_number: 2 },
-        { race_id: 303, race_number: 3 },
-        { race_id: 304, race_number: 4 },
-        { race_id: 305, race_number: 5 },
-        { race_id: 306, race_number: 6 },
-      ]);
+      .mockResolvedValue({
+        ok: true,
+        reason: 'OK',
+        numFinalHeats: 2,
+        completedQualifyingRaces: 6,
+        rule43Applies: true,
+        noRacesCompleted: false,
+        raceCountBreakdown: [
+          { name: 'Heat A1', count: 6 },
+          { name: 'Heat B1', count: 6 },
+        ],
+      });
 
     let resolveShs43Choice;
     const shs43ChoicePromise = new Promise((resolve) => {
@@ -230,7 +251,9 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
 
     await waitFor(() => {
       expect(confirmActionMock).toHaveBeenCalledWith(
-        expect.stringContaining('SHRS 2026-1 Rule 4.3 applies for 6-7 completed qualifying races.'),
+        expect.stringContaining(
+          'SHRS 2026-1 Rule 4.3 applies for 6-7 completed qualifying races.',
+        ),
         'Apply SHRS 2026-1 Rule 4.3?',
         {
           confirmLabel: 'Apply Rule 4.3',
@@ -254,16 +277,20 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
   });
 
   it('skips temporary second exclusion when SHRS 4.3 confirmation is declined', async () => {
-    window.electron.sqlite.heatRaceDB.readAllRaces = jest
+    window.electron.sqlite.heatRaceDB.getFinalSeriesEligibility = jest
       .fn()
-      .mockResolvedValue([
-        { race_id: 301, race_number: 1 },
-        { race_id: 302, race_number: 2 },
-        { race_id: 303, race_number: 3 },
-        { race_id: 304, race_number: 4 },
-        { race_id: 305, race_number: 5 },
-        { race_id: 306, race_number: 6 },
-      ]);
+      .mockResolvedValue({
+        ok: true,
+        reason: 'OK',
+        numFinalHeats: 2,
+        completedQualifyingRaces: 6,
+        rule43Applies: true,
+        noRacesCompleted: false,
+        raceCountBreakdown: [
+          { name: 'Heat A1', count: 6 },
+          { name: 'Heat B1', count: 6 },
+        ],
+      });
     confirmActionMock.mockResolvedValue(false);
 
     render(
@@ -297,28 +324,31 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
     );
 
     await waitFor(() => {
-      expect(window.electron.sqlite.heatRaceDB.startFinalSeriesAtomic).toHaveBeenCalledTimes(1);
+      expect(
+        window.electron.sqlite.heatRaceDB.startFinalSeriesAtomic,
+      ).toHaveBeenCalledTimes(1);
     });
 
-    expect(window.electron.sqlite.heatRaceDB.startFinalSeriesAtomic).toHaveBeenCalledWith(
-      77,
-      false,
-      false,
-    );
+    expect(
+      window.electron.sqlite.heatRaceDB.startFinalSeriesAtomic,
+    ).toHaveBeenCalledWith(77, false, false);
   });
 
   it('asks SHRS 4.3 when leaderboard shows 7 completed races even if latest heats show 0 races', async () => {
-    window.electron.sqlite.heatRaceDB.readAllRaces = jest
+    window.electron.sqlite.heatRaceDB.getFinalSeriesEligibility = jest
       .fn()
-      .mockResolvedValue([]);
-    window.electron.sqlite.heatRaceDB.readLeaderboard = jest
-      .fn()
-      .mockResolvedValue([
-        {
-          boat_id: 'B1',
-          race_points: '5,3,1,5,1,4,1',
-        },
-      ]);
+      .mockResolvedValue({
+        ok: true,
+        reason: 'OK',
+        numFinalHeats: 2,
+        completedQualifyingRaces: 7,
+        rule43Applies: true,
+        noRacesCompleted: true,
+        raceCountBreakdown: [
+          { name: 'Heat A1', count: 0 },
+          { name: 'Heat B1', count: 0 },
+        ],
+      });
 
     confirmActionMock
       .mockResolvedValueOnce(true) // Proceed with 0 races warning.
@@ -354,7 +384,9 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
 
     await waitFor(() => {
       expect(confirmActionMock).toHaveBeenCalledWith(
-        expect.stringContaining('SHRS 2026-1 Rule 4.3 applies for 6-7 completed qualifying races.'),
+        expect.stringContaining(
+          'SHRS 2026-1 Rule 4.3 applies for 6-7 completed qualifying races.',
+        ),
         'Apply SHRS 2026-1 Rule 4.3?',
         {
           confirmLabel: 'Apply Rule 4.3',

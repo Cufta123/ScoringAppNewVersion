@@ -13,7 +13,7 @@ function getStepStatusText(resolved) {
   return 'info';
 }
 
-function ComparePanel({ show, compareInfo, selectedBoatIds }) {
+function ComparePanel({ show, compareInfo = null, selectedBoatIds }) {
   const [displayed, setDisplayed] = useState(compareInfo);
   const [fading, setFading] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
@@ -448,7 +448,7 @@ ComparePanel.propTypes = {
       tiedGroupEntries: PropTypes.arrayOf(boatShape),
     }),
     PropTypes.oneOf([null]),
-  ]).isRequired,
+  ]),
   selectedBoatIds: PropTypes.arrayOf(
     PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   ).isRequired,

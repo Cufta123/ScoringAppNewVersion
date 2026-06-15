@@ -71,6 +71,9 @@ function Rdg2Picker({
               const checked =
                 rdg2Picker.selectedQualIndices?.has(qIdx) ?? false;
               return (
+                // The checkbox control is nested directly inside this label,
+                // which is a valid implicit association the rule misses here.
+                // eslint-disable-next-line jsx-a11y/label-has-associated-control
                 <label
                   // eslint-disable-next-line react/no-array-index-key
                   key={`q-${qIdx}`}
@@ -128,6 +131,9 @@ function Rdg2Picker({
           const checked = rdg2Picker.selectedIndices.has(rIdx);
           const label = hasQual ? `F${rIdx + 1}` : `Q${rIdx + 1}`;
           return (
+            // The checkbox control is nested directly inside this label,
+            // which is a valid implicit association the rule misses here.
+            // eslint-disable-next-line jsx-a11y/label-has-associated-control
             <label
               // eslint-disable-next-line react/no-array-index-key
               key={`f-${rIdx}`}
@@ -140,9 +146,7 @@ function Rdg2Picker({
                 marginBottom: '5px',
                 padding: '3px 4px',
                 borderRadius: '4px',
-                background: checked
-                  ? 'rgba(42,157,143,0.08)'
-                  : 'transparent',
+                background: checked ? 'rgba(42,157,143,0.08)' : 'transparent',
               }}
             >
               <input
@@ -204,11 +208,16 @@ function Rdg2Picker({
 
 Rdg2Picker.propTypes = {
   entry: PropTypes.shape({
-    races: PropTypes.arrayOf(PropTypes.oneOfType([PropTypes.string, PropTypes.number])),
+    races: PropTypes.arrayOf(
+      PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    ),
   }).isRequired,
   raceIndex: PropTypes.number.isRequired,
   rdg2Picker: PropTypes.shape({
-    anchorRect: PropTypes.shape({ bottom: PropTypes.number, left: PropTypes.number }),
+    anchorRect: PropTypes.shape({
+      bottom: PropTypes.number,
+      left: PropTypes.number,
+    }),
     selectedIndices: PropTypes.instanceOf(Set),
     selectedQualIndices: PropTypes.instanceOf(Set),
   }).isRequired,

@@ -27,7 +27,10 @@ const dbMock = {
   prepare: jest.fn((sql: string): PrepareStatement => {
     if (
       sqlContains(sql, 'FROM Races r') &&
-      sqlContains(sql, 'LEFT JOIN Scores s ON s.race_id = r.race_id AND s.boat_id = hb.boat_id')
+      sqlContains(
+        sql,
+        'LEFT JOIN Scores s ON s.race_id = r.race_id AND s.boat_id = hb.boat_id',
+      )
     ) {
       return {
         all: jest.fn(() => missingScoreRows),
@@ -40,7 +43,9 @@ const dbMock = {
       };
     }
 
-    if (sqlContains(sql, 'INSERT INTO Races (heat_id, race_number) VALUES (?, ?)')) {
+    if (
+      sqlContains(sql, 'INSERT INTO Races (heat_id, race_number) VALUES (?, ?)')
+    ) {
       return {
         run: jest.fn((...args: any[]) => {
           runCalls.push({ sql, args });
@@ -49,7 +54,12 @@ const dbMock = {
       };
     }
 
-    if (sqlContains(sql, 'SELECT event_id, heat_type FROM Heats WHERE heat_id = ?')) {
+    if (
+      sqlContains(
+        sql,
+        'SELECT event_id, heat_type FROM Heats WHERE heat_id = ?',
+      )
+    ) {
       return {
         get: jest.fn(() => ({ event_id: 99, heat_type: 'Qualifying' })),
       };
@@ -67,7 +77,10 @@ const dbMock = {
       };
     }
 
-    if (sqlContains(sql, 'UPDATE Scores') && sqlContains(sql, 'WHERE race_id = ? AND boat_id = ?')) {
+    if (
+      sqlContains(sql, 'UPDATE Scores') &&
+      sqlContains(sql, 'WHERE race_id = ? AND boat_id = ?')
+    ) {
       return {
         run: jest.fn((...args: any[]) => {
           runCalls.push({ sql, args });
@@ -76,7 +89,12 @@ const dbMock = {
       };
     }
 
-    if (sqlContains(sql, 'INSERT INTO Scores (race_id, boat_id, position, points, status)')) {
+    if (
+      sqlContains(
+        sql,
+        'INSERT INTO Scores (race_id, boat_id, position, points, status)',
+      )
+    ) {
       return {
         run: jest.fn((...args: any[]) => {
           runCalls.push({ sql, args });
@@ -98,7 +116,10 @@ const dbMock = {
     }
 
     if (
-      sqlContains(sql, 'INSERT INTO Leaderboard (boat_id, total_points_event, event_id, place)') &&
+      sqlContains(
+        sql,
+        'INSERT INTO Leaderboard (boat_id, total_points_event, event_id, place)',
+      ) &&
       sqlContains(sql, 'ON CONFLICT(boat_id, event_id) DO UPDATE SET')
     ) {
       return {
@@ -154,7 +175,10 @@ describe('HeatRaceHandler insertRace default DNS scoring', () => {
     expect(result.lastInsertRowid).toBe(777);
 
     const dnsInserts = runCalls.filter((call) =>
-      sqlContains(call.sql, 'INSERT INTO Scores (race_id, boat_id, position, points, status)'),
+      sqlContains(
+        call.sql,
+        'INSERT INTO Scores (race_id, boat_id, position, points, status)',
+      ),
     );
 
     expect(dnsInserts).toHaveLength(3);
@@ -184,9 +208,13 @@ describe('HeatRaceHandler insertRace default DNS scoring', () => {
     expect(dnsInserts).toHaveLength(1);
     expect(dnsInserts[0].args).toEqual([502, 123, 5, 5]);
 
-    const preparedSql = dbMock.prepare.mock.calls.map((call) => String(call[0]));
+    const preparedSql = dbMock.prepare.mock.calls.map((call) =>
+      String(call[0]),
+    );
     expect(
-      preparedSql.some((sql) => sqlContains(sql, 'DELETE FROM Leaderboard WHERE event_id = ?')),
+      preparedSql.some((sql) =>
+        sqlContains(sql, 'DELETE FROM Leaderboard WHERE event_id = ?'),
+      ),
     ).toBe(true);
   });
 });

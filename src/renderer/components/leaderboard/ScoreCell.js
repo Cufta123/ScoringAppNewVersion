@@ -79,11 +79,7 @@ function ScoreCell({
   // ── Edit mode ─────────────────────────────────────────────────────────────
   return (
     <td
-      aria-label={
-        isShared
-          ? 'Shared race editable cell'
-          : 'Editable race cell'
-      }
+      aria-label={isShared ? 'Shared race editable cell' : 'Editable race cell'}
       style={{
         ...tdStyle,
         background: isShared ? 'rgba(255,210,0,0.3)' : 'var(--surface,#f5f7fa)',

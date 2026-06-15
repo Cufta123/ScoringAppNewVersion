@@ -78,7 +78,16 @@ function AppModal({
   if (!open) return null;
 
   return (
-    <div className="feedback-modal-overlay" role="presentation" onClick={onCancel}>
+    <div
+      className="feedback-modal-overlay"
+      role="presentation"
+      onClick={(event) => {
+        // Dismiss only when the backdrop itself is clicked, not when a click
+        // bubbles up from inside the dialog. Keyboard dismissal (Escape) and
+        // focus trapping are handled at the document level above.
+        if (event.target === event.currentTarget) onCancel();
+      }}
+    >
       <div
         ref={dialogRef}
         className="feedback-modal"
@@ -86,7 +95,6 @@ function AppModal({
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
-        onClick={(event) => event.stopPropagation()}
       >
         <h3 className="feedback-modal-title">{title}</h3>
         <div className="feedback-modal-body">{children}</div>

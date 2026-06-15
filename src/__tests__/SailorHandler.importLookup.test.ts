@@ -39,12 +39,18 @@ const dbMock = {
     }
 
     if (
-      sql.includes('SELECT boat_id FROM Boats WHERE CAST(sail_number AS TEXT) = ? AND UPPER(country) = UPPER(?)')
+      sql.includes(
+        'SELECT boat_id FROM Boats WHERE CAST(sail_number AS TEXT) = ? AND UPPER(country) = UPPER(?)',
+      )
     ) {
       return { get: jest.fn(() => ({ boat_id: 555 })) };
     }
 
-    if (sql.includes('SELECT boat_event_id FROM Boat_Event WHERE boat_id = ? AND event_id = ?')) {
+    if (
+      sql.includes(
+        'SELECT boat_event_id FROM Boat_Event WHERE boat_id = ? AND event_id = ?',
+      )
+    ) {
       return { get: jest.fn(() => undefined) };
     }
 

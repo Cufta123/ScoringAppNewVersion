@@ -28,20 +28,26 @@ function sanitizePositiveInteger(value: unknown, fallback: number): number {
 
 function normalizeThresholdList(value: unknown): number[] {
   if (!Array.isArray(value)) {
-    throw new Error('Discard thresholds must be an array of positive integers.');
+    throw new Error(
+      'Discard thresholds must be an array of positive integers.',
+    );
   }
 
   const normalized = value.map((entry) => {
     const parsed = Number(entry);
     if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) {
-      throw new Error('Discard thresholds must contain only positive integers.');
+      throw new Error(
+        'Discard thresholds must contain only positive integers.',
+      );
     }
     return parsed;
   });
 
   for (let index = 1; index < normalized.length; index += 1) {
     if (normalized[index] <= normalized[index - 1]) {
-      throw new Error('Discard thresholds must be in strictly increasing order.');
+      throw new Error(
+        'Discard thresholds must be in strictly increasing order.',
+      );
     }
   }
 
@@ -75,7 +81,8 @@ export function normalizeDiscardConfig(value: unknown): DiscardConfig {
 
     return {
       firstDiscardAt: thresholds[0],
-      secondDiscardAt: thresholds[1] ?? thresholds[0] + DEFAULT_DISCARD_CONFIG.additionalEvery,
+      secondDiscardAt:
+        thresholds[1] ?? thresholds[0] + DEFAULT_DISCARD_CONFIG.additionalEvery,
       additionalEvery: DEFAULT_DISCARD_CONFIG.additionalEvery,
       thresholds,
     };
@@ -125,7 +132,10 @@ export function getExcludeCountForConfig(
   if (numberOfRaces < config.firstDiscardAt) return 0;
   if (numberOfRaces < config.secondDiscardAt) return 1;
   return (
-    2 + Math.floor((numberOfRaces - config.secondDiscardAt) / config.additionalEvery)
+    2 +
+    Math.floor(
+      (numberOfRaces - config.secondDiscardAt) / config.additionalEvery,
+    )
   );
 }
 
@@ -139,7 +149,9 @@ export function getEventDiscardConfig(
       : 'shrs_discard_profile_final';
 
   const row = db
-    .prepare(`SELECT ${column} as discard_profile FROM Events WHERE event_id = ?`)
+    .prepare(
+      `SELECT ${column} as discard_profile FROM Events WHERE event_id = ?`,
+    )
     .get(event_id) as { discard_profile?: string } | undefined;
 
   return normalizeDiscardConfig(row?.discard_profile ?? 'standard');

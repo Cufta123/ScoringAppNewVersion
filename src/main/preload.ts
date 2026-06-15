@@ -55,6 +55,7 @@ export type Channels =
   | 'submitHeatRaceScoresAtomic'
   | 'getMaxHeatSize'
   | 'explainTieBreak'
+  | 'getFinalSeriesEligibility'
   | 'exportEventSnapshotToFile'
   | 'restoreEventSnapshotFromFile'
   | 'importSailors';
@@ -213,6 +214,7 @@ const electronHandler = {
       startFinalSeriesAtomic: makeInvoker('startFinalSeriesAtomic'),
       getMaxHeatSize: makeInvoker('getMaxHeatSize'),
       explainTieBreak: makeInvoker('explainTieBreak'),
+      getFinalSeriesEligibility: makeInvoker('getFinalSeriesEligibility'),
       exportEventSnapshotToFile: makeInvoker('exportEventSnapshotToFile'),
       restoreEventSnapshotFromFile: makeInvoker('restoreEventSnapshotFromFile'),
     },

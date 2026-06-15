@@ -6,62 +6,74 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import HeatRacePage from '../renderer/pages/HeatRacePage/HeatRacePage';
 
-jest.mock('../renderer/components/Navbar', () => ({ onBack, backLabel }) => (
-  <header>
-    <button type="button" onClick={onBack}>
-      {backLabel}
-    </button>
-  </header>
-));
+jest.mock(
+  '../renderer/components/Navbar',
+  () =>
+    function ({ onBack, backLabel }) {
+      return (
+        <header>
+          <button type="button" onClick={onBack}>
+            {backLabel}
+          </button>
+        </header>
+      );
+    },
+);
 
-jest.mock('../renderer/components/shared/Breadcrumbs', () => () => (
-  <nav>Breadcrumbs Mock</nav>
-));
+jest.mock(
+  '../renderer/components/shared/Breadcrumbs',
+  () =>
+    function () {
+      return <nav>Breadcrumbs Mock</nav>;
+    },
+);
 
-jest.mock('../renderer/components/HeatComponent', () => ({
-  onHeatSelect,
-  onStartScoring,
-  onQualifyingGroupCountChange,
-}) => {
-  React.useEffect(() => {
-    onQualifyingGroupCountChange(1);
-  }, [onQualifyingGroupCountChange]);
+jest.mock(
+  '../renderer/components/HeatComponent',
+  () =>
+    function ({ onHeatSelect, onStartScoring, onQualifyingGroupCountChange }) {
+      React.useEffect(() => {
+        onQualifyingGroupCountChange(1);
+      }, [onQualifyingGroupCountChange]);
 
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={() => {
-          onHeatSelect({
-            heat_id: 10,
-            heat_name: 'Heat A1',
-            heat_type: 'Qualifying',
-          });
-          onStartScoring();
-        }}
-      >
-        Start scoring mock
-      </button>
-    </div>
-  );
-});
+      return (
+        <div>
+          <button
+            type="button"
+            onClick={() => {
+              onHeatSelect({
+                heat_id: 10,
+                heat_name: 'Heat A1',
+                heat_type: 'Qualifying',
+              });
+              onStartScoring();
+            }}
+          >
+            Start scoring mock
+          </button>
+        </div>
+      );
+    },
+);
 
-jest.mock('../renderer/components/ScoringInputComponent', () =>
-  function MockScoringInputComponent({ onSubmit }) {
-    return (
-      <button
-        type="button"
-        onClick={() =>
-          onSubmit([
-            { boatNumber: 101, place: 1, status: 'FINISHED' },
-            { boatNumber: 102, place: 2, status: 'DNF' },
-          ])
-        }
-      >
-        Submit scoring mock
-      </button>
-    );
-  },
+jest.mock(
+  '../renderer/components/ScoringInputComponent',
+  () =>
+    function MockScoringInputComponent({ onSubmit }) {
+      return (
+        <button
+          type="button"
+          onClick={() =>
+            onSubmit([
+              { boatNumber: 101, place: 1, status: 'FINISHED' },
+              { boatNumber: 102, place: 2, status: 'DNF' },
+            ])
+          }
+        >
+          Submit scoring mock
+        </button>
+      );
+    },
 );
 
 jest.mock('../renderer/utils/userFeedback', () => ({
@@ -115,13 +127,20 @@ describe('HeatRacePage', () => {
         ]}
       >
         <Routes>
-          <Route path="/event/:eventName/heat-race" element={<HeatRacePage />} />
+          <Route
+            path="/event/:eventName/heat-race"
+            element={<HeatRacePage />}
+          />
         </Routes>
       </MemoryRouter>,
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Start scoring mock' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Submit scoring mock' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Start scoring mock' }),
+    );
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Submit scoring mock' }),
+    );
 
     await waitFor(() => {
       expect(

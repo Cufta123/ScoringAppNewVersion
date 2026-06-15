@@ -6,14 +6,20 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import SailorForm from '../renderer/components/SailorForm';
 import { reportInfo } from '../renderer/utils/userFeedback';
 
-jest.mock('react-autosuggest', () => ({ inputProps }) => (
-  <input
-    {...inputProps}
-    onChange={(event) =>
-      inputProps.onChange(event, { newValue: event.target.value })
-    }
-  />
-));
+jest.mock(
+  'react-autosuggest',
+  () =>
+    function ({ inputProps }) {
+      return (
+        <input
+          {...inputProps}
+          onChange={(event) =>
+            inputProps.onChange(event, { newValue: event.target.value })
+          }
+        />
+      );
+    },
+);
 
 jest.mock('react-toastify', () => ({
   toast: {
@@ -36,7 +42,9 @@ describe('SailorForm', () => {
           readAllSailors: jest.fn().mockResolvedValue([]),
           readAllClubs: jest
             .fn()
-            .mockResolvedValue([{ club_id: 1, club_name: 'YC Split', country: 'CRO' }]),
+            .mockResolvedValue([
+              { club_id: 1, club_name: 'YC Split', country: 'CRO' },
+            ]),
           readAllBoats: jest.fn().mockResolvedValue([]),
           insertClub: jest.fn().mockResolvedValue({ lastInsertRowid: 10 }),
           insertSailor: jest.fn().mockResolvedValue({ lastInsertRowid: 11 }),
@@ -55,14 +63,20 @@ describe('SailorForm', () => {
   });
 
   it('blocks adding sailors when a race already happened', async () => {
-    window.electron.sqlite.heatRaceDB.readAllHeats.mockResolvedValue([{ heat_id: 2 }]);
-    window.electron.sqlite.heatRaceDB.readAllRaces.mockResolvedValue([{ race_id: 1 }]);
+    window.electron.sqlite.heatRaceDB.readAllHeats.mockResolvedValue([
+      { heat_id: 2 },
+    ]);
+    window.electron.sqlite.heatRaceDB.readAllRaces.mockResolvedValue([
+      { race_id: 1 },
+    ]);
 
     render(<SailorForm onAddSailor={jest.fn()} eventId={99} />);
 
     await waitFor(() => {
       expect(
-        screen.getByText(/no more sailors can be added as a race has already happened/i),
+        screen.getByText(
+          /no more sailors can be added as a race has already happened/i,
+        ),
       ).toBeInTheDocument();
     });
   });
@@ -110,10 +124,9 @@ describe('SailorForm', () => {
         'IOM',
         11,
       );
-      expect(window.electron.sqlite.eventDB.associateBoatWithEvent).toHaveBeenCalledWith(
-        12,
-        99,
-      );
+      expect(
+        window.electron.sqlite.eventDB.associateBoatWithEvent,
+      ).toHaveBeenCalledWith(12, 99);
       expect(onAddSailor).toHaveBeenCalled();
       expect(reportInfo).toHaveBeenCalledWith(
         'Sailor and boat added successfully.',
@@ -167,23 +180,28 @@ describe('SailorForm', () => {
         4,
         1,
       );
-      expect(window.electron.sqlite.eventDB.associateBoatWithEvent).toHaveBeenCalledWith(
-        12,
-        99,
-      );
+      expect(
+        window.electron.sqlite.eventDB.associateBoatWithEvent,
+      ).toHaveBeenCalledWith(12, 99);
       expect(onAddSailor).toHaveBeenCalled();
     });
   });
 
   it('renders race-started notice instead of form after races exist', async () => {
-    window.electron.sqlite.heatRaceDB.readAllHeats.mockResolvedValue([{ heat_id: 2 }]);
-    window.electron.sqlite.heatRaceDB.readAllRaces.mockResolvedValue([{ race_id: 1 }]);
+    window.electron.sqlite.heatRaceDB.readAllHeats.mockResolvedValue([
+      { heat_id: 2 },
+    ]);
+    window.electron.sqlite.heatRaceDB.readAllRaces.mockResolvedValue([
+      { race_id: 1 },
+    ]);
 
     render(<SailorForm onAddSailor={jest.fn()} eventId={99} />);
 
     expect(
       await screen.findByText(/no more sailors can be added/i),
     ).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /add sailor/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /add sailor/i }),
+    ).not.toBeInTheDocument();
   });
 });

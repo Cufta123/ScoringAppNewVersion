@@ -1,7 +1,7 @@
-export {};
-
 import fs from 'fs';
 import path from 'path';
+
+export {};
 
 type PrepareStatement = {
   get?: (...args: any[]) => any;
@@ -19,10 +19,23 @@ jest.mock('electron', () => ({
   },
 }));
 
-const insertedHeats: Array<{ eventId: number; name: string; type: string; newId: number }> = [];
+const insertedHeats: Array<{
+  eventId: number;
+  name: string;
+  type: string;
+  newId: number;
+}> = [];
 const insertedHeatBoats: Array<{ heatId: number; boatId: number }> = [];
-let qualifyingHeats: Array<{ heat_id: number; heat_name: string; heat_type: string }> = [];
-let leaderboardRows: Array<{ boat_id: number; race_points: string; race_statuses: string }> = [];
+let qualifyingHeats: Array<{
+  heat_id: number;
+  heat_name: string;
+  heat_type: string;
+}> = [];
+let leaderboardRows: Array<{
+  boat_id: number;
+  race_points: string;
+  race_statuses: string;
+}> = [];
 let heatOverflowPolicy: 'auto-increase' | 'confirm-allow-oversize' =
   'auto-increase';
 
@@ -50,7 +63,9 @@ const REPORT_PATH = path.join(
 );
 
 function assertLeaderboardColumns(columns: string[]) {
-  const missing = LEADERBOARD_COLUMNS.filter((required) => !columns.includes(required));
+  const missing = LEADERBOARD_COLUMNS.filter(
+    (required) => !columns.includes(required),
+  );
   if (missing.length > 0) {
     throw new Error(
       `Leaderboard table is missing required columns: ${missing.join(', ')}`,
@@ -64,23 +79,43 @@ function sqlContains(sql: string, fragment: string) {
 
 const dbMock = {
   prepare: jest.fn((sql: string): PrepareStatement => {
-    if (sqlContains(sql, 'SELECT shrs_heat_overflow_policy FROM Events WHERE event_id = ?')) {
-      return { get: jest.fn(() => ({ shrs_heat_overflow_policy: heatOverflowPolicy })) };
+    if (
+      sqlContains(
+        sql,
+        'SELECT shrs_heat_overflow_policy FROM Events WHERE event_id = ?',
+      )
+    ) {
+      return {
+        get: jest.fn(() => ({ shrs_heat_overflow_policy: heatOverflowPolicy })),
+      };
     }
 
-    if (sqlContains(sql, 'SELECT shrs_discard_profile_qualifying as discard_profile FROM Events WHERE event_id = ?')) {
+    if (
+      sqlContains(
+        sql,
+        'SELECT shrs_discard_profile_qualifying as discard_profile FROM Events WHERE event_id = ?',
+      )
+    ) {
       return { get: jest.fn(() => ({ discard_profile: 'standard' })) };
     }
 
     if (
-      sqlContains(sql, 'SELECT heat_id, heat_name, heat_type FROM Heats WHERE event_id = ?')
+      sqlContains(
+        sql,
+        'SELECT heat_id, heat_name, heat_type FROM Heats WHERE event_id = ?',
+      )
     ) {
       return {
         all: jest.fn(() => qualifyingHeats),
       };
     }
 
-    if (sqlContains(sql, 'SELECT COUNT(*) as race_count FROM Races WHERE heat_id = ?')) {
+    if (
+      sqlContains(
+        sql,
+        'SELECT COUNT(*) as race_count FROM Races WHERE heat_id = ?',
+      )
+    ) {
       return { get: jest.fn(() => ({ race_count: 1 })) };
     }
 
@@ -92,14 +127,22 @@ const dbMock = {
 
     if (
       sqlContains(sql, 'FROM Leaderboard lb') &&
-      sqlContains(sql, 'GROUP_CONCAT(sc.points ORDER BY r.race_number) AS race_points')
+      sqlContains(
+        sql,
+        'GROUP_CONCAT(sc.points ORDER BY r.race_number) AS race_points',
+      )
     ) {
       return {
         all: jest.fn(() => leaderboardRows),
       };
     }
 
-    if (sqlContains(sql, 'INSERT INTO Heats (event_id, heat_name, heat_type) VALUES (?, ?, ?)')) {
+    if (
+      sqlContains(
+        sql,
+        'INSERT INTO Heats (event_id, heat_name, heat_type) VALUES (?, ?, ?)',
+      )
+    ) {
       return {
         run: jest.fn((eventId: number, name: string, type: string) => {
           const newId = 901 + insertedHeats.length;
@@ -109,7 +152,9 @@ const dbMock = {
       };
     }
 
-    if (sqlContains(sql, 'INSERT INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)')) {
+    if (
+      sqlContains(sql, 'INSERT INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)')
+    ) {
       return {
         run: jest.fn((heatId: number, boatId: number) => {
           insertedHeatBoats.push({ heatId, boatId });
@@ -282,15 +327,19 @@ describe('HeatRaceHandler startFinalSeriesAtomic', () => {
 77 Andrej Hinic CRO 135 Kantun 2 134 113 (DNF) 20 18 18 RET 17 19
 `;
 
-    expect(providedLeaderboardSnapshot).toContain('1 Robert Matulja CRO 33 Kantun 2R 12 7');
-    expect(providedLeaderboardSnapshot).toContain('77 Andrej Hinic CRO 135 Kantun 2 134 113');
+    expect(providedLeaderboardSnapshot).toContain(
+      '1 Robert Matulja CRO 33 Kantun 2R 12 7',
+    );
+    expect(providedLeaderboardSnapshot).toContain(
+      '77 Andrej Hinic CRO 135 Kantun 2 134 113',
+    );
 
     const overallByRank = [
       7, 9, 10, 12, 14, 15, 17, 17, 18, 19, 20, 21, 24, 26, 29, 31, 33, 34, 35,
-      35, 38, 40, 40, 41, 42, 45, 47, 47, 48, 49, 49, 50, 51, 51, 53, 54, 54, 55,
-      55, 56, 56, 57, 59, 59, 62, 63, 64, 64, 65, 65, 72, 72, 72, 73, 73, 74, 74,
-      76, 77, 77, 77, 78, 78, 78, 80, 83, 85, 87, 87, 90, 91, 94, 99, 100, 107,
-      111, 113,
+      35, 38, 40, 40, 41, 42, 45, 47, 47, 48, 49, 49, 50, 51, 51, 53, 54, 54,
+      55, 55, 56, 56, 57, 59, 59, 62, 63, 64, 64, 65, 65, 72, 72, 72, 73, 73,
+      74, 74, 76, 77, 77, 77, 78, 78, 78, 80, 83, 85, 87, 87, 90, 91, 94, 99,
+      100, 107, 111, 113,
     ];
 
     leaderboardRows = overallByRank.map((overall, idx) => ({
@@ -317,15 +366,27 @@ describe('HeatRaceHandler startFinalSeriesAtomic', () => {
 
     const expectedAssignments = [
       ...Array.from({ length: 20 }, (_, i) => ({ heatId: 901, boatId: i + 1 })),
-      ...Array.from({ length: 19 }, (_, i) => ({ heatId: 902, boatId: i + 21 })),
-      ...Array.from({ length: 19 }, (_, i) => ({ heatId: 903, boatId: i + 40 })),
-      ...Array.from({ length: 19 }, (_, i) => ({ heatId: 904, boatId: i + 59 })),
+      ...Array.from({ length: 19 }, (_, i) => ({
+        heatId: 902,
+        boatId: i + 21,
+      })),
+      ...Array.from({ length: 19 }, (_, i) => ({
+        heatId: 903,
+        boatId: i + 40,
+      })),
+      ...Array.from({ length: 19 }, (_, i) => ({
+        heatId: 904,
+        boatId: i + 59,
+      })),
     ];
 
     expect(insertedHeatBoats).toEqual(expectedAssignments);
 
-    const fleetSizes = insertedHeats.map((heat) =>
-      insertedHeatBoats.filter((assignment) => assignment.heatId === heat.newId).length,
+    const fleetSizes = insertedHeats.map(
+      (heat) =>
+        insertedHeatBoats.filter(
+          (assignment) => assignment.heatId === heat.newId,
+        ).length,
     );
 
     // SHRS 4.1: fleets should be as equal as possible and not increase from Gold to Copper.
@@ -353,7 +414,9 @@ describe('HeatRaceHandler startFinalSeriesAtomic', () => {
       '- Monotonic size rule: Silver <= Gold, Bronze <= Silver, Copper <= Bronze',
       '- Rank split by boat_id (rank): Gold 1-20, Silver 21-39, Bronze 40-58, Copper 59-77',
       '',
-      ...boatsByFleet.map((fleet) => `${fleet.name}: ${fleet.boats.join(', ')}`),
+      ...boatsByFleet.map(
+        (fleet) => `${fleet.name}: ${fleet.boats.join(', ')}`,
+      ),
       '',
     ];
 
@@ -384,8 +447,11 @@ describe('HeatRaceHandler startFinalSeriesAtomic', () => {
       overflowPolicy: 'auto-increase',
     });
 
-    const fleetSizes = insertedHeats.map((heat) =>
-      insertedHeatBoats.filter((assignment) => assignment.heatId === heat.newId).length,
+    const fleetSizes = insertedHeats.map(
+      (heat) =>
+        insertedHeatBoats.filter(
+          (assignment) => assignment.heatId === heat.newId,
+        ).length,
     );
     expect(fleetSizes).toEqual([17, 17, 16]);
     fleetSizes.forEach((size) => expect(size).toBeLessThanOrEqual(20));
@@ -398,10 +464,26 @@ describe('HeatRaceHandler startFinalSeriesAtomic', () => {
     ];
 
     leaderboardRows = [
-      { boat_id: 1, race_points: '1,1,1,1,15,15', race_statuses: 'FINISHED,FINISHED,FINISHED,FINISHED,FINISHED,FINISHED' },
-      { boat_id: 2, race_points: '2,2,2,2,3,3', race_statuses: 'FINISHED,FINISHED,FINISHED,FINISHED,FINISHED,FINISHED' },
-      { boat_id: 3, race_points: '3,3,3,3,2,2', race_statuses: 'FINISHED,FINISHED,FINISHED,FINISHED,FINISHED,FINISHED' },
-      { boat_id: 4, race_points: '4,4,4,4,1,1', race_statuses: 'FINISHED,FINISHED,FINISHED,FINISHED,FINISHED,FINISHED' },
+      {
+        boat_id: 1,
+        race_points: '1,1,1,1,15,15',
+        race_statuses: 'FINISHED,FINISHED,FINISHED,FINISHED,FINISHED,FINISHED',
+      },
+      {
+        boat_id: 2,
+        race_points: '2,2,2,2,3,3',
+        race_statuses: 'FINISHED,FINISHED,FINISHED,FINISHED,FINISHED,FINISHED',
+      },
+      {
+        boat_id: 3,
+        race_points: '3,3,3,3,2,2',
+        race_statuses: 'FINISHED,FINISHED,FINISHED,FINISHED,FINISHED,FINISHED',
+      },
+      {
+        boat_id: 4,
+        race_points: '4,4,4,4,1,1',
+        race_statuses: 'FINISHED,FINISHED,FINISHED,FINISHED,FINISHED,FINISHED',
+      },
     ];
 
     const handler = handlerRegistry.startFinalSeriesAtomic;
@@ -441,7 +523,9 @@ describe('HeatRaceHandler startFinalSeriesAtomic', () => {
     // standard single discard applies:
     // boat3 = 4, boat2 = 8, boat1 = 12 (drops 10 only), boat4 = 36.
     // A buggy second discard would give boat1 = 3 and put it in Gold.
-    expect(insertedHeatBoats.map((entry) => entry.boatId)).toEqual([3, 2, 1, 4]);
+    expect(insertedHeatBoats.map((entry) => entry.boatId)).toEqual([
+      3, 2, 1, 4,
+    ]);
   });
 
   it('does NOT apply SHRS 4.3 temporary discard at exactly 8 completed races', async () => {
@@ -455,7 +539,11 @@ describe('HeatRaceHandler startFinalSeriesAtomic', () => {
       { boat_id: 1, race_points: '3,3,3,3,3,3,9,9', race_statuses: fin8 },
       { boat_id: 2, race_points: '1,1,1,2,4,10,10,10', race_statuses: fin8 },
       { boat_id: 3, race_points: '1,1,1,1,1,1,1,1', race_statuses: fin8 },
-      { boat_id: 4, race_points: '15,15,15,15,15,15,15,15', race_statuses: fin8 },
+      {
+        boat_id: 4,
+        race_points: '15,15,15,15,15,15,15,15',
+        race_statuses: fin8,
+      },
     ];
 
     const handler = handlerRegistry.startFinalSeriesAtomic;
@@ -465,7 +553,9 @@ describe('HeatRaceHandler startFinalSeriesAtomic', () => {
     // boat3 = 6, boat1 = 18, boat2 = 19, boat4 = 90.
     // A buggy third discard would give boat2 = 9 < boat1 = 15 and
     // wrongly promote boat2 into Gold.
-    expect(insertedHeatBoats.map((entry) => entry.boatId)).toEqual([3, 1, 2, 4]);
+    expect(insertedHeatBoats.map((entry) => entry.boatId)).toEqual([
+      3, 1, 2, 4,
+    ]);
   });
 
   it('rejects leaderboard input when required table column is missing', () => {

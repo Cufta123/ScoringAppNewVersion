@@ -162,14 +162,20 @@ function runQualifying(
   const pointsMap = new Map<number, string[]>();
   const table = calculateBoatScores(results, event_id, pointsMap);
   return Object.fromEntries(
-    table.map((r) => [r.boat_id, { totalPoints: r.totalPoints, place: r.place! }]),
+    table.map((r) => [
+      r.boat_id,
+      { totalPoints: r.totalPoints, place: r.place! },
+    ]),
   );
 }
 
 function runFinal(
   results: ReturnType<typeof makeFResult>[],
   event_id = 1,
-): Map<string, Array<{ boat_id: string; totalPoints: number; place?: number }>> {
+): Map<
+  string,
+  Array<{ boat_id: string; totalPoints: number; place?: number }>
+> {
   return calculateFinalBoatScores(results, event_id);
 }
 
@@ -250,12 +256,9 @@ describe('SHRS 5.4 – Discard thresholds (getExcludeCount)', () => {
     [80, 11],
   ];
 
-  it.each(cases)(
-    '%i races → %i exclusions',
-    (numRaces, expectedExclusions) => {
-      expect(getExcludeCount(numRaces)).toBe(expectedExclusions);
-    },
-  );
+  it.each(cases)('%i races → %i exclusions', (numRaces, expectedExclusions) => {
+    expect(getExcludeCount(numRaces)).toBe(expectedExclusions);
+  });
 });
 
 describe('SHRS 5.4 – Discards applied in qualifying scoring', () => {
@@ -561,10 +564,7 @@ describe('SHRS 5.6(ii)(a) – Shared-heat tie-breaking', () => {
         ],
       },
     );
-    const r = runQualifying([
-      makeQResult('ESP47', 2),
-      makeQResult('USA55', 2),
-    ]);
+    const r = runQualifying([makeQResult('ESP47', 2), makeQResult('USA55', 2)]);
     // Shared races sorted ASC: ESP47 [1,2,3,8,9] vs USA55 [3,4,6,12,19]
     // At first compare: 1<3 → ESP47 wins
     expect(r.ESP47.place).toBe(1);
@@ -746,10 +746,7 @@ describe('Final Series – A81 tie-breaking', () => {
 
 describe('Final Series – A82 tie-breaking', () => {
   it('falls back to A82 when A81 scores are identical in Final', () => {
-    setupFinalMockDb(
-      { a: [3, 1], b: [3, 1] },
-      { a: [3, 1], b: [1, 3] },
-    );
+    setupFinalMockDb({ a: [3, 1], b: [3, 1] }, { a: [3, 1], b: [1, 3] });
     const groups = runFinal([
       makeFResult('a', 'Final Silver'),
       makeFResult('b', 'Final Silver'),
@@ -802,7 +799,9 @@ describe('applyExclusions – renderer utility', () => {
     const { markedRaces, total } = applyExclusions(['1', '2', '3', '10']);
     expect(total).toBe(6); // 1+2+3
     expect(markedRaces).toContain('(10)');
-    expect(markedRaces.filter((r: string) => r.startsWith('('))).toHaveLength(1);
+    expect(markedRaces.filter((r: string) => r.startsWith('('))).toHaveLength(
+      1,
+    );
   });
 
   it('excludes 2 worst with 8 races', () => {
@@ -833,7 +832,9 @@ describe('applyExclusions – renderer utility', () => {
     const { markedRaces, total } = applyExclusions(['10', '5', '3', '10']);
     // One 10 should be marked; total = 10+5+3 = 18
     expect(total).toBe(18);
-    const excludedCount = markedRaces.filter((r: string) => r.startsWith('(')).length;
+    const excludedCount = markedRaces.filter((r: string) =>
+      r.startsWith('('),
+    ).length;
     expect(excludedCount).toBe(1);
   });
 });
@@ -991,11 +992,7 @@ describe('SHRS 3.1 – Zigzag seeding for Race 1', () => {
   });
 
   it('4 heats, 16 boats: even distribution', () => {
-    const r = assignBoatsToNewHeatsZigZag(
-      boats(16),
-      ['A', 'B', 'C', 'D'],
-      1,
-    );
+    const r = assignBoatsToNewHeatsZigZag(boats(16), ['A', 'B', 'C', 'D'], 1);
     const counts = [0, 0, 0, 0];
     r.forEach(({ heatId }) => {
       counts[heatId]++;

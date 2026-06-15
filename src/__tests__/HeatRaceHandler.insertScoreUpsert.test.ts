@@ -34,7 +34,12 @@ const dbMock = {
       };
     }
 
-    if (sqlContains(sql, 'UPDATE Scores SET position = ?, points = ?, status = ? WHERE race_id = ? AND boat_id = ?')) {
+    if (
+      sqlContains(
+        sql,
+        'UPDATE Scores SET position = ?, points = ?, status = ? WHERE race_id = ? AND boat_id = ?',
+      )
+    ) {
       return {
         run: jest.fn((...args: any[]) => {
           runCalls.push({ sql, args });
@@ -43,7 +48,12 @@ const dbMock = {
       };
     }
 
-    if (sqlContains(sql, 'INSERT INTO Scores (race_id, boat_id, position, points, status) VALUES (?, ?, ?, ?, ?)')) {
+    if (
+      sqlContains(
+        sql,
+        'INSERT INTO Scores (race_id, boat_id, position, points, status) VALUES (?, ?, ?, ?, ?)',
+      )
+    ) {
       return {
         run: jest.fn((...args: any[]) => {
           runCalls.push({ sql, args });
@@ -86,7 +96,10 @@ describe('HeatRaceHandler insertScore upsert behavior', () => {
     await handler({}, 500, 42, 2, 2, 'FINISHED');
 
     const insertCalls = runCalls.filter((call) =>
-      sqlContains(call.sql, 'INSERT INTO Scores (race_id, boat_id, position, points, status)'),
+      sqlContains(
+        call.sql,
+        'INSERT INTO Scores (race_id, boat_id, position, points, status)',
+      ),
     );
 
     expect(insertCalls).toHaveLength(0);
@@ -99,11 +112,13 @@ describe('HeatRaceHandler insertScore upsert behavior', () => {
     await handler({}, 500, 42, 3, 7, 'DNS');
 
     const insertCalls = runCalls.filter((call) =>
-      sqlContains(call.sql, 'INSERT INTO Scores (race_id, boat_id, position, points, status)'),
+      sqlContains(
+        call.sql,
+        'INSERT INTO Scores (race_id, boat_id, position, points, status)',
+      ),
     );
 
     expect(insertCalls).toHaveLength(1);
     expect(insertCalls[0].args).toEqual([500, 42, 3, 7, 'DNS']);
   });
-
 });

@@ -21,12 +21,22 @@ function setupMockDb(
   scoresA81: Record<
     string,
     Array<
-      number | { points: number; status?: string; race_id?: number; race_number?: number }
+      | number
+      | {
+          points: number;
+          status?: string;
+          race_id?: number;
+          race_number?: number;
+        }
     >
   >,
   scoresA82: Record<string, number[]> = {},
   discardConfig:
-    | { firstDiscardAt: number; secondDiscardAt: number; additionalEvery: number }
+    | {
+        firstDiscardAt: number;
+        secondDiscardAt: number;
+        additionalEvery: number;
+      }
     | { thresholds: number[] } = {
     firstDiscardAt: 4,
     secondDiscardAt: 8,
@@ -35,7 +45,9 @@ function setupMockDb(
 ) {
   mockPrepare.mockImplementation((sql: string) => ({
     get: (_eventId: unknown) => {
-      if (sql.includes('SELECT shrs_discard_profile_final as discard_profile')) {
+      if (
+        sql.includes('SELECT shrs_discard_profile_final as discard_profile')
+      ) {
         return { discard_profile: JSON.stringify(discardConfig) };
       }
       return undefined;
@@ -110,8 +122,14 @@ describe('Group separation', () => {
       ],
       1,
     );
-    const goldIds = groupTables.get('Gold')!.map((b) => b.boat_id).sort();
-    const silverIds = groupTables.get('Silver')!.map((b) => b.boat_id).sort();
+    const goldIds = groupTables
+      .get('Gold')!
+      .map((b) => b.boat_id)
+      .sort();
+    const silverIds = groupTables
+      .get('Silver')!
+      .map((b) => b.boat_id)
+      .sort();
     expect(goldIds).toEqual(['g1', 'g2']);
     expect(silverIds).toEqual(['s1', 's2']);
   });
@@ -126,7 +144,11 @@ describe('Group separation', () => {
       ],
       1,
     );
-    expect([...groupTables.keys()].sort()).toEqual(['Bronze', 'Gold', 'Silver']);
+    expect([...groupTables.keys()].sort()).toEqual([
+      'Bronze',
+      'Gold',
+      'Silver',
+    ]);
   });
 });
 
@@ -165,8 +187,14 @@ describe('Ranking within a group', () => {
       ],
       1,
     );
-    const goldPlaces = groupTables.get('Gold')!.map((b) => b.place).sort((x, y) => x! - y!);
-    const silverPlaces = groupTables.get('Silver')!.map((b) => b.place).sort((x, y) => x! - y!);
+    const goldPlaces = groupTables
+      .get('Gold')!
+      .map((b) => b.place)
+      .sort((x, y) => x! - y!);
+    const silverPlaces = groupTables
+      .get('Silver')!
+      .map((b) => b.place)
+      .sort((x, y) => x! - y!);
     expect(goldPlaces).toEqual([1, 2]);
     expect(silverPlaces).toEqual([1, 2]);
   });
@@ -199,10 +227,7 @@ describe('Tie-breaking A81 within final group', () => {
       boatB: [3, 2], // total 5, sorted ASC [2,3]
     });
     const groupTables = calculateFinalBoatScores(
-      [
-        makeResult('boatA', 'Final Gold'),
-        makeResult('boatB', 'Final Gold'),
-      ],
+      [makeResult('boatA', 'Final Gold'), makeResult('boatB', 'Final Gold')],
       1,
     );
     const gold = groupTables.get('Gold')!;
@@ -250,10 +275,7 @@ describe('A8.1 regression in final group', () => {
     );
 
     const groupTables = calculateFinalBoatScores(
-      [
-        makeResult('boatA', 'Final Gold'),
-        makeResult('boatB', 'Final Gold'),
-      ],
+      [makeResult('boatA', 'Final Gold'), makeResult('boatB', 'Final Gold')],
       1,
     );
     const gold = groupTables.get('Gold')!;
@@ -280,10 +302,7 @@ describe('A8.1 regression in final group', () => {
     );
 
     const groupTables = calculateFinalBoatScores(
-      [
-        makeResult('boatA', 'Final Gold'),
-        makeResult('boatB', 'Final Gold'),
-      ],
+      [makeResult('boatA', 'Final Gold'), makeResult('boatB', 'Final Gold')],
       1,
     );
 
@@ -316,7 +335,10 @@ describe('totalPoints stored in group table', () => {
       { firstDiscardAt: 3, secondDiscardAt: 6, additionalEvery: 6 },
     );
 
-    const groups = calculateFinalBoatScores([makeResult('boatA', 'Final Gold')], 1);
+    const groups = calculateFinalBoatScores(
+      [makeResult('boatA', 'Final Gold')],
+      1,
+    );
     // At 6 races => 2 discards -> remove 9 and 8
     expect(groups.get('Gold')![0].totalPoints).toBe(7 + 6 + 5 + 4);
   });
@@ -374,7 +396,9 @@ describe('Large final groups', () => {
       expect(places).toEqual(Array.from({ length: 25 }, (_, idx) => idx + 1));
 
       for (let i = 1; i < table.length; i += 1) {
-        expect(table[i - 1].totalPoints).toBeLessThanOrEqual(table[i].totalPoints);
+        expect(table[i - 1].totalPoints).toBeLessThanOrEqual(
+          table[i].totalPoints,
+        );
       }
     });
   });
@@ -407,7 +431,9 @@ describe('Large final groups', () => {
     const gold = groupTables.get('Gold')!;
 
     expect(gold).toHaveLength(24);
-    const byBoat = Object.fromEntries(gold.map((boat) => [boat.boat_id, boat.place]));
+    const byBoat = Object.fromEntries(
+      gold.map((boat) => [boat.boat_id, boat.place]),
+    );
     const tieAPlace = byBoat.gold_tie_a as number;
     const tieBPlace = byBoat.gold_tie_b as number;
     expect(tieAPlace).toBeLessThan(tieBPlace);
@@ -461,7 +487,10 @@ describe('Final-series non-excludable penalties', () => {
       ],
     });
 
-    const groups = calculateFinalBoatScores([makeResult('g1', 'Final Gold')], 1);
+    const groups = calculateFinalBoatScores(
+      [makeResult('g1', 'Final Gold')],
+      1,
+    );
     // 4 races => 1 discard; DNE/DGM cannot be discarded, so 8 is excluded.
     expect(groups.get('Gold')![0].totalPoints).toBe(10 + 9 + 1);
   });
