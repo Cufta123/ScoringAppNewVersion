@@ -3,6 +3,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF as JsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import registerPdfUnicodeFont from './registerPdfUnicodeFont';
+import escapeHtml from './escapeHtml';
 import { toSubgroupLabel } from '../../shared/subgroups';
 
 export default async function printStartingList(
@@ -135,7 +136,7 @@ export default async function printStartingList(
   }
 
   if (format === 'html') {
-    let html = `<html><head><title>${eventName} Starting List</title>
+    let html = `<html><head><title>${escapeHtml(eventName)} Starting List</title>
     <style>
       table { border-collapse: collapse; width: 100%; }
       th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
@@ -154,13 +155,13 @@ export default async function printStartingList(
       </tr></thead><tbody>`;
     sortedSailors.forEach((sailor) => {
       html += `<tr>
-        <td>${sailor.name || 'N/A'}</td>
-        <td>${sailor.surname || 'N/A'}</td>
-        <td>${sailor.country || sailor.boat_country || 'N/A'}</td>
-        <td>${sailor.sail_number || 'N/A'}</td>
-        <td>${getSubgroup(sailor)}</td>
-        <td>${getBoatModel(sailor)}</td>
-        <td>${sailor.club || sailor.club_name || 'N/A'}</td>
+        <td>${escapeHtml(sailor.name || 'N/A')}</td>
+        <td>${escapeHtml(sailor.surname || 'N/A')}</td>
+        <td>${escapeHtml(sailor.country || sailor.boat_country || 'N/A')}</td>
+        <td>${escapeHtml(sailor.sail_number || 'N/A')}</td>
+        <td>${escapeHtml(getSubgroup(sailor))}</td>
+        <td>${escapeHtml(getBoatModel(sailor))}</td>
+        <td>${escapeHtml(sailor.club || sailor.club_name || 'N/A')}</td>
         </tr>`;
     });
     html += '</tbody></table></body></html>';

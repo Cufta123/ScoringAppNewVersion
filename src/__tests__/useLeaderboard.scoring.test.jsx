@@ -149,7 +149,37 @@ describe('useLeaderboard scoring/edit flow', () => {
     );
     expect(edited.races[0]).toBe('2');
     expect(edited.race_statuses[0]).toBe('T1');
+    // T1 keeps finishing place 2 but scores penalty points: with a largest
+    // heat of 3 boats, 30% rounds to 1 place => 2 + 1 = 3 points (RRS T1).
+    expect(edited.computed_total).toBe(3);
+    // race_points carries the scored points (drives the Gross column), not the
+    // raw finishing place.
+    expect(edited.race_points[0]).toBe('3');
+  });
+
+  it('previews ZFP penalty points (not the finishing place) in the edit total', async () => {
+    const { result } = renderHook(() => useLeaderboard(1));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.toggleEditMode();
+    });
+
+    act(() => {
+      result.current.handleRaceChange('b2', 0, 1, 'ZFP');
+    });
+
+    const edited = result.current.editableLeaderboard.find(
+      (e) => e.boat_id === 'b2',
+    );
+    // ZFP keeps place 1 but scores 20% of the largest heat (3 boats) = 1 place,
+    // so the preview total is 1 + 1 = 2, not the raw place of 1 (the old bug).
+    expect(edited.races[0]).toBe('1');
+    expect(edited.race_statuses[0]).toBe('ZFP');
     expect(edited.computed_total).toBe(2);
+    // Gross column reads race_points: it must show the 2 penalty points, not 1.
+    expect(edited.race_points[0]).toBe('2');
   });
 
   it('shifts other boats when changing place with shiftPositions enabled', async () => {

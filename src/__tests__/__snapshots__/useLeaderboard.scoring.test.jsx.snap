@@ -28,10 +28,10 @@ exports[`useLeaderboard scoring/edit flow keeps full leaderboard payload contrac
   },
   {
     "boat_id": "b2",
-    "computed_total": 7,
+    "computed_total": 8,
     "race_points": [
       "3",
-      "1",
+      "2",
       "4",
       "3",
     ],
@@ -47,8 +47,8 @@ exports[`useLeaderboard scoring/edit flow keeps full leaderboard payload contrac
       "(4)",
       "3",
     ],
-    "total_points_event": 7,
-    "total_points_final": 7,
+    "total_points_event": 8,
+    "total_points_final": 8,
   },
   {
     "boat_id": "b3",

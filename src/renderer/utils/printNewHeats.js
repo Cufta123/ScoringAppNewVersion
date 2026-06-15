@@ -3,6 +3,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF as JsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import registerPdfUnicodeFont from './registerPdfUnicodeFont';
+import escapeHtml from './escapeHtml';
 import { toSubgroupLabel } from '../../shared/subgroups';
 import { heatRaceDB } from '../api/db';
 
@@ -179,7 +180,7 @@ export default async function printNewHeats(event, heats, format = 'excel') {
   }
 
   if (format === 'html') {
-    let html = `<html><head><title>${eventName} New Heats</title>
+    let html = `<html><head><title>${escapeHtml(eventName)} New Heats</title>
     <style>
       table { border-collapse: collapse; width: 100%; }
       th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
@@ -189,7 +190,7 @@ export default async function printNewHeats(event, heats, format = 'excel') {
     html += '<h1>New Heats</h1>';
 
     heats.forEach((heat) => {
-      html += `<h2>Heat: ${heat.heat_name}</h2>`;
+      html += `<h2>Heat: ${escapeHtml(heat.heat_name)}</h2>`;
       html += `<table><thead><tr>
         <th>Sailor Name</th>
         <th>Country</th>
@@ -199,11 +200,11 @@ export default async function printNewHeats(event, heats, format = 'excel') {
         </tr></thead><tbody>`;
       (heat.boats || []).forEach((boat) => {
         html += `<tr>
-          <td>${boat.name} ${boat.surname}</td>
-          <td>${boat.country || 'N/A'}</td>
-          <td>${boat.sail_number || 'N/A'}</td>
-          <td>${getSubgroup(boat)}</td>
-          <td>${getBoatModel(boat)}</td>
+          <td>${escapeHtml(`${boat.name || ''} ${boat.surname || ''}`.trim())}</td>
+          <td>${escapeHtml(boat.country || 'N/A')}</td>
+          <td>${escapeHtml(boat.sail_number || 'N/A')}</td>
+          <td>${escapeHtml(getSubgroup(boat))}</td>
+          <td>${escapeHtml(getBoatModel(boat))}</td>
           </tr>`;
       });
       html += '</tbody></table>';

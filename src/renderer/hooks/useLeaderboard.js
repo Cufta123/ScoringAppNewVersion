@@ -484,6 +484,24 @@ export default function useLeaderboard(eventId) {
     return roundToNearestTenthHalfUp(sum / candidates.length);
   };
 
+  // Position-keeping penalties (ZFP/SCP/T1) display their finishing place, but
+  // score more points (RRS 44.3c/T1). The race cells store the place, so the
+  // edit-mode preview total must convert those cells to their penalty points —
+  // matching getScoringPenaltyPoints in the main process — before summing.
+  // Other statuses already store their points as the cell value.
+  const toScoreValuesForTotal = (rawRaces, statuses, penaltyPosition) => {
+    const maxBoats = penaltyPosition - 1;
+    return rawRaces.map((race, i) => {
+      const status = statuses[i] || 'FINISHED';
+      if (!scoringPenaltyStatuses.has(status)) return race;
+      const place = parseFloat(String(race).replace(/[()]/g, ''));
+      if (Number.isNaN(place)) return race;
+      const rate = status === 'T1' ? 0.3 : 0.2;
+      const penaltyPlaces = Math.floor(maxBoats * rate + 0.5 + Number.EPSILON);
+      return Math.min(place + penaltyPlaces, maxBoats + 1);
+    });
+  };
+
   const handleRaceChange = (
     boatId,
     raceIndex,
@@ -587,16 +605,23 @@ export default function useLeaderboard(eventId) {
         rawRaces[raceIndex] = String(newPosition);
         newStatuses[raceIndex] = newStatus;
       }
+      const scoreValues = toScoreValuesForTotal(
+        rawRaces,
+        newStatuses,
+        penaltyPosition,
+      );
       const { markedRaces, total } = applyExclusions(
         rawRaces,
         newStatuses,
-        rawRaces,
+        scoreValues,
         activeDiscardProfile,
       );
       return {
         ...entry,
         races: markedRaces,
-        race_points: rawRaces,
+        // Store the scored points (not the raw place) so the Gross column and
+        // any race_points consumer match the backend's read-mode semantics.
+        race_points: scoreValues.map((value) => String(value)),
         race_statuses: newStatuses,
         total_points_event: total,
         total_points_final: total,
@@ -649,16 +674,21 @@ export default function useLeaderboard(eventId) {
     rawRaces[raceIndex] = String(avg);
     entryStatuses[raceIndex] = 'RDG2';
 
+    const scoreValues = toScoreValuesForTotal(
+      rawRaces,
+      entryStatuses,
+      penaltyPosition,
+    );
     const { markedRaces, total } = applyExclusions(
       rawRaces,
       entryStatuses,
-      rawRaces,
+      scoreValues,
       activeDiscardProfile,
     );
     const updatedEntry = {
       ...entry,
       races: markedRaces,
-      race_points: rawRaces,
+      race_points: scoreValues.map((value) => String(value)),
       race_statuses: entryStatuses,
       total_points_event: total,
       total_points_final: total,
@@ -689,19 +719,25 @@ export default function useLeaderboard(eventId) {
         throw new Error('Leaderboard data is not initialized');
       }
 
+      const penaltyPosition = getPenaltyPosition(editableLeaderboard.length);
       const updatedLeaderboard = editableLeaderboard.map((entry) => {
         const rawRaces = entry.races.map((r) => String(r).replace(/[()]/g, ''));
         const statuses =
           entry.race_statuses || entry.races.map(() => 'FINISHED');
+        const scoreValues = toScoreValuesForTotal(
+          rawRaces,
+          statuses,
+          penaltyPosition,
+        );
         const { total } = applyExclusions(
           rawRaces,
           statuses,
-          rawRaces,
+          scoreValues,
           activeDiscardProfile,
         );
         return {
           ...entry,
-          race_points: rawRaces,
+          race_points: scoreValues.map((value) => String(value)),
           total_points_event: total,
           total_points_final: total,
           computed_total: total,

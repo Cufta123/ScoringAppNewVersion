@@ -1322,22 +1322,9 @@ ipcMain.handle('createNewHeatsBasedOnLeaderboard', async (event, event_id) => {
     // Generate names for the next round of heats
     const nextHeatNames = generateNextHeatNames(sortedLatestHeats);
 
-    // Insert new heats into the database
-    const heatIds: any[] = [];
-    for (let i = 0; i < nextHeatNames.length; i += 1) {
-      const heatName = nextHeatNames[i];
-      const heatType = 'Qualifying';
-
-      const { lastInsertRowid: newHeatId } = db
-        .prepare(
-          'INSERT INTO Heats (event_id, heat_name, heat_type) VALUES (?, ?, ?)',
-        )
-        .run(event_id, heatName, heatType);
-
-      heatIds.push(newHeatId);
-    }
-
-    // Assign boats to new heats
+    // Compute boat assignments (index-based) from current results first — these
+    // are all reads, so the heat + assignment writes below can run as a single
+    // atomic transaction.
     const assignmentMode = getEventQualifyingAssignmentMode(event_id);
     const assignments: { heatId: number; boatId: string }[] = [];
     if (assignmentMode === 'pre-assigned') {
@@ -1396,12 +1383,29 @@ ipcMain.handle('createNewHeatsBasedOnLeaderboard', async (event, event_id) => {
       fallbackAssignments.forEach((assignment) => assignments.push(assignment));
     }
 
-    assignments.forEach(({ heatId, boatId }) => {
-      db.prepare('INSERT INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)').run(
-        heatIds[heatId],
-        boatId,
-      );
+    // Persist the new heats and their boat assignments atomically so a failure
+    // can never leave half-created heats behind.
+    const heatIds: any[] = [];
+    const insertHeatStmt = db.prepare(
+      'INSERT INTO Heats (event_id, heat_name, heat_type) VALUES (?, ?, ?)',
+    );
+    const insertHeatBoatStmt = db.prepare(
+      'INSERT INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)',
+    );
+    const persistNewHeats = db.transaction(() => {
+      nextHeatNames.forEach((heatName) => {
+        const { lastInsertRowid: newHeatId } = insertHeatStmt.run(
+          event_id,
+          heatName,
+          'Qualifying',
+        );
+        heatIds.push(newHeatId);
+      });
+      assignments.forEach(({ heatId, boatId }) => {
+        insertHeatBoatStmt.run(heatIds[heatId], boatId);
+      });
     });
+    persistNewHeats();
 
     const advisory = getOddEvenMovementAdvisory(
       sortedLatestHeats.length,
@@ -1547,6 +1551,22 @@ ipcMain.handle('undoLastScoredRace', async (event, event_id) => {
 ipcMain.handle('undoLatestHeatRedistribution', async (event, event_id) => {
   try {
     const latestHeats = getLatestQualifyingHeats(event_id);
+
+    // Guard against deleting the first round: "undo redistribution" must only
+    // remove a round that was created from a previous one. First-round heats end
+    // in suffix 1 (e.g. "Heat A1"); if nothing has a higher suffix there is no
+    // redistribution to undo and deleting would wipe the original heat setup.
+    const maxSuffix = latestHeats.reduce((max, heat) => {
+      const match = heat.heat_name.match(/(\d+)$/);
+      const suffix = match ? parseInt(match[1], 10) : 0;
+      return suffix > max ? suffix : max;
+    }, 0);
+    if (maxSuffix <= 1) {
+      throw new Error(
+        'There is no heat redistribution to undo — these are the first-round heats.',
+      );
+    }
+
     const hasRaceQuery = db.prepare(
       'SELECT COUNT(*) as race_count FROM Races WHERE heat_id = ?',
     );
@@ -1601,17 +1621,24 @@ ipcMain.handle(
       const deleteQuery = db.prepare(
         'DELETE FROM Heat_Boat WHERE heat_id = ? AND boat_id = ?',
       );
-      const deleteInfo = deleteQuery.run(from_heat_id, boat_id);
-      console.log(
-        `Deleted ${deleteInfo.changes} row(s) from HeatBoats for heat ID ${from_heat_id} and boat ID ${boat_id}.`,
-      );
-
       const insertQuery = db.prepare(
         'INSERT INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)',
       );
-      const insertInfo = insertQuery.run(to_heat_id, boat_id);
+
+      // Atomic: a failed insert must not leave the boat removed from both heats
+      // (which would drop it from the event's heats entirely).
+      const transfer = db.transaction(() => {
+        const deleteInfo = deleteQuery.run(from_heat_id, boat_id);
+        const insertInfo = insertQuery.run(to_heat_id, boat_id);
+        return {
+          removed: deleteInfo.changes,
+          inserted: insertInfo.changes,
+        };
+      });
+
+      const { removed, inserted } = transfer();
       console.log(
-        `Inserted ${insertInfo.changes} row(s) with last ID ${insertInfo.lastInsertRowid} into HeatBoats for heat ID ${to_heat_id}.`,
+        `Transferred boat ${boat_id}: removed ${removed} row(s) from heat ${from_heat_id}, inserted ${inserted} row(s) into heat ${to_heat_id}.`,
       );
 
       return { success: true };

@@ -349,6 +349,38 @@ describe('submitHeatRaceScoresAtomic handler', () => {
     });
   });
 
+  it('averages A7 ties while keeping a position-keeping penalty in the place walk', async () => {
+    // Two finishers tied at place 1, a ZFP at place 3, then a finisher at 4.
+    const result = await handlerRegistry.submitHeatRaceScoresAtomic(
+      {},
+      {
+        event_id: 1,
+        heat_id: HEAT_ID,
+        placeNumbers: [
+          { boatNumber: 101, place: 1, status: 'FINISHED' },
+          { boatNumber: 102, place: 1, status: 'FINISHED' },
+          { boatNumber: 103, place: 3, status: 'ZFP' },
+          { boatNumber: 104, place: 4, status: 'FINISHED' },
+        ],
+        isFinalSeries: false,
+      },
+    );
+
+    const { raceId } = result;
+
+    // RRS A7: the two boats tied for 1st share places 1 and 2 => 1.5 each.
+    expect(scoreForBoat(raceId, 1)).toMatchObject({ position: 1, points: 1.5 });
+    expect(scoreForBoat(raceId, 2)).toMatchObject({ position: 1, points: 1.5 });
+    // ZFP keeps place 3 (20% of 10 = 2 places => 3 + 2 = 5).
+    expect(scoreForBoat(raceId, 3)).toMatchObject({
+      position: 3,
+      points: 5,
+      status: 'ZFP',
+    });
+    // The 4th-place finisher keeps place 4 / 4 points (ZFP still holds slot 3).
+    expect(scoreForBoat(raceId, 4)).toMatchObject({ position: 4, points: 4 });
+  });
+
   it('writes nothing when a sail number is not in the heat', async () => {
     const result = await handlerRegistry.submitHeatRaceScoresAtomic(
       {},

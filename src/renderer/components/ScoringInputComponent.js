@@ -309,7 +309,16 @@ function ScoringInputComponent({ heat, onSubmit }) {
   };
 
   const getPlaceDisplay = (sailNumber) => {
-    if (penalties[sailNumber]) return penalties[sailNumber];
+    const penalty = penalties[sailNumber];
+    if (penalty) {
+      // Position-keeping penalties (ZFP/SCP/T1) retain the boat's finishing
+      // place, so show it alongside the code (e.g. "3 · ZFP"). Other penalties
+      // have no finishing place, so the code alone is correct.
+      if (POSITION_KEEPING_PENALTIES.has(penalty) && placeNumbers[sailNumber]) {
+        return `${placeNumbers[sailNumber]} · ${penalty}`;
+      }
+      return penalty;
+    }
     return placeNumbers[sailNumber] || '—';
   };
 
@@ -477,9 +486,15 @@ function ScoringInputComponent({ heat, onSubmit }) {
                 onDrop={handleDrop}
               >
                 <span className="finish-place">
-                  {penalties[number]
-                    ? penalties[number]
-                    : `${placeNumbers[number]}.`}
+                  {(() => {
+                    const penalty = penalties[number];
+                    if (!penalty) return `${placeNumbers[number]}.`;
+                    // Position-keeping penalties keep their finishing place, so
+                    // show it (e.g. "3. ZFP"); other penalties show only the code.
+                    return POSITION_KEEPING_PENALTIES.has(penalty)
+                      ? `${placeNumbers[number]}. ${penalty}`
+                      : penalty;
+                  })()}
                 </span>
                 <span className="finish-label">
                   Sail #{number}
