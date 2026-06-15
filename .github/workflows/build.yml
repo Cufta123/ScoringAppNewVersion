@@ -6,10 +6,16 @@ on:
       - main
   workflow_dispatch:
 
+# Needed so the build can publish/update the "latest" GitHub Release.
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
+      # Don't let one OS failing cancel the other one.
+      fail-fast: false
       matrix:
         os: [macos-latest, windows-latest]
 
@@ -20,35 +26,59 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
           cache: npm
 
-      - name: Install Dependencies & Fix electron-builder
-        run: npm install electron-builder --save-dev
+      - name: Install Dependencies
+        # postinstall runs `electron-builder install-app-deps`, which rebuilds
+        # native modules (better-sqlite3) for the bundled Electron version.
+        run: npm install
 
-      - name: Build Webpack (React/Main Code)
+      - name: Build Webpack (React / main code)
         run: npm run build
 
-      - name: Package macOS App (ZIP)
+      - name: Package macOS App (ZIP, Intel + Apple Silicon)
         if: matrix.os == 'macos-latest'
-        run: npx electron-builder --mac --c.mac.target=zip
+        # No Apple signing certificate in CI, so don't try to auto-discover one.
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: npx electron-builder --mac --x64 --arm64 --c.mac.target=zip
 
-      - name: Package Windows App (ZIP)
+      - name: Package Windows App (ZIP, portable)
         if: matrix.os == 'windows-latest'
-        run: npx electron-builder --win --c.win.target=zip
+        run: npx electron-builder --win --x64 --c.win.target=zip
 
-      - name: Upload macOS ZIP Artifact
-        if: matrix.os == 'macos-latest'
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: macOS-App
+          name: ${{ matrix.os == 'macos-latest' && 'macOS-App' || 'Windows-App' }}
           path: release/build/*.zip
-          retention-days: 7
+          retention-days: 14
 
-      - name: Upload Windows ZIP Artifact
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v4
+  release:
+    name: Publish "latest" release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
         with:
-          name: Windows-App
-          path: release/build/*.zip
-          retention-days: 7
+          path: dist
+
+      - name: Publish / update rolling "latest" release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest build
+          body: |
+            Automated build of the latest push to `main` (commit ${{ github.sha }}).
+
+            Downloads:
+            - **Windows**: the `*-win.zip` file (unzip and run the .exe — no install needed)
+            - **macOS (Apple Silicon / M-series)**: the `*-arm64-mac.zip` file
+            - **macOS (Intel)**: the `*-mac.zip` file
+
+            Note: the apps are not code-signed. On macOS, right-click the app and
+            choose "Open" the first time (or run `xattr -cr "IOM Regatta Manager.app"`).
+            On Windows, click "More info" → "Run anyway" if SmartScreen warns.
+          files: dist/**/*.zip
