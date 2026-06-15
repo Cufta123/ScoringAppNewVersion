@@ -34,6 +34,9 @@ jobs:
         # native modules (better-sqlite3) for the bundled Electron version.
         run: npm install
 
+      - name: Typecheck (tsc --noEmit)
+        run: npm run typecheck
+
       - name: Build Webpack (React / main code)
         run: npm run build
 
