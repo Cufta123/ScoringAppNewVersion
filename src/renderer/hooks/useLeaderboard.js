@@ -504,6 +504,17 @@ export default function useLeaderboard(eventId) {
     });
   };
 
+  // Normalise an entry into the inputs every recompute path needs: race cells
+  // with discard parens stripped, and a per-race status list defaulting to
+  // FINISHED. Both arrays are freshly built, so callers may mutate them in
+  // place (e.g. to set the edited cell) without touching the source entry.
+  const getEntryScoreInputs = (entry) => ({
+    rawRaces: entry.races.map((r) => String(r).replace(/[()]/g, '')),
+    statuses: entry.race_statuses
+      ? [...entry.race_statuses]
+      : entry.races.map(() => 'FINISHED'),
+  });
+
   // Recompute the score-derived fields shared by every edit path: convert the
   // place cells to penalty points, run discards, and expose both the discard-
   // marked races and the score fields. Callers spread in the totals and pick
@@ -628,24 +639,21 @@ export default function useLeaderboard(eventId) {
     }
 
     const updated = cloned.map((entry) => {
-      const entryStatuses =
-        entry.race_statuses || entry.races.map(() => 'FINISHED');
-      const rawRaces = entry.races.map((r) => String(r).replace(/[()]/g, ''));
-      const newStatuses = [...entryStatuses];
+      const { rawRaces, statuses } = getEntryScoreInputs(entry);
       if (entry.boat_id === boatId) {
         rawRaces[raceIndex] = String(newPosition);
-        newStatuses[raceIndex] = newStatus;
+        statuses[raceIndex] = newStatus;
       }
       const { markedRaces, scoreFields } = recomputeEntryScores(
         rawRaces,
-        newStatuses,
+        statuses,
         penaltyPosition,
       );
       return {
         ...entry,
         races: markedRaces,
         ...scoreFields,
-        race_statuses: newStatuses,
+        race_statuses: statuses,
       };
     });
 
@@ -687,23 +695,20 @@ export default function useLeaderboard(eventId) {
           )
         : penaltyPosition;
 
-    const entryStatuses = [
-      ...(entry.race_statuses || entry.races.map(() => 'FINISHED')),
-    ];
-    const rawRaces = entry.races.map((r) => String(r).replace(/[()]/g, ''));
+    const { rawRaces, statuses } = getEntryScoreInputs(entry);
     rawRaces[raceIndex] = String(avg);
-    entryStatuses[raceIndex] = 'RDG2';
+    statuses[raceIndex] = 'RDG2';
 
     const { markedRaces, scoreFields } = recomputeEntryScores(
       rawRaces,
-      entryStatuses,
+      statuses,
       penaltyPosition,
     );
     const updatedEntry = {
       ...entry,
       races: markedRaces,
       ...scoreFields,
-      race_statuses: entryStatuses,
+      race_statuses: statuses,
     };
 
     const qualLabels = [...(selectedQualIndices || new Set())]
@@ -732,9 +737,7 @@ export default function useLeaderboard(eventId) {
 
       const penaltyPosition = getPenaltyPosition(editableLeaderboard.length);
       const updatedLeaderboard = editableLeaderboard.map((entry) => {
-        const rawRaces = entry.races.map((r) => String(r).replace(/[()]/g, ''));
-        const statuses =
-          entry.race_statuses || entry.races.map(() => 'FINISHED');
+        const { rawRaces, statuses } = getEntryScoreInputs(entry);
         // Save keeps the original `races`, so only the score fields are taken.
         const { scoreFields } = recomputeEntryScores(
           rawRaces,
