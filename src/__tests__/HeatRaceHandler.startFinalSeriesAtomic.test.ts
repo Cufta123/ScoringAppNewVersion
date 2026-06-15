@@ -129,7 +129,7 @@ const dbMock = {
       sqlContains(sql, 'FROM Leaderboard lb') &&
       sqlContains(
         sql,
-        'GROUP_CONCAT(sc.points ORDER BY r.race_number) AS race_points',
+        'GROUP_CONCAT(sc.points ORDER BY r.race_number, r.race_id) AS race_points',
       )
     ) {
       return {

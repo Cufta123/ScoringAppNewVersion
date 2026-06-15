@@ -320,7 +320,14 @@ function HeatComponent({
       eventBoats.sort((a, b) => {
         if (a.country < b.country) return -1;
         if (a.country > b.country) return 1;
-        return a.sail_number - b.sail_number;
+        // Sail numbers are stored as TEXT and can be alphanumeric, so compare
+        // them as strings with numeric awareness (e.g. "9" < "10") instead of
+        // numeric subtraction, which would yield NaN for non-numeric values.
+        return String(a.sail_number).localeCompare(
+          String(b.sail_number),
+          undefined,
+          { numeric: true, sensitivity: 'base' },
+        );
       });
 
       const heatPromises = [];

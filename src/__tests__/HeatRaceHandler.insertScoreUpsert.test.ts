@@ -64,7 +64,7 @@ const dbMock = {
 
     if (
       sqlContains(sql, 'SELECT score_id, position') &&
-      sqlContains(sql, "WHERE race_id = ? AND status = 'FINISHED'")
+      sqlContains(sql, "race_id = ? AND (status = 'FINISHED'")
     ) {
       return {
         all: jest.fn(() => []),

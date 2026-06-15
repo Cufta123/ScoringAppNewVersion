@@ -10,7 +10,8 @@ import './EventPage.css';
 import HeatComponent from '../../components/HeatComponent';
 import printStartingList from '../../utils/printStartingList';
 import { reportError, reportInfo } from '../../utils/userFeedback';
-import { eventDB, heatRaceDB, sailorDB } from '../../api/db';
+import { checkRaceHappened } from '../../utils/raceStatus';
+import { eventDB, sailorDB } from '../../api/db';
 
 function EventPage() {
   const location = useLocation();
@@ -86,13 +87,7 @@ function EventPage() {
     if (!eventId) return;
 
     try {
-      const heats = await heatRaceDB.readAllHeats(eventId);
-      const racePromises = heats.map((heat) =>
-        heatRaceDB.readAllRaces(heat.heat_id),
-      );
-      const races = await Promise.all(racePromises);
-      const anyRaceHappened = races.some((raceArray) => raceArray.length > 0);
-      setRaceHappened(anyRaceHappened);
+      setRaceHappened(await checkRaceHappened(eventId));
     } catch (error) {
       reportError('Could not check race status.', error);
     }

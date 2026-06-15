@@ -22,7 +22,7 @@ type Scenario = {
   maxBoats: number;
   currentPosition: number;
   currentStatus: string;
-  finishedRows: Array<{ score_id: number; position: number }>;
+  finishedRows: Array<{ score_id: number; position: number; status?: string }>;
 };
 
 let currentScenario: Scenario;
@@ -84,7 +84,7 @@ const dbMock = {
 
     if (
       sqlContains(sql, 'SELECT score_id, position') &&
-      sqlContains(sql, "WHERE race_id = ? AND status = 'FINISHED'")
+      sqlContains(sql, "race_id = ? AND (status = 'FINISHED'")
     ) {
       return {
         all: jest.fn(() => currentScenario.finishedRows),
@@ -604,9 +604,9 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     currentScenario.currentPosition = 1;
     currentScenario.currentStatus = 'FINISHED';
     currentScenario.finishedRows = [
-      { score_id: 11, position: 1 },
-      { score_id: 12, position: 1 },
-      { score_id: 13, position: 3 },
+      { score_id: 11, position: 1, status: 'FINISHED' },
+      { score_id: 12, position: 1, status: 'FINISHED' },
+      { score_id: 13, position: 3, status: 'FINISHED' },
     ];
 
     const handler = handlerRegistry.updateRaceResult;

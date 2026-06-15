@@ -270,7 +270,11 @@ function LeaderboardPage() {
 
   return (
     <div>
-      <Navbar />
+      <Navbar
+        onNavigateHome={() =>
+          navigateWithUnsavedCheck({ path: '/', options: undefined })
+        }
+      />
       <main
         id="main-content"
         className="leaderboard-page-content"

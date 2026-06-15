@@ -147,17 +147,23 @@ const dbMock = {
         ) => upsertScore(raceId, boatId, position, points, status, false),
       };
     }
-    // Tie-scoring read of FINISHED rows.
+    // Tie-scoring read of finishers + position-keeping penalties (which keep
+    // their place slot). Mirrors the handler's status filter.
     if (
       sql.includes("status = 'FINISHED'") &&
       sql.includes('ORDER BY position')
     ) {
+      const placeKeeping = new Set(['FINISHED', 'ZFP', 'SCP', 'T1']);
       return {
         all: (raceId: number) =>
           [...state.scores.values()]
-            .filter((s) => s.race_id === raceId && s.status === 'FINISHED')
+            .filter((s) => s.race_id === raceId && placeKeeping.has(s.status))
             .sort((a, b) => a.position - b.position || a.score_id - b.score_id)
-            .map((s) => ({ score_id: s.score_id, position: s.position })),
+            .map((s) => ({
+              score_id: s.score_id,
+              position: s.position,
+              status: s.status,
+            })),
       };
     }
     if (
@@ -304,6 +310,43 @@ describe('submitHeatRaceScoresAtomic handler', () => {
     expect(scoresForRace(raceId)).toHaveLength(10);
     // Scoring locks the qualifying discard profile.
     expect(state.eventLocked).toBe(1);
+  });
+
+  it('does not shift finishers behind a position-keeping penalty (RRS A7 / 44.3c)', async () => {
+    // Regression: a ZFP boat keeps its place, so finishers behind it must keep
+    // their own places/points instead of being compacted up the order.
+    const result = await handlerRegistry.submitHeatRaceScoresAtomic(
+      {},
+      {
+        event_id: 1,
+        heat_id: HEAT_ID,
+        placeNumbers: [
+          { boatNumber: 101, place: 1, status: 'FINISHED' },
+          { boatNumber: 102, place: 2, status: 'ZFP' },
+          { boatNumber: 103, place: 3, status: 'FINISHED' },
+        ],
+        isFinalSeries: false,
+      },
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    const { raceId } = result;
+
+    // Winner unchanged.
+    expect(scoreForBoat(raceId, 1)).toMatchObject({ position: 1, points: 1 });
+    // ZFP keeps place 2; 20% of 10 = 2 places => place 2 scores 4.
+    expect(scoreForBoat(raceId, 2)).toMatchObject({
+      position: 2,
+      points: 4,
+      status: 'ZFP',
+    });
+    // The finisher behind the ZFP boat must stay 3rd with 3 points (was being
+    // compacted to position 2 / 2 points before the fix).
+    expect(scoreForBoat(raceId, 3)).toMatchObject({
+      position: 3,
+      points: 3,
+      status: 'FINISHED',
+    });
   });
 
   it('writes nothing when a sail number is not in the heat', async () => {

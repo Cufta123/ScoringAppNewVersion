@@ -6,8 +6,14 @@ function Navbar({
   onOpenGlobalLeaderboard = null,
   onOpenLeaderboard = null,
   onHeatRaceClick = null,
+  onNavigateHome = null,
 }) {
   const navigate = useNavigate();
+
+  // Pages with unsaved work (e.g. the leaderboard editor) pass their own
+  // handler so the brand button goes through the same discard-changes guard as
+  // the breadcrumbs instead of navigating away and silently dropping edits.
+  const goHome = onNavigateHome || (() => navigate('/'));
 
   return (
     <nav className="app-navbar">
@@ -15,7 +21,7 @@ function Navbar({
       <button
         type="button"
         className="app-navbar-brand"
-        onClick={() => navigate('/')}
+        onClick={goHome}
         aria-label="Go to home page"
       >
         <i className="fa fa-anchor" aria-hidden="true" />
@@ -64,6 +70,7 @@ Navbar.propTypes = {
   onOpenGlobalLeaderboard: PropTypes.func,
   onOpenLeaderboard: PropTypes.func,
   onHeatRaceClick: PropTypes.func,
+  onNavigateHome: PropTypes.func,
 };
 
 export default Navbar;

@@ -59,7 +59,7 @@ export function getScoresForA82(event_id: any, boat_id: any) {
     JOIN Races r ON s.race_id = r.race_id
     JOIN Heats h ON r.heat_id = h.heat_id
     WHERE h.event_id = ? AND s.boat_id = ? AND h.heat_type = 'Qualifying'
-    ORDER BY r.race_number DESC
+    ORDER BY r.race_number DESC, s.race_id DESC
   `);
 
   return scoresQuery

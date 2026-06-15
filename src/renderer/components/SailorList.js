@@ -64,11 +64,26 @@ function SailorList({
     }
   };
 
+  // Numeric-aware, case-insensitive comparison so "Sail №" sorts 9, 10, 100
+  // (sail numbers are stored as TEXT) instead of lexicographically.
+  const collator = new Intl.Collator(undefined, {
+    numeric: true,
+    sensitivity: 'base',
+  });
+
+  // Subgroup is displayed via its label, so sort by the label the user sees
+  // rather than the raw stored category code.
+  const sortValue = (sailor) =>
+    sortCriteria === 'category'
+      ? toSubgroupLabel(sailor.category) || sailor.category || ''
+      : sailor[sortCriteria];
+
   const sortedSailors = [...sailors].sort((a, b) => {
     const dir = sortDirection === 'asc' ? 1 : -1;
-    if (a[sortCriteria] < b[sortCriteria]) return -1 * dir;
-    if (a[sortCriteria] > b[sortCriteria]) return 1 * dir;
-    return 0;
+    return (
+      collator.compare(String(sortValue(a) ?? ''), String(sortValue(b) ?? '')) *
+      dir
+    );
   });
 
   useEffect(() => {

@@ -112,8 +112,6 @@ ipcMain.handle('readAllBoats', () => {
 });
 ipcMain.handle('updateSailor', async (event, sailorData) => {
   const {
-    originalName,
-    originalSurname,
     name,
     surname,
     category_name,
@@ -128,13 +126,15 @@ ipcMain.handle('updateSailor', async (event, sailorData) => {
   console.log('Received sailorData:', sailorData); // Log the received data
 
   try {
-    // Fetch sailor_id based on original name and surname
-    const sailor = db
-      .prepare('SELECT sailor_id FROM Sailors WHERE name = ? AND surname = ?')
-      .get(originalName, originalSurname);
-    if (!sailor)
-      throw new Error(`Sailor not found: ${originalName} ${originalSurname}`);
-    const { sailor_id } = sailor;
+    // Resolve the sailor via the boat being edited. boat_id is unique, so this
+    // can never edit the wrong "John Doe" the way a name+surname lookup could.
+    const boatRow = db
+      .prepare(
+        'SELECT sailor_id, club_id FROM Boats b JOIN Sailors s ON s.sailor_id = b.sailor_id WHERE b.boat_id = ?',
+      )
+      .get(boat_id) as { sailor_id: number; club_id: number } | undefined;
+    if (!boatRow) throw new Error(`Boat not found: ${boat_id}`);
+    const { sailor_id } = boatRow;
 
     // Fetch category_id based on category_name
     const category = db
@@ -143,25 +143,23 @@ ipcMain.handle('updateSailor', async (event, sailorData) => {
     if (!category) throw new Error(`Category not found: ${category_name}`);
     const { category_id } = category;
 
-    // Fetch club_id based on original club name
-    let club = db
-      .prepare('SELECT club_id FROM Clubs WHERE club_name = ?')
-      .get(originalClubName);
-    if (!club) throw new Error(`Club not found: ${originalClubName}`);
-    let { club_id } = club;
-
+    // Keep the sailor's current club unless the name actually changed. When it
+    // does, match an existing club by name AND country (clubs with the same
+    // name can exist in different countries) before creating a new one.
+    let { club_id } = boatRow;
     if (club_name !== originalClubName) {
-      club = db
-        .prepare('SELECT club_id FROM Clubs WHERE club_name = ?')
-        .get(club_name);
-      if (club) {
-        club_id = club.club_id;
+      const existingClub = db
+        .prepare(
+          'SELECT club_id FROM Clubs WHERE club_name = ? AND country = ?',
+        )
+        .get(club_name, country) as { club_id: number } | undefined;
+      if (existingClub) {
+        club_id = existingClub.club_id;
       } else {
-        // Insert new club and get the new club_id
         const newClub = db
           .prepare('INSERT INTO Clubs (club_name, country) VALUES (?, ?)')
           .run(club_name, country);
-        club_id = newClub.lastInsertRowid;
+        club_id = newClub.lastInsertRowid as number;
       }
     }
 
@@ -265,10 +263,13 @@ ipcMain.handle('importSailors', (_event, rows: ImportRow[]) => {
           eventId,
         } = row;
 
-        if (!name || !surname || !sail_number || !country || !model) {
+        // model is optional (matches the single-entry form and the import UI's
+        // stated "Optional" columns); default it rather than rejecting the row.
+        if (!name || !surname || !sail_number || !country) {
           invalid += 1;
           return;
         }
+        const boatModel = model || '';
 
         // Resolve category. Accept either a full category name (e.g. "VETERAN")
         // or a subgroup code (e.g. "M") so the CSV matches the single-entry form.
@@ -327,7 +328,7 @@ ipcMain.handle('importSailors', (_event, rows: ImportRow[]) => {
             .prepare(
               'INSERT INTO Boats (sail_number, country, model, sailor_id) VALUES (?, ?, ?, ?)',
             )
-            .run(String(sail_number), country, model, sailor_id);
+            .run(String(sail_number), country, boatModel, sailor_id);
           boat_id = boatResult.lastInsertRowid as number;
           created += 1;
         }

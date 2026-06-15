@@ -12,7 +12,7 @@ function AppModal({
   cancelLabel = 'Cancel',
   onConfirm,
   onCancel,
-  confirmButtonClass = 'btn-success',
+  confirmClassName = 'btn-success',
 }) {
   const dialogRef = useRef(null);
   const lastFocusedRef = useRef(null);
@@ -104,7 +104,7 @@ function AppModal({
           </button>
           <button
             type="button"
-            className={confirmButtonClass}
+            className={confirmClassName}
             onClick={onConfirm}
           >
             {confirmLabel}
@@ -123,7 +123,7 @@ AppModal.propTypes = {
   cancelLabel: PropTypes.string,
   onConfirm: PropTypes.func.isRequired,
   onCancel: PropTypes.func.isRequired,
-  confirmButtonClass: PropTypes.string,
+  confirmClassName: PropTypes.string,
 };
 
 export default AppModal;

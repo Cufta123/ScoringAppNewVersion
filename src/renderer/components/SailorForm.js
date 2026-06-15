@@ -5,10 +5,11 @@ import PropTypes from 'prop-types';
 import Autosuggest from 'react-autosuggest';
 import { toast } from 'react-toastify';
 import { reportError, reportInfo } from '../utils/userFeedback';
+import { checkRaceHappened } from '../utils/raceStatus';
 
 import iocCountries from '../constants/iocCountries.json';
 import { SUBGROUP_OPTIONS } from '../../shared/subgroups';
-import { eventDB, heatRaceDB, sailorDB } from '../api/db';
+import { eventDB, sailorDB } from '../api/db';
 
 function SailorForm({ onAddSailor, eventId }) {
   SailorForm.propTypes = {
@@ -38,13 +39,7 @@ function SailorForm({ onAddSailor, eventId }) {
 
   const checkIfRaceHappened = useCallback(async () => {
     try {
-      const heats = await heatRaceDB.readAllHeats(eventId);
-      const racePromises = heats.map((heat) =>
-        heatRaceDB.readAllRaces(heat.heat_id),
-      );
-      const races = await Promise.all(racePromises);
-      const anyRaceHappened = races.some((raceArray) => raceArray.length > 0);
-      setRaceHappened(anyRaceHappened);
+      setRaceHappened(await checkRaceHappened(eventId));
     } catch (error) {
       reportError('Could not check race status.', error);
     }

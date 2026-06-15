@@ -118,4 +118,46 @@ describe('SailorHandler import boat lookup safety', () => {
 
     expect(hasSafeLookup).toBe(true);
   });
+
+  it('imports a row with no model instead of skipping it as invalid', async () => {
+    const handler = handlerRegistry.importSailors;
+
+    const result = await handler({}, [
+      {
+        name: 'Ana',
+        surname: 'Ivic',
+        birthday: '2000-01-01',
+        sail_number: '47',
+        country: 'CRO',
+        model: '', // optional per the import UI — must not be treated as invalid
+        club_name: 'Split',
+        category_name: 'SENIOR',
+        eventId: 5,
+      },
+    ]);
+
+    expect(result.invalid).toBe(0);
+    expect(result.imported).toBe(1);
+  });
+
+  it('still rejects a row missing a required field (country)', async () => {
+    const handler = handlerRegistry.importSailors;
+
+    const result = await handler({}, [
+      {
+        name: 'Ana',
+        surname: 'Ivic',
+        birthday: '2000-01-01',
+        sail_number: '47',
+        country: '',
+        model: 'A',
+        club_name: 'Split',
+        category_name: 'SENIOR',
+        eventId: 5,
+      },
+    ]);
+
+    expect(result.invalid).toBe(1);
+    expect(result.imported).toBe(0);
+  });
 });

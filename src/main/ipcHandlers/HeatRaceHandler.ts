@@ -336,16 +336,23 @@ function ensureCompleteRaceScoresForEvent(
 }
 
 function applyRaceTieScoring(race_id: number): void {
-  const finishedRows = db
+  // Position-keeping penalties (ZFP/SCP/T1) keep their finishing place, so they
+  // occupy a slot in the finishing order even though their points are computed
+  // separately. They must be included in the place walk; otherwise finishers
+  // behind them would be compacted up a place and lose points (RRS A7 / 44.3c).
+  const penaltyList = [...scoringPenaltyStatuses]
+    .map((status) => `'${status}'`)
+    .join(', ');
+  const rankedRows = db
     .prepare(
-      `SELECT score_id, position
+      `SELECT score_id, position, status
        FROM Scores
-       WHERE race_id = ? AND status = 'FINISHED'
+       WHERE race_id = ? AND (status = 'FINISHED' OR status IN (${penaltyList}))
        ORDER BY position ASC, score_id ASC`,
     )
-    .all(race_id) as { score_id: number; position: number }[];
+    .all(race_id) as { score_id: number; position: number; status: string }[];
 
-  if (finishedRows.length === 0) {
+  if (rankedRows.length === 0) {
     return;
   }
 
@@ -356,15 +363,16 @@ function applyRaceTieScoring(race_id: number): void {
   let cursorPlace = 1;
   let index = 0;
 
-  while (index < finishedRows.length) {
-    const tieValue = finishedRows[index].position;
-    const tieGroup: { score_id: number; position: number }[] = [];
+  while (index < rankedRows.length) {
+    const tieValue = rankedRows[index].position;
+    const tieGroup: { score_id: number; position: number; status: string }[] =
+      [];
 
     while (
-      index < finishedRows.length &&
-      finishedRows[index].position === tieValue
+      index < rankedRows.length &&
+      rankedRows[index].position === tieValue
     ) {
-      tieGroup.push(finishedRows[index]);
+      tieGroup.push(rankedRows[index]);
       index += 1;
     }
 
@@ -374,7 +382,11 @@ function applyRaceTieScoring(race_id: number): void {
     const tiePoints = (startPlace + endPlace) / 2;
 
     tieGroup.forEach((row) => {
-      updateScore.run(startPlace, tiePoints, row.score_id);
+      // Only finishers are (re)scored here. Penalty boats keep the place and
+      // points assigned at submit time but still consume a place slot above.
+      if (row.status === 'FINISHED') {
+        updateScore.run(startPlace, tiePoints, row.score_id);
+      }
     });
 
     cursorPlace += groupSize;
@@ -1156,8 +1168,8 @@ ipcMain.handle(
         .prepare(
           `SELECT
           lb.boat_id,
-          GROUP_CONCAT(sc.points ORDER BY r.race_number) AS race_points,
-          GROUP_CONCAT(COALESCE(sc.status, 'DNS') ORDER BY r.race_number) AS race_statuses
+          GROUP_CONCAT(sc.points ORDER BY r.race_number, r.race_id) AS race_points,
+          GROUP_CONCAT(COALESCE(sc.status, 'DNS') ORDER BY r.race_number, r.race_id) AS race_statuses
         FROM Leaderboard lb
         LEFT JOIN Scores sc ON sc.boat_id = lb.boat_id
         LEFT JOIN Races r ON sc.race_id = r.race_id
@@ -1703,10 +1715,10 @@ ipcMain.handle('readLeaderboard', async (event, event_id) => {
       's.name, ' +
       's.surname, ' +
       'b.country, ' +
-      'GROUP_CONCAT(sc.position ORDER BY r.race_number) AS race_positions, ' +
-      'GROUP_CONCAT(sc.points ORDER BY r.race_number) AS race_points, ' +
-      'GROUP_CONCAT(r.race_id ORDER BY r.race_number) AS race_ids, ' +
-      "GROUP_CONCAT(COALESCE(sc.status, 'DNS') ORDER BY r.race_number) AS race_statuses " +
+      'GROUP_CONCAT(sc.position ORDER BY r.race_number, r.race_id) AS race_positions, ' +
+      'GROUP_CONCAT(sc.points ORDER BY r.race_number, r.race_id) AS race_points, ' +
+      'GROUP_CONCAT(r.race_id ORDER BY r.race_number, r.race_id) AS race_ids, ' +
+      "GROUP_CONCAT(COALESCE(sc.status, 'DNS') ORDER BY r.race_number, r.race_id) AS race_statuses " +
       'FROM Leaderboard lb ' +
       'LEFT JOIN Boats b ON lb.boat_id = b.boat_id ' +
       'LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id ' +
@@ -1789,10 +1801,10 @@ ipcMain.handle('readFinalLeaderboard', async (event, event_id) => {
       's.name, ' +
       's.surname, ' +
       'b.country, ' +
-      'GROUP_CONCAT(sc.position ORDER BY r.race_number) AS race_positions, ' +
-      'GROUP_CONCAT(sc.points ORDER BY r.race_number) AS race_points, ' +
-      'GROUP_CONCAT(r.race_id ORDER BY r.race_number) AS race_ids, ' +
-      "GROUP_CONCAT(COALESCE(sc.status, 'DNS') ORDER BY r.race_number) AS race_statuses " +
+      'GROUP_CONCAT(sc.position ORDER BY r.race_number, r.race_id) AS race_positions, ' +
+      'GROUP_CONCAT(sc.points ORDER BY r.race_number, r.race_id) AS race_points, ' +
+      'GROUP_CONCAT(r.race_id ORDER BY r.race_number, r.race_id) AS race_ids, ' +
+      "GROUP_CONCAT(COALESCE(sc.status, 'DNS') ORDER BY r.race_number, r.race_id) AS race_statuses " +
       'FROM FinalLeaderboard fl ' +
       'LEFT JOIN Boats b ON fl.boat_id = b.boat_id ' +
       'LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id ' +
