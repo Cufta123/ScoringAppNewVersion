@@ -1,4 +1,4 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
 
 exports[`useLeaderboard scoring/edit flow keeps full leaderboard payload contract stable across multiple sequential edits 1`] = `
 [
