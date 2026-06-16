@@ -253,12 +253,43 @@ export interface OverallLeaderboardEntry {
 
 export interface TieBreakRacePair {
   raceId: number | string;
+  displayA?: string | number;
+  displayB?: string | number;
   [key: string]: unknown;
 }
 
 export interface TieBreakRoute {
   rule?: string;
   note?: string;
+  [key: string]: unknown;
+}
+
+export interface TieBreakComparison {
+  mode?: string;
+  scoreA?: number;
+  scoreB?: number;
+  position?: number;
+  raceId?: number | string;
+  [key: string]: unknown;
+}
+
+export interface TieBreakStep {
+  rule?: string;
+  note?: string;
+  subtitle?: string;
+  resolved?: boolean;
+  comparison?: TieBreakComparison;
+  [key: string]: unknown;
+}
+
+export interface RaceGridCell {
+  key?: string;
+  label?: string;
+  scoreA?: number | string;
+  scoreB?: number | string;
+  excludedA?: boolean;
+  excludedB?: boolean;
+  isBreaker?: boolean;
   [key: string]: unknown;
 }
 
@@ -269,8 +300,59 @@ export interface TieBreakResult {
   totalA?: number;
   totalB?: number;
   tied?: boolean;
-  steps?: unknown[];
+  steps?: TieBreakStep[];
   route?: TieBreakRoute | null;
-  raceGrid?: unknown[];
+  raceGrid?: RaceGridCell[];
   [key: string]: unknown;
+}
+
+// --- Leaderboard edit-mode UI state (shared by the hook and its components) --
+
+/** Per-cell RDG redress metadata, keyed by `${boatId}-${raceIndex}`. */
+export interface RdgMetaEntry {
+  type: string;
+  selectedRaceLabels?: string[];
+}
+
+export type RdgMeta = Record<string, RdgMetaEntry>;
+
+/** Signature of the edit-mode race-cell change handler (from useLeaderboard). */
+export type RaceChangeHandler = (
+  boatId: number,
+  raceIndex: number,
+  newRaceValue: string | number | null,
+  newStatus?: string,
+) => void;
+
+/** Open state of the RDG2 multi-race selector for one cell. */
+export interface Rdg2PickerState {
+  boatId: number;
+  raceIndex: number;
+  selectedIndices?: Set<number>;
+  selectedQualIndices?: Set<number>;
+  // Anchor rect of the triggering <select>, used to position the popover.
+  anchorRect?: DOMRect;
+}
+
+/** Assembled tie-break comparison shown in the compare panel. */
+export interface CompareInfo {
+  boatA: LeaderboardEntry;
+  boatB: LeaderboardEntry;
+  totalA: number;
+  totalB: number;
+  tied?: boolean;
+  tieBreak: {
+    steps: TieBreakStep[];
+    winner: LeaderboardEntry | null;
+    rule: string;
+    detail: string;
+  } | null;
+  routeStep: TieBreakRoute | null;
+  raceGrid: RaceGridCell[];
+  sharedRacePairs: TieBreakRacePair[];
+  sharedQualRacePairs: TieBreakRacePair[];
+  sharedIds: Set<string>;
+  sharedQualIds: Set<string>;
+  otherTiedCount: number;
+  tiedGroupEntries: LeaderboardEntry[];
 }

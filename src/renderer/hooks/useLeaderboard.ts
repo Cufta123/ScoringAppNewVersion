@@ -27,10 +27,11 @@ import {
 } from '../../shared/scoringPenalty';
 import { eventDB, heatRaceDB } from '../api/db';
 import type {
+  CompareInfo,
   LeaderboardEntry,
   OverallLeaderboardEntry,
-  TieBreakRacePair,
-  TieBreakRoute,
+  RdgMetaEntry,
+  Rdg2PickerState,
 } from '../types';
 
 type ActiveTab = 'event' | 'final';
@@ -43,40 +44,6 @@ interface DiscardProfiles {
 interface MaxHeatSizes {
   qualifying: number;
   final: number;
-}
-
-interface RdgMetaEntry {
-  type: string;
-  selectedRaceLabels?: string[];
-}
-
-interface Rdg2PickerState {
-  boatId: number;
-  raceIndex: number;
-  selectedIndices?: Set<number>;
-  selectedQualIndices?: Set<number>;
-}
-
-interface CompareInfo {
-  boatA: LeaderboardEntry;
-  boatB: LeaderboardEntry;
-  totalA: number;
-  totalB: number;
-  tied?: boolean;
-  tieBreak: {
-    steps: unknown[];
-    winner: LeaderboardEntry | null;
-    rule: string;
-    detail: string;
-  } | null;
-  routeStep: TieBreakRoute | null;
-  raceGrid: unknown[];
-  sharedRacePairs: TieBreakRacePair[];
-  sharedQualRacePairs: TieBreakRacePair[];
-  sharedIds: Set<string>;
-  sharedQualIds: Set<string>;
-  otherTiedCount: number;
-  tiedGroupEntries: LeaderboardEntry[];
 }
 
 type ExportCell = string | number;

@@ -1,8 +1,13 @@
 import React from 'react';
-import PropTypes from 'prop-types';
 import Flag from 'react-world-flags';
 import ScoreCell from './ScoreCell';
 import ComparePanel from './ComparePanel';
+import type {
+  CompareInfo,
+  LeaderboardEntry,
+  RaceChangeHandler,
+  Rdg2PickerState,
+} from '../../types';
 
 // Accent colours for the qualifying series (blue scheme)
 const QUAL_ACCENT = {
@@ -10,6 +15,20 @@ const QUAL_ACCENT = {
   thead: '#4a7fc1',
   dot: '#1a56a0',
 };
+
+interface QualifyingTableProps {
+  leaderboard: LeaderboardEntry[];
+  editMode: boolean;
+  compareMode: boolean;
+  selectedBoatIds: number[];
+  compareInfo?: CompareInfo | null;
+  rdg2Picker?: Rdg2PickerState | null;
+  setRdg2Picker: React.Dispatch<React.SetStateAction<Rdg2PickerState | null>>;
+  onCompareRowClick: (boatId: number) => void;
+  onRaceChange: RaceChangeHandler;
+  confirmRdg2: () => void;
+  getFlagCode: (iocCode: string) => string;
+}
 
 /**
  * Qualifying series results table.
@@ -27,7 +46,7 @@ function QualifyingTable({
   onRaceChange,
   confirmRdg2,
   getFlagCode,
-}) {
+}: QualifyingTableProps) {
   if (!leaderboard.length) return null;
 
   const identityHeaders = ['Rank', 'Name', 'Country', 'Sail #', 'Type'];
@@ -139,6 +158,7 @@ function QualifyingTable({
                 const colIsShared =
                   compareMode &&
                   selectedBoatIds.length === 2 &&
+                  colRaceId != null &&
                   (compareInfo?.sharedQualIds?.has(colRaceId) ||
                     compareInfo?.sharedIds?.has(colRaceId) ||
                     false);
@@ -226,7 +246,7 @@ function QualifyingTable({
                       }}
                     >
                       <Flag
-                        code={getFlagCode(entry.country)}
+                        code={getFlagCode(entry.country ?? '')}
                         style={{ width: '24px' }}
                       />
                       {entry.country}
@@ -283,6 +303,7 @@ function QualifyingTable({
                     const isShared =
                       compareMode &&
                       selectedBoatIds.includes(entry.boat_id) &&
+                      raceId != null &&
                       (compareInfo?.sharedQualIds?.has(raceId) ||
                         compareInfo?.sharedIds?.has(raceId) ||
                         false);
@@ -319,19 +340,5 @@ function QualifyingTable({
     </div>
   );
 }
-
-QualifyingTable.propTypes = {
-  leaderboard: PropTypes.arrayOf(PropTypes.object).isRequired,
-  editMode: PropTypes.bool.isRequired,
-  compareMode: PropTypes.bool.isRequired,
-  selectedBoatIds: PropTypes.arrayOf(PropTypes.number).isRequired,
-  compareInfo: PropTypes.object,
-  rdg2Picker: PropTypes.object,
-  setRdg2Picker: PropTypes.func.isRequired,
-  onCompareRowClick: PropTypes.func.isRequired,
-  onRaceChange: PropTypes.func.isRequired,
-  confirmRdg2: PropTypes.func.isRequired,
-  getFlagCode: PropTypes.func.isRequired,
-};
 
 export default QualifyingTable;

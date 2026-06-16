@@ -1,23 +1,33 @@
 import React, { useEffect, useRef, useState } from 'react';
-import PropTypes from 'prop-types';
+import type { CompareInfo } from '../../types';
 
-function getStepStatusClass(resolved) {
+function getStepStatusClass(resolved: boolean | undefined): string {
   if (resolved === true) return 'compare-step-resolved';
   if (resolved === false) return 'compare-step-unresolved';
   return 'compare-step-neutral';
 }
 
-function getStepStatusText(resolved) {
+function getStepStatusText(resolved: boolean | undefined): string {
   if (resolved === true) return 'resolved';
   if (resolved === false) return 'unresolved';
   return 'info';
 }
 
-function ComparePanel({ show, compareInfo = null, selectedBoatIds }) {
-  const [displayed, setDisplayed] = useState(compareInfo);
+interface ComparePanelProps {
+  show: boolean;
+  compareInfo?: CompareInfo | null;
+  selectedBoatIds: number[];
+}
+
+function ComparePanel({
+  show,
+  compareInfo = null,
+  selectedBoatIds,
+}: ComparePanelProps) {
+  const [displayed, setDisplayed] = useState<CompareInfo | null>(compareInfo);
   const [fading, setFading] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
-  const timerRef = useRef(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!show) {
@@ -33,7 +43,7 @@ function ComparePanel({ show, compareInfo = null, selectedBoatIds }) {
       return;
     }
 
-    clearTimeout(timerRef.current);
+    if (timerRef.current) clearTimeout(timerRef.current);
     setFading(true);
     timerRef.current = setTimeout(() => {
       setDisplayed(compareInfo);
@@ -45,7 +55,10 @@ function ComparePanel({ show, compareInfo = null, selectedBoatIds }) {
     setShowDetail(false);
   }, [compareInfo]);
 
-  const renderScoreValue = (value, excluded) => {
+  const renderScoreValue = (
+    value: string | number | undefined | null,
+    excluded: boolean | undefined,
+  ): string | number => {
     if (value === undefined || value === null) return '–';
     if (!excluded) return value;
     return `(${value})`;
@@ -392,66 +405,5 @@ function ComparePanel({ show, compareInfo = null, selectedBoatIds }) {
     </div>
   );
 }
-
-const boatShape = PropTypes.shape({
-  boat_id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
-  name: PropTypes.string,
-  surname: PropTypes.string,
-});
-
-const tieStepShape = PropTypes.shape({
-  rule: PropTypes.string,
-  note: PropTypes.string,
-  subtitle: PropTypes.string,
-  resolved: PropTypes.bool,
-  comparison: PropTypes.shape({
-    mode: PropTypes.string,
-    scoreA: PropTypes.number,
-    scoreB: PropTypes.number,
-    position: PropTypes.number,
-    raceId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
-  }),
-});
-
-ComparePanel.propTypes = {
-  show: PropTypes.bool.isRequired,
-  compareInfo: PropTypes.oneOfType([
-    PropTypes.shape({
-      boatA: boatShape,
-      boatB: boatShape,
-      totalA: PropTypes.number,
-      totalB: PropTypes.number,
-      tied: PropTypes.bool,
-      tieBreak: PropTypes.shape({
-        winner: boatShape,
-        steps: PropTypes.arrayOf(tieStepShape),
-      }),
-      routeStep: PropTypes.shape({
-        rule: PropTypes.string,
-        note: PropTypes.string,
-      }),
-      raceGrid: PropTypes.arrayOf(
-        PropTypes.shape({
-          key: PropTypes.string,
-          label: PropTypes.string,
-          scoreA: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
-          scoreB: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
-          excludedA: PropTypes.bool,
-          excludedB: PropTypes.bool,
-          isBreaker: PropTypes.bool,
-        }),
-      ),
-      sharedIds: PropTypes.instanceOf(Set),
-      sharedRacePairs: PropTypes.arrayOf(PropTypes.object),
-      sharedQualRacePairs: PropTypes.arrayOf(PropTypes.object),
-      otherTiedCount: PropTypes.number,
-      tiedGroupEntries: PropTypes.arrayOf(boatShape),
-    }),
-    PropTypes.oneOf([null]),
-  ]),
-  selectedBoatIds: PropTypes.arrayOf(
-    PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
-  ).isRequired,
-};
 
 export default ComparePanel;

@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import PropTypes from 'prop-types';
 
-const btnBase = {
+const btnBase: React.CSSProperties = {
   padding: '6px 14px',
   borderRadius: 'var(--radius, 6px)',
   fontWeight: 600,
@@ -18,13 +17,18 @@ const EXPORT_FORMATS = [
   { key: 'pdf', label: 'PDF (.pdf)' },
 ];
 
-function ExportDropdown({ onExport }) {
+interface ExportDropdownProps {
+  onExport: (key: string) => void;
+}
+
+function ExportDropdown({ onExport }: ExportDropdownProps) {
   const [open, setOpen] = useState(false);
-  const ref = useRef(null);
+  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -101,9 +105,17 @@ function ExportDropdown({ onExport }) {
   );
 }
 
-ExportDropdown.propTypes = {
-  onExport: PropTypes.func.isRequired,
-};
+interface LeaderboardToolbarProps {
+  finalSeriesStarted: boolean;
+  editMode: boolean;
+  compareMode: boolean;
+  shiftPositions: boolean;
+  onToggleEdit: () => void;
+  onSave: () => void;
+  onShiftChange: React.ChangeEventHandler<HTMLInputElement>;
+  onToggleCompare: () => void;
+  onExport: (key: string) => void;
+}
 
 function LeaderboardToolbar({
   finalSeriesStarted,
@@ -115,7 +127,7 @@ function LeaderboardToolbar({
   onShiftChange,
   onToggleCompare,
   onExport,
-}) {
+}: LeaderboardToolbarProps) {
   return (
     <div
       style={{
@@ -214,17 +226,5 @@ function LeaderboardToolbar({
     </div>
   );
 }
-
-LeaderboardToolbar.propTypes = {
-  finalSeriesStarted: PropTypes.bool.isRequired,
-  editMode: PropTypes.bool.isRequired,
-  compareMode: PropTypes.bool.isRequired,
-  shiftPositions: PropTypes.bool.isRequired,
-  onToggleEdit: PropTypes.func.isRequired,
-  onSave: PropTypes.func.isRequired,
-  onShiftChange: PropTypes.func.isRequired,
-  onToggleCompare: PropTypes.func.isRequired,
-  onExport: PropTypes.func.isRequired,
-};
 
 export default LeaderboardToolbar;

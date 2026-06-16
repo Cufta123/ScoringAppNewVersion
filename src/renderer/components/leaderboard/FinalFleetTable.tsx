@@ -1,13 +1,32 @@
 /* eslint-disable react/no-array-index-key */
 /* eslint-disable no-nested-ternary */
-/* eslint-disable react/forbid-prop-types */
-/* eslint-disable react/require-default-props */
 import React, { useState } from 'react';
-import PropTypes from 'prop-types';
 import Flag from 'react-world-flags';
 import ScoreCell from './ScoreCell';
 import ComparePanel from './ComparePanel';
 import { FLEET_COLORS } from '../../utils/leaderboardUtils';
+import type {
+  CompareInfo,
+  LeaderboardEntry,
+  RaceChangeHandler,
+  Rdg2PickerState,
+} from '../../types';
+
+interface FinalFleetTableProps {
+  group: string;
+  entries: LeaderboardEntry[];
+  editMode: boolean;
+  compareMode: boolean;
+  selectedBoatIds: number[];
+  eventLeaderboard: LeaderboardEntry[];
+  compareInfo?: CompareInfo | null;
+  rdg2Picker?: Rdg2PickerState | null;
+  setRdg2Picker: React.Dispatch<React.SetStateAction<Rdg2PickerState | null>>;
+  onCompareRowClick: (boatId: number, placementGroup?: string | null) => void;
+  onRaceChange: RaceChangeHandler;
+  confirmRdg2: () => void;
+  getFlagCode: (iocCode: string) => string;
+}
 
 /**
  * Table for one fleet's final-series results.
@@ -29,7 +48,7 @@ function FinalFleetTable({
   onRaceChange,
   confirmRdg2,
   getFlagCode,
-}) {
+}: FinalFleetTableProps) {
   const [showTotals, setShowTotals] = useState(false);
 
   if (!entries?.length) return null;
@@ -174,6 +193,7 @@ function FinalFleetTable({
                 const colQIsShared =
                   compareMode &&
                   selectedBoatIds.length === 2 &&
+                  colQRaceId != null &&
                   (compareInfo?.sharedQualIds?.has(colQRaceId) ?? false);
                 return (
                   <th
@@ -227,6 +247,7 @@ function FinalFleetTable({
                 const colFIsShared =
                   compareMode &&
                   selectedBoatIds.length === 2 &&
+                  colFRaceId != null &&
                   (compareInfo?.sharedIds?.has(colFRaceId) ?? false);
                 return (
                   <th
@@ -328,7 +349,7 @@ function FinalFleetTable({
                       }}
                     >
                       <Flag
-                        code={getFlagCode(entry.country)}
+                        code={getFlagCode(entry.country ?? '')}
                         style={{ width: '24px' }}
                       />
                       {entry.country}
@@ -409,6 +430,7 @@ function FinalFleetTable({
                     const qIsShared =
                       compareMode &&
                       selectedBoatIds.includes(entry.boat_id) &&
+                      qRaceId != null &&
                       (compareInfo?.sharedQualIds?.has(qRaceId) ?? false);
 
                     return (
@@ -464,6 +486,7 @@ function FinalFleetTable({
                     const isShared =
                       compareMode &&
                       selectedBoatIds.includes(entry.boat_id) &&
+                      fRaceId != null &&
                       (compareInfo?.sharedIds?.has(fRaceId) ?? false);
                     return (
                       <ScoreCell
@@ -517,21 +540,5 @@ function FinalFleetTable({
     </div>
   );
 }
-
-FinalFleetTable.propTypes = {
-  group: PropTypes.string.isRequired,
-  entries: PropTypes.arrayOf(PropTypes.object).isRequired,
-  editMode: PropTypes.bool.isRequired,
-  compareMode: PropTypes.bool.isRequired,
-  selectedBoatIds: PropTypes.arrayOf(PropTypes.number).isRequired,
-  eventLeaderboard: PropTypes.arrayOf(PropTypes.object).isRequired,
-  compareInfo: PropTypes.object,
-  rdg2Picker: PropTypes.object,
-  setRdg2Picker: PropTypes.func.isRequired,
-  onCompareRowClick: PropTypes.func.isRequired,
-  onRaceChange: PropTypes.func.isRequired,
-  confirmRdg2: PropTypes.func.isRequired,
-  getFlagCode: PropTypes.func.isRequired,
-};
 
 export default FinalFleetTable;

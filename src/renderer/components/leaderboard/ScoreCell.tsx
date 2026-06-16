@@ -1,11 +1,32 @@
 import React from 'react';
-import PropTypes from 'prop-types';
 import {
   PENALTY_CODES,
   RDG_TYPES,
   getRaceCellDisplay,
 } from '../../utils/leaderboardUtils';
 import Rdg2Picker from './Rdg2Picker';
+import type {
+  LeaderboardEntry,
+  RaceChangeHandler,
+  Rdg2PickerState,
+} from '../../types';
+
+interface ScoreCellProps {
+  race: string | number;
+  raceStatus: string;
+  raceIndex: number;
+  boatId: number;
+  entry: LeaderboardEntry;
+  editMode: boolean;
+  isEditable?: boolean;
+  isShared?: boolean;
+  cellStyle?: React.CSSProperties;
+  onRaceChange: RaceChangeHandler;
+  rdg2Picker?: Rdg2PickerState | null;
+  setRdg2Picker: React.Dispatch<React.SetStateAction<Rdg2PickerState | null>>;
+  confirmRdg2: () => void;
+  qualifyingEntry?: LeaderboardEntry | null;
+}
 
 /**
  * A single score table cell.
@@ -32,14 +53,17 @@ function ScoreCell({
   setRdg2Picker,
   confirmRdg2,
   qualifyingEntry = null,
-}) {
+}: ScoreCellProps) {
   const { displayText, displayColor, isPenalty, isRdgCell, isExcluded } =
-    getRaceCellDisplay(race, raceStatus);
+    getRaceCellDisplay(
+      typeof race === 'string' ? race : String(race),
+      raceStatus,
+    );
 
   const isPickerOpen =
     rdg2Picker?.boatId === boatId && rdg2Picker?.raceIndex === raceIndex;
 
-  const tdStyle = {
+  const tdStyle: React.CSSProperties = {
     padding: '8px 12px',
     textAlign: 'center',
     ...cellStyle,
@@ -127,8 +151,8 @@ function ScoreCell({
               setRdg2Picker({
                 boatId,
                 raceIndex,
-                selectedIndices: new Set(),
-                selectedQualIndices: new Set(),
+                selectedIndices: new Set<number>(),
+                selectedQualIndices: new Set<number>(),
                 anchorRect: rect,
               });
             } else {
@@ -193,24 +217,5 @@ function ScoreCell({
     </td>
   );
 }
-
-ScoreCell.propTypes = {
-  race: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
-  raceStatus: PropTypes.string.isRequired,
-  raceIndex: PropTypes.number.isRequired,
-  boatId: PropTypes.number.isRequired,
-  entry: PropTypes.shape({
-    races: PropTypes.array,
-  }).isRequired,
-  editMode: PropTypes.bool.isRequired,
-  isEditable: PropTypes.bool,
-  isShared: PropTypes.bool,
-  cellStyle: PropTypes.object,
-  onRaceChange: PropTypes.func.isRequired,
-  rdg2Picker: PropTypes.object,
-  setRdg2Picker: PropTypes.func.isRequired,
-  confirmRdg2: PropTypes.func.isRequired,
-  qualifyingEntry: PropTypes.shape({ races: PropTypes.array }),
-};
 
 export default ScoreCell;

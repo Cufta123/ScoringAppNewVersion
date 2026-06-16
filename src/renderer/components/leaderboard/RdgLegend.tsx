@@ -1,13 +1,18 @@
 import React from 'react';
-import PropTypes from 'prop-types';
 import { RDG_TYPES } from '../../utils/leaderboardUtils';
+import type { LeaderboardEntry, RdgMeta } from '../../types';
+
+interface RdgLegendProps {
+  editableLeaderboard: LeaderboardEntry[];
+  rdgMeta: RdgMeta;
+}
 
 /**
  * Shows a summary of all RDG redress entries currently in the editable
  * leaderboard. Only rendered when edit mode is active and at least one
  * RDG cell exists.
  */
-function RdgLegend({ editableLeaderboard, rdgMeta }) {
+function RdgLegend({ editableLeaderboard, rdgMeta }: RdgLegendProps) {
   const rdgEntries = editableLeaderboard.flatMap((entry) =>
     (entry.race_statuses || [])
       .map((status, ri) => ({ status, ri, entry }))
@@ -69,10 +74,5 @@ function RdgLegend({ editableLeaderboard, rdgMeta }) {
     </div>
   );
 }
-
-RdgLegend.propTypes = {
-  editableLeaderboard: PropTypes.arrayOf(PropTypes.object).isRequired,
-  rdgMeta: PropTypes.object.isRequired,
-};
 
 export default RdgLegend;

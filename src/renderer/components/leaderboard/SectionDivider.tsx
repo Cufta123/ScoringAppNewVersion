@@ -1,9 +1,12 @@
-/* eslint-disable react/require-default-props */
 import React from 'react';
-import PropTypes from 'prop-types';
+
+interface SectionDividerProps {
+  label: string;
+  marginTop?: string | number;
+}
 
 /** A horizontal rule with a centred label, used between table sections. */
-function SectionDivider({ label, marginTop = '4px' }) {
+function SectionDivider({ label, marginTop = '4px' }: SectionDividerProps) {
   return (
     <div
       style={{
@@ -33,10 +36,5 @@ function SectionDivider({ label, marginTop = '4px' }) {
     </div>
   );
 }
-
-SectionDivider.propTypes = {
-  label: PropTypes.string.isRequired,
-  marginTop: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-};
 
 export default SectionDivider;

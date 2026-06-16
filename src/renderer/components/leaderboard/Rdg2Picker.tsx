@@ -1,5 +1,14 @@
 import React from 'react';
-import PropTypes from 'prop-types';
+import type { LeaderboardEntry, Rdg2PickerState } from '../../types';
+
+interface Rdg2PickerProps {
+  entry: LeaderboardEntry;
+  raceIndex: number;
+  rdg2Picker: Rdg2PickerState | null;
+  setRdg2Picker: React.Dispatch<React.SetStateAction<Rdg2PickerState | null>>;
+  confirmRdg2: () => void;
+  qualifyingEntry?: LeaderboardEntry | null;
+}
 
 /**
  * Floating popover for selecting races to average for an RDG2 redress.
@@ -12,14 +21,14 @@ function Rdg2Picker({
   setRdg2Picker,
   confirmRdg2,
   qualifyingEntry = null,
-}) {
+}: Rdg2PickerProps) {
   if (!rdg2Picker?.anchorRect) return null;
 
   const totalSelected =
     (rdg2Picker.selectedIndices?.size ?? 0) +
     (rdg2Picker.selectedQualIndices?.size ?? 0);
 
-  const hasQual = qualifyingEntry?.races?.length > 0;
+  const hasQual = (qualifyingEntry?.races?.length ?? 0) > 0;
 
   return (
     <div
@@ -53,7 +62,7 @@ function Rdg2Picker({
         style={{ maxHeight: '300px', overflowY: 'auto', marginBottom: '8px' }}
       >
         {/* Qualifying races (if final series context) */}
-        {hasQual && (
+        {hasQual && qualifyingEntry && (
           <>
             <div
               style={{
@@ -128,7 +137,7 @@ function Rdg2Picker({
         {/* Final (or qualifying-only) races */}
         {entry.races.map((_, rIdx) => {
           if (rIdx === raceIndex) return null;
-          const checked = rdg2Picker.selectedIndices.has(rIdx);
+          const checked = rdg2Picker.selectedIndices?.has(rIdx) ?? false;
           const label = hasQual ? `F${rIdx + 1}` : `Q${rIdx + 1}`;
           return (
             // The checkbox control is nested directly inside this label,
@@ -205,27 +214,5 @@ function Rdg2Picker({
     </div>
   );
 }
-
-Rdg2Picker.propTypes = {
-  entry: PropTypes.shape({
-    races: PropTypes.arrayOf(
-      PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-    ),
-  }).isRequired,
-  raceIndex: PropTypes.number.isRequired,
-  rdg2Picker: PropTypes.shape({
-    anchorRect: PropTypes.shape({
-      bottom: PropTypes.number,
-      left: PropTypes.number,
-    }),
-    selectedIndices: PropTypes.instanceOf(Set),
-    selectedQualIndices: PropTypes.instanceOf(Set),
-  }).isRequired,
-  setRdg2Picker: PropTypes.func.isRequired,
-  confirmRdg2: PropTypes.func.isRequired,
-  qualifyingEntry: PropTypes.shape({
-    races: PropTypes.array,
-  }),
-};
 
 export default Rdg2Picker;
