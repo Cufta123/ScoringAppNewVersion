@@ -6,23 +6,45 @@ import registerPdfUnicodeFont from './registerPdfUnicodeFont';
 import escapeHtml from './escapeHtml';
 import { toSubgroupLabel } from '../../shared/subgroups';
 
+interface StartingListEvent {
+  event_name?: string | null;
+}
+
+interface StartingListSailor {
+  name?: string | null;
+  surname?: string | null;
+  country?: string | null;
+  boat_country?: string | null;
+  club?: string | null;
+  club_name?: string | null;
+  sail_number?: number | string | null;
+  model?: string | null;
+  boat_type?: string | null;
+  subgroup?: string | null;
+  category?: string | null;
+  category_name?: string | null;
+}
+
+type ExportFormat = 'excel' | 'pdf' | 'html';
+
 export default async function printStartingList(
-  event,
-  sailors,
-  format = 'excel',
-) {
+  event: StartingListEvent | null | undefined,
+  sailors: StartingListSailor[],
+  format: ExportFormat = 'excel',
+): Promise<void> {
   if (!Array.isArray(sailors) || sailors.length === 0) {
     return;
   }
 
   const eventName = event?.event_name || 'event';
 
-  const getSubgroup = (sailor) =>
+  const getSubgroup = (sailor: StartingListSailor): string =>
     toSubgroupLabel(
       sailor?.subgroup || sailor?.category || sailor?.category_name,
     ) || 'N/A';
 
-  const getBoatModel = (sailor) => sailor?.model || sailor?.boat_type || 'N/A';
+  const getBoatModel = (sailor: StartingListSailor): string =>
+    sailor?.model || sailor?.boat_type || 'N/A';
 
   const sortedSailors = [...sailors].sort((a, b) => {
     const countryA = (a.country || a.boat_country || '').toLowerCase();

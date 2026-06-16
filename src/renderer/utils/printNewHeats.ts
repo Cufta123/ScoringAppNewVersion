@@ -7,7 +7,37 @@ import escapeHtml from './escapeHtml';
 import { toSubgroupLabel } from '../../shared/subgroups';
 import { heatRaceDB } from '../api/db';
 
-export default async function printNewHeats(event, heats, format = 'excel') {
+interface ExportEvent {
+  event_name?: string | null;
+}
+
+interface ExportBoat {
+  name?: string | null;
+  surname?: string | null;
+  country?: string | null;
+  boat_country?: string | null;
+  sail_number?: number | string | null;
+  model?: string | null;
+  boat_type?: string | null;
+  subgroup?: string | null;
+  category?: string | null;
+  category_name?: string | null;
+}
+
+interface HeatForExport {
+  heat_id: number;
+  heat_name?: string | null;
+  heat_type?: string | null;
+  boats?: ExportBoat[];
+}
+
+type ExportFormat = 'excel' | 'pdf' | 'html';
+
+export default async function printNewHeats(
+  event: ExportEvent | null | undefined,
+  heats: HeatForExport[],
+  format: ExportFormat = 'excel',
+): Promise<void> {
   if (!Array.isArray(heats) || heats.length === 0) {
     return;
   }
@@ -29,7 +59,7 @@ export default async function printNewHeats(event, heats, format = 'excel') {
           const match = String(heat.heat_name || '').match(/(\d+)\s*$/);
           return match ? Number(match[1]) : null;
         })
-        .filter((num) => Number.isInteger(num)),
+        .filter((num): num is number => Number.isInteger(num)),
     ),
   ].sort((a, b) => a - b);
 
@@ -42,11 +72,12 @@ export default async function printNewHeats(event, heats, format = 'excel') {
     ? `${safeEventName}_final_series_heats`
     : `${safeEventName}_${heatSuffix}`;
 
-  const getSubgroup = (boat) =>
+  const getSubgroup = (boat: ExportBoat): string =>
     toSubgroupLabel(boat?.subgroup || boat?.category || boat?.category_name) ||
     'N/A';
 
-  const getBoatModel = (boat) => boat?.model || boat?.boat_type || 'N/A';
+  const getBoatModel = (boat: ExportBoat): string =>
+    boat?.model || boat?.boat_type || 'N/A';
 
   // Ensure boats are present for each visible heat before exporting. If a
   // lookup fails we let the error propagate so the caller reports it, rather

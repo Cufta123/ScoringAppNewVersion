@@ -1,4 +1,4 @@
-const iocToFlagCodeMap = {
+const iocToFlagCodeMap: Record<string, string> = {
   AFG: 'AF',
   ALB: 'AL',
   ALG: 'DZ',

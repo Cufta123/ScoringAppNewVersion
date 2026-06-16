@@ -28,16 +28,33 @@ export const PENALTY_CODES = [
 export const RDG_TYPES = ['RDG1', 'RDG2', 'RDG3'];
 const NON_EXCLUDABLE_STATUSES = new Set(['DNE', 'DGM']);
 
-const parseDiscardThresholdsFromProfile = (discardProfile) => {
+/** A raw leaderboard row as returned by the DB (comma-joined string columns). */
+export interface RawLeaderboardEntry {
+  race_positions?: string | null;
+  race_points?: string | null;
+  race_ids?: string | null;
+  race_statuses?: string | null;
+  total_points_final?: number | null;
+  total_points_event?: number | null;
+  [key: string]: unknown;
+}
+
+const parseDiscardThresholdsFromProfile = (
+  discardProfile?: string | null,
+): number[] | null => {
   if (!discardProfile || discardProfile === 'standard') return null;
   try {
-    const parsed = JSON.parse(discardProfile);
-    if (!Array.isArray(parsed?.thresholds)) return null;
-    const thresholds = parsed.thresholds
+    const parsed: unknown = JSON.parse(discardProfile);
+    const rawThresholds =
+      parsed && typeof parsed === 'object'
+        ? (parsed as { thresholds?: unknown }).thresholds
+        : undefined;
+    if (!Array.isArray(rawThresholds)) return null;
+    const thresholds = rawThresholds
       .map((entry) => Number(entry))
       .filter((entry) => Number.isInteger(entry) && entry > 0);
 
-    if (thresholds.length !== parsed.thresholds.length) return null;
+    if (thresholds.length !== rawThresholds.length) return null;
     for (let index = 1; index < thresholds.length; index += 1) {
       if (thresholds[index] <= thresholds[index - 1]) return null;
     }
@@ -51,7 +68,7 @@ const parseDiscardThresholdsFromProfile = (discardProfile) => {
  * Strip exclusion parentheses and return 0 for any non-numeric value.
  * Uses parseFloat so RDG average scores (e.g. 3.4) are preserved.
  */
-export const parseRaceNum = (val) => {
+export const parseRaceNum = (val: unknown): number => {
   const n = parseFloat(String(val).replace(/[()]/g, ''));
   return Number.isNaN(n) ? 0 : n;
 };
@@ -59,7 +76,10 @@ export const parseRaceNum = (val) => {
 /**
  * SHRS 5.4: after 4 races exclude 1, after 8 exclude 2, then +1 per 8 more.
  */
-export const getExcludeCount = (numberOfRaces, discardProfile = 'standard') => {
+export const getExcludeCount = (
+  numberOfRaces: number,
+  discardProfile: string | null = 'standard',
+): number => {
   const thresholds = parseDiscardThresholdsFromProfile(discardProfile);
   if (thresholds && thresholds.length > 0) {
     return thresholds.filter((threshold) => numberOfRaces >= threshold).length;
@@ -75,11 +95,11 @@ export const getExcludeCount = (numberOfRaces, discardProfile = 'standard') => {
  * return marked races array and the net total (sum of non-excluded scores).
  */
 export const applyExclusions = (
-  rawPositions,
-  raceStatuses = [],
-  scoreValues = rawPositions,
-  discardProfile = 'standard',
-) => {
+  rawPositions: Array<string | number>,
+  raceStatuses: string[] = [],
+  scoreValues: Array<string | number> = rawPositions,
+  discardProfile: string | null = 'standard',
+): { markedRaces: string[]; total: number } => {
   const n = rawPositions.length;
   const excludeCount = getExcludeCount(n, discardProfile);
   const points = scoreValues.map((r) => {
@@ -120,7 +140,10 @@ export const applyExclusions = (
 /**
  * Process a raw leaderboard DB entry into display-ready format.
  */
-export const processLeaderboardEntry = (entry, discardProfile = 'standard') => {
+export const processLeaderboardEntry = (
+  entry: RawLeaderboardEntry,
+  discardProfile: string | null = 'standard',
+) => {
   const races = entry.race_positions ? entry.race_positions.split(',') : [];
   const race_points = entry.race_points ? entry.race_points.split(',') : races;
   const race_ids = entry.race_ids ? entry.race_ids.split(',') : [];
@@ -146,18 +169,30 @@ export const processLeaderboardEntry = (entry, discardProfile = 'standard') => {
 /**
  * Map an IOC country code to a react-world-flags code.
  */
-export const getFlagCode = (iocCode) => iocToFlagCodeMap[iocCode] || iocCode;
+export const getFlagCode = (iocCode: string): string =>
+  iocToFlagCodeMap[iocCode] || iocCode;
+
+interface RaceCellDisplay {
+  displayText: string;
+  displayColor: string;
+  isPenalty: boolean;
+  isRdgCell: boolean;
+  isExcluded: boolean;
+}
 
 /**
  * Determine display text and colour for a race cell value.
  */
-export const getRaceCellDisplay = (race, raceStatus) => {
+export const getRaceCellDisplay = (
+  race: string,
+  raceStatus: string,
+): RaceCellDisplay => {
   const isPenalty = PENALTY_CODES.includes(raceStatus);
   const isRdgCell = RDG_TYPES.includes(raceStatus);
   const isExcluded = typeof race === 'string' && race.startsWith('(');
 
-  let displayText;
-  let displayColor;
+  let displayText: string;
+  let displayColor: string;
 
   if (isRdgCell && isExcluded) {
     const clean = race.replace(/[()]/g, '');
@@ -183,7 +218,7 @@ export const getRaceCellDisplay = (race, raceStatus) => {
   return { displayText, displayColor, isPenalty, isRdgCell, isExcluded };
 };
 
-export const FLEET_COLORS = {
+export const FLEET_COLORS: Record<string, { border: string; thead: string }> = {
   Gold: { border: '#c8960a', thead: '#c8960a' },
   Silver: { border: '#7a8a94', thead: '#7a8a94' },
   Bronze: { border: '#9a6020', thead: '#9a6020' },

@@ -1,9 +1,15 @@
+import type { jsPDF } from 'jspdf';
 import dejavuSansRegularTtf from 'dejavu-fonts-ttf/ttf/DejaVuSans.ttf';
 import dejavuSansBoldTtf from 'dejavu-fonts-ttf/ttf/DejaVuSans-Bold.ttf';
 
-let cachedFontDataPromise = null;
+interface FontData {
+  regular: string;
+  bold: string;
+}
 
-const arrayBufferToBase64 = (arrayBuffer) => {
+let cachedFontDataPromise: Promise<FontData> | null = null;
+
+const arrayBufferToBase64 = (arrayBuffer: ArrayBuffer): string => {
   const bytes = new Uint8Array(arrayBuffer);
   const chunkSize = 0x8000;
   let binary = '';
@@ -16,7 +22,7 @@ const arrayBufferToBase64 = (arrayBuffer) => {
   return btoa(binary);
 };
 
-const loadFontAsBase64 = async (fontUrl) => {
+const loadFontAsBase64 = async (fontUrl: string): Promise<string> => {
   const response = await fetch(fontUrl);
   if (!response.ok) {
     throw new Error(`Could not load PDF font: ${fontUrl}`);
@@ -26,7 +32,7 @@ const loadFontAsBase64 = async (fontUrl) => {
   return arrayBufferToBase64(buffer);
 };
 
-const getFontData = async () => {
+const getFontData = async (): Promise<FontData> => {
   if (!cachedFontDataPromise) {
     cachedFontDataPromise = Promise.all([
       loadFontAsBase64(dejavuSansRegularTtf),
@@ -37,13 +43,15 @@ const getFontData = async () => {
   return cachedFontDataPromise;
 };
 
-const hasFontStyle = (doc, fontName, style) => {
-  const fontList = doc.getFontList?.() || {};
+const hasFontStyle = (doc: jsPDF, fontName: string, style: string): boolean => {
+  const fontList: Record<string, string[]> = doc.getFontList?.() || {};
   const styles = fontList[fontName];
   return Array.isArray(styles) && styles.includes(style);
 };
 
-export default async function registerPdfUnicodeFont(doc) {
+export default async function registerPdfUnicodeFont(
+  doc: jsPDF,
+): Promise<void> {
   if (!doc) {
     return;
   }

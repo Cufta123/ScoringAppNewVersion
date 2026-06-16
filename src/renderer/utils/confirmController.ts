@@ -4,9 +4,21 @@
 // user's choice. This keeps confirmation dialogs inside the React tree instead
 // of building DOM nodes by hand.
 
-let activeHandler = null;
+export interface ConfirmRequest {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  confirmClassName: string;
+}
 
-export const registerConfirmHandler = (handler) => {
+export type ConfirmHandler = (request: ConfirmRequest) => Promise<boolean>;
+
+let activeHandler: ConfirmHandler | null = null;
+
+export const registerConfirmHandler = (
+  handler: ConfirmHandler,
+): (() => void) => {
   activeHandler = handler;
   return () => {
     if (activeHandler === handler) {
@@ -15,9 +27,10 @@ export const registerConfirmHandler = (handler) => {
   };
 };
 
-export const hasConfirmHandler = () => typeof activeHandler === 'function';
+export const hasConfirmHandler = (): boolean =>
+  typeof activeHandler === 'function';
 
-export const requestConfirm = (request) => {
+export const requestConfirm = (request: ConfirmRequest): Promise<boolean> => {
   if (!activeHandler) {
     return Promise.resolve(false);
   }
