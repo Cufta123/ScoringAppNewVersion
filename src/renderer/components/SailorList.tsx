@@ -1,14 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import PropTypes from 'prop-types';
 import Flag from 'react-world-flags';
 import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
 import { toSubgroupLabel } from '../../shared/subgroups';
 import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
 import { sailorDB } from '../api/db';
+import type { CategoryRow } from '../types';
 
 const EXPANDED_STORAGE_KEY = 'sailorListExpanded';
 
-function SortTh({ col, label, sortCriteria, sortDirection, onSort }) {
+type SortDirection = 'asc' | 'desc';
+
+interface SortThProps {
+  col: string;
+  label: string;
+  sortCriteria: string;
+  sortDirection: SortDirection;
+  onSort: (col: string) => void;
+}
+
+function SortTh({
+  col,
+  label,
+  sortCriteria,
+  sortDirection,
+  onSort,
+}: SortThProps) {
   return (
     <th className="sortable" onClick={() => onSort(col)}>
       {label}{' '}
@@ -23,26 +39,53 @@ function SortTh({ col, label, sortCriteria, sortDirection, onSort }) {
   );
 }
 
-SortTh.propTypes = {
-  col: PropTypes.string.isRequired,
-  label: PropTypes.string.isRequired,
-  sortCriteria: PropTypes.string.isRequired,
-  sortDirection: PropTypes.string.isRequired,
-  onSort: PropTypes.func.isRequired,
-};
+/** A boat+sailor row as assembled by EventPage and rendered in this list. */
+export interface SailorListSailor {
+  boat_id: number;
+  country: string;
+  sail_number: number | string;
+  model: string;
+  name: string;
+  surname: string;
+  club: string;
+  category: string;
+  [key: string]: unknown;
+}
+
+interface EditedSailor {
+  boat_id?: number;
+  country?: string;
+  sail_number?: number | string;
+  model?: string;
+  name?: string;
+  surname?: string;
+  club?: string;
+  category?: string;
+  originalName?: string;
+  originalSurname?: string;
+  originalClubName?: string;
+  [key: string]: unknown;
+}
+
+interface SailorListProps {
+  sailors: SailorListSailor[];
+  onRemoveBoat: (boatId: number) => void | Promise<void>;
+  onRefreshSailors: () => void;
+  headerActions?: React.ReactNode;
+}
 
 function SailorList({
   sailors,
   onRemoveBoat,
   onRefreshSailors,
   headerActions = null,
-}) {
+}: SailorListProps) {
   const [sortCriteria, setSortCriteria] = useState('name');
-  const [sortDirection, setSortDirection] = useState('asc');
-  const [editingSailorId, setEditingSailorId] = useState(null);
-  const [editedSailor, setEditedSailor] = useState({});
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [editingSailorId, setEditingSailorId] = useState<number | null>(null);
+  const [editedSailor, setEditedSailor] = useState<EditedSailor>({});
   const [isExpanded, setIsExpanded] = useState(true);
-  const [categories, setCategories] = useState([]);
+  const [categories, setCategories] = useState<CategoryRow[]>([]);
 
   useEffect(() => {
     const savedIsExpanded = localStorage.getItem(EXPANDED_STORAGE_KEY);
@@ -55,7 +98,7 @@ function SailorList({
     localStorage.setItem(EXPANDED_STORAGE_KEY, JSON.stringify(isExpanded));
   }, [isExpanded]);
 
-  const handleSort = (col) => {
+  const handleSort = (col: string) => {
     if (col === sortCriteria) {
       setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
     } else {
@@ -73,7 +116,7 @@ function SailorList({
 
   // Subgroup is displayed via its label, so sort by the label the user sees
   // rather than the raw stored category code.
-  const sortValue = (sailor) =>
+  const sortValue = (sailor: SailorListSailor): unknown =>
     sortCriteria === 'category'
       ? toSubgroupLabel(sailor.category) || sailor.category || ''
       : sailor[sortCriteria];
@@ -99,7 +142,7 @@ function SailorList({
     fetchCategories();
   }, []);
 
-  const handleEditClick = (sailor) => {
+  const handleEditClick = (sailor: SailorListSailor) => {
     setEditingSailorId(sailor.boat_id);
     setEditedSailor({
       ...sailor,
@@ -141,7 +184,7 @@ function SailorList({
     }
   };
 
-  const handleRemoveWithConfirm = async (sailor) => {
+  const handleRemoveWithConfirm = async (sailor: SailorListSailor) => {
     const confirmed = await confirmAction(
       `Remove boat ${sailor.sail_number} (${sailor.name} ${sailor.surname}) from this event?`,
       'Remove boat',
@@ -153,7 +196,9 @@ function SailorList({
     reportInfo('Boat removed from event.', 'Removed');
   };
 
-  const handleInputChange = (e) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) => {
     const { name, value } = e.target;
     setEditedSailor((prev) => ({ ...prev, [name]: value }));
   };
@@ -162,7 +207,7 @@ function SailorList({
     setIsExpanded(!isExpanded);
   };
 
-  const getFlagCode = (iocCode) => {
+  const getFlagCode = (iocCode: string): string => {
     return iocToFlagCodeMap[iocCode] || iocCode;
   };
 
@@ -403,24 +448,5 @@ function SailorList({
     </div>
   );
 }
-
-SailorList.propTypes = {
-  sailors: PropTypes.arrayOf(
-    PropTypes.shape({
-      boat_id: PropTypes.number.isRequired,
-      country: PropTypes.string.isRequired,
-      sail_number: PropTypes.oneOfType([PropTypes.number, PropTypes.string])
-        .isRequired,
-      model: PropTypes.string.isRequired,
-      name: PropTypes.string.isRequired,
-      surname: PropTypes.string.isRequired,
-      club: PropTypes.string.isRequired,
-      category: PropTypes.string.isRequired,
-    }),
-  ).isRequired,
-  onRemoveBoat: PropTypes.func.isRequired,
-  onRefreshSailors: PropTypes.func.isRequired,
-  headerActions: PropTypes.node,
-};
 
 export default SailorList;
