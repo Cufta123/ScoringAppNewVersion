@@ -20,3 +20,16 @@ export function resolveHtmlPath(htmlFileName: string) {
 
   return `file://${filePath}`;
 }
+
+export function resolvePreloadPath(): string {
+  // Prefer the built preload that sits next to the main bundle — this is correct
+  // both when packaged and when running an unpackaged production build. Fall back
+  // to the dev DLL location only when that built file is absent.
+  const builtPreload = path.resolve(__dirname, 'preload.js');
+  try {
+    if (fs.existsSync(builtPreload)) return builtPreload;
+  } catch (_) {
+    // fall through to the dev path
+  }
+  return path.resolve(__dirname, '../../.erb/dll/preload.js');
+}

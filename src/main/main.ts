@@ -1,7 +1,7 @@
 import path from 'path';
 import { app, BrowserWindow, shell, ipcMain, dialog, session } from 'electron';
 import MenuBuilder from './menu';
-import { resolveHtmlPath } from './util';
+import { resolveHtmlPath, resolvePreloadPath } from './util';
 import './ipcHandlers/SailorHandler';
 import './ipcHandlers/EventHandler';
 import './ipcHandlers/HeatRaceHandler';
@@ -91,9 +91,7 @@ const createWindow = async () => {
     height: 728,
     icon: getAssetPath('icon.ico'),
     webPreferences: {
-      preload: app.isPackaged
-        ? path.join(__dirname, 'preload.js')
-        : path.join(__dirname, '../../.erb/dll/preload.js'),
+      preload: resolvePreloadPath(),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,

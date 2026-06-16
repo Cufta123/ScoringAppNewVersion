@@ -58,6 +58,47 @@ jobs:
           path: release/build/*.zip
           retention-days: 14
 
+  smoke:
+    name: GUI smoke tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Dependencies
+        # postinstall rebuilds better-sqlite3 against the bundled Electron.
+        run: npm install
+
+      - name: Build Webpack (React / main code)
+        run: npm run build
+
+      - name: Install Electron GUI system libraries + Xvfb
+        # The smoke tests launch the real Electron binary, which needs a display
+        # and the same shared libs as Chromium. playwright install-deps pulls the
+        # correct packages for the runner's Ubuntu version; Xvfb provides the
+        # virtual display.
+        run: |
+          sudo apt-get update
+          npx playwright install-deps chromium
+          sudo apt-get install -y xvfb
+
+      - name: Run GUI smoke tests (Xvfb)
+        run: xvfb-run --auto-servernum npm run test:e2e
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+
   release:
     name: Publish "latest" release
     needs: build
