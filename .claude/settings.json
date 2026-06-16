@@ -1,6 +1,6 @@
 {
   "permissions": {
     "allow": ["Edit", "Write", "Bash(cd:*)"],
-    "defaultMode": "auto"
+    "defaultMode": "bypassPermissions"
   }
 }
