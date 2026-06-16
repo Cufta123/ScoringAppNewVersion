@@ -1,13 +1,19 @@
 import React from 'react';
-import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
+
+interface NavbarProps {
+  onOpenGlobalLeaderboard?: (() => void) | null;
+  onOpenLeaderboard?: (() => void) | null;
+  onHeatRaceClick?: (() => void) | null;
+  onNavigateHome?: (() => void) | null;
+}
 
 function Navbar({
   onOpenGlobalLeaderboard = null,
   onOpenLeaderboard = null,
   onHeatRaceClick = null,
   onNavigateHome = null,
-}) {
+}: NavbarProps) {
   const navigate = useNavigate();
 
   // Pages with unsaved work (e.g. the leaderboard editor) pass their own
@@ -65,12 +71,5 @@ function Navbar({
     </nav>
   );
 }
-
-Navbar.propTypes = {
-  onOpenGlobalLeaderboard: PropTypes.func,
-  onOpenLeaderboard: PropTypes.func,
-  onHeatRaceClick: PropTypes.func,
-  onNavigateHome: PropTypes.func,
-};
 
 export default Navbar;

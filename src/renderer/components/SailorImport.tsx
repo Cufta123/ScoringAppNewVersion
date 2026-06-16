@@ -1,19 +1,23 @@
 import React, { useRef, useState } from 'react';
-import PropTypes from 'prop-types';
 import Papa from 'papaparse';
-import { sailorDB } from '../api/db';
+import { sailorDB, type ImportSailorsResult } from '../api/db';
 
 const TEMPLATE_CSV =
   'name,surname,birthday,sail_number,country,model,club_name,category_name\nJohn,Doe,,12345,CRO,Laser,YC Zagreb,M\nJane,Smith,,67890,SVN,Optimist,JK Piran,U16';
 
-function SailorImport({ eventId, onImportComplete = null }) {
+interface SailorImportProps {
+  eventId: number;
+  onImportComplete?: (() => void) | null;
+}
+
+function SailorImport({ eventId, onImportComplete = null }: SailorImportProps) {
   // Only name, surname, sail number and country are required — matching the
   // single-entry form. birthday, model, club and subgroup are optional.
   const REQUIRED_COLUMNS = ['name', 'surname', 'sail_number', 'country'];
 
-  const fileInputRef = useRef(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState(null);
+  const [result, setResult] = useState<ImportSailorsResult | null>(null);
 
   const downloadTemplate = () => {
     const blob = new Blob([TEMPLATE_CSV], { type: 'text/csv' });
@@ -25,13 +29,13 @@ function SailorImport({ eventId, onImportComplete = null }) {
     URL.revokeObjectURL(url);
   };
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (!file) return;
     setBusy(true);
     setResult(null);
 
-    Papa.parse(file, {
+    Papa.parse<Record<string, string>>(file, {
       header: true,
       skipEmptyLines: true,
       transformHeader: (h) => h.trim().toLowerCase(),
@@ -62,7 +66,7 @@ function SailorImport({ eventId, onImportComplete = null }) {
         setResult(res);
         setBusy(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
-        if (res.imported > 0 && onImportComplete) onImportComplete();
+        if ((res.imported ?? 0) > 0 && onImportComplete) onImportComplete();
       },
     });
   };
@@ -116,9 +120,9 @@ function SailorImport({ eventId, onImportComplete = null }) {
       {/* Result */}
       {result && (
         <div className="info-banner" style={{ marginTop: '10px' }}>
-          {result.errors?.length > 0 && (
+          {(result.errors?.length ?? 0) > 0 && (
             <ul style={{ margin: '0 0 6px', paddingLeft: '18px' }}>
-              {result.errors.map((err) => (
+              {result.errors?.map((err) => (
                 <li key={err}>{err}</li>
               ))}
             </ul>
@@ -129,7 +133,7 @@ function SailorImport({ eventId, onImportComplete = null }) {
             <span>
               <i
                 className={`fa ${
-                  result.created > 0 || result.associated > 0
+                  result.created > 0 || (result.associated ?? 0) > 0
                     ? 'fa-check-circle'
                     : 'fa-info-circle'
                 }`}
@@ -142,33 +146,33 @@ function SailorImport({ eventId, onImportComplete = null }) {
                   &nbsp;&bull;&nbsp;{' '}
                 </>
               )}
-              {result.associated > 0 && (
+              {(result.associated ?? 0) > 0 && (
                 <>
                   <strong>{result.associated}</strong> existing boat
                   {result.associated !== 1 ? 's' : ''} added to event
                   &nbsp;&bull;&nbsp;{' '}
                 </>
               )}
-              {result.alreadyInEvent > 0 && (
+              {(result.alreadyInEvent ?? 0) > 0 && (
                 <>
                   <strong>{result.alreadyInEvent}</strong> already in event
                   &nbsp;&bull;&nbsp;{' '}
                 </>
               )}
-              {result.invalid > 0 && (
+              {(result.invalid ?? 0) > 0 && (
                 <>
                   <strong>{result.invalid}</strong> invalid row
                   {result.invalid !== 1 ? 's' : ''} skipped
                 </>
               )}
               {result.created === 0 &&
-                result.associated === 0 &&
-                result.invalid === 0 &&
-                result.alreadyInEvent > 0 &&
+                (result.associated ?? 0) === 0 &&
+                (result.invalid ?? 0) === 0 &&
+                (result.alreadyInEvent ?? 0) > 0 &&
                 ' — all boats were already registered'}
               {result.created === 0 &&
-                result.associated === 0 &&
-                result.invalid === 0 &&
+                (result.associated ?? 0) === 0 &&
+                (result.invalid ?? 0) === 0 &&
                 !result.alreadyInEvent &&
                 'No rows were imported.'}
             </span>
@@ -178,10 +182,5 @@ function SailorImport({ eventId, onImportComplete = null }) {
     </div>
   );
 }
-
-SailorImport.propTypes = {
-  eventId: PropTypes.number.isRequired,
-  onImportComplete: PropTypes.func,
-};
 
 export default SailorImport;

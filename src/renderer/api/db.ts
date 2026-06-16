@@ -34,11 +34,19 @@ import type {
   TieBreakResult,
 } from '../types';
 
-/** Result of a bulk sailor import (see preload `importSailors`). */
+/**
+ * Result of a bulk sailor import. The success path (handler) reports
+ * created/associated/alreadyInEvent/invalid counts; the preload's error
+ * fallback reports imported/skipped. All fields are therefore optional.
+ */
 export interface ImportSailorsResult {
-  imported: number;
-  skipped: number;
-  errors: string[];
+  imported?: number;
+  skipped?: number;
+  created?: number;
+  associated?: number;
+  alreadyInEvent?: number;
+  invalid?: number;
+  errors?: string[];
 }
 
 export interface SailorDB {

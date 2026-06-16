@@ -7,14 +7,28 @@ import EmptyState from './shared/EmptyState';
 import LoadingState from './shared/LoadingState';
 import { reportError } from '../utils/userFeedback';
 import { heatRaceDB } from '../api/db';
+import type { GlobalLeaderboardRow } from '../types';
+
+interface GlobalRow {
+  boat_id?: number;
+  total_points_global: number;
+  name: string;
+  surname: string;
+  boat_number: string | number;
+  boat_type: string;
+  country: string;
+}
 
 function GlobalLeaderboardComponent() {
-  const [leaderboard, setLeaderboard] = useState([]);
+  const [leaderboard, setLeaderboard] = useState<GlobalRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const getFlagCode = (iocCode) => iocToFlagCodeMap[iocCode] || iocCode;
+  const getFlagCode = (iocCode: string): string =>
+    iocToFlagCodeMap[iocCode] || iocCode;
 
-  const mapAndSortLeaderboard = (results) => {
+  const mapAndSortLeaderboard = (
+    results: GlobalLeaderboardRow[],
+  ): GlobalRow[] => {
     const rows = (results || []).map((entry) => ({
       ...entry,
       total_points_global: Number(entry.total_points_global || 0),
