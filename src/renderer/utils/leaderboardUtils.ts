@@ -1,5 +1,6 @@
 /* eslint-disable camelcase */
 import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
+import type { LeaderboardEntry, RawLeaderboardEntry } from '../types';
 
 export const PENALTY_CODES = [
   'DNF',
@@ -28,16 +29,7 @@ export const PENALTY_CODES = [
 export const RDG_TYPES = ['RDG1', 'RDG2', 'RDG3'];
 const NON_EXCLUDABLE_STATUSES = new Set(['DNE', 'DGM']);
 
-/** A raw leaderboard row as returned by the DB (comma-joined string columns). */
-export interface RawLeaderboardEntry {
-  race_positions?: string | null;
-  race_points?: string | null;
-  race_ids?: string | null;
-  race_statuses?: string | null;
-  total_points_final?: number | null;
-  total_points_event?: number | null;
-  [key: string]: unknown;
-}
+export type { RawLeaderboardEntry };
 
 const parseDiscardThresholdsFromProfile = (
   discardProfile?: string | null,
@@ -143,7 +135,7 @@ export const applyExclusions = (
 export const processLeaderboardEntry = (
   entry: RawLeaderboardEntry,
   discardProfile: string | null = 'standard',
-) => {
+): LeaderboardEntry => {
   const races = entry.race_positions ? entry.race_positions.split(',') : [];
   const race_points = entry.race_points ? entry.race_points.split(',') : races;
   const race_ids = entry.race_ids ? entry.race_ids.split(',') : [];
@@ -162,7 +154,8 @@ export const processLeaderboardEntry = (
     race_points,
     race_ids,
     race_statuses,
-    computed_total: entry.total_points_final ?? entry.total_points_event,
+    computed_total:
+      entry.total_points_final ?? entry.total_points_event ?? null,
   };
 };
 

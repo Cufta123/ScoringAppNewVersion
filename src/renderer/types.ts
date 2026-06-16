@@ -186,3 +186,91 @@ export interface CompareEntry {
   boat_id: number;
   placement_group?: PlacementGroup | null;
 }
+
+/**
+ * A raw leaderboard row as returned by `readLeaderboard` / `readFinalLeaderboard`
+ * — identity + display columns joined with comma-separated race columns
+ * (`race_positions` etc.). `processLeaderboardEntry` turns this into a
+ * `LeaderboardEntry`.
+ */
+export interface RawLeaderboardEntry {
+  boat_id: number;
+  name?: string;
+  surname?: string;
+  country?: string | null;
+  boat_number?: number | string | null;
+  boat_type?: string | null;
+  place?: number | null;
+  placement_group?: PlacementGroup | null;
+  race_positions?: string | null;
+  race_points?: string | null;
+  race_ids?: string | null;
+  race_statuses?: string | null;
+  total_points_final?: number | null;
+  total_points_event?: number | null;
+  [key: string]: unknown;
+}
+
+/**
+ * A display-ready leaderboard row as produced by `processLeaderboardEntry` and
+ * carried through the `useLeaderboard` hook. The CSV string columns from the DB
+ * (`race_positions` etc.) are split into arrays here; `computed_total` is the
+ * series total. Extra DB columns are retained via the index signature, so reads
+ * of un-modelled columns are `unknown` (callers must narrow) rather than `any`.
+ */
+export interface LeaderboardEntry {
+  boat_id: number;
+  name?: string;
+  surname?: string;
+  country?: string | null;
+  boat_number?: number | string | null;
+  boat_type?: string | null;
+  place?: number | null;
+  placement_group?: PlacementGroup | null;
+  races: string[];
+  race_points: string[];
+  race_ids: string[];
+  race_statuses: string[];
+  computed_total: number | null;
+  total_points_event?: number | null;
+  total_points_final?: number | null;
+  total_points_combined?: number | null;
+  qualifying_points?: number | null;
+  overall_rank?: number | null;
+  [key: string]: unknown;
+}
+
+/** Row from `readOverallLeaderboard` (qualifying + final combined standings). */
+export interface OverallLeaderboardEntry {
+  boat_id: number;
+  overall_points?: number | null;
+  qualifying_points?: number | null;
+  overall_rank?: number | null;
+  [key: string]: unknown;
+}
+
+// --- Tie-break (SHRS 5.7) explanation, from `explainTieBreak` ----------------
+
+export interface TieBreakRacePair {
+  raceId: number | string;
+  [key: string]: unknown;
+}
+
+export interface TieBreakRoute {
+  rule?: string;
+  note?: string;
+  [key: string]: unknown;
+}
+
+export interface TieBreakResult {
+  winnerBoatId?: number | string | null;
+  sharedRacePairs?: TieBreakRacePair[];
+  sharedQualRacePairs?: TieBreakRacePair[];
+  totalA?: number;
+  totalB?: number;
+  tied?: boolean;
+  steps?: unknown[];
+  route?: TieBreakRoute | null;
+  raceGrid?: unknown[];
+  [key: string]: unknown;
+}

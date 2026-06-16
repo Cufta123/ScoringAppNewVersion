@@ -26,33 +26,121 @@ import {
   scoringPenaltyStatuses,
 } from '../../shared/scoringPenalty';
 import { eventDB, heatRaceDB } from '../api/db';
+import type {
+  LeaderboardEntry,
+  OverallLeaderboardEntry,
+  TieBreakRacePair,
+  TieBreakRoute,
+} from '../types';
 
-export default function useLeaderboard(eventId) {
-  const [leaderboard, setLeaderboard] = useState([]);
-  const [eventLeaderboard, setEventLeaderboard] = useState([]);
+type ActiveTab = 'event' | 'final';
+
+interface DiscardProfiles {
+  qualifying: string;
+  final: string;
+}
+
+interface MaxHeatSizes {
+  qualifying: number;
+  final: number;
+}
+
+interface RdgMetaEntry {
+  type: string;
+  selectedRaceLabels?: string[];
+}
+
+interface Rdg2PickerState {
+  boatId: number;
+  raceIndex: number;
+  selectedIndices?: Set<number>;
+  selectedQualIndices?: Set<number>;
+}
+
+interface CompareInfo {
+  boatA: LeaderboardEntry;
+  boatB: LeaderboardEntry;
+  totalA: number;
+  totalB: number;
+  tied?: boolean;
+  tieBreak: {
+    steps: unknown[];
+    winner: LeaderboardEntry | null;
+    rule: string;
+    detail: string;
+  } | null;
+  routeStep: TieBreakRoute | null;
+  raceGrid: unknown[];
+  sharedRacePairs: TieBreakRacePair[];
+  sharedQualRacePairs: TieBreakRacePair[];
+  sharedIds: Set<string>;
+  sharedQualIds: Set<string>;
+  otherTiedCount: number;
+  tiedGroupEntries: LeaderboardEntry[];
+}
+
+type ExportCell = string | number;
+
+interface ExportSection {
+  title: string | null;
+  rows: ExportCell[][];
+}
+
+interface ExportData {
+  header: string[];
+  sections: ExportSection[];
+}
+
+/** A single race-result change queued by handleSave for the atomic write. */
+interface SaveRaceOperation {
+  raceId?: string;
+  boatId: number;
+  raceIndex?: number;
+  newPosition?: number;
+  entryStatus?: string;
+  missingRaceId?: boolean;
+}
+
+export default function useLeaderboard(eventId: number) {
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [eventLeaderboard, setEventLeaderboard] = useState<LeaderboardEntry[]>(
+    [],
+  );
   const [loading, setLoading] = useState(true);
   const [finalSeriesStarted, setFinalSeriesStarted] = useState(false);
-  const [activeTab, setActiveTab] = useState('event'); // 'event' | 'final'
+  const [activeTab, setActiveTab] = useState<ActiveTab>('event');
   const [editMode, setEditMode] = useState(false);
-  const [editableLeaderboard, setEditableLeaderboard] = useState([]);
-  const [overallLeaderboard, setOverallLeaderboard] = useState([]);
+  const [editableLeaderboard, setEditableLeaderboard] = useState<
+    LeaderboardEntry[]
+  >([]);
+  const [overallLeaderboard, setOverallLeaderboard] = useState<
+    OverallLeaderboardEntry[]
+  >([]);
   const [shiftPositions, setShiftPositions] = useState(false);
-  const [discardProfiles, setDiscardProfiles] = useState({
+  const [discardProfiles, setDiscardProfiles] = useState<DiscardProfiles>({
     qualifying: 'standard',
     final: 'standard',
   });
   const [compareMode, setCompareMode] = useState(false);
-  const [selectedBoatIds, setSelectedBoatIds] = useState([]);
+  const [selectedBoatIds, setSelectedBoatIds] = useState<number[]>([]);
   // rdgMeta stores per-cell info: { type, selectedRaceLabels? }
   // key is `${boatId}-${raceIndex}`
-  const [rdgMeta, setRdgMeta] = useState({});
+  const [rdgMeta, setRdgMeta] = useState<Record<string, RdgMetaEntry>>({});
   // rdg2Picker: the open multi-race selector state for one specific cell
-  const [rdg2Picker, setRdg2Picker] = useState(null);
+  const [rdg2Picker, setRdg2Picker] = useState<Rdg2PickerState | null>(null);
   // Largest-heat size per series, used for SHRS 5.2 penalty scoring
   // (penalty points = largest heat size + 1). Sourced from the main process.
-  const [maxHeatSizes, setMaxHeatSizes] = useState({ qualifying: 0, final: 0 });
+  const [maxHeatSizes, setMaxHeatSizes] = useState<MaxHeatSizes>({
+    qualifying: 0,
+    final: 0,
+  });
 
-  const roundToNearestTenthHalfUp = (value) =>
+  // Deep-clone leaderboard rows while preserving their type (JSON round-trip
+  // returns `any`, so this keeps callers strongly typed).
+  const cloneEntries = (rows: LeaderboardEntry[]): LeaderboardEntry[] =>
+    JSON.parse(JSON.stringify(rows));
+
+  const roundToNearestTenthHalfUp = (value: number): number =>
     Math.round((value + Number.EPSILON) * 10) / 10;
   const activeDiscardProfile = finalSeriesStarted
     ? discardProfiles.final
@@ -60,13 +148,13 @@ export default function useLeaderboard(eventId) {
 
   // SHRS 5.2: a non-position-keeping penalty scores largest-heat-size + 1.
   // Falls back to the entry count only if heat sizes are not yet loaded.
-  const getPenaltyPosition = (entryCount) => {
+  const getPenaltyPosition = (entryCount: number): number => {
     const isFinalEdit = finalSeriesStarted && activeTab !== 'event';
     const size = isFinalEdit ? maxHeatSizes.final : maxHeatSizes.qualifying;
     return (size || entryCount) + 1;
   };
 
-  const sanitizeFilenamePart = (value, fallback = 'event') => {
+  const sanitizeFilenamePart = (value: unknown, fallback = 'event'): string => {
     const raw = String(value ?? '').trim();
     const safe = raw.replace(/[<>:"/\\|?*]+/g, '_').replace(/\s+/g, '_');
     return safe || fallback;
@@ -101,7 +189,7 @@ export default function useLeaderboard(eventId) {
     };
   };
 
-  const toPdfText = (value) => {
+  const toPdfText = (value: unknown): string => {
     const source = String(value ?? '').normalize('NFC');
 
     // Repair common mojibake patterns (UTF-8 bytes read as latin1/cp1252).
@@ -129,7 +217,10 @@ export default function useLeaderboard(eventId) {
 
   // ─── Compare ────────────────────────────────────────────────────────────────
 
-  const handleCompareRowClick = (boat_id, placementGroup = null) => {
+  const handleCompareRowClick = (
+    boat_id: number,
+    placementGroup: string | null = null,
+  ) => {
     if (!compareMode) return;
     const allEntries = finalSeriesStarted ? leaderboard : eventLeaderboard;
     setSelectedBoatIds((prev) =>
@@ -148,7 +239,7 @@ export default function useLeaderboard(eventId) {
   // authoritative SHRS 5.7 decision (winner, route, steps, race grid) comes
   // from the main process so the panel can never disagree with the ranking.
   // Only display assembly (names, tied-group listing) stays here.
-  const [compareInfo, setCompareInfo] = useState(null);
+  const [compareInfo, setCompareInfo] = useState<CompareInfo | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -166,7 +257,7 @@ export default function useLeaderboard(eventId) {
       return undefined;
     }
 
-    const getTotal = (e) =>
+    const getTotal = (e: LeaderboardEntry): number =>
       finalSeriesStarted
         ? (e.total_points_combined ?? e.computed_total ?? 0)
         : (e.computed_total ?? 0);
@@ -387,8 +478,8 @@ export default function useLeaderboard(eventId) {
           );
           const total_points_combined = overallEntry
             ? overallEntry.overall_points
-            : entry.computed_total +
-              (eventEntry ? eventEntry.computed_total : 0);
+            : (entry.computed_total ?? 0) +
+              (eventEntry ? (eventEntry.computed_total ?? 0) : 0);
           return {
             ...entry,
             total_points_combined,
@@ -435,7 +526,7 @@ export default function useLeaderboard(eventId) {
   ]);
 
   useEffect(() => {
-    const onBeforeUnload = (event) => {
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
       if (!hasUnsavedChanges) return;
       event.preventDefault();
       event.returnValue = '';
@@ -457,19 +548,19 @@ export default function useLeaderboard(eventId) {
     }
 
     const source = finalSeriesStarted ? leaderboard : eventLeaderboard;
-    setEditableLeaderboard(JSON.parse(JSON.stringify(source)));
+    setEditableLeaderboard(cloneEntries(source));
     setRdgMeta({});
     setRdg2Picker(null);
     setEditMode(!editMode);
   };
 
   const computeRdgAverage = (
-    races,
-    statuses,
-    excludeIdx,
-    penaltyPos,
-    selectedIndices = null,
-  ) => {
+    races: string[],
+    statuses: string[],
+    excludeIdx: number,
+    penaltyPos: number,
+    selectedIndices: Set<number> | null = null,
+  ): number => {
     // RRS A9(a)/(b): average of the boat's points in all races in the
     // series (or the selected group) except the race in question.
     // Penalty scores are her points and are included in the average.
@@ -493,7 +584,11 @@ export default function useLeaderboard(eventId) {
   // edit-mode preview total must convert those cells to their penalty points —
   // matching getScoringPenaltyPoints in the main process — before summing.
   // Other statuses already store their points as the cell value.
-  const toScoreValuesForTotal = (rawRaces, statuses, penaltyPosition) => {
+  const toScoreValuesForTotal = (
+    rawRaces: string[],
+    statuses: string[],
+    penaltyPosition: number,
+  ): Array<string | number> => {
     const maxBoats = penaltyPosition - 1;
     return rawRaces.map((race, i) => {
       const status = statuses[i] || 'FINISHED';
@@ -508,7 +603,9 @@ export default function useLeaderboard(eventId) {
   // with discard parens stripped, and a per-race status list defaulting to
   // FINISHED. Both arrays are freshly built, so callers may mutate them in
   // place (e.g. to set the edited cell) without touching the source entry.
-  const getEntryScoreInputs = (entry) => ({
+  const getEntryScoreInputs = (
+    entry: LeaderboardEntry,
+  ): { rawRaces: string[]; statuses: string[] } => ({
     rawRaces: entry.races.map((r) => String(r).replace(/[()]/g, '')),
     statuses: entry.race_statuses
       ? [...entry.race_statuses]
@@ -519,7 +616,11 @@ export default function useLeaderboard(eventId) {
   // place cells to penalty points, run discards, and expose both the discard-
   // marked races and the score fields. Callers spread in the totals and pick
   // whether to adopt `markedRaces` (save keeps the original `races`).
-  const recomputeEntryScores = (rawRaces, statuses, penaltyPosition) => {
+  const recomputeEntryScores = (
+    rawRaces: string[],
+    statuses: string[],
+    penaltyPosition: number,
+  ) => {
     const scoreValues = toScoreValuesForTotal(
       rawRaces,
       statuses,
@@ -545,12 +646,12 @@ export default function useLeaderboard(eventId) {
   };
 
   const handleRaceChange = (
-    boatId,
-    raceIndex,
-    newRaceValue,
+    boatId: number,
+    raceIndex: number,
+    newRaceValue: string | number | null,
     newStatus = 'FINISHED',
   ) => {
-    const cloned = JSON.parse(JSON.stringify(editableLeaderboard));
+    const cloned = cloneEntries(editableLeaderboard);
     const targetEntry = cloned.find((e) => e.boat_id === boatId);
     if (!targetEntry) return;
 
@@ -559,7 +660,7 @@ export default function useLeaderboard(eventId) {
     const fallbackInput =
       newRaceValue == null
         ? parseRaceNum(targetEntry.races[raceIndex])
-        : parseFloat(newRaceValue);
+        : parseFloat(String(newRaceValue));
 
     if (newStatus === 'RDG2') return;
 
@@ -574,7 +675,7 @@ export default function useLeaderboard(eventId) {
       return;
     const penaltyPosition = getPenaltyPosition(cloned.length);
 
-    let newPosition;
+    let newPosition: number;
     if (newStatus === 'RDG1') {
       newPosition = computeRdgAverage(
         targetEntry.races,
@@ -626,13 +727,13 @@ export default function useLeaderboard(eventId) {
             otherPos >= newPosition &&
             otherPos < oldPosition
           ) {
-            otherEntry.races[raceIndex] = otherPos + 1;
+            otherEntry.races[raceIndex] = String(otherPos + 1);
           } else if (
             oldPosition < newPosition &&
             otherPos <= newPosition &&
             otherPos > oldPosition
           ) {
-            otherEntry.races[raceIndex] = otherPos - 1;
+            otherEntry.races[raceIndex] = String(otherPos - 1);
           }
         }
       });
@@ -664,7 +765,7 @@ export default function useLeaderboard(eventId) {
     if (!rdg2Picker) return;
     const { boatId, raceIndex, selectedIndices, selectedQualIndices } =
       rdg2Picker;
-    const cloned = JSON.parse(JSON.stringify(editableLeaderboard));
+    const cloned = cloneEntries(editableLeaderboard);
     const entry = cloned.find((e) => e.boat_id === boatId);
     if (!entry) {
       setRdg2Picker(null);
@@ -675,13 +776,13 @@ export default function useLeaderboard(eventId) {
 
     // RRS A9(b): average of her points in the selected group of races.
     // Penalty scores are her points and are included.
-    const finalValues = [...(selectedIndices || new Set())]
+    const finalValues = [...(selectedIndices || new Set<number>())]
       .filter((i) => i !== raceIndex)
       .map((i) => parseFloat(String(entry.races[i]).replace(/[()]/g, '')))
       .filter((v) => !Number.isNaN(v));
 
     const qualEntry = eventLeaderboard?.find((e) => e.boat_id === boatId);
-    const qualValues = [...(selectedQualIndices || new Set())]
+    const qualValues = [...(selectedQualIndices || new Set<number>())]
       .map((i) =>
         parseFloat(String(qualEntry?.races?.[i] ?? '').replace(/[()]/g, '')),
       )
@@ -711,10 +812,10 @@ export default function useLeaderboard(eventId) {
       race_statuses: statuses,
     };
 
-    const qualLabels = [...(selectedQualIndices || new Set())]
+    const qualLabels = [...(selectedQualIndices || new Set<number>())]
       .sort((a, b) => a - b)
       .map((i) => `Q${i + 1}`);
-    const finalLabels = [...(selectedIndices || new Set())]
+    const finalLabels = [...(selectedIndices || new Set<number>())]
       .sort((a, b) => a - b)
       .map((i) => `F${i + 1}`);
     const selectedRaceLabels = [...qualLabels, ...finalLabels];
@@ -729,7 +830,7 @@ export default function useLeaderboard(eventId) {
   };
 
   const handleSave = async () => {
-    let originalSourceSnapshot = [];
+    let originalSourceSnapshot: LeaderboardEntry[] = [];
     try {
       if (!editableLeaderboard || !leaderboard) {
         throw new Error('Leaderboard data is not initialized');
@@ -749,7 +850,7 @@ export default function useLeaderboard(eventId) {
 
       const originalSource =
         activeTab === 'event' ? eventLeaderboard : leaderboard;
-      originalSourceSnapshot = JSON.parse(JSON.stringify(originalSource || []));
+      originalSourceSnapshot = cloneEntries(originalSource);
 
       const updateOperations = updatedLeaderboard.flatMap((entry) => {
         const originalEntry = originalSource.find(
@@ -761,7 +862,7 @@ export default function useLeaderboard(eventId) {
         }
 
         return entry.races
-          .map((_race, raceIndex) => {
+          .map((_race, raceIndex): SaveRaceOperation | null => {
             const entryStatus = entry.race_statuses?.[raceIndex] || 'FINISHED';
             const origStatus =
               originalEntry.race_statuses?.[raceIndex] || 'FINISHED';
@@ -791,7 +892,7 @@ export default function useLeaderboard(eventId) {
               entryStatus,
             };
           })
-          .filter(Boolean);
+          .filter((op): op is SaveRaceOperation => op !== null);
       });
 
       const missingRaceIdOperation = updateOperations.find(
@@ -832,11 +933,11 @@ export default function useLeaderboard(eventId) {
    *   Rank | Name | Country | Sail# | Type | R1…Rn | Total
    */
   // Format a race value the same way ScoreCell / getRaceCellDisplay does.
-  const formatCell = (race, status) =>
+  const formatCell = (race: string, status: string | undefined): string =>
     getRaceCellDisplay(race, status || 'FINISHED').displayText;
 
-  const buildExportData = () => {
-    const parseScore = (v) => {
+  const buildExportData = (): ExportData => {
+    const parseScore = (v: unknown): number => {
       const n = parseFloat(String(v ?? '').replace(/[()]/g, ''));
       return Number.isNaN(n) ? 0 : n;
     };
@@ -892,12 +993,15 @@ export default function useLeaderboard(eventId) {
       ...Array.from({ length: finalRaceCount }, (_, i) => `F${i + 1}`),
     ];
 
-    const grpMap = (editableLeaderboard ?? []).reduce((acc, entry) => {
-      const g = entry.placement_group || 'General';
-      if (!acc[g]) acc[g] = [];
-      acc[g].push(entry);
-      return acc;
-    }, {});
+    const grpMap = (editableLeaderboard ?? []).reduce(
+      (acc, entry) => {
+        const g = entry.placement_group || 'General';
+        if (!acc[g]) acc[g] = [];
+        acc[g].push(entry);
+        return acc;
+      },
+      {} as Record<string, LeaderboardEntry[]>,
+    );
     const grpOrder = Object.keys(grpMap).sort(
       (a, b) => GROUP_ORDER.indexOf(a) - GROUP_ORDER.indexOf(b),
     );
@@ -974,7 +1078,7 @@ export default function useLeaderboard(eventId) {
   const exportToCSV = async () => {
     const { header, sections } = buildExportData();
     const { safeEventName, raceNumber, seriesLabel } = await getExportMeta();
-    const escape = (v) => {
+    const escape = (v: unknown): string => {
       const s = String(v ?? '');
       return s.includes(',') || s.includes('"') || s.includes('\n')
         ? `"${s.replace(/"/g, '""')}"`
@@ -1006,9 +1110,10 @@ export default function useLeaderboard(eventId) {
         ...allRows.map((r) => String(r[ci] ?? '').length),
       ),
     );
-    const pad = (v, w) => String(v ?? '').padEnd(w);
+    const pad = (v: unknown, w: number): string => String(v ?? '').padEnd(w);
     const divider = colWidths.map((w) => '-'.repeat(w)).join('-+-');
-    const fmtRow = (r) => r.map((v, i) => pad(v, colWidths[i])).join(' | ');
+    const fmtRow = (r: ExportCell[]): string =>
+      r.map((v, i) => pad(v, colWidths[i])).join(' | ');
 
     const lines = [fmtRow(header), divider];
     sections.forEach(({ title, rows }) => {
@@ -1040,8 +1145,8 @@ export default function useLeaderboard(eventId) {
         ...allRows.map((r) => String(r[ci] ?? '').length),
       ),
     );
-    const pad = (v, w) => String(v ?? '').padEnd(w);
-    const fmtRow = (r) =>
+    const pad = (v: unknown, w: number): string => String(v ?? '').padEnd(w);
+    const fmtRow = (r: ExportCell[]): string =>
       `| ${r.map((v, i) => pad(v, colWidths[i])).join(' | ')} |`;
     const separator = `| ${colWidths.map((w) => '-'.repeat(w)).join(' | ')} |`;
 
@@ -1147,17 +1252,24 @@ export default function useLeaderboard(eventId) {
         },
         alternateRowStyles: { fillColor: [240, 244, 248] },
         didDrawPage: (data) => {
-          startY = data.cursor.y + 6;
+          if (data.cursor) {
+            startY = data.cursor.y + 6;
+          }
         },
       });
-      startY = doc.lastAutoTable.finalY + 10;
+      // jspdf-autotable attaches `lastAutoTable` to the jsPDF instance; it is
+      // always set immediately after an autoTable() call.
+      const docWithTable = doc as JsPDF & {
+        lastAutoTable?: { finalY: number };
+      };
+      startY = (docWithTable.lastAutoTable?.finalY ?? startY) + 10;
     });
     doc.save(`${safeEventName}_${seriesLabel}_${raceNumber}_leaderboard.pdf`);
   };
 
   // ─── Unified export dispatcher ───────────────────────────────────────────────
 
-  const exportAs = async (format) => {
+  const exportAs = async (format: string) => {
     switch (format) {
       case 'excel':
         return exportToExcel();
@@ -1183,17 +1295,20 @@ export default function useLeaderboard(eventId) {
 
   const groupedLeaderboard = useMemo(
     () =>
-      editableLeaderboard?.reduce((acc, entry) => {
-        const group = entry.placement_group || 'General';
-        if (!acc[group]) acc[group] = [];
-        acc[group].push(entry);
-        return acc;
-      }, {}) || {},
+      editableLeaderboard?.reduce(
+        (acc, entry) => {
+          const group = entry.placement_group || 'General';
+          if (!acc[group]) acc[group] = [];
+          acc[group].push(entry);
+          return acc;
+        },
+        {} as Record<string, LeaderboardEntry[]>,
+      ) || {},
     [editableLeaderboard],
   );
 
   const sortedGroups = useMemo(() => {
-    const rank = (g) => {
+    const rank = (g: string): number => {
       const i = GROUP_ORDER.indexOf(g);
       return i === -1 ? 999 : i;
     };

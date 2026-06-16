@@ -22,15 +22,16 @@ import type {
   ClubRow,
   EventBoatRow,
   EventRow,
-  FinalLeaderboardRow,
   GlobalLeaderboardRow,
   HeatRow,
   InsertResult,
-  LeaderboardRow,
+  OverallLeaderboardEntry,
   RaceRow,
+  RawLeaderboardEntry,
   SailorRow,
   SailorWithDetails,
   ScoreRow,
+  TieBreakResult,
 } from '../types';
 
 /** Result of a bulk sailor import (see preload `importSailors`). */
@@ -67,10 +68,10 @@ export interface HeatRaceDB {
   readBoatsByHeat(heatId: number): Promise<EventBoatRow[]>;
   readAllRaces(heatId: number): Promise<RaceRow[]>;
   readAllScores(raceId: number): Promise<ScoreRow[]>;
-  readLeaderboard(eventId: number): Promise<LeaderboardRow[]>;
-  readFinalLeaderboard(eventId: number): Promise<FinalLeaderboardRow[]>;
+  readLeaderboard(eventId: number): Promise<RawLeaderboardEntry[]>;
+  readFinalLeaderboard(eventId: number): Promise<RawLeaderboardEntry[]>;
   readGlobalLeaderboard(): Promise<GlobalLeaderboardRow[]>;
-  readOverallLeaderboard(eventId: number): Promise<unknown>;
+  readOverallLeaderboard(eventId: number): Promise<OverallLeaderboardEntry[]>;
   insertHeat(...args: unknown[]): Promise<InsertResult>;
   insertHeatBoat(...args: unknown[]): Promise<unknown>;
   insertRace(...args: unknown[]): Promise<InsertResult>;
@@ -90,8 +91,13 @@ export interface HeatRaceDB {
   saveLeaderboardRaceResultsAtomic(...args: unknown[]): Promise<unknown>;
   submitHeatRaceScoresAtomic(...args: unknown[]): Promise<unknown>;
   startFinalSeriesAtomic(...args: unknown[]): Promise<unknown>;
-  getMaxHeatSize(...args: unknown[]): Promise<unknown>;
-  explainTieBreak(...args: unknown[]): Promise<unknown>;
+  getMaxHeatSize(eventId: number, seriesType: string): Promise<number>;
+  explainTieBreak(
+    eventId: number,
+    boatAId: number,
+    boatBId: number,
+    finalSeries: boolean,
+  ): Promise<TieBreakResult | null>;
   getFinalSeriesEligibility(eventId: number): Promise<unknown>;
   exportEventSnapshotToFile(...args: unknown[]): Promise<unknown>;
   restoreEventSnapshotFromFile(...args: unknown[]): Promise<unknown>;

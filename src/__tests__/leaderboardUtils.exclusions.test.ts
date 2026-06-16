@@ -26,7 +26,7 @@ describe('leaderboardUtils applyExclusions edge cases', () => {
 describe('processLeaderboardEntry race_points handling', () => {
   it('uses race_points for exclusion logic while preserving displayed race_positions', () => {
     const entry = {
-      boat_id: 'b1',
+      boat_id: 1,
       total_points_event: 7,
       race_positions: '3,2,1,4',
       race_points: '5,2,1,4',
