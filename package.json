@@ -54,7 +54,9 @@
     "start:renderer": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack serve --config ./.erb/configs/webpack.config.renderer.dev.ts",
     "test": "jest --config jest.unit.config.ts --no-coverage",
     "test:unit": "jest --config jest.unit.config.ts --no-coverage",
-    "test:full": "jest"
+    "test:full": "jest",
+    "test:e2e": "playwright test",
+    "test:smoke": "npm run build && playwright test"
   },
   "browserslist": [
     "extends browserslist-config-erb"
@@ -103,7 +105,8 @@
     },
     "testPathIgnorePatterns": [
       "release/app/dist",
-      ".erb/dll"
+      ".erb/dll",
+      "<rootDir>/e2e/"
     ],
     "transform": {
       "\\.(ts|tsx|js|jsx)$": "ts-jest"
@@ -140,6 +143,7 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.4",
+    "@playwright/test": "^1.61.0",
     "@pmmmwh/react-refresh-webpack-plugin": "^0.5.11",
     "@svgr/webpack": "^8.1.0",
     "@teamsupercell/typings-for-css-modules-loader": "^2.5.2",
