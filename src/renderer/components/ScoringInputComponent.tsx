@@ -1,11 +1,45 @@
 import React, { useState, useEffect } from 'react';
-import PropTypes from 'prop-types';
 import { reportError, reportInfo } from '../utils/userFeedback';
 import {
   POSITION_KEEPING_PENALTIES,
   orderBoatsByPenalty,
 } from '../utils/penaltyOrder';
 import { heatRaceDB } from '../api/db';
+
+type SailNumber = string | number;
+
+interface ScoringBoat {
+  boat_id: number;
+  name: string;
+  surname: string;
+  country: string;
+  sail_number: SailNumber;
+}
+
+interface ScoringHeat {
+  heat_id: number;
+  heat_name: string;
+  raceNumber?: number;
+  boats: ScoringBoat[];
+}
+
+/** One boat's scored result, emitted to onSubmit. */
+export interface ScoredBoat {
+  boatNumber: SailNumber;
+  place: number;
+  status: string;
+}
+
+interface ScoringInputComponentProps {
+  heat: ScoringHeat;
+  onSubmit: (boatPlaces: ScoredBoat[]) => void;
+}
+
+interface FormatPlaceOptions {
+  sep?: string;
+  placeSuffix?: string;
+  emptyFallback?: string;
+}
 
 // Plain-language labels so non-expert scorers know what each code means.
 const PENALTY_OPTIONS = [
@@ -27,32 +61,40 @@ const PENALTY_OPTIONS = [
   { value: 'DPI', label: 'DPI — Discretionary penalty' },
 ];
 
-function ScoringInputComponent({ heat, onSubmit }) {
+function ScoringInputComponent({ heat, onSubmit }: ScoringInputComponentProps) {
   const [inputValue, setInputValue] = useState('');
-  const [boatNumbers, setBoatNumbers] = useState([]);
-  const [validBoats, setValidBoats] = useState([]);
-  const [placeNumbers, setPlaceNumbers] = useState({});
-  const [penalties, setPenalties] = useState({});
-  const [draggingIndex, setDraggingIndex] = useState(null);
-  const [dropIndex, setDropIndex] = useState(null);
-  const [invalidBoatNumbers, setInvalidBoatNumbers] = useState([]);
+  const [boatNumbers, setBoatNumbers] = useState<SailNumber[]>([]);
+  const [validBoats, setValidBoats] = useState<SailNumber[]>([]);
+  const [placeNumbers, setPlaceNumbers] = useState<Record<string, number>>({});
+  const [penalties, setPenalties] = useState<Record<string, string>>({});
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const [invalidBoatNumbers, setInvalidBoatNumbers] = useState<SailNumber[]>(
+    [],
+  );
 
-  const normalizeBoatNumber = (value) => String(value).trim();
-  const compareBoatNumbers = (a, b) =>
+  const normalizeBoatNumber = (value: SailNumber): string =>
+    String(value).trim();
+  const compareBoatNumbers = (a: SailNumber, b: SailNumber): number =>
     normalizeBoatNumber(a).localeCompare(normalizeBoatNumber(b), undefined, {
       numeric: true,
       sensitivity: 'base',
     });
-  const buildPlaceNumbers = (orderedBoats) => {
-    const newPlaceNumbers = {};
+  const buildPlaceNumbers = (
+    orderedBoats: SailNumber[],
+  ): Record<string, number> => {
+    const newPlaceNumbers: Record<string, number> = {};
     orderedBoats.forEach((boat, index) => {
       newPlaceNumbers[boat] = index + 1;
     });
     return newPlaceNumbers;
   };
-  const getOrderedBoatNumbers = (boats, penaltiesByBoat) =>
+  const getOrderedBoatNumbers = (
+    boats: SailNumber[],
+    penaltiesByBoat: Record<string, string>,
+  ): SailNumber[] =>
     orderBoatsByPenalty(boats, penaltiesByBoat, compareBoatNumbers);
-  const isValidBoatNumber = (boatNumber) =>
+  const isValidBoatNumber = (boatNumber: SailNumber): boolean =>
     validBoats
       .map((value) => normalizeBoatNumber(value))
       .includes(normalizeBoatNumber(boatNumber));
@@ -87,14 +129,14 @@ function ScoringInputComponent({ heat, onSubmit }) {
     };
   }, [heat.heat_id]);
 
-  const handleInputChange = (e) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
   };
 
   // Shared logic: add a list of sail numbers to the ranked list.
   // Comparison is done on normalized values so typed input ("101") matches
   // sail numbers stored as either numbers or strings.
-  const addBoatsToList = (sailNumbers) => {
+  const addBoatsToList = (sailNumbers: SailNumber[]) => {
     const existing = new Set(boatNumbers.map(normalizeBoatNumber));
     const validSet = new Set(validBoats.map(normalizeBoatNumber));
     const validNew = sailNumbers.filter((n) => {
@@ -112,7 +154,7 @@ function ScoringInputComponent({ heat, onSubmit }) {
   };
 
   // Clicking a row immediately adds the boat — no separate button press needed
-  const handleBoatClick = (sailNumber) => {
+  const handleBoatClick = (sailNumber: SailNumber) => {
     if (boatNumbers.includes(sailNumber)) return;
     addBoatsToList([sailNumber]);
   };
@@ -138,23 +180,23 @@ function ScoringInputComponent({ heat, onSubmit }) {
     addBoatsToList(
       unique
         .filter((n) => canonicalBySail.has(n))
-        .map((n) => canonicalBySail.get(n)),
+        .map((n) => canonicalBySail.get(n) as SailNumber),
     );
     setInputValue('');
   };
 
-  const handleInputKeyDown = (e) => {
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       handleAddBoats();
     }
   };
 
-  const updatePlaces = (boats) => {
+  const updatePlaces = (boats: SailNumber[]) => {
     setPlaceNumbers(buildPlaceNumbers(boats));
   };
 
-  const handleRemoveBoat = (index) => {
+  const handleRemoveBoat = (index: number) => {
     const updatedBoatNumbers = [...boatNumbers];
     const removedBoat = updatedBoatNumbers.splice(index, 1)[0];
 
@@ -167,7 +209,7 @@ function ScoringInputComponent({ heat, onSubmit }) {
     setPenalties(updatedPenalties);
   };
 
-  const handleReorderBoat = (fromIndex, toIndex) => {
+  const handleReorderBoat = (fromIndex: number, toIndex: number) => {
     if (toIndex < 0 || toIndex >= boatNumbers.length || fromIndex === toIndex) {
       return;
     }
@@ -179,14 +221,15 @@ function ScoringInputComponent({ heat, onSubmit }) {
     updatePlaces(ordered);
   };
 
-  const handleDragStart = (index) => {
+  const handleDragStart = (index: number) => {
     setDraggingIndex(index);
   };
 
-  const handleDragOver = (index) => (e) => {
-    e.preventDefault();
-    setDropIndex(index);
-  };
+  const handleDragOver =
+    (index: number) => (e: React.DragEvent<HTMLLIElement>) => {
+      e.preventDefault();
+      setDropIndex(index);
+    };
 
   const handleDrop = () => {
     if (draggingIndex !== null && dropIndex !== null) {
@@ -196,7 +239,7 @@ function ScoringInputComponent({ heat, onSubmit }) {
     }
   };
 
-  const handlePenaltyChange = (boatNumber, penalty) => {
+  const handlePenaltyChange = (boatNumber: SailNumber, penalty: string) => {
     const nextBoatNumbers =
       penalty && !boatNumbers.includes(boatNumber)
         ? [...boatNumbers, boatNumber]
@@ -232,10 +275,10 @@ function ScoringInputComponent({ heat, onSubmit }) {
 
     const allBoats = [...new Set([...boatNumbers, ...validBoats])];
     const orderedBoatNumbers = getOrderedBoatNumbers(boatNumbers, penalties);
-    const boatPlaces = [];
-    const includedBoats = new Set();
+    const boatPlaces: ScoredBoat[] = [];
+    const includedBoats = new Set<SailNumber>();
     let finishingPlace = 1;
-    let penaltyPlace = null;
+    let penaltyPlace: number | null = null;
 
     orderedBoatNumbers.forEach((boatNumber) => {
       includedBoats.add(boatNumber);
@@ -313,9 +356,13 @@ function ScoringInputComponent({ heat, onSubmit }) {
   // other penalties have no finishing place, so the code alone is correct.
   // `sep`/`placeSuffix`/`emptyFallback` adapt it to each display context.
   const formatPlaceDisplay = (
-    sailNumber,
-    { sep = ' · ', placeSuffix = '', emptyFallback = '—' } = {},
-  ) => {
+    sailNumber: SailNumber,
+    {
+      sep = ' · ',
+      placeSuffix = '',
+      emptyFallback = '—',
+    }: FormatPlaceOptions = {},
+  ): string => {
     const place = placeNumbers[sailNumber];
     const placeText = `${place}${placeSuffix}`;
     const penalty = penalties[sailNumber];
@@ -327,9 +374,10 @@ function ScoringInputComponent({ heat, onSubmit }) {
     return place ? placeText : emptyFallback;
   };
 
-  const getPlaceDisplay = (sailNumber) => formatPlaceDisplay(sailNumber);
+  const getPlaceDisplay = (sailNumber: SailNumber): string =>
+    formatPlaceDisplay(sailNumber);
 
-  const isInvalidSail = (sailNumber) =>
+  const isInvalidSail = (sailNumber: SailNumber): boolean =>
     invalidBoatNumbers
       .map((n) => normalizeBoatNumber(n))
       .includes(normalizeBoatNumber(sailNumber));
@@ -548,24 +596,5 @@ function ScoringInputComponent({ heat, onSubmit }) {
     </div>
   );
 }
-
-ScoringInputComponent.propTypes = {
-  heat: PropTypes.shape({
-    heat_id: PropTypes.number.isRequired,
-    heat_name: PropTypes.string.isRequired,
-    raceNumber: PropTypes.number,
-    boats: PropTypes.arrayOf(
-      PropTypes.shape({
-        boat_id: PropTypes.number.isRequired,
-        name: PropTypes.string.isRequired,
-        surname: PropTypes.string.isRequired,
-        country: PropTypes.string.isRequired,
-        sail_number: PropTypes.oneOfType([PropTypes.number, PropTypes.string])
-          .isRequired,
-      }),
-    ).isRequired,
-  }).isRequired,
-  onSubmit: PropTypes.func.isRequired,
-};
 
 export default ScoringInputComponent;

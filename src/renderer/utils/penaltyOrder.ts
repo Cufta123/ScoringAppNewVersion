@@ -54,16 +54,16 @@ export const getPenaltyRank = (status: string): number =>
  * @param compareBoatNumbers - sail-number tiebreak
  * @returns ordered sail numbers
  */
-export function orderBoatsByPenalty(
-  boats: string[],
+export function orderBoatsByPenalty<T extends string | number>(
+  boats: T[],
   penaltiesByBoat: Record<string, string>,
-  compareBoatNumbers: (a: string, b: string) => number,
-): string[] {
-  const withPosition: string[] = [];
-  const displaced: string[] = [];
+  compareBoatNumbers: (a: T, b: T) => number,
+): T[] {
+  const withPosition: T[] = [];
+  const displaced: T[] = [];
 
   boats.forEach((boatNumber) => {
-    const penalty = penaltiesByBoat[boatNumber];
+    const penalty = penaltiesByBoat[String(boatNumber)];
     if (!penalty || POSITION_KEEPING_PENALTIES.has(penalty)) {
       withPosition.push(boatNumber);
       return;
@@ -73,7 +73,8 @@ export function orderBoatsByPenalty(
 
   displaced.sort((a, b) => {
     const penaltyRankDiff =
-      getPenaltyRank(penaltiesByBoat[a]) - getPenaltyRank(penaltiesByBoat[b]);
+      getPenaltyRank(penaltiesByBoat[String(a)]) -
+      getPenaltyRank(penaltiesByBoat[String(b)]);
     if (penaltyRankDiff !== 0) return penaltyRankDiff;
     return compareBoatNumbers(a, b);
   });
