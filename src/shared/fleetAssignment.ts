@@ -8,11 +8,13 @@ const NON_EXCLUDABLE_FLEET_STATUSES = new Set(['DNE', 'DGM']);
 // SHRS 2026-1 Rule 4.3: when a qualifying series has more than five but fewer
 // than eight completed races, a boat's second-worst score is temporarily
 // excluded — only for the purpose of ranking boats into the final fleets.
-export function shouldApplyShrs43TemporarySecondDiscard(numberOfRaces) {
+export function shouldApplyShrs43TemporarySecondDiscard(
+  numberOfRaces: number,
+): boolean {
   return numberOfRaces > 5 && numberOfRaces < 8;
 }
 
-function parsePointsCsv(value) {
+function parsePointsCsv(value: string | null | undefined): number[] {
   if (!value) return [];
   return String(value)
     .split(',')
@@ -20,7 +22,10 @@ function parsePointsCsv(value) {
     .filter((entry) => !Number.isNaN(entry));
 }
 
-function parseStatusCsv(value, expectedLength) {
+function parseStatusCsv(
+  value: string | null | undefined,
+  expectedLength: number,
+): string[] {
   const statuses = value
     ? String(value)
         .split(',')
@@ -35,20 +40,34 @@ function parseStatusCsv(value, expectedLength) {
   return statuses.slice(0, expectedLength);
 }
 
+export interface FleetLeaderboardEntry {
+  boat_id: number;
+  race_points?: string | null;
+  race_statuses?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ComputeAdjustedFleetTotalsOptions {
+  /** Base discard count for the active profile (caller supplies the profile). */
+  getExcludeCount: (numberOfRaces: number) => number;
+  applyShs43TemporarySecondDiscard?: boolean;
+}
+
+export interface FleetTotal {
+  boat_id: number;
+  totalPoints: number;
+}
+
 /**
  * Computes each boat's net assignment total.
- *
- * @param {Array<{boat_id:any, race_points:string|null, race_statuses:string|null}>} leaderboard
- * @param {object} options
- * @param {(numberOfRaces:number)=>number} options.getExcludeCount - base discard
- *        count for the active discard profile (caller supplies the profile).
- * @param {boolean} [options.applyShs43TemporarySecondDiscard=true]
- * @returns {Array<{boat_id:any, totalPoints:number}>}
  */
 export function computeAdjustedFleetTotals(
-  leaderboard,
-  { getExcludeCount, applyShs43TemporarySecondDiscard = true },
-) {
+  leaderboard: FleetLeaderboardEntry[],
+  {
+    getExcludeCount,
+    applyShs43TemporarySecondDiscard = true,
+  }: ComputeAdjustedFleetTotalsOptions,
+): FleetTotal[] {
   return leaderboard.map((boat) => {
     const points = parsePointsCsv(boat.race_points);
     const statuses = parseStatusCsv(boat.race_statuses, points.length);
