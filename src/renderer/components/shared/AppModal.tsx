@@ -1,8 +1,18 @@
 import React, { useEffect, useRef } from 'react';
-import PropTypes from 'prop-types';
 
 const FOCUSABLE_SELECTOR =
   'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
+interface AppModalProps {
+  open: boolean;
+  title: string;
+  children: React.ReactNode;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  confirmClassName?: string;
+}
 
 function AppModal({
   open,
@@ -13,17 +23,17 @@ function AppModal({
   onConfirm,
   onCancel,
   confirmClassName = 'btn-success',
-}) {
-  const dialogRef = useRef(null);
-  const lastFocusedRef = useRef(null);
+}: AppModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const lastFocusedRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!open) return undefined;
 
-    lastFocusedRef.current = document.activeElement;
+    lastFocusedRef.current = document.activeElement as HTMLElement | null;
     const dialog = dialogRef.current;
     const focusables = dialog
-      ? [...dialog.querySelectorAll(FOCUSABLE_SELECTOR)]
+      ? [...dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)]
       : [];
 
     if (focusables.length > 0) {
@@ -32,7 +42,7 @@ function AppModal({
       dialog.focus();
     }
 
-    const onKeyDown = (event) => {
+    const onKeyDown = (event: KeyboardEvent) => {
       if (!dialog) return;
 
       if (event.key === 'Escape') {
@@ -43,7 +53,9 @@ function AppModal({
 
       if (event.key !== 'Tab') return;
 
-      const currentFocusable = [...dialog.querySelectorAll(FOCUSABLE_SELECTOR)];
+      const currentFocusable = [
+        ...dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+      ];
       if (currentFocusable.length === 0) {
         event.preventDefault();
         return;
@@ -114,16 +126,5 @@ function AppModal({
     </div>
   );
 }
-
-AppModal.propTypes = {
-  open: PropTypes.bool.isRequired,
-  title: PropTypes.string.isRequired,
-  children: PropTypes.node.isRequired,
-  confirmLabel: PropTypes.string,
-  cancelLabel: PropTypes.string,
-  onConfirm: PropTypes.func.isRequired,
-  onCancel: PropTypes.func.isRequired,
-  confirmClassName: PropTypes.string,
-};
 
 export default AppModal;

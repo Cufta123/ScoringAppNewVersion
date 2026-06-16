@@ -1,7 +1,15 @@
 import React from 'react';
-import PropTypes from 'prop-types';
 
-function Breadcrumbs({ items }) {
+export interface BreadcrumbItem {
+  label: string;
+  onClick?: () => void;
+}
+
+interface BreadcrumbsProps {
+  items: BreadcrumbItem[];
+}
+
+function Breadcrumbs({ items }: BreadcrumbsProps) {
   if (!Array.isArray(items) || items.length === 0) return null;
 
   return (
@@ -30,14 +38,5 @@ function Breadcrumbs({ items }) {
     </nav>
   );
 }
-
-Breadcrumbs.propTypes = {
-  items: PropTypes.arrayOf(
-    PropTypes.shape({
-      label: PropTypes.string.isRequired,
-      onClick: PropTypes.func,
-    }),
-  ).isRequired,
-};
 
 export default Breadcrumbs;

@@ -1,12 +1,18 @@
 import React from 'react';
-import PropTypes from 'prop-types';
+
+interface EmptyStateProps {
+  title: string;
+  description: string;
+  actionLabel?: string | null;
+  onAction?: (() => void) | null;
+}
 
 function EmptyState({
   title,
   description,
   actionLabel = null,
   onAction = null,
-}) {
+}: EmptyStateProps) {
   return (
     <div className="empty-state" role="status" aria-live="polite">
       <div className="empty-state-icon" aria-hidden="true">
@@ -22,12 +28,5 @@ function EmptyState({
     </div>
   );
 }
-
-EmptyState.propTypes = {
-  title: PropTypes.string.isRequired,
-  description: PropTypes.string.isRequired,
-  actionLabel: PropTypes.string,
-  onAction: PropTypes.func,
-};
 
 export default EmptyState;

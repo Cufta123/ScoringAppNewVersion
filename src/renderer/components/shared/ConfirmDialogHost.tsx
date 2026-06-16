@@ -1,7 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import AppModal from './AppModal';
-import { registerConfirmHandler } from '../../utils/confirmController';
+import {
+  registerConfirmHandler,
+  type ConfirmRequest,
+} from '../../utils/confirmController';
 
 // Renders confirmation dialogs requested via `confirmAction(...)`. Only one
 // dialog is shown at a time; concurrent requests resolve to `false`.
@@ -10,10 +13,10 @@ import { registerConfirmHandler } from '../../utils/confirmController';
 // lives in the shared <AppModal />; this host only owns the imperative bridge
 // (the pending resolver and single-instance guard).
 export default function ConfirmDialogHost() {
-  const [request, setRequest] = useState(null);
-  const resolverRef = useRef(null);
+  const [request, setRequest] = useState<ConfirmRequest | null>(null);
+  const resolverRef = useRef<((value: boolean) => void) | null>(null);
 
-  const close = useCallback((value) => {
+  const close = useCallback((value: boolean) => {
     const resolve = resolverRef.current;
     resolverRef.current = null;
     setRequest(null);
@@ -23,8 +26,8 @@ export default function ConfirmDialogHost() {
   }, []);
 
   useEffect(() => {
-    const handler = (incoming) =>
-      new Promise((resolve) => {
+    const handler = (incoming: ConfirmRequest) =>
+      new Promise<boolean>((resolve) => {
         // A second request while one is open is rejected rather than queued.
         if (resolverRef.current) {
           resolve(false);

@@ -1,7 +1,10 @@
 import React from 'react';
-import PropTypes from 'prop-types';
 
-function LoadingState({ label = 'Loading data...' }) {
+interface LoadingStateProps {
+  label?: string;
+}
+
+function LoadingState({ label = 'Loading data...' }: LoadingStateProps) {
   return (
     <div className="loading-state" role="status" aria-live="polite">
       <i className="fa fa-spinner fa-spin" aria-hidden="true" />
@@ -9,9 +12,5 @@ function LoadingState({ label = 'Loading data...' }) {
     </div>
   );
 }
-
-LoadingState.propTypes = {
-  label: PropTypes.string,
-};
 
 export default LoadingState;
