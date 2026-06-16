@@ -1,7 +1,6 @@
 /* eslint-disable jsx-a11y/label-has-associated-control */
 /* eslint-disable camelcase */
 import React, { useState, useEffect, useCallback } from 'react';
-import PropTypes from 'prop-types';
 import Autosuggest from 'react-autosuggest';
 import { toast } from 'react-toastify';
 import { reportError, reportInfo } from '../utils/userFeedback';
@@ -10,23 +9,24 @@ import { checkRaceHappened } from '../utils/raceStatus';
 import iocCountries from '../constants/iocCountries.json';
 import { SUBGROUP_OPTIONS } from '../../shared/subgroups';
 import { eventDB, sailorDB } from '../api/db';
+import type { ClubRow } from '../types';
 
-function SailorForm({ onAddSailor, eventId }) {
-  SailorForm.propTypes = {
-    onAddSailor: PropTypes.func.isRequired,
-    eventId: PropTypes.number.isRequired,
-  };
+interface SailorFormProps {
+  onAddSailor: () => void;
+  eventId: number;
+}
 
+function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
   const [name, setName] = useState('');
   const [surname, setSurname] = useState('');
   const [subgroup, setSubgroup] = useState('');
   const [club, setClub] = useState('');
-  const [clubs, setClubs] = useState([]);
+  const [clubs, setClubs] = useState<ClubRow[]>([]);
   const [selectedCountry, setSelectedCountry] = useState('');
   const [sailNumber, setSailNumber] = useState('');
   const [model, setModel] = useState('');
   const [raceHappened, setRaceHappened] = useState(false);
-  const [suggestions, setSuggestions] = useState([]);
+  const [suggestions, setSuggestions] = useState<ClubRow[]>([]);
 
   const fetchClubs = async () => {
     try {
@@ -50,7 +50,7 @@ function SailorForm({ onAddSailor, eventId }) {
     checkIfRaceHappened();
   }, [checkIfRaceHappened]);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (raceHappened) {
@@ -89,9 +89,10 @@ function SailorForm({ onAddSailor, eventId }) {
         } catch (error) {
           // IPC strips custom error fields (e.g. `code`), so also match the
           // message, which does survive the bridge.
+          const err = error as { code?: string; message?: string };
           const isDuplicateClub =
-            error?.code === 'SQLITE_CONSTRAINT_UNIQUE' ||
-            /unique/i.test(String(error?.message || ''));
+            err?.code === 'SQLITE_CONSTRAINT_UNIQUE' ||
+            /unique/i.test(String(err?.message || ''));
 
           if (!isDuplicateClub) {
             reportError('There was an error inserting the club.', error);
@@ -146,7 +147,7 @@ function SailorForm({ onAddSailor, eventId }) {
 
       const eventBoats = await eventDB.readBoatsByEvent(eventId);
 
-      let boat_id = null;
+      let boat_id: number | null = null;
 
       try {
         const boatResult = await sailorDB.insertBoat(
@@ -163,7 +164,7 @@ function SailorForm({ onAddSailor, eventId }) {
 
       const existingAssociation = eventBoats.find((b) => b.boat_id === boat_id);
 
-      if (!existingAssociation) {
+      if (!existingAssociation && boat_id != null) {
         try {
           await eventDB.associateBoatWithEvent(boat_id, eventId);
         } catch (error) {
@@ -188,7 +189,7 @@ function SailorForm({ onAddSailor, eventId }) {
       reportError('An unexpected error occurred.', error);
     }
   };
-  const getSuggestions = (value) => {
+  const getSuggestions = (value: string): ClubRow[] => {
     const inputValue = value.trim().toLowerCase();
     const inputLength = inputValue.length;
 
@@ -199,15 +200,19 @@ function SailorForm({ onAddSailor, eventId }) {
         );
   };
 
-  const getSuggestionValue = (suggestion) => suggestion.club_name;
+  const getSuggestionValue = (suggestion: ClubRow): string =>
+    suggestion.club_name;
 
-  const renderSuggestion = (suggestion) => (
+  const renderSuggestion = (suggestion: ClubRow) => (
     <div>
       {suggestion.club_name} ({suggestion.country})
     </div>
   );
 
-  const onClubChange = (event, { newValue }) => {
+  const onClubChange = (
+    _event: React.FormEvent<HTMLElement>,
+    { newValue }: { newValue: string },
+  ) => {
     setClub(newValue);
   };
   return (

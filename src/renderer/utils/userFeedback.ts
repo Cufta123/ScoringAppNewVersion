@@ -30,7 +30,7 @@ export const getErrorMessage = (error: unknown): string => {
 
 export const reportError = (
   title: string | undefined,
-  error: unknown,
+  error?: unknown,
 ): void => {
   const details = getErrorMessage(error);
   const message = title ? `${title}: ${details}` : details;

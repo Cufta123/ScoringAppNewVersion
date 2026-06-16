@@ -28,7 +28,6 @@ import type {
   OverallLeaderboardEntry,
   RaceRow,
   RawLeaderboardEntry,
-  SailorRow,
   SailorWithDetails,
   ScoreRow,
   TieBreakResult,
@@ -54,10 +53,21 @@ export interface SailorDB {
   readAllCategories(): Promise<CategoryRow[]>;
   readAllClubs(): Promise<ClubRow[]>;
   readAllBoats(): Promise<BoatRow[]>;
-  insertSailor(sailor: Omit<SailorRow, 'sailor_id'>): Promise<InsertResult>;
-  updateSailor(sailor: SailorRow): Promise<unknown>;
-  insertClub(club: Omit<ClubRow, 'club_id'>): Promise<InsertResult>;
-  insertBoat(boat: Omit<BoatRow, 'boat_id'>): Promise<InsertResult>;
+  insertSailor(
+    name: string,
+    surname: string,
+    birthday: string,
+    categoryId: number | null | undefined,
+    clubId: number | null | undefined,
+  ): Promise<InsertResult>;
+  updateSailor(sailor: Record<string, unknown>): Promise<unknown>;
+  insertClub(clubName: string, country: string): Promise<InsertResult>;
+  insertBoat(
+    sailNumber: string | number,
+    country: string,
+    model: string,
+    sailorId: number | null | undefined,
+  ): Promise<InsertResult>;
   importSailors(rows: unknown[]): Promise<ImportSailorsResult>;
 }
 
