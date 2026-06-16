@@ -2,7 +2,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import HeatComponent from '../../components/HeatComponent';
-import ScoringInputComponent from '../../components/ScoringInputComponent';
+import ScoringInputComponent, {
+  type ScoringHeat,
+  type ScoredBoat,
+} from '../../components/ScoringInputComponent';
 import Navbar from '../../components/Navbar';
 import Breadcrumbs from '../../components/shared/Breadcrumbs';
 import './HeatRacePage.css';
@@ -12,13 +15,16 @@ import {
   reportInfo,
 } from '../../utils/userFeedback';
 import { eventDB, heatRaceDB } from '../../api/db';
+import type { EventRow } from '../../types';
 
 function HeatRacePage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { eventName } = useParams();
-  const [event, setEvent] = useState(location.state?.event || null);
-  const [selectedHeat, setSelectedHeat] = useState(null);
+  const [event, setEvent] = useState<EventRow | null>(
+    (location.state as { event?: EventRow } | null)?.event || null,
+  );
+  const [selectedHeat, setSelectedHeat] = useState<ScoringHeat | null>(null);
   const [isScoring, setIsScoring] = useState(false);
   const [finalSeriesStarted, setFinalSeriesStarted] = useState(false);
   // Bumped to tell HeatComponent to re-fetch its heats after a round-level
@@ -58,7 +64,7 @@ function HeatRacePage() {
     };
   }, [event, eventName, navigate]);
 
-  const handleHeatSelect = (heat) => {
+  const handleHeatSelect = (heat: ScoringHeat) => {
     setSelectedHeat(heat);
   };
 
@@ -70,7 +76,8 @@ function HeatRacePage() {
     setIsScoring(false);
   };
 
-  const handleSubmitScores = async (placeNumbers) => {
+  const handleSubmitScores = async (placeNumbers: ScoredBoat[]) => {
+    if (!selectedHeat || !event) return;
     try {
       // SHRS 3.2 warning: in a multi-heat qualifying series each heat group
       // should only ever race once before redistribution. Warn any time the
@@ -91,16 +98,21 @@ function HeatRacePage() {
 
       // Penalty math, race + score inserts, and the leaderboard recompute all
       // happen atomically in the main process (see submitHeatRaceScoresAtomic).
-      const result = await heatRaceDB.submitHeatRaceScoresAtomic({
+      const result = (await heatRaceDB.submitHeatRaceScoresAtomic({
         event_id: event.event_id,
         heat_id: selectedHeat.heat_id,
         placeNumbers,
         isFinalSeries: finalSeriesStarted,
-      });
+      })) as {
+        ok?: boolean;
+        reason?: string;
+        unmatched?: Array<string | number>;
+        raceNumber?: number;
+      };
 
       if (result?.ok === false && result.reason === 'UNMATCHED_SAILS') {
         reportInfo(
-          `Cannot save scores because these sail numbers are not in ${selectedHeat.heat_name}: ${result.unmatched.join(', ')}.\n\n` +
+          `Cannot save scores because these sail numbers are not in ${selectedHeat.heat_name}: ${(result.unmatched ?? []).join(', ')}.\n\n` +
             'What to do:\n' +
             '1) Go back to heats and re-open scoring for this heat.\n' +
             '2) Check that each sail number belongs to the selected heat.\n' +
@@ -118,6 +130,7 @@ function HeatRacePage() {
   };
 
   const handleCreateNewHeatsBasedOnLeaderboard = async () => {
+    if (!event) return;
     if (finalSeriesStarted) {
       reportInfo(
         'Cannot create new heats based on leaderboard after the final series has started.',
@@ -133,9 +146,9 @@ function HeatRacePage() {
     if (!confirmed) return;
 
     try {
-      const result = await heatRaceDB.createNewHeatsBasedOnLeaderboard(
+      const result = (await heatRaceDB.createNewHeatsBasedOnLeaderboard(
         event.event_id,
-      );
+      )) as { advisory?: string } | null;
       if (result?.advisory) {
         reportInfo(result.advisory, 'SHRS advisory');
       }
@@ -146,7 +159,7 @@ function HeatRacePage() {
   };
 
   // Contextual action: invoked from inside the selected heat card.
-  const handleUndoLastScoredRace = async (heat) => {
+  const handleUndoLastScoredRace = async (heat: ScoringHeat) => {
     const confirmed = await confirmAction(
       `Undo the last scored race in "${heat.heat_name}"?\n\nThis will permanently delete that race's scores.`,
       'Undo Last Race',
@@ -154,7 +167,9 @@ function HeatRacePage() {
     if (!confirmed) return;
 
     try {
-      const result = await heatRaceDB.undoLastScoredRaceForHeat(heat.heat_id);
+      const result = (await heatRaceDB.undoLastScoredRaceForHeat(
+        heat.heat_id,
+      )) as { raceNumber?: number; heatName?: string; removedScores?: number };
       refreshHeats();
       reportInfo(
         `Race ${result.raceNumber} in "${result.heatName}" has been undone.\n${result.removedScores} score(s) removed.`,
@@ -166,6 +181,7 @@ function HeatRacePage() {
   };
 
   const handleUndoLatestHeatRedistribution = async () => {
+    if (!event) return;
     const confirmed = await confirmAction(
       'Undo latest heat redistribution?\n\nThis will delete the latest qualifying heats and all their boat assignments. This cannot be undone.',
       'Undo Heat Redistribution',
@@ -175,9 +191,9 @@ function HeatRacePage() {
     }
 
     try {
-      const result = await heatRaceDB.undoLatestHeatRedistribution(
+      const result = (await heatRaceDB.undoLatestHeatRedistribution(
         event.event_id,
-      );
+      )) as { removedHeats?: number; removedAssignments?: number };
       refreshHeats();
       reportInfo(
         `Heat redistribution undone. Removed ${result.removedHeats} heats and ${result.removedAssignments} assignments.`,
@@ -310,10 +326,12 @@ function HeatRacePage() {
               <i className="fa fa-arrow-left" aria-hidden="true" /> Back to
               Heats
             </button>
-            <ScoringInputComponent
-              heat={selectedHeat}
-              onSubmit={handleSubmitScores}
-            />
+            {selectedHeat && (
+              <ScoringInputComponent
+                heat={selectedHeat}
+                onSubmit={handleSubmitScores}
+              />
+            )}
           </>
         )}
       </main>

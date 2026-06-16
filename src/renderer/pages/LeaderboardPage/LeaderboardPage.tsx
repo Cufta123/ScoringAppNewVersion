@@ -1,7 +1,10 @@
-/* eslint-disable react/require-default-props */
 import React, { useEffect, useState } from 'react';
-import PropTypes from 'prop-types';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+  type NavigateOptions,
+} from 'react-router-dom';
 import Navbar from '../../components/Navbar';
 import useLeaderboard from '../../hooks/useLeaderboard';
 import LeaderboardToolbar from '../../components/leaderboard/LeaderboardToolbar';
@@ -15,8 +18,17 @@ import LoadingState from '../../components/shared/LoadingState';
 import { confirmAction, reportError } from '../../utils/userFeedback';
 import './LeaderboardPage.css';
 import { eventDB } from '../../api/db';
+import type { EventRow } from '../../types';
 
-function LeaderboardContent({ eventId, onUnsavedChange = null }) {
+interface LeaderboardContentProps {
+  eventId: number;
+  onUnsavedChange?: ((hasUnsaved: boolean) => void) | null;
+}
+
+function LeaderboardContent({
+  eventId,
+  onUnsavedChange = null,
+}: LeaderboardContentProps) {
   const {
     eventLeaderboard,
     loading,
@@ -213,16 +225,13 @@ function LeaderboardContent({ eventId, onUnsavedChange = null }) {
   );
 }
 
-LeaderboardContent.propTypes = {
-  eventId: PropTypes.number.isRequired,
-  onUnsavedChange: PropTypes.func,
-};
-
 function LeaderboardPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { eventName } = useParams();
-  const [event, setEvent] = useState(location.state?.event || null);
+  const [event, setEvent] = useState<EventRow | null>(
+    (location.state as { event?: EventRow } | null)?.event || null,
+  );
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Refresh-safe: resolve the event from the URL when router state is gone.
@@ -257,7 +266,10 @@ function LeaderboardPage() {
     return null;
   }
 
-  const navigateWithUnsavedCheck = async (target) => {
+  const navigateWithUnsavedCheck = async (target: {
+    path: string;
+    options?: NavigateOptions;
+  }) => {
     if (hasUnsavedChanges) {
       const confirmed = await confirmAction(
         'You have unsaved leaderboard changes. Leave this page and discard them?',

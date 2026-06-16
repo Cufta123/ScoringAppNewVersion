@@ -8,15 +8,15 @@ import { heatRaceDB } from '../api/db';
 
 type SailNumber = string | number;
 
-interface ScoringBoat {
+export interface ScoringBoat {
   boat_id: number;
   name: string;
   surname: string;
-  country: string;
+  country: string | null;
   sail_number: SailNumber;
 }
 
-interface ScoringHeat {
+export interface ScoringHeat {
   heat_id: number;
   heat_name: string;
   raceNumber?: number;

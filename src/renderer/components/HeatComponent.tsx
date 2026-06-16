@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import PropTypes from 'prop-types';
 import Flag from 'react-world-flags';
 import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
 import printNewHeats from '../utils/printNewHeats';
@@ -8,16 +7,57 @@ import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
 import { getExcludeCount } from '../utils/leaderboardUtils';
 import { computeAdjustedFleetTotals } from '../../shared/fleetAssignment';
 import { eventDB, heatRaceDB } from '../api/db';
+import type { EventRow, HeatBoatRow, LeaderboardEntry } from '../types';
+
+/** A heat with its boats and current race count, as displayed by this view. */
+export interface HeatWithBoats {
+  heat_id: number;
+  event_id?: number;
+  heat_name: string;
+  heat_type: string;
+  boats: HeatBoatRow[];
+  raceNumber: number;
+}
+
+interface SnapshotEntry {
+  fileName: string;
+  savedAt: string;
+}
+
+interface FinalSeriesEligibility {
+  ok?: boolean;
+  reason?: string;
+  raceCountBreakdown?: Array<{ name: string; count: number }>;
+  numFinalHeats?: number;
+  rule43Applies?: boolean;
+  noRacesCompleted?: boolean;
+}
+
+interface HeatComponentProps {
+  event: EventRow;
+  onHeatSelect?: (heat: HeatWithBoats) => void;
+  onStartScoring?: (() => void) | null;
+  onUndoLastRace?: ((heat: HeatWithBoats) => void) | null;
+  clickable: boolean;
+  onQualifyingGroupCountChange?: ((count: number) => void) | null;
+  refreshToken?: number;
+}
 
 export function buildAdjustedFleetLeaderboard(
-  leaderboard,
+  leaderboard: LeaderboardEntry[],
   applyShs43TemporarySecondDiscard = true,
   qualifyingDiscardProfile = 'standard',
 ) {
-  return computeAdjustedFleetTotals(leaderboard, {
-    applyShs43TemporarySecondDiscard,
-    getExcludeCount: (n) => getExcludeCount(n, qualifyingDiscardProfile),
-  });
+  // computeAdjustedFleetTotals lives in untyped shared JS; its JS-inferred
+  // param shape is narrower than LeaderboardEntry, so adapt at this boundary.
+  return computeAdjustedFleetTotals(
+    leaderboard as unknown as Parameters<typeof computeAdjustedFleetTotals>[0],
+    {
+      applyShs43TemporarySecondDiscard,
+      getExcludeCount: (n: number) =>
+        getExcludeCount(n, qualifyingDiscardProfile),
+    },
+  );
 }
 
 function HeatComponent({
@@ -28,10 +68,10 @@ function HeatComponent({
   clickable,
   onQualifyingGroupCountChange = null,
   refreshToken = 0,
-}) {
-  const [heats, setHeats] = useState([]);
+}: HeatComponentProps) {
+  const [heats, setHeats] = useState<HeatWithBoats[]>([]);
   const [numHeats, setNumHeats] = useState(5); // Default number of heats
-  const [selectedHeatId, setSelectedHeatId] = useState(null);
+  const [selectedHeatId, setSelectedHeatId] = useState<number | null>(null);
   const [heatsCreated, setHeatsCreated] = useState(false);
   const [raceHappened, setRaceHappened] = useState(false);
   const [displayLastHeats, setDisplayLastHeats] = useState(true);
@@ -43,8 +83,10 @@ function HeatComponent({
     setPendingShs43TemporarySecondDiscard,
   ] = useState(true);
   const [numQualifyingGroups, setNumQualifyingGroups] = useState(0);
-  const [newHeatsFormat, setNewHeatsFormat] = useState('excel');
-  const [snapshotHistory, setSnapshotHistory] = useState([]);
+  const [newHeatsFormat, setNewHeatsFormat] = useState<
+    'excel' | 'pdf' | 'html'
+  >('excel');
+  const [snapshotHistory, setSnapshotHistory] = useState<SnapshotEntry[]>([]);
 
   const snapshotStorageKey = `eventSnapshotHistory:${event.event_id}`;
 
@@ -74,7 +116,7 @@ function HeatComponent({
   }, [snapshotStorageKey]);
 
   const rememberSnapshot = useCallback(
-    (filePath) => {
+    (filePath: string | null | undefined) => {
       const fileName =
         String(filePath || '')
           .split(/[\\/]/)
@@ -158,8 +200,8 @@ function HeatComponent({
   }, [loadSnapshotHistory]);
 
   const handleConfirmFinalSeries = async (
-    allowOversizeConfirm,
-    shrs43ApplyChoice,
+    allowOversizeConfirm?: boolean,
+    shrs43ApplyChoice?: boolean | null,
   ) => {
     const allowOversize = allowOversizeConfirm === true;
     setShowFinalConfirm(false);
@@ -188,7 +230,9 @@ function HeatComponent({
       handleDisplayHeats();
     } catch (error) {
       const message =
-        error && typeof error.message === 'string' ? error.message : '';
+        error instanceof Error && typeof error.message === 'string'
+          ? error.message
+          : '';
       if (
         !allowOversize &&
         message.includes('Final fleets would exceed 20 boats')
@@ -212,9 +256,9 @@ function HeatComponent({
     try {
       // SHRS eligibility (group counting, equal-race-count, Rule 4.3 window) is
       // computed in the main process; the renderer only renders prompts.
-      const eligibility = await heatRaceDB.getFinalSeriesEligibility(
+      const eligibility = (await heatRaceDB.getFinalSeriesEligibility(
         event.event_id,
-      );
+      )) as FinalSeriesEligibility;
 
       if (!eligibility.ok) {
         let message;
@@ -235,6 +279,7 @@ function HeatComponent({
       }
 
       const { numFinalHeats, rule43Applies } = eligibility;
+      const finalHeatCount = numFinalHeats ?? 0;
 
       if (eligibility.noRacesCompleted) {
         const proceed = await confirmAction(
@@ -254,9 +299,9 @@ function HeatComponent({
         );
 
         if (saveSnapshotNow) {
-          const snapshotResult = await heatRaceDB.exportEventSnapshotToFile(
+          const snapshotResult = (await heatRaceDB.exportEventSnapshotToFile(
             event.event_id,
-          );
+          )) as { canceled?: boolean; filePath?: string };
 
           if (snapshotResult?.canceled) {
             const proceedWithoutSnapshot = await confirmAction(
@@ -288,7 +333,7 @@ function HeatComponent({
       }
       setPendingShs43TemporarySecondDiscard(applyShs43TemporarySecondDiscard);
 
-      setPendingFinalHeats(numFinalHeats);
+      setPendingFinalHeats(finalHeatCount);
       setShowFinalConfirm(true);
     } catch (error) {
       reportError(
@@ -308,7 +353,16 @@ function HeatComponent({
     }
 
     try {
-      const eventBoats = await eventDB.readBoatsByEvent(event.event_id);
+      // readBoatsByEvent aliases the boat country as `boat_country`, so the
+      // `.country` sort key below is absent (undefined) at runtime — preserved
+      // as-is to keep heat composition identical to the prior JS version.
+      const eventBoats = (await eventDB.readBoatsByEvent(
+        event.event_id,
+      )) as Array<{
+        boat_id: number;
+        sail_number: string | number;
+        country?: string | null;
+      }>;
       const existingHeats = await heatRaceDB.readAllHeats(event.event_id);
 
       if (existingHeats.length > 0) {
@@ -318,8 +372,8 @@ function HeatComponent({
       }
 
       eventBoats.sort((a, b) => {
-        if (a.country < b.country) return -1;
-        if (a.country > b.country) return 1;
+        if ((a.country ?? '') < (b.country ?? '')) return -1;
+        if ((a.country ?? '') > (b.country ?? '')) return 1;
         // Sail numbers are stored as TEXT and can be alphanumeric, so compare
         // them as strings with numeric awareness (e.g. "9" < "10") instead of
         // numeric subtraction, which would yield NaN for non-numeric values.
@@ -407,7 +461,7 @@ function HeatComponent({
     handleDisplayHeats();
   }, [event, handleDisplayHeats, refreshToken]);
 
-  const handleHeatClick = (heat) => {
+  const handleHeatClick = (heat: HeatWithBoats) => {
     if (clickable) {
       setSelectedHeatId(heat.heat_id);
       onHeatSelect(heat);
@@ -418,7 +472,7 @@ function HeatComponent({
     setDisplayLastHeats((prevMode) => !prevMode);
   };
 
-  const getLastHeats = (heatsList) => {
+  const getLastHeats = (heatsList: HeatWithBoats[]): HeatWithBoats[] => {
     const finalHeats = heatsList.filter(
       (heat) => heat.heat_type.toLowerCase() === 'final',
     );
@@ -426,7 +480,7 @@ function HeatComponent({
       return finalHeats;
     }
 
-    const heatGroups = heatsList.reduce((acc, heat) => {
+    const heatGroups = heatsList.reduce<Record<string, number>>((acc, heat) => {
       const match = heat.heat_name.match(/([A-Z]+)(\d*)$/);
       if (match) {
         const [, group, suffix] = match;
@@ -455,11 +509,15 @@ function HeatComponent({
     heatsToDisplay.length > 0 &&
     heatsToDisplay.every((heat) => heat.heat_type === 'Final');
 
-  const getFlagCode = (iocCode) => {
+  const getFlagCode = (iocCode: string): string => {
     return iocToFlagCodeMap[iocCode] || iocCode;
   };
 
-  const handleBoatTransfer = async (boat, fromHeatId, toHeatId) => {
+  const handleBoatTransfer = async (
+    boat: HeatBoatRow,
+    fromHeatId: number,
+    toHeatId: number,
+  ) => {
     if (raceHappened || finalSeriesStarted) {
       reportInfo(
         'Cannot transfer boats after a race has happened.',
@@ -481,21 +539,27 @@ function HeatComponent({
     }
   };
 
-  const handleDragStart = (e, boat, fromHeatId) => {
-    const { nativeEvent } = e;
-    nativeEvent.dataTransfer.setData(
+  const handleDragStart = (
+    e: React.DragEvent,
+    boat: HeatBoatRow,
+    fromHeatId: number,
+  ) => {
+    e.dataTransfer.setData(
       'application/json',
       JSON.stringify({ boat, fromHeatId }),
     );
   };
-  const handleDrop = async (e, toHeatId) => {
+  const handleDrop = async (e: React.DragEvent, toHeatId: number) => {
     e.preventDefault();
-    const data = JSON.parse(e.dataTransfer.getData('application/json'));
+    const data = JSON.parse(e.dataTransfer.getData('application/json')) as {
+      boat: HeatBoatRow;
+      fromHeatId: number;
+    };
     const { boat, fromHeatId } = data;
     await handleBoatTransfer(boat, fromHeatId, toHeatId);
   };
 
-  const handleDragOver = (e) => {
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
   };
 
@@ -509,7 +573,9 @@ function HeatComponent({
 
   const handleSaveSnapshot = async () => {
     try {
-      const result = await heatRaceDB.exportEventSnapshotToFile(event.event_id);
+      const result = (await heatRaceDB.exportEventSnapshotToFile(
+        event.event_id,
+      )) as { canceled?: boolean; filePath?: string };
       if (result?.canceled) return;
       rememberSnapshot(result?.filePath);
       reportInfo('Recovery snapshot saved successfully.', 'Snapshot saved');
@@ -527,9 +593,9 @@ function HeatComponent({
     if (!confirmed) return;
 
     try {
-      const result = await heatRaceDB.restoreEventSnapshotFromFile(
+      const result = (await heatRaceDB.restoreEventSnapshotFromFile(
         event.event_id,
-      );
+      )) as { canceled?: boolean };
       if (result?.canceled) return;
 
       setFinalSeriesStarted(false);
@@ -575,7 +641,9 @@ function HeatComponent({
             className="compact-select"
             aria-label="New heats format"
             value={newHeatsFormat}
-            onChange={(e) => setNewHeatsFormat(e.target.value)}
+            onChange={(e) =>
+              setNewHeatsFormat(e.target.value as 'excel' | 'pdf' | 'html')
+            }
           >
             <option value="excel">Excel</option>
             <option value="pdf">PDF</option>
@@ -691,7 +759,7 @@ function HeatComponent({
                       </td>
                       <td>
                         <Flag
-                          code={getFlagCode(boat.country)}
+                          code={getFlagCode(boat.country ?? '')}
                           style={{ width: '30px', marginRight: '5px' }}
                         />
                         {boat.country}
@@ -792,18 +860,5 @@ function HeatComponent({
     </div>
   );
 }
-
-HeatComponent.propTypes = {
-  event: PropTypes.shape({
-    event_id: PropTypes.number.isRequired,
-    // Add other event properties here if needed
-  }).isRequired,
-  onHeatSelect: PropTypes.func,
-  onStartScoring: PropTypes.func,
-  onUndoLastRace: PropTypes.func,
-  onQualifyingGroupCountChange: PropTypes.func,
-  clickable: PropTypes.bool.isRequired,
-  refreshToken: PropTypes.number,
-};
 
 export default HeatComponent;

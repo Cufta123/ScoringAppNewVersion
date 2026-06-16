@@ -5,11 +5,12 @@ import Navbar from '../../components/Navbar';
 import { reportError } from '../../utils/userFeedback';
 import './LandingPage.css';
 import { eventDB } from '../../api/db';
+import type { EventRow } from '../../types';
 
 function LandingPage() {
   const navigate = useNavigate();
   // null = not loaded yet; [] = loaded and empty
-  const [events, setEvents] = useState(null);
+  const [events, setEvents] = useState<EventRow[] | null>(null);
 
   const refreshEvents = useCallback(async () => {
     try {

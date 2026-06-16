@@ -1,10 +1,21 @@
 import React, { useState } from 'react';
-import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
 import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
 import { eventDB } from '../api/db';
+import type { EventRow } from '../types';
 
-const DEFAULT_DISCARD_CONFIG = {
+interface DiscardConfig {
+  firstDiscardAt: number;
+  secondDiscardAt: number;
+  additionalEvery: number;
+}
+
+interface DiscardModeAndConfig {
+  mode: string;
+  thresholdsInput: string;
+}
+
+const DEFAULT_DISCARD_CONFIG: DiscardConfig = {
   firstDiscardAt: 4,
   secondDiscardAt: 8,
   additionalEvery: 8,
@@ -12,14 +23,16 @@ const DEFAULT_DISCARD_CONFIG = {
 
 const DEFAULT_THRESHOLD_PREVIEW = '4,8,16,24';
 
-const clampPositiveInt = (value, fallback) => {
+const clampPositiveInt = (value: unknown, fallback: number): number => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   const rounded = Math.trunc(parsed);
   return rounded > 0 ? rounded : fallback;
 };
 
-const normalizeDiscardConfig = (raw) => {
+const normalizeDiscardConfig = (
+  raw: Record<string, unknown> | null | undefined,
+): DiscardConfig => {
   const firstDiscardAt = clampPositiveInt(
     raw?.firstDiscardAt,
     DEFAULT_DISCARD_CONFIG.firstDiscardAt,
@@ -43,7 +56,9 @@ const normalizeDiscardConfig = (raw) => {
   };
 };
 
-const toLegacyThresholdPreview = (config) => {
+const toLegacyThresholdPreview = (
+  config: Record<string, unknown> | null | undefined,
+): string => {
   const normalized = normalizeDiscardConfig(config);
   return [
     normalized.firstDiscardAt,
@@ -53,7 +68,9 @@ const toLegacyThresholdPreview = (config) => {
   ].join(',');
 };
 
-const parseThresholdInput = (input) => {
+const parseThresholdInput = (
+  input: unknown,
+): { thresholds: number[]; error: string | null } => {
   const cleaned = String(input ?? '').trim();
   if (!cleaned) {
     return {
@@ -94,7 +111,9 @@ const parseThresholdInput = (input) => {
   return { thresholds, error: null };
 };
 
-const parseDiscardModeAndConfig = (raw) => {
+const parseDiscardModeAndConfig = (
+  raw: string | null | undefined,
+): DiscardModeAndConfig => {
   if (!raw || raw === 'standard') {
     return {
       mode: 'standard',
@@ -123,7 +142,10 @@ const parseDiscardModeAndConfig = (raw) => {
   }
 };
 
-const serializeDiscardProfile = (mode, thresholdsInput) => {
+const serializeDiscardProfile = (
+  mode: string,
+  thresholdsInput: string,
+): string => {
   if (mode === 'standard') return 'standard';
   const { thresholds, error } = parseThresholdInput(thresholdsInput);
   if (error) {
@@ -132,7 +154,7 @@ const serializeDiscardProfile = (mode, thresholdsInput) => {
   return JSON.stringify({ thresholds });
 };
 
-const getDiscardSummary = (mode, thresholdsInput) => {
+const getDiscardSummary = (mode: string, thresholdsInput: string): string => {
   if (mode === 'standard') {
     return 'Standard SHRS 5.4 is active: after 4 races exclude 1, after 8 exclude 2, then +1 every 8 races.';
   }
@@ -142,7 +164,7 @@ const getDiscardSummary = (mode, thresholdsInput) => {
   return `Custom list active. Exclusions increase by 1 at each threshold: ${thresholds.join(', ')}.`;
 };
 
-const getDiscardExamples = (mode, thresholdsInput) => {
+const getDiscardExamples = (mode: string, thresholdsInput: string): string => {
   if (mode === 'standard') {
     return 'Examples: 4 races = 1 discard | 8 races = 2 discards | 16 races = 3 discards | 24 races = 4 discards';
   }
@@ -163,17 +185,21 @@ const getDiscardExamples = (mode, thresholdsInput) => {
     .join(' | ');
 };
 
-const getAssignmentLabel = (event) =>
+const getAssignmentLabel = (event: EventRow): string =>
   event.shrs_qualifying_assignment_mode === 'pre-assigned'
     ? 'Pre-Assignments'
     : 'Progressive';
 
-const getOverflowPolicyLabel = (event) =>
+const getOverflowPolicyLabel = (event: EventRow): string =>
   event.shrs_heat_overflow_policy === 'confirm-allow-oversize'
     ? 'Oversize with confirm'
     : 'Auto-increase heats';
 
-function EventForm({ onEventCreated = null }) {
+interface EventFormProps {
+  onEventCreated?: (() => void) | null;
+}
+
+function EventForm({ onEventCreated = null }: EventFormProps) {
   const [eventName, setEventName] = useState('');
   const [eventLocation, setEventLocation] = useState('');
   const [eventStartDate, setEventStartDate] = useState('');
@@ -193,7 +219,7 @@ function EventForm({ onEventCreated = null }) {
   const [finalDiscardError, setFinalDiscardError] = useState('');
   const [heatOverflowPolicy, setHeatOverflowPolicy] = useState('auto-increase');
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (eventStartDate && eventEndDate && eventEndDate < eventStartDate) {
@@ -282,7 +308,7 @@ function EventForm({ onEventCreated = null }) {
     }
   };
 
-  const handleQualifyingDiscardModeChange = (value) => {
+  const handleQualifyingDiscardModeChange = (value: string) => {
     setQualifyingDiscardMode(value);
     setQualifyingDiscardError('');
     if (value === 'standard') {
@@ -290,7 +316,7 @@ function EventForm({ onEventCreated = null }) {
     }
   };
 
-  const handleFinalDiscardModeChange = (value) => {
+  const handleFinalDiscardModeChange = (value: string) => {
     setFinalDiscardMode(value);
     setFinalDiscardError('');
     if (value === 'standard') {
@@ -482,8 +508,13 @@ function EventForm({ onEventCreated = null }) {
   );
 }
 
-export function EventList({ events, onEventsChanged = null }) {
-  const [editingId, setEditingId] = useState(null);
+interface EventListProps {
+  events: EventRow[];
+  onEventsChanged?: (() => void) | null;
+}
+
+export function EventList({ events, onEventsChanged = null }: EventListProps) {
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
   const [editLocation, setEditLocation] = useState('');
   const [editStartDate, setEditStartDate] = useState('');
@@ -510,11 +541,11 @@ export function EventList({ events, onEventsChanged = null }) {
 
   const navigate = useNavigate();
 
-  const handleEventClick = (event) => {
+  const handleEventClick = (event: EventRow) => {
     navigate(`/event/${event.event_name}`, { state: { event } });
   };
 
-  const startEdit = (e, event) => {
+  const startEdit = (e: React.MouseEvent, event: EventRow) => {
     const qualifyingProfile = parseDiscardModeAndConfig(
       event.shrs_discard_profile_qualifying,
     );
@@ -557,8 +588,9 @@ export function EventList({ events, onEventsChanged = null }) {
     setEditAdvancedEnabled(false);
   };
 
-  const handleEditSubmit = async (e) => {
+  const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (editingId == null) return;
 
     if (editStartDate && editEndDate && editEndDate < editStartDate) {
       reportInfo(
@@ -637,7 +669,7 @@ export function EventList({ events, onEventsChanged = null }) {
     }
   };
 
-  const handleDeleteEvent = async (e, eventId) => {
+  const handleDeleteEvent = async (e: React.MouseEvent, eventId: number) => {
     e.stopPropagation();
 
     const confirmed = await confirmAction(
@@ -657,7 +689,7 @@ export function EventList({ events, onEventsChanged = null }) {
     }
   };
 
-  const handleEditQualifyingDiscardModeChange = (value) => {
+  const handleEditQualifyingDiscardModeChange = (value: string) => {
     setEditQualifyingDiscardMode(value);
     setEditQualifyingDiscardError('');
     if (value === 'standard') {
@@ -665,7 +697,7 @@ export function EventList({ events, onEventsChanged = null }) {
     }
   };
 
-  const handleEditFinalDiscardModeChange = (value) => {
+  const handleEditFinalDiscardModeChange = (value: string) => {
     setEditFinalDiscardMode(value);
     setEditFinalDiscardError('');
     if (value === 'standard') {
@@ -958,15 +990,5 @@ export function EventList({ events, onEventsChanged = null }) {
     </div>
   );
 }
-
-EventForm.propTypes = {
-  onEventCreated: PropTypes.func,
-};
-
-EventList.propTypes = {
-  // eslint-disable-next-line react/forbid-prop-types
-  events: PropTypes.arrayOf(PropTypes.object).isRequired,
-  onEventsChanged: PropTypes.func,
-};
 
 export default EventForm;

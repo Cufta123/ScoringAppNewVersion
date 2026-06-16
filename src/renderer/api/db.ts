@@ -17,12 +17,12 @@
 // narrow rather than silently inheriting `any`.
 
 import type {
-  BoatRow,
   CategoryRow,
   ClubRow,
   EventBoatRow,
   EventRow,
   GlobalLeaderboardRow,
+  HeatBoatRow,
   HeatRow,
   InsertResult,
   OverallLeaderboardEntry,
@@ -52,7 +52,7 @@ export interface SailorDB {
   readAllSailors(): Promise<SailorWithDetails[]>;
   readAllCategories(): Promise<CategoryRow[]>;
   readAllClubs(): Promise<ClubRow[]>;
-  readAllBoats(): Promise<BoatRow[]>;
+  readAllBoats(): Promise<EventBoatRow[]>;
   insertSailor(
     name: string,
     surname: string,
@@ -74,8 +74,27 @@ export interface SailorDB {
 export interface EventDB {
   readAllEvents(): Promise<EventRow[]>;
   readBoatsByEvent(eventId: number): Promise<EventBoatRow[]>;
-  insertEvent(event: Omit<EventRow, 'event_id'>): Promise<InsertResult>;
-  updateEvent(event: EventRow): Promise<unknown>;
+  insertEvent(
+    name: string,
+    location: string,
+    startDate: string,
+    endDate: string,
+    assignmentMode: string,
+    qualifyingDiscardProfile: string,
+    finalDiscardProfile: string,
+    heatOverflowPolicy: string,
+  ): Promise<InsertResult>;
+  updateEvent(
+    eventId: number,
+    name: string,
+    location: string,
+    startDate: string,
+    endDate: string,
+    assignmentMode: string,
+    qualifyingDiscardProfile: string,
+    finalDiscardProfile: string,
+    heatOverflowPolicy: string,
+  ): Promise<unknown>;
   deleteEvent(eventId: number): Promise<unknown>;
   associateBoatWithEvent(boatId: number, eventId: number): Promise<unknown>;
   removeBoatFromEvent(boatId: number, eventId: number): Promise<unknown>;
@@ -83,7 +102,7 @@ export interface EventDB {
 
 export interface HeatRaceDB {
   readAllHeats(eventId: number): Promise<HeatRow[]>;
-  readBoatsByHeat(heatId: number): Promise<EventBoatRow[]>;
+  readBoatsByHeat(heatId: number): Promise<HeatBoatRow[]>;
   readAllRaces(heatId: number): Promise<RaceRow[]>;
   readAllScores(raceId: number): Promise<ScoreRow[]>;
   readLeaderboard(eventId: number): Promise<RawLeaderboardEntry[]>;

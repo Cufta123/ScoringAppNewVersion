@@ -132,6 +132,21 @@ export interface EventBoatRow {
 }
 
 /**
+ * A boat joined with its sailor and category, as returned by `readBoatsByHeat`.
+ * Note this select returns `country` directly (no `boat_country` alias) and
+ * omits club columns — so it differs from `EventBoatRow`.
+ */
+export interface HeatBoatRow {
+  boat_id: number;
+  sail_number: number;
+  country: string | null;
+  model: string;
+  name: string;
+  surname: string;
+  category_name: string | null;
+}
+
+/**
  * A sailor joined with club, category and (left-joined) boat, as returned by
  * `readAllSailors`. The boat columns are nullable because the join is a LEFT
  * JOIN — a sailor may not have a boat yet.

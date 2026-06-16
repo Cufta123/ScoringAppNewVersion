@@ -12,12 +12,28 @@ import printStartingList from '../../utils/printStartingList';
 import { reportError, reportInfo } from '../../utils/userFeedback';
 import { checkRaceHappened } from '../../utils/raceStatus';
 import { eventDB, sailorDB } from '../../api/db';
+import type { EventBoatRow, EventRow } from '../../types';
+
+type MappedEventBoat = EventBoatRow & {
+  sailor: string;
+  club: string;
+  country: string;
+  category: string;
+  [key: string]: unknown;
+};
+
+interface BoatOption {
+  value: number;
+  label: string;
+}
 
 function EventPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { name } = useParams();
-  const [event, setEvent] = useState(location.state?.event || null);
+  const [event, setEvent] = useState<EventRow | null>(
+    (location.state as { event?: EventRow } | null)?.event || null,
+  );
   const eventId = event?.event_id;
 
   // Refresh-safe: when opened without router state (e.g. after a reload),
@@ -49,24 +65,26 @@ function EventPage() {
     };
   }, [event, name, navigate]);
 
-  const [boats, setBoats] = useState([]);
-  const [allBoats, setAllBoats] = useState([]);
-  const [selectedBoats, setSelectedBoats] = useState([]);
+  const [boats, setBoats] = useState<MappedEventBoat[]>([]);
+  const [allBoats, setAllBoats] = useState<EventBoatRow[]>([]);
+  const [selectedBoats, setSelectedBoats] = useState<readonly BoatOption[]>([]);
   const [addSailorMode, setAddSailorMode] = useState('single');
   const [raceHappened, setRaceHappened] = useState(false);
-  const [startingListFormat, setStartingListFormat] = useState('excel');
+  const [startingListFormat, setStartingListFormat] = useState<
+    'excel' | 'pdf' | 'html'
+  >('excel');
 
   const fetchBoatsWithSailors = useCallback(async () => {
     if (!eventId) return;
 
     try {
       const boatsWithSailors = await eventDB.readBoatsByEvent(eventId);
-      const mappedBoats = boatsWithSailors.map((boat) => ({
+      const mappedBoats: MappedEventBoat[] = boatsWithSailors.map((boat) => ({
         ...boat,
         sailor: boat.name,
-        club: boat.club_name, // Map club_name to club
-        country: boat.boat_country, // Map country_name to country
-        category: boat.category_name, // Map category_name to category
+        club: boat.club_name ?? '', // Map club_name to club
+        country: boat.boat_country ?? '', // Map country_name to country
+        category: boat.category_name ?? '', // Map category_name to category
       }));
       setBoats(mappedBoats);
     } catch (error) {
@@ -111,11 +129,13 @@ function EventPage() {
   }, [fetchBoatsWithSailors, fetchAllBoats]);
 
   const handleHeatRaceClick = () => {
+    if (!event) return;
     navigate(`/event/${event.event_name}/heat-race`, { state: { event } });
   };
 
-  const handleBoatSelection = async (e) => {
+  const handleBoatSelection = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!event) return;
 
     if (raceHappened) {
       reportInfo(
@@ -142,15 +162,17 @@ function EventPage() {
     }
   };
 
-  const handleBoatChange = (selectedOptions) => {
+  const handleBoatChange = (selectedOptions: readonly BoatOption[]) => {
     setSelectedBoats(selectedOptions);
   };
 
   const handleOpenLeaderboard = () => {
+    if (!event) return;
     navigate(`/event/${event.event_name}/leaderboard`, { state: { event } });
   };
 
   const handlePrintStartingList = async () => {
+    if (!event) return;
     try {
       const boatsForEvent = await eventDB.readBoatsByEvent(event.event_id);
       await printStartingList(
@@ -163,7 +185,8 @@ function EventPage() {
     }
   };
 
-  const handleRemoveBoat = async (boatId) => {
+  const handleRemoveBoat = async (boatId: number) => {
+    if (!event) return;
     try {
       await eventDB.removeBoatFromEvent(boatId, event.event_id);
 
@@ -344,7 +367,11 @@ function EventPage() {
                   className="compact-select"
                   aria-label="Starting list format"
                   value={startingListFormat}
-                  onChange={(e) => setStartingListFormat(e.target.value)}
+                  onChange={(e) =>
+                    setStartingListFormat(
+                      e.target.value as 'excel' | 'pdf' | 'html',
+                    )
+                  }
                 >
                   <option value="excel">Excel</option>
                   <option value="pdf">PDF</option>
