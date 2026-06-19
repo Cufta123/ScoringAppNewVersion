@@ -172,7 +172,10 @@ test('the Shift other boats toggle cascades the surrounding places', async () =>
   await openLeaderboard();
   await window.getByRole('button', { name: 'Edit Results' }).click();
 
-  await window.getByLabel('Shift other boats').check();
+  // The real checkbox is visually hidden behind the styled `.toggle-track`
+  // span (inside the label), which intercepts pointer events — so a plain
+  // check() can't reach it. Force the check; the label still toggles the box.
+  await window.getByLabel('Shift other boats').check({ force: true });
 
   // Move Dan to 1st in Race 2; the boats it passes each shift down one place.
   await window

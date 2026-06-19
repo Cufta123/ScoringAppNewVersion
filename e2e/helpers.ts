@@ -134,8 +134,11 @@ export async function addSailor(
   await window.getByLabel('Country').selectOption(country);
   await window.getByLabel('Boat Model').fill('ILCA');
   await window.getByLabel('Club').fill('Test YC');
-  // The club Autosuggest dropdown overlays the submit button — dismiss it first.
-  await window.keyboard.press('Escape');
+  // The club Autosuggest dropdown can overlay the submit button, so it must be
+  // dismissed before clicking. Blur the field rather than pressing Escape:
+  // react-autosuggest reverts the input value to empty on Escape, which left
+  // the required Club field blank and silently blocked form submission.
+  await window.getByLabel('Club').blur();
   await window.getByRole('button', { name: 'Add Sailor' }).click();
   // Exact match: a unique event name can contain the sail digits as a substring.
   await expect(window.getByText(sail, { exact: true })).toBeVisible();
