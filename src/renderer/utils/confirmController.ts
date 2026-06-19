@@ -4,15 +4,25 @@
 // user's choice. This keeps confirmation dialogs inside the React tree instead
 // of building DOM nodes by hand.
 
+// A confirm dialog resolves to which button the user pressed: the primary
+// ('confirm'), the optional middle button ('extra'), or 'cancel' (backdrop,
+// Escape, or the cancel button). Two-button dialogs never return 'extra'.
+export type ConfirmChoice = 'confirm' | 'extra' | 'cancel';
+
 export interface ConfirmRequest {
   title: string;
   body: string;
   confirmLabel: string;
   cancelLabel: string;
   confirmClassName: string;
+  // Optional third action shown between Cancel and Confirm.
+  extraLabel?: string;
+  extraClassName?: string;
 }
 
-export type ConfirmHandler = (request: ConfirmRequest) => Promise<boolean>;
+export type ConfirmHandler = (
+  request: ConfirmRequest,
+) => Promise<ConfirmChoice>;
 
 let activeHandler: ConfirmHandler | null = null;
 
@@ -30,9 +40,11 @@ export const registerConfirmHandler = (
 export const hasConfirmHandler = (): boolean =>
   typeof activeHandler === 'function';
 
-export const requestConfirm = (request: ConfirmRequest): Promise<boolean> => {
+export const requestConfirm = (
+  request: ConfirmRequest,
+): Promise<ConfirmChoice> => {
   if (!activeHandler) {
-    return Promise.resolve(false);
+    return Promise.resolve('cancel');
   }
   return activeHandler(request);
 };

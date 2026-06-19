@@ -20,6 +20,8 @@ interface ScoreCellProps {
   editMode: boolean;
   isEditable?: boolean;
   isShared?: boolean;
+  /** Number of boats in this race/fleet — caps the finishing place input. */
+  maxPosition?: number;
   cellStyle?: React.CSSProperties;
   onRaceChange: RaceChangeHandler;
   rdg2Picker?: Rdg2PickerState | null;
@@ -47,6 +49,7 @@ function ScoreCell({
   editMode,
   isEditable = true,
   isShared = false,
+  maxPosition = 0,
   cellStyle = {},
   onRaceChange,
   rdg2Picker = null,
@@ -62,6 +65,40 @@ function ScoreCell({
 
   const isPickerOpen =
     rdg2Picker?.boatId === boatId && rdg2Picker?.raceIndex === raceIndex;
+
+  // Local draft of the numeric input so the user can freely clear and retype a
+  // place even when the cell already shows the heat's maximum. Without it the
+  // field is fully controlled by `race`: an empty value snaps back and an
+  // appended digit (7 -> 75) clamps straight back to the max, so the cell looks
+  // frozen. `draft === null` means "mirror the derived value".
+  const rawNumeric =
+    typeof race === 'string' ? race.replace(/[()]/g, '') : String(race);
+  const [draft, setDraft] = React.useState<string | null>(null);
+  const inputValue = draft ?? rawNumeric;
+
+  const isManualRdg = raceStatus === 'RDG3';
+
+  // Manual RDG caps at 2 digits (99); a normal finish caps at the heat size.
+  let numericMax: number | undefined;
+  if (isManualRdg) {
+    numericMax = 99;
+  } else if (maxPosition > 0) {
+    numericMax = maxPosition;
+  }
+
+  // Manual RDG (RDG3) skips the heat-size clamp, so cap the typed value at two
+  // integer digits (max 99) to stop runaway entries. Decimals are kept.
+  const capManualRdg = (value: string): string => {
+    if (!isManualRdg) return value;
+    const dot = value.indexOf('.');
+    const intPart = (dot === -1 ? value : value.slice(0, dot)).replace(
+      /\D/g,
+      '',
+    );
+    const cappedInt = intPart.slice(0, 2);
+    if (dot === -1) return cappedInt;
+    return `${cappedInt}.${value.slice(dot + 1).replace(/\D/g, '')}`;
+  };
 
   const tdStyle: React.CSSProperties = {
     padding: '8px 12px',
@@ -121,16 +158,23 @@ function ScoreCell({
         {/* Numeric input */}
         <input
           type="number"
-          value={typeof race === 'string' ? race.replace(/[()]/g, '') : race}
+          min={1}
+          max={numericMax}
+          step={1}
+          value={inputValue}
           disabled={isPenalty && raceStatus !== 'RDG3'}
-          onChange={(e) =>
+          onFocus={(e) => e.target.select()}
+          onChange={(e) => {
+            const nextValue = capManualRdg(e.target.value);
+            setDraft(nextValue);
             onRaceChange(
               boatId,
               raceIndex,
-              e.target.value,
-              raceStatus === 'RDG3' ? 'RDG3' : 'FINISHED',
-            )
-          }
+              nextValue,
+              isManualRdg ? 'RDG3' : 'FINISHED',
+            );
+          }}
+          onBlur={() => setDraft(null)}
           aria-label={`Race ${raceIndex + 1} value`}
           style={{
             width: '70px',

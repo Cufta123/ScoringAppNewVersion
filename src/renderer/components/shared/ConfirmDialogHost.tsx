@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import AppModal from './AppModal';
 import {
   registerConfirmHandler,
+  type ConfirmChoice,
   type ConfirmRequest,
 } from '../../utils/confirmController';
 
@@ -14,9 +15,9 @@ import {
 // (the pending resolver and single-instance guard).
 export default function ConfirmDialogHost() {
   const [request, setRequest] = useState<ConfirmRequest | null>(null);
-  const resolverRef = useRef<((value: boolean) => void) | null>(null);
+  const resolverRef = useRef<((value: ConfirmChoice) => void) | null>(null);
 
-  const close = useCallback((value: boolean) => {
+  const close = useCallback((value: ConfirmChoice) => {
     const resolve = resolverRef.current;
     resolverRef.current = null;
     setRequest(null);
@@ -27,10 +28,10 @@ export default function ConfirmDialogHost() {
 
   useEffect(() => {
     const handler = (incoming: ConfirmRequest) =>
-      new Promise<boolean>((resolve) => {
+      new Promise<ConfirmChoice>((resolve) => {
         // A second request while one is open is rejected rather than queued.
         if (resolverRef.current) {
-          resolve(false);
+          resolve('cancel');
           return;
         }
         resolverRef.current = resolve;
@@ -50,6 +51,8 @@ export default function ConfirmDialogHost() {
     confirmLabel = 'Confirm',
     cancelLabel = 'Cancel',
     confirmClassName = 'btn-danger',
+    extraLabel,
+    extraClassName,
   } = request;
 
   return createPortal(
@@ -59,8 +62,11 @@ export default function ConfirmDialogHost() {
       confirmLabel={confirmLabel}
       cancelLabel={cancelLabel}
       confirmClassName={confirmClassName}
-      onConfirm={() => close(true)}
-      onCancel={() => close(false)}
+      extraLabel={extraLabel}
+      extraClassName={extraClassName}
+      onConfirm={() => close('confirm')}
+      onCancel={() => close('cancel')}
+      onExtra={extraLabel ? () => close('extra') : undefined}
     >
       {body}
     </AppModal>,

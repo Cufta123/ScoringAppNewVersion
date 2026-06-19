@@ -12,6 +12,10 @@ interface AppModalProps {
   onConfirm: () => void;
   onCancel: () => void;
   confirmClassName?: string;
+  // Optional third action, rendered between Cancel and Confirm.
+  extraLabel?: string;
+  extraClassName?: string;
+  onExtra?: () => void;
 }
 
 function AppModal({
@@ -23,6 +27,9 @@ function AppModal({
   onConfirm,
   onCancel,
   confirmClassName = 'btn-success',
+  extraLabel = undefined,
+  extraClassName = 'btn-danger',
+  onExtra = undefined,
 }: AppModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const lastFocusedRef = useRef<HTMLElement | null>(null);
@@ -114,6 +121,11 @@ function AppModal({
           <button type="button" className="btn-outline" onClick={onCancel}>
             {cancelLabel}
           </button>
+          {extraLabel && onExtra && (
+            <button type="button" className={extraClassName} onClick={onExtra}>
+              {extraLabel}
+            </button>
+          )}
           <button
             type="button"
             className={confirmClassName}

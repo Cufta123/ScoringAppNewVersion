@@ -28,9 +28,9 @@ exports[`useLeaderboard scoring/edit flow keeps full leaderboard payload contrac
   },
   {
     "boat_id": "b2",
-    "computed_total": 8,
+    "computed_total": 7,
     "race_points": [
-      "3",
+      "2",
       "2",
       "4",
       "3",
@@ -42,19 +42,19 @@ exports[`useLeaderboard scoring/edit flow keeps full leaderboard payload contrac
       "FINISHED",
     ],
     "races": [
-      "3",
+      "2",
       "1",
       "(4)",
       "3",
     ],
-    "total_points_event": 8,
-    "total_points_final": 8,
+    "total_points_event": 7,
+    "total_points_final": 7,
   },
   {
     "boat_id": "b3",
-    "computed_total": 7.5,
+    "computed_total": 6.5,
     "race_points": [
-      "4",
+      "3",
       "4",
       "1.5",
       "2",
@@ -66,13 +66,13 @@ exports[`useLeaderboard scoring/edit flow keeps full leaderboard payload contrac
       "FINISHED",
     ],
     "races": [
+      "3",
       "(4)",
-      "4",
       "1.5",
       "2",
     ],
-    "total_points_event": 7.5,
-    "total_points_final": 7.5,
+    "total_points_event": 6.5,
+    "total_points_final": 6.5,
   },
   {
     "boat_id": "b4",

@@ -52,6 +52,18 @@ function QualifyingTable({
   const identityHeaders = ['Rank', 'Name', 'Country', 'Sail #', 'Type'];
   const raceCount = leaderboard[0]?.races?.length || 0;
 
+  // Boats sharing a race_id are the ones in the same physical race (heat). Used
+  // to cap a finishing-place input at that race's boat count — across multiple
+  // qualifying heats the same column index maps to different races.
+  const raceIdCounts = new Map<string, number>();
+  leaderboard.forEach((entry) => {
+    (entry.race_ids || []).forEach((id) => {
+      if (id == null) return;
+      const key = String(id);
+      raceIdCounts.set(key, (raceIdCounts.get(key) || 0) + 1);
+    });
+  });
+
   return (
     <div style={{ marginBottom: '18px' }}>
       {/* Section heading */}
@@ -318,6 +330,11 @@ function QualifyingTable({
                         editMode={editMode}
                         isEditable
                         isShared={isShared}
+                        maxPosition={
+                          raceId != null
+                            ? raceIdCounts.get(String(raceId))
+                            : leaderboard.length
+                        }
                         onRaceChange={onRaceChange}
                         rdg2Picker={rdg2Picker}
                         setRdg2Picker={setRdg2Picker}

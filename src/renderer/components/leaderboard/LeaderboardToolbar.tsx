@@ -157,6 +157,9 @@ function LeaderboardToolbar({
           onClick={onToggleEdit}
           style={{
             ...btnBase,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
             border: `1px solid ${editMode ? 'var(--danger, #e63946)' : 'var(--border, #dde3ea)'}`,
             background: editMode
               ? 'var(--danger, #e63946)'
@@ -164,34 +167,32 @@ function LeaderboardToolbar({
             color: editMode ? '#fff' : 'var(--navy)',
           }}
         >
+          <i
+            className={`fa ${editMode ? 'fa-xmark' : 'fa-pen-to-square'}`}
+            aria-hidden="true"
+          />
           {editMode ? 'Cancel Editing' : 'Edit Results'}
         </button>
 
-        {/* Save + shift — only visible in edit mode */}
+        {/* Save + shift — grouped into one "editing" panel so the edit state
+            reads as a distinct mode rather than loose buttons. */}
         {editMode && (
-          <>
-            <button
-              type="button"
-              onClick={onSave}
-              style={{
-                ...btnBase,
-                border: 'none',
-                background: 'var(--teal, #2a9d8f)',
-                color: '#fff',
-              }}
-            >
-              Save Changes
-            </button>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '16px',
+              padding: '6px 8px 6px 14px',
+              borderRadius: 'var(--radius, 6px)',
+              border: '1px solid var(--border, #dde3ea)',
+              borderLeft: '3px solid var(--teal, #2a9d8f)',
+              background: 'var(--surface-2, #f8fbff)',
+            }}
+          >
             <label
+              className="toggle"
               htmlFor="shiftPositionsCheckbox"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '0.9rem',
-                color: 'var(--navy)',
-                cursor: 'pointer',
-              }}
+              title="On: when a boat's place changes, the other boats in that race shift to keep places contiguous. Off: only the edited boat changes — other boats are left exactly as they are (which may leave a tie or a gap to fix manually)."
             >
               <input
                 id="shiftPositionsCheckbox"
@@ -199,9 +200,28 @@ function LeaderboardToolbar({
                 checked={shiftPositions}
                 onChange={onShiftChange}
               />
+              <span className="toggle-track">
+                <span className="toggle-thumb" />
+              </span>
               Shift other boats
             </label>
-          </>
+            <button
+              type="button"
+              onClick={onSave}
+              style={{
+                ...btnBase,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                border: 'none',
+                background: 'var(--teal, #2a9d8f)',
+                color: '#fff',
+              }}
+            >
+              <i className="fa fa-save" aria-hidden="true" />
+              Save Changes
+            </button>
+          </div>
         )}
 
         {/* Compare toggle */}
@@ -210,6 +230,9 @@ function LeaderboardToolbar({
           onClick={onToggleCompare}
           style={{
             ...btnBase,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
             border: `1px solid ${compareMode ? 'var(--teal, #2a9d8f)' : 'var(--border, #dde3ea)'}`,
             background: compareMode
               ? 'var(--teal, #2a9d8f)'
@@ -217,6 +240,10 @@ function LeaderboardToolbar({
             color: compareMode ? '#fff' : 'var(--navy)',
           }}
         >
+          <i
+            className={`fa ${compareMode ? 'fa-xmark' : 'fa-right-left'}`}
+            aria-hidden="true"
+          />
           {compareMode ? 'Exit Compare' : 'Compare'}
         </button>
 

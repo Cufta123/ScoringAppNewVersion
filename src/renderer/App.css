@@ -216,6 +216,75 @@ input:focus, select:focus, textarea:focus {
 }
 input::placeholder { color: var(--text-muted); }
 
+/* Checkboxes and radios must opt out of the text-input box styling above —
+   otherwise the border/padding/background turns them into stray rectangles.
+   They size to their native control and tint with the brand accent instead. */
+input[type='checkbox'],
+input[type='radio'] {
+  width: auto;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  accent-color: var(--teal);
+  cursor: pointer;
+}
+input[type='checkbox']:focus, input[type='radio']:focus {
+  box-shadow: none;
+}
+
+/* ── Toggle switch ───────────────────────────────────────────
+   An accessible on/off control: a real checkbox is visually hidden
+   behind a sliding track/thumb. Use for boolean options that read
+   better as a switch than a tick box. */
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: .9rem;
+  color: var(--navy);
+  cursor: pointer;
+  user-select: none;
+}
+.toggle input[type='checkbox'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.toggle-track {
+  position: relative;
+  flex-shrink: 0;
+  width: 38px;
+  height: 22px;
+  border-radius: var(--radius-pill);
+  background: var(--border-strong, #91bde0);
+  transition: background .18s ease;
+}
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,.3);
+  transition: left .18s ease;
+}
+.toggle input[type='checkbox']:checked + .toggle-track {
+  background: var(--teal);
+}
+.toggle input[type='checkbox']:checked + .toggle-track .toggle-thumb {
+  left: 18px;
+}
+.toggle input[type='checkbox']:focus-visible + .toggle-track {
+  box-shadow: 0 0 0 3px rgba(15,148,120,.35);
+}
+
 /* Compact control variant for inline toolbar selects. */
 select.compact-select {
   width: auto;

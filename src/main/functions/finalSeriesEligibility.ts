@@ -9,7 +9,14 @@ export type FinalSeriesEligibility = {
   numFinalHeats: number;
   completedQualifyingRaces: number;
   rule43Applies: boolean;
+  // True only when NOTHING has been scored anywhere in the qualifying series.
   noRacesCompleted: boolean;
+  // True when the most recent round of heats has been created but not sailed
+  // yet (0 races), while earlier rounds DO have results. The Final Series then
+  // falls back to the last completed round — the renderer tells the user so.
+  latestRoundUnsailed: boolean;
+  // Numeric suffix of the latest round (e.g. "Heat A7" -> 7), for the message.
+  latestRoundNumber: number | null;
   raceCountBreakdown: { name: string; count: number }[];
 };
 
@@ -24,6 +31,8 @@ export function getFinalSeriesEligibility(
     completedQualifyingRaces: 0,
     rule43Applies: false,
     noRacesCompleted: true,
+    latestRoundUnsailed: false,
+    latestRoundNumber: null as number | null,
     raceCountBreakdown: [] as { name: string; count: number }[],
   };
 
@@ -90,13 +99,30 @@ export function getFinalSeriesEligibility(
   const completedQualifyingRaces =
     completedFromScores > 0 ? completedFromScores : racesFromHeats;
 
+  // The newest round of heats exists but hasn't been sailed (0 created races),
+  // yet earlier rounds were scored. Fleet assignment falls back to the last
+  // completed round; the renderer surfaces this instead of "no races".
+  const latestRoundUnsailed =
+    racesFromHeats === 0 && completedQualifyingRaces > 0;
+  const suffixMatch = latestHeats[0]?.heat_name.match(/Heat [A-Z]+(\d+)/);
+  const latestRoundNumber = suffixMatch ? parseInt(suffixMatch[1], 10) : null;
+
   return {
     ok: true,
     reason: 'OK',
     numFinalHeats,
     completedQualifyingRaces,
+    latestRoundUnsailed,
+    latestRoundNumber,
     rule43Applies: completedQualifyingRaces > 5 && completedQualifyingRaces < 8,
-    noRacesCompleted: racesFromHeats === 0,
+    // Derive from the SAME count that drives rule43Applies. Using racesFromHeats
+    // here (the latest round only) reported "no races completed" whenever a new
+    // round of heats was created but not yet sailed — even though earlier rounds
+    // had scored races. That made the renderer show the contradictory pair of
+    // prompts: "no qualifying races completed" AND "Rule 4.3 applies for 6-7
+    // completed races". Tying both flags to completedQualifyingRaces keeps them
+    // consistent.
+    noRacesCompleted: completedQualifyingRaces === 0,
     raceCountBreakdown,
   };
 }

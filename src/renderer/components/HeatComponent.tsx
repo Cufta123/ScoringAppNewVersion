@@ -29,8 +29,11 @@ interface FinalSeriesEligibility {
   reason?: string;
   raceCountBreakdown?: Array<{ name: string; count: number }>;
   numFinalHeats?: number;
+  completedQualifyingRaces?: number;
   rule43Applies?: boolean;
   noRacesCompleted?: boolean;
+  latestRoundUnsailed?: boolean;
+  latestRoundNumber?: number | null;
 }
 
 interface HeatComponentProps {
@@ -285,6 +288,21 @@ function HeatComponent({
         const proceed = await confirmAction(
           'No qualifying races have been completed yet. Boats will be assigned to fleets based on their initial seeding only.\n\nStart the Final Series anyway?',
           'Start Final Series',
+        );
+        if (!proceed) return;
+      } else if (eligibility.latestRoundUnsailed) {
+        // A new round of heats exists but has 0 races. It is NOT "no races
+        // completed" — earlier rounds were sailed. Tell the user the empty
+        // latest round is ignored and the last completed round is used.
+        const latestLabel = eligibility.latestRoundNumber
+          ? ` (round ${eligibility.latestRoundNumber})`
+          : '';
+        const completed = eligibility.completedQualifyingRaces ?? 0;
+        const proceed = await confirmAction(
+          `The latest round of heats${latestLabel} has no completed races yet.\n\n` +
+            `The Final Series will be based on the last completed round — ${completed} qualifying race(s). ` +
+            `The empty latest round will be ignored.\n\nContinue?`,
+          'Latest round not sailed',
         );
         if (!proceed) return;
       }

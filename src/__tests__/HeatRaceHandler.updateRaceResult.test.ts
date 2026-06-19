@@ -292,12 +292,12 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     expect(updateMain?.args.slice(0, 3)).toEqual([11, 11, 'RET']);
   });
 
-  it('applies mandatory A6.1 shift when FINISHED -> DSQ', async () => {
+  it('applies A6.1 shift when shifting enabled and FINISHED -> DSQ', async () => {
     currentScenario.currentPosition = 4;
     currentScenario.currentStatus = 'FINISHED';
 
     const handler = handlerRegistry.updateRaceResult;
-    await handler({}, 99, 500, 'B1', 4, false, 'DSQ');
+    await handler({}, 99, 500, 'B1', 4, true, 'DSQ');
 
     const shiftCall = runCalls.find((call) =>
       sqlContains(
@@ -309,12 +309,12 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     expect(shiftCall?.args).toEqual([500, 4]);
   });
 
-  it('applies mandatory A6.1 shift when FINISHED -> RET', async () => {
+  it('applies A6.1 shift when shifting enabled and FINISHED -> RET', async () => {
     currentScenario.currentPosition = 2;
     currentScenario.currentStatus = 'FINISHED';
 
     const handler = handlerRegistry.updateRaceResult;
-    await handler({}, 99, 500, 'B1', 2, false, 'RET');
+    await handler({}, 99, 500, 'B1', 2, true, 'RET');
 
     const shiftCall = runCalls.find((call) =>
       sqlContains(
@@ -326,12 +326,12 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     expect(shiftCall?.args).toEqual([500, 2]);
   });
 
-  it('applies mandatory A6.1 shift when FINISHED -> DNE', async () => {
+  it('applies A6.1 shift when shifting enabled and FINISHED -> DNE', async () => {
     currentScenario.currentPosition = 3;
     currentScenario.currentStatus = 'FINISHED';
 
     const handler = handlerRegistry.updateRaceResult;
-    await handler({}, 99, 500, 'B1', 3, false, 'DNE');
+    await handler({}, 99, 500, 'B1', 3, true, 'DNE');
 
     const shiftCall = runCalls.find((call) =>
       sqlContains(
@@ -343,12 +343,12 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     expect(shiftCall?.args).toEqual([500, 3]);
   });
 
-  it('applies mandatory A6.1 shift when FINISHED -> DGM', async () => {
+  it('applies A6.1 shift when shifting enabled and FINISHED -> DGM', async () => {
     currentScenario.currentPosition = 5;
     currentScenario.currentStatus = 'FINISHED';
 
     const handler = handlerRegistry.updateRaceResult;
-    await handler({}, 99, 500, 'B1', 5, false, 'DGM');
+    await handler({}, 99, 500, 'B1', 5, true, 'DGM');
 
     const shiftCall = runCalls.find((call) =>
       sqlContains(
@@ -365,7 +365,7 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     currentScenario.currentStatus = 'DNS';
 
     const handler = handlerRegistry.updateRaceResult;
-    await handler({}, 99, 500, 'B1', 3, false, 'DSQ');
+    await handler({}, 99, 500, 'B1', 3, true, 'DSQ');
 
     const shiftCall = runCalls.find((call) =>
       sqlContains(
@@ -381,7 +381,7 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     currentScenario.currentStatus = 'FINISHED';
 
     const handler = handlerRegistry.updateRaceResult;
-    await handler({}, 99, 500, 'B1', 4, false, 'DPI');
+    await handler({}, 99, 500, 'B1', 4, true, 'DPI');
 
     const shiftCall = runCalls.find((call) =>
       sqlContains(
@@ -500,7 +500,7 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
       const newStatus = pick(prng, possibleNewStatuses);
       const newPosition = randInt(prng, 1, 20);
 
-      await handler({}, 99, 500, 'B1', newPosition, false, newStatus);
+      await handler({}, 99, 500, 'B1', newPosition, true, newStatus);
 
       const hasMandatoryShift = runCalls.some((call) =>
         sqlContains(
@@ -578,7 +578,7 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
       const newStatus = pick(prng, possibleNewStatuses);
       const newPosition = randInt(prng, 1, 20);
 
-      await handler({}, 99, 500, 'B1', newPosition, false, newStatus);
+      await handler({}, 99, 500, 'B1', newPosition, true, newStatus);
 
       const shiftCalls = runCalls.filter((call) =>
         sqlContains(
@@ -610,7 +610,7 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     ];
 
     const handler = handlerRegistry.updateRaceResult;
-    await handler({}, 99, 500, 'B1', 1, false, 'FINISHED');
+    await handler({}, 99, 500, 'B1', 1, true, 'FINISHED');
 
     const tieUpdateCalls = runCalls.filter((call) =>
       sqlContains(
@@ -626,6 +626,36 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
         expect.objectContaining({ args: [3, 3, 13] }),
       ]),
     );
+  });
+
+  it('with shifting OFF, edits only the named boat — no A6.1/A7 cascade', async () => {
+    // Manual-override mode (the leaderboard "Shift other boats" toggle off):
+    // only the edited boat's row is written. No displacement of finishers, no
+    // re-rank/tie averaging — even though that can leave a tie or a gap. This
+    // keeps the saved result identical to the renderer's edit preview.
+    currentScenario.currentPosition = 1;
+    currentScenario.currentStatus = 'FINISHED';
+    currentScenario.finishedRows = [
+      { score_id: 11, position: 1, status: 'FINISHED' },
+      { score_id: 12, position: 1, status: 'FINISHED' },
+      { score_id: 13, position: 3, status: 'FINISHED' },
+    ];
+
+    const handler = handlerRegistry.updateRaceResult;
+    await handler({}, 99, 500, 'B1', 4, false, 'DSQ');
+
+    const cascadeCalls = runCalls.filter(
+      (call) =>
+        sqlContains(
+          call.sql,
+          "WHERE race_id = ? AND status = 'FINISHED' AND position > ?",
+        ) ||
+        sqlContains(
+          call.sql,
+          'UPDATE Scores SET position = ?, points = ? WHERE score_id = ?',
+        ),
+    );
+    expect(cascadeCalls).toHaveLength(0);
   });
 
   it('reads latest score row deterministically when duplicate race/boat rows exist', async () => {

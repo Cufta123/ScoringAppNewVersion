@@ -499,6 +499,7 @@ function FinalFleetTable({
                         editMode={editMode}
                         isEditable
                         isShared={isShared}
+                        maxPosition={entries.length}
                         onRaceChange={onRaceChange}
                         rdg2Picker={rdg2Picker}
                         setRdg2Picker={setRdg2Picker}

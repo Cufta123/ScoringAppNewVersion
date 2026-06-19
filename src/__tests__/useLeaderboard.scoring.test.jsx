@@ -23,6 +23,7 @@ jest.mock('../renderer/utils/registerPdfUnicodeFont', () => jest.fn());
 
 jest.mock('../renderer/utils/userFeedback', () => ({
   confirmAction: jest.fn().mockResolvedValue(true),
+  confirmChoice: jest.fn().mockResolvedValue('cancel'),
   reportError: jest.fn(),
 }));
 
@@ -209,6 +210,281 @@ describe('useLeaderboard scoring/edit flow', () => {
     expect(b2.races[0]).toBe('3');
   });
 
+  describe('final-series fleet scoping', () => {
+    // Two final fleets of three boats each. Gold and Silver sail their own
+    // races, so an edit in one fleet must never touch the other, and places
+    // must cap at the fleet's heat size (3), not the combined count (6).
+    const makeFinalRow = (boatId, sailNo, group, position) => ({
+      boat_id: boatId,
+      name: `Sailor ${boatId}`,
+      surname: boatId,
+      country: 'CRO',
+      boat_number: sailNo,
+      boat_type: 'IOM',
+      placement_group: group,
+      total_points_event: position,
+      total_points_final: position,
+      race_positions: String(position),
+      race_points: String(position),
+      race_ids: group === 'Gold' ? '201' : '202',
+      race_statuses: 'FINISHED',
+    });
+
+    const finalRows = [
+      makeFinalRow('b1', '101', 'Gold', 1),
+      makeFinalRow('b2', '102', 'Gold', 2),
+      makeFinalRow('b3', '103', 'Gold', 3),
+      makeFinalRow('b4', '104', 'Silver', 1),
+      makeFinalRow('b5', '105', 'Silver', 2),
+      makeFinalRow('b6', '106', 'Silver', 3),
+    ];
+
+    beforeEach(() => {
+      window.electron.sqlite.heatRaceDB.readAllHeats.mockResolvedValue([
+        { heat_type: 'Final' },
+      ]);
+      window.electron.sqlite.heatRaceDB.readFinalLeaderboard.mockResolvedValue(
+        JSON.parse(JSON.stringify(finalRows)),
+      );
+    });
+
+    it("shifts only the edited boat's own fleet, leaving other fleets untouched", async () => {
+      const { result } = renderHook(() => useLeaderboard(5));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      await waitFor(() => expect(result.current.finalSeriesStarted).toBe(true));
+
+      await act(async () => {
+        await result.current.toggleEditMode();
+      });
+      act(() => {
+        result.current.setShiftPositions(true);
+      });
+      act(() => {
+        result.current.handleRaceChange('b3', 0, 1, 'FINISHED');
+      });
+
+      const after = result.current.editableLeaderboard;
+      const get = (id) => after.find((e) => e.boat_id === id);
+
+      // Gold fleet reshuffles around the edited boat...
+      expect(get('b3').races[0]).toBe('1');
+      expect(get('b1').races[0]).toBe('2');
+      expect(get('b2').races[0]).toBe('3');
+      // ...Silver fleet is completely untouched.
+      expect(get('b4').races[0]).toBe('1');
+      expect(get('b5').races[0]).toBe('2');
+      expect(get('b6').races[0]).toBe('3');
+    });
+
+    it('updates the Overall combined total live while editing a final place', async () => {
+      const { result } = renderHook(() => useLeaderboard(5));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      await waitFor(() => expect(result.current.finalSeriesStarted).toBe(true));
+
+      // b3 (Gold) qualifies with 3 points and finishes the final race 3rd, so
+      // its Overall combined total starts at qualifying(3) + final(3) = 6.
+      const before = result.current.editableLeaderboard.find(
+        (e) => e.boat_id === 'b3',
+      );
+      expect(before.total_points_combined).toBe(6);
+
+      await act(async () => {
+        await result.current.toggleEditMode();
+      });
+      act(() => {
+        result.current.handleRaceChange('b3', 0, 1, 'FINISHED');
+      });
+
+      const after = result.current.editableLeaderboard.find(
+        (e) => e.boat_id === 'b3',
+      );
+      // Final total drops to 1, so Overall must follow live: 3 + 1 = 4 (not the
+      // stale 6 that only refreshed on save before this fix).
+      expect(after.computed_total).toBe(1);
+      expect(after.total_points_combined).toBe(4);
+    });
+
+    it('caps an out-of-range place at the fleet size, not the combined count', async () => {
+      const { result } = renderHook(() => useLeaderboard(5));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      await waitFor(() => expect(result.current.finalSeriesStarted).toBe(true));
+
+      await act(async () => {
+        await result.current.toggleEditMode();
+      });
+      act(() => {
+        // Type an absurd place into a 3-boat fleet.
+        result.current.handleRaceChange('b1', 0, 99, 'FINISHED');
+      });
+
+      const after = result.current.editableLeaderboard;
+      const get = (id) => after.find((e) => e.boat_id === id);
+
+      // Snaps to last in the fleet (3), never 6, and the other fleet is intact.
+      expect(get('b1').races[0]).toBe('3');
+      expect(get('b4').races[0]).toBe('1');
+      expect(get('b6').races[0]).toBe('3');
+    });
+  });
+
+  describe('duplicate finishing-place guard on save', () => {
+    const { confirmChoice } = require('../renderer/utils/userFeedback');
+
+    const makeFinalRow = (boatId, sailNo, group, position) => ({
+      boat_id: boatId,
+      name: `Sailor ${boatId}`,
+      surname: boatId,
+      country: 'CRO',
+      boat_number: sailNo,
+      boat_type: 'IOM',
+      placement_group: group,
+      total_points_event: position,
+      total_points_final: position,
+      race_positions: String(position),
+      race_points: String(position),
+      race_ids: '201',
+      race_statuses: 'FINISHED',
+    });
+
+    beforeEach(() => {
+      window.electron.sqlite.heatRaceDB.readAllHeats.mockResolvedValue([
+        { heat_type: 'Final' },
+      ]);
+      window.electron.sqlite.heatRaceDB.readFinalLeaderboard.mockResolvedValue([
+        makeFinalRow('b1', '101', 'Gold', 1),
+        makeFinalRow('b2', '102', 'Gold', 2),
+        makeFinalRow('b3', '103', 'Gold', 3),
+      ]);
+    });
+
+    const editIntoDuplicate = async (result) => {
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      await waitFor(() => expect(result.current.finalSeriesStarted).toBe(true));
+      await act(async () => {
+        await result.current.toggleEditMode();
+      });
+      // Shift OFF: manually put b1 on place 2, which b2 already holds.
+      act(() => {
+        result.current.handleRaceChange('b1', 0, 2, 'FINISHED');
+      });
+    };
+
+    it('warns with both boats and offers three resolutions', async () => {
+      confirmChoice.mockResolvedValueOnce('extra');
+      const { result } = renderHook(() => useLeaderboard(5));
+      await editIntoDuplicate(result);
+
+      await act(async () => {
+        await result.current.handleSave();
+      });
+
+      expect(confirmChoice).toHaveBeenCalledTimes(1);
+      const [message, title, options] = confirmChoice.mock.calls[0];
+      expect(title).toBe('Duplicate finishing place');
+      expect(message).toContain('Sailor b1');
+      expect(message).toContain('Sailor b2');
+      expect(message).toContain('place 2');
+      // All three buttons are offered.
+      expect(options.confirmLabel).toBe('Switch places');
+      expect(options.extraLabel).toBe('Save anyway');
+      expect(options.cancelLabel).toBe('Cancel');
+    });
+
+    it('keeps the tie (one edit) when the user chooses Save anyway', async () => {
+      confirmChoice.mockResolvedValueOnce('extra');
+      const { result } = renderHook(() => useLeaderboard(5));
+      await editIntoDuplicate(result);
+
+      await act(async () => {
+        await result.current.handleSave();
+      });
+
+      const [, ops] =
+        window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic.mock
+          .calls[0];
+      // Only the edited boat is sent; b1 and b2 stay tied on place 2.
+      expect(ops).toEqual([
+        {
+          raceId: '201',
+          boatId: 'b1',
+          newPosition: 2,
+          entryStatus: 'FINISHED',
+        },
+      ]);
+    });
+
+    it('swaps places (two edits) when the user chooses Switch places', async () => {
+      confirmChoice.mockResolvedValueOnce('confirm');
+      const { result } = renderHook(() => useLeaderboard(5));
+      await editIntoDuplicate(result);
+
+      await act(async () => {
+        await result.current.handleSave();
+      });
+
+      const [, ops] =
+        window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic.mock
+          .calls[0];
+      // b1 takes place 2; b2 is displaced to b1's vacated place 1.
+      expect(ops).toContainEqual({
+        raceId: '201',
+        boatId: 'b1',
+        newPosition: 2,
+        entryStatus: 'FINISHED',
+      });
+      expect(ops).toContainEqual({
+        raceId: '201',
+        boatId: 'b2',
+        newPosition: 1,
+        entryStatus: 'FINISHED',
+      });
+      expect(ops).toHaveLength(2);
+    });
+
+    it('aborts the save and stays in edit mode when the user cancels', async () => {
+      confirmChoice.mockResolvedValueOnce('cancel');
+      const { result } = renderHook(() => useLeaderboard(5));
+      await editIntoDuplicate(result);
+
+      await act(async () => {
+        await result.current.handleSave();
+      });
+
+      expect(confirmChoice).toHaveBeenCalledTimes(1);
+      // Nothing is written and the user is left editing to fix the clash.
+      expect(
+        window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic,
+      ).not.toHaveBeenCalled();
+      expect(result.current.editMode).toBe(true);
+    });
+
+    it('does not warn when edited places stay unique', async () => {
+      const { result } = renderHook(() => useLeaderboard(5));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      await waitFor(() => expect(result.current.finalSeriesStarted).toBe(true));
+
+      await act(async () => {
+        await result.current.toggleEditMode();
+      });
+      act(() => {
+        result.current.setShiftPositions(true);
+      });
+      // Shift ON ripples the others, so no two boats end on the same place.
+      act(() => {
+        result.current.handleRaceChange('b3', 0, 1, 'FINISHED');
+      });
+
+      await act(async () => {
+        await result.current.handleSave();
+      });
+
+      expect(confirmChoice).not.toHaveBeenCalled();
+      expect(
+        window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic,
+      ).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('persists changed race result and recalculates leaderboard on save', async () => {
     const { result } = renderHook(() => useLeaderboard(1));
 
@@ -226,6 +502,9 @@ describe('useLeaderboard scoring/edit flow', () => {
       await result.current.handleSave();
     });
 
+    // Only the cell the user actually edited is sent; the backend re-ranks the
+    // rest of the column on recompute. (The preview re-ranks for display, but
+    // saving the cascade would not converge under the backend's per-op re-rank.)
     expect(
       window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic,
     ).toHaveBeenCalledWith(

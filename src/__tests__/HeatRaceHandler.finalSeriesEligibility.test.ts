@@ -143,6 +143,68 @@ describe('getFinalSeriesEligibility', () => {
     expect(res.ok).toBe(true);
     expect(res.completedQualifyingRaces).toBe(7);
     expect(res.rule43Applies).toBe(true);
+    // Regression: 7 races ARE completed, so noRacesCompleted must be false even
+    // though the latest (unsailed) round of heats has 0 races. Otherwise the
+    // renderer fires the contradictory "no qualifying races completed" prompt
+    // alongside the Rule 4.3 (6-7 completed races) prompt.
+    expect(res.noRacesCompleted).toBe(false);
+    // Latest round (suffix 1) created with 0 races but 7 are scored ⇒ the
+    // "latest round not sailed" path, not the "no races" path.
+    expect(res.latestRoundUnsailed).toBe(true);
+    expect(res.latestRoundNumber).toBe(1);
+  });
+
+  it('noRacesCompleted stays consistent with rule43Applies (6 scored, new round unsailed)', async () => {
+    // Exact reported scenario: 6 qualifying races scored, then a 7th round of
+    // heats created but with 0 races yet. The two flags must not contradict.
+    scenario = {
+      heats: [
+        { heat_name: 'Heat A7', heat_id: 71 },
+        { heat_name: 'Heat B7', heat_id: 72 },
+      ],
+      raceCounts: { 71: 0, 72: 0 },
+      maxScores: 6,
+    };
+    const res = await run();
+    expect(res.ok).toBe(true);
+    expect(res.completedQualifyingRaces).toBe(6);
+    expect(res.rule43Applies).toBe(true);
+    expect(res.noRacesCompleted).toBe(false);
+    // Round 7 exists but is unsailed; the renderer tells the user round 6 is used.
+    expect(res.latestRoundUnsailed).toBe(true);
+    expect(res.latestRoundNumber).toBe(7);
+  });
+
+  it('reports noRacesCompleted only when truly nothing has been scored', async () => {
+    scenario = {
+      heats: [
+        { heat_name: 'Heat A1', heat_id: 11 },
+        { heat_name: 'Heat B1', heat_id: 12 },
+      ],
+      raceCounts: { 11: 0, 12: 0 },
+      maxScores: 0,
+    };
+    const res = await run();
+    expect(res.ok).toBe(true);
+    expect(res.completedQualifyingRaces).toBe(0);
+    expect(res.rule43Applies).toBe(false);
     expect(res.noRacesCompleted).toBe(true);
+    // Nothing scored anywhere ⇒ NOT the "latest round unsailed" case.
+    expect(res.latestRoundUnsailed).toBe(false);
+  });
+
+  it('does not flag latestRoundUnsailed when the latest round has been sailed', async () => {
+    scenario = {
+      heats: [
+        { heat_name: 'Heat A1', heat_id: 11 },
+        { heat_name: 'Heat B1', heat_id: 12 },
+      ],
+      raceCounts: { 11: 6, 12: 6 },
+      maxScores: 6,
+    };
+    const res = await run();
+    expect(res.ok).toBe(true);
+    expect(res.latestRoundUnsailed).toBe(false);
+    expect(res.noRacesCompleted).toBe(false);
   });
 });

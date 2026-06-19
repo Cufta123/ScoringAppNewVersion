@@ -1,10 +1,15 @@
 import { toast } from 'react-toastify';
-import { requestConfirm } from './confirmController';
+import { requestConfirm, type ConfirmChoice } from './confirmController';
 
 export interface ConfirmOptions {
   confirmLabel?: string;
   cancelLabel?: string;
   confirmClassName?: string;
+}
+
+export interface ConfirmChoiceOptions extends ConfirmOptions {
+  extraLabel?: string;
+  extraClassName?: string;
 }
 
 export const getErrorMessage = (error: unknown): string => {
@@ -43,19 +48,40 @@ export const reportInfo = (message?: string, title = 'Notice'): void => {
   toast.info(`${title}: ${body}`);
 };
 
-export const confirmAction = (
+const safeString = (value: unknown, fallback: string): string =>
+  typeof value === 'string' && value.trim() ? value : fallback;
+
+export const confirmAction = async (
   message?: string,
   title = 'Please confirm',
   options: ConfirmOptions = {},
 ): Promise<boolean> => {
-  const safeString = (value: unknown, fallback: string): string =>
-    typeof value === 'string' && value.trim() ? value : fallback;
-
-  return requestConfirm({
+  const choice = await requestConfirm({
     title,
     body: message || 'Are you sure you want to continue?',
     confirmLabel: safeString(options?.confirmLabel, 'Confirm'),
     cancelLabel: safeString(options?.cancelLabel, 'Cancel'),
     confirmClassName: safeString(options?.confirmClassName, 'btn-danger'),
   });
+  return choice === 'confirm';
 };
+
+/**
+ * Like confirmAction but for a three-way dialog (e.g. a primary action, an
+ * alternative middle action, and Cancel). Resolves to which button was pressed:
+ * 'confirm', 'extra', or 'cancel' (also returned on Escape/backdrop dismiss).
+ */
+export const confirmChoice = (
+  message?: string,
+  title = 'Please confirm',
+  options: ConfirmChoiceOptions = {},
+): Promise<ConfirmChoice> =>
+  requestConfirm({
+    title,
+    body: message || 'Are you sure you want to continue?',
+    confirmLabel: safeString(options?.confirmLabel, 'Confirm'),
+    cancelLabel: safeString(options?.cancelLabel, 'Cancel'),
+    confirmClassName: safeString(options?.confirmClassName, 'btn-success'),
+    extraLabel: options?.extraLabel,
+    extraClassName: safeString(options?.extraClassName, 'btn-danger'),
+  });

@@ -200,28 +200,38 @@ function applyRaceResultUpdate(
     'UPDATE Scores SET position = ?, points = ?, status = ? WHERE race_id = ? AND boat_id = ?',
   ).run(finalPosition, points, status, race_id, boat_id);
 
-  if (previousStatus === 'FINISHED' && mandatoryDisplaceStatuses.has(status)) {
-    db.prepare(
-      `UPDATE Scores SET position = position - 1, points = position - 1
-       WHERE race_id = ? AND status = 'FINISHED' AND position > ?`,
-    ).run(race_id, currentPosition);
-  }
-
-  if (shift_positions && status === 'FINISHED') {
-    if (currentPosition > finalPosition) {
-      db.prepare(
-        `UPDATE Scores SET position = position + 1, points = position + 1
-         WHERE race_id = ? AND status = 'FINISHED' AND position >= ? AND position < ? AND boat_id != ?`,
-      ).run(race_id, finalPosition, currentPosition, boat_id);
-    } else if (currentPosition < finalPosition) {
+  // With "shift other boats" OFF the edit is a manual override: only the edited
+  // boat changes. Every other boat keeps its place and points exactly as they
+  // are — no displacement, no ripple, no re-rank — even if that leaves a tie or
+  // a gap. The renderer preview behaves identically so Save never diverges from
+  // what the user saw. With the toggle ON we mirror the full race re-scoring.
+  if (shift_positions) {
+    if (
+      previousStatus === 'FINISHED' &&
+      mandatoryDisplaceStatuses.has(status)
+    ) {
       db.prepare(
         `UPDATE Scores SET position = position - 1, points = position - 1
-         WHERE race_id = ? AND status = 'FINISHED' AND position <= ? AND position > ? AND boat_id != ?`,
-      ).run(race_id, finalPosition, currentPosition, boat_id);
+         WHERE race_id = ? AND status = 'FINISHED' AND position > ?`,
+      ).run(race_id, currentPosition);
     }
-  }
 
-  applyRaceTieScoring(race_id);
+    if (status === 'FINISHED') {
+      if (currentPosition > finalPosition) {
+        db.prepare(
+          `UPDATE Scores SET position = position + 1, points = position + 1
+           WHERE race_id = ? AND status = 'FINISHED' AND position >= ? AND position < ? AND boat_id != ?`,
+        ).run(race_id, finalPosition, currentPosition, boat_id);
+      } else if (currentPosition < finalPosition) {
+        db.prepare(
+          `UPDATE Scores SET position = position - 1, points = position - 1
+           WHERE race_id = ? AND status = 'FINISHED' AND position <= ? AND position > ? AND boat_id != ?`,
+        ).run(race_id, finalPosition, currentPosition, boat_id);
+      }
+    }
+
+    applyRaceTieScoring(race_id);
+  }
 }
 
 /**
