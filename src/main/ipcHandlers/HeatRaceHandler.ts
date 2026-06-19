@@ -1140,7 +1140,10 @@ ipcMain.handle(
       const uniqueGroups = new Set(
         qualifyingHeats
           .map((heat) => {
-            const m = heat.heat_name.match(/Heat ([A-Z])/);
+            // Match the full base letters ("Heat AA1" -> "AA"), consistent with
+            // getFinalSeriesEligibility / buildLatestHeatMapByBase elsewhere.
+            // A single-letter match would collapse multi-letter bases together.
+            const m = heat.heat_name.match(/Heat ([A-Z]+)/);
             return m ? m[1] : null;
           })
           .filter(Boolean),
