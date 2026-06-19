@@ -102,8 +102,16 @@ export function getNextHeatIndexByMovementTable(
     throw new Error('Previous heat index is out of range.');
   }
 
+  // SHRS 2026-1 Heat Movement Table (Table 1 / Table 2): 1st place stays in the
+  // same heat; each additional place rotates the boat DOWN the heat list (Heat
+  // 2 -> Heat 1, Heat 1 -> last heat), wrapping around. That is a negative
+  // rotation by (place - 1). Adding the shift instead rotates the wrong way and
+  // only happens to match for 2 heats (where +1 and -1 are equal mod 2).
   const shift = (finishingPlaceInHeat - 1) % numberOfHeats;
-  return (previousHeatIndex + shift) % numberOfHeats;
+  return (
+    (((previousHeatIndex - shift) % numberOfHeats) + numberOfHeats) %
+    numberOfHeats
+  );
 }
 
 type HeatRef = { heat_name: string; heat_id: number };

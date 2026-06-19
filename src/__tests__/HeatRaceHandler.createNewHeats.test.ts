@@ -506,16 +506,18 @@ describe('HeatRaceHandler createNewHeatsBasedOnLeaderboard', () => {
       },
     ]);
 
+    // SHRS Table 1, 3 heats (A=200, B=201, C=202): place 1 stays, place 2 moves
+    // down one heat (wrapping), place 3 down two.
     expect(insertedHeatBoats).toEqual([
       { heat_id: 200, boat_id: 'A1' },
-      { heat_id: 201, boat_id: 'A2' },
-      { heat_id: 202, boat_id: 'A3' },
+      { heat_id: 202, boat_id: 'A2' },
+      { heat_id: 201, boat_id: 'A3' },
       { heat_id: 201, boat_id: 'B2' },
-      { heat_id: 202, boat_id: 'B1' },
-      { heat_id: 200, boat_id: 'B3' },
+      { heat_id: 200, boat_id: 'B1' },
+      { heat_id: 202, boat_id: 'B3' },
       { heat_id: 202, boat_id: 'C1' },
-      { heat_id: 200, boat_id: 'C2' },
-      { heat_id: 201, boat_id: 'C3' },
+      { heat_id: 201, boat_id: 'C2' },
+      { heat_id: 200, boat_id: 'C3' },
     ]);
   });
 
@@ -583,11 +585,12 @@ describe('HeatRaceHandler createNewHeatsBasedOnLeaderboard', () => {
       ['B_DNS', 'B_DGM', 'B_DPI'].includes(entry.boat_id),
     );
 
-    // For source B heat movement table in 3 fleets: rank1->B, rank2->C, rank3->A.
+    // For source B heat movement table in 3 fleets (SHRS Table 1):
+    // rank1->B, rank2->A, rank3->C.
     expect(bHeatAssignments).toEqual([
       { heat_id: 201, boat_id: 'B_DNS' },
-      { heat_id: 202, boat_id: 'B_DGM' },
-      { heat_id: 200, boat_id: 'B_DPI' },
+      { heat_id: 200, boat_id: 'B_DGM' },
+      { heat_id: 202, boat_id: 'B_DPI' },
     ]);
   });
 
@@ -637,12 +640,13 @@ describe('HeatRaceHandler createNewHeatsBasedOnLeaderboard', () => {
       ['B1', 'B2', 'B3'].includes(entry.boat_id),
     );
 
-    // Source B heat (index 1) in 3-heat movement: rank1->B, rank2->C, rank3->A.
+    // Source B heat (index 1) in 3-heat movement (SHRS Table 1):
+    // rank1->B, rank2->A, rank3->C.
     // Even after DSQ protest update, assignments stay based on the provisional order snapshot.
     expect(bHeatAssignments).toEqual([
       { heat_id: 201, boat_id: 'B1' },
-      { heat_id: 202, boat_id: 'B2' },
-      { heat_id: 200, boat_id: 'B3' },
+      { heat_id: 200, boat_id: 'B2' },
+      { heat_id: 202, boat_id: 'B3' },
     ]);
   });
 

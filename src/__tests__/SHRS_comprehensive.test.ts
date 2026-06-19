@@ -1008,23 +1008,25 @@ describe('SHRS 3.2 – Movement table for subsequent races', () => {
     expect(getNextHeatIndexByMovementTable(2, 1, 3)).toBe(2);
   });
 
-  it('2nd place moves forward one heat (wraps around)', () => {
-    expect(getNextHeatIndexByMovementTable(0, 2, 3)).toBe(1);
-    expect(getNextHeatIndexByMovementTable(1, 2, 3)).toBe(2);
-    expect(getNextHeatIndexByMovementTable(2, 2, 3)).toBe(0); // wraps
+  it('2nd place moves down one heat (wraps around)', () => {
+    // SHRS Table 1, 3 heats, place 2: Heat A->C, Heat B->A, Heat C->B.
+    expect(getNextHeatIndexByMovementTable(0, 2, 3)).toBe(2); // A -> C (wraps)
+    expect(getNextHeatIndexByMovementTable(1, 2, 3)).toBe(0); // B -> A
+    expect(getNextHeatIndexByMovementTable(2, 2, 3)).toBe(1); // C -> B
   });
 
-  it('3rd place moves forward two heats with 3 heats (wraps)', () => {
-    expect(getNextHeatIndexByMovementTable(0, 3, 3)).toBe(2);
-    expect(getNextHeatIndexByMovementTable(1, 3, 3)).toBe(0); // wraps
-    expect(getNextHeatIndexByMovementTable(2, 3, 3)).toBe(1);
+  it('3rd place moves down two heats with 3 heats (wraps)', () => {
+    // SHRS Table 1, 3 heats, place 3: Heat A->B, Heat B->C, Heat C->A.
+    expect(getNextHeatIndexByMovementTable(0, 3, 3)).toBe(1); // A -> B (wraps)
+    expect(getNextHeatIndexByMovementTable(1, 3, 3)).toBe(2); // B -> C
+    expect(getNextHeatIndexByMovementTable(2, 3, 3)).toBe(0); // C -> A
   });
 
   it('finishing place > number of heats wraps correctly', () => {
     // 4th place in 3 heats: shift = (4-1)%3 = 0 → same heat
     expect(getNextHeatIndexByMovementTable(0, 4, 3)).toBe(0);
-    // 5th place: shift = (5-1)%3 = 1 → +1
-    expect(getNextHeatIndexByMovementTable(0, 5, 3)).toBe(1);
+    // 5th place: shift = (5-1)%3 = 1 → moves down one (A -> C)
+    expect(getNextHeatIndexByMovementTable(0, 5, 3)).toBe(2);
   });
 });
 

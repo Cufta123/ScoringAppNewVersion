@@ -258,19 +258,19 @@ describe('getNextHeatIndexByMovementTable', () => {
 
   it('matches SHRS table for 3 heats', () => {
     expect(getNextHeatIndexByMovementTable(0, 1, 3)).toBe(0); // A1 -> A
-    expect(getNextHeatIndexByMovementTable(0, 2, 3)).toBe(1); // A2 -> B
-    expect(getNextHeatIndexByMovementTable(0, 3, 3)).toBe(2); // A3 -> C
-    expect(getNextHeatIndexByMovementTable(1, 2, 3)).toBe(2); // B2 -> C
-    expect(getNextHeatIndexByMovementTable(2, 2, 3)).toBe(0); // C2 -> A
-    expect(getNextHeatIndexByMovementTable(2, 3, 3)).toBe(1); // C3 -> B
+    expect(getNextHeatIndexByMovementTable(0, 2, 3)).toBe(2); // A2 -> C
+    expect(getNextHeatIndexByMovementTable(0, 3, 3)).toBe(1); // A3 -> B
+    expect(getNextHeatIndexByMovementTable(1, 2, 3)).toBe(0); // B2 -> A
+    expect(getNextHeatIndexByMovementTable(2, 2, 3)).toBe(1); // C2 -> B
+    expect(getNextHeatIndexByMovementTable(2, 3, 3)).toBe(0); // C3 -> A
   });
 
   it('matches SHRS table for 4 heats', () => {
     expect(getNextHeatIndexByMovementTable(0, 1, 4)).toBe(0); // A1 -> A
-    expect(getNextHeatIndexByMovementTable(0, 2, 4)).toBe(1); // A2 -> B
+    expect(getNextHeatIndexByMovementTable(0, 2, 4)).toBe(3); // A2 -> D
     expect(getNextHeatIndexByMovementTable(0, 3, 4)).toBe(2); // A3 -> C
-    expect(getNextHeatIndexByMovementTable(0, 4, 4)).toBe(3); // A4 -> D
-    expect(getNextHeatIndexByMovementTable(3, 2, 4)).toBe(0); // D2 -> A
-    expect(getNextHeatIndexByMovementTable(2, 4, 4)).toBe(1); // C4 -> B
+    expect(getNextHeatIndexByMovementTable(0, 4, 4)).toBe(1); // A4 -> B
+    expect(getNextHeatIndexByMovementTable(3, 2, 4)).toBe(2); // D2 -> C
+    expect(getNextHeatIndexByMovementTable(2, 4, 4)).toBe(3); // C4 -> D
   });
 });
