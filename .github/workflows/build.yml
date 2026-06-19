@@ -17,7 +17,10 @@ jobs:
       # Don't let one OS failing cancel the other one.
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        # Pin Windows to 2022: the windows-latest image ships Visual Studio 18
+        # (2026), which the bundled node-gyp can't detect ("unknown version
+        # undefined"), breaking the better-sqlite3 native rebuild.
+        os: [macos-latest, windows-2022]
 
     steps:
       - name: Checkout Code
@@ -48,7 +51,7 @@ jobs:
         run: npx electron-builder --mac --x64 --arm64 --c.mac.target=zip --publish never
 
       - name: Package Windows App (ZIP, portable)
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-2022'
         run: npx electron-builder --win --x64 --c.win.target=zip --publish never
 
       - name: Upload build artifacts
