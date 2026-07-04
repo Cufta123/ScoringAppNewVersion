@@ -147,22 +147,43 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
 
       const eventBoats = await eventDB.readBoatsByEvent(eventId);
 
-      let boat_id: number | null = null;
+      // Reuse an existing boat with this sail number + country — the same
+      // identity rule as the CSV import — so re-submitting the form (or a
+      // double-click) never piles up duplicate boat rows in the event.
+      const allBoats = await sailorDB.readAllBoats();
+      const existingBoat = (allBoats || []).find(
+        (b) =>
+          String(b.sail_number).trim() === sailNumber.trim() &&
+          String(b.boat_country || '').toUpperCase() ===
+            selectedCountry.toUpperCase(),
+      );
 
-      try {
-        const boatResult = await sailorDB.insertBoat(
-          sailNumber,
-          selectedCountry,
-          model,
-          sailor_id,
-        );
-        boat_id = boatResult.lastInsertRowid;
-      } catch (error) {
-        reportError('There was an error inserting the boat.', error);
-        return; // Exit the function gracefully
+      let boat_id: number | null = existingBoat?.boat_id ?? null;
+
+      if (boat_id == null) {
+        try {
+          const boatResult = await sailorDB.insertBoat(
+            sailNumber,
+            selectedCountry,
+            model,
+            sailor_id,
+          );
+          boat_id = boatResult.lastInsertRowid;
+        } catch (error) {
+          reportError('There was an error inserting the boat.', error);
+          return; // Exit the function gracefully
+        }
       }
 
       const existingAssociation = eventBoats.find((b) => b.boat_id === boat_id);
+
+      if (existingAssociation) {
+        reportInfo(
+          `Sail ${sailNumber} (${selectedCountry}) is already registered in this event.`,
+          'Already registered',
+        );
+        return;
+      }
 
       if (!existingAssociation && boat_id != null) {
         try {

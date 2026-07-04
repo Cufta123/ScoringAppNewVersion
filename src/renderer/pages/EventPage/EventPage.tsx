@@ -187,6 +187,18 @@ function EventPage() {
 
   const handleRemoveBoat = async (boatId: number) => {
     if (!event) return;
+
+    // Mirror the add-boat guard: once a race has been sailed the entry list is
+    // fixed — removing a boat here would orphan its heat assignments and
+    // scores. A withdrawal mid-series is recorded as WTH in scoring instead.
+    if (raceHappened) {
+      reportInfo(
+        'Boats cannot be removed after a race has happened. Record a mid-series withdrawal by scoring the boat as WTH instead.',
+        'Action blocked',
+      );
+      return;
+    }
+
     try {
       await eventDB.removeBoatFromEvent(boatId, event.event_id);
 

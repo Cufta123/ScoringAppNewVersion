@@ -135,6 +135,96 @@ describe('SailorForm', () => {
     });
   });
 
+  it('reuses an existing boat with the same sail number + country instead of inserting a duplicate', async () => {
+    const onAddSailor = jest.fn();
+    window.electron.sqlite.sailorDB.readAllBoats.mockResolvedValue([
+      {
+        boat_id: 77,
+        sail_number: 1234,
+        boat_country: 'CRO',
+        model: 'IOM',
+        name: 'Ivan',
+        surname: 'Horvat',
+      },
+    ]);
+
+    render(<SailorForm onAddSailor={onAddSailor} eventId={99} />);
+
+    fireEvent.change(screen.getByLabelText('First Name'), {
+      target: { value: 'Ivan' },
+    });
+    fireEvent.change(screen.getByLabelText('Surname'), {
+      target: { value: 'Horvat' },
+    });
+    fireEvent.change(screen.getByLabelText('Subgroup'), {
+      target: { value: 'M' },
+    });
+    fireEvent.change(screen.getByLabelText('Sail Number'), {
+      target: { value: '1234' },
+    });
+    fireEvent.change(screen.getByLabelText('Country'), {
+      target: { value: 'CRO' },
+    });
+    fireEvent.change(screen.getByLabelText('Club'), {
+      target: { value: 'YC Split' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /add sailor/i }));
+
+    await waitFor(() => {
+      expect(window.electron.sqlite.sailorDB.insertBoat).not.toHaveBeenCalled();
+      expect(
+        window.electron.sqlite.eventDB.associateBoatWithEvent,
+      ).toHaveBeenCalledWith(77, 99);
+      expect(onAddSailor).toHaveBeenCalled();
+    });
+  });
+
+  it('reports instead of re-associating when the boat is already in the event', async () => {
+    const onAddSailor = jest.fn();
+    window.electron.sqlite.sailorDB.readAllBoats.mockResolvedValue([
+      { boat_id: 77, sail_number: 1234, boat_country: 'CRO' },
+    ]);
+    window.electron.sqlite.eventDB.readBoatsByEvent.mockResolvedValue([
+      { boat_id: 77 },
+    ]);
+
+    render(<SailorForm onAddSailor={onAddSailor} eventId={99} />);
+
+    fireEvent.change(screen.getByLabelText('First Name'), {
+      target: { value: 'Ivan' },
+    });
+    fireEvent.change(screen.getByLabelText('Surname'), {
+      target: { value: 'Horvat' },
+    });
+    fireEvent.change(screen.getByLabelText('Subgroup'), {
+      target: { value: 'M' },
+    });
+    fireEvent.change(screen.getByLabelText('Sail Number'), {
+      target: { value: '1234' },
+    });
+    fireEvent.change(screen.getByLabelText('Country'), {
+      target: { value: 'CRO' },
+    });
+    fireEvent.change(screen.getByLabelText('Club'), {
+      target: { value: 'YC Split' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /add sailor/i }));
+
+    await waitFor(() => {
+      expect(window.electron.sqlite.sailorDB.insertBoat).not.toHaveBeenCalled();
+      expect(
+        window.electron.sqlite.eventDB.associateBoatWithEvent,
+      ).not.toHaveBeenCalled();
+      expect(reportInfo).toHaveBeenCalledWith(
+        expect.stringMatching(/already registered/i),
+        'Already registered',
+      );
+      expect(onAddSailor).not.toHaveBeenCalled();
+    });
+  });
+
   it('reuses existing club and does not insert duplicate club', async () => {
     const onAddSailor = jest.fn();
     window.electron.sqlite.sailorDB.readAllClubs.mockResolvedValue([

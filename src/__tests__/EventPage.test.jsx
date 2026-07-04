@@ -23,8 +23,15 @@ jest.mock(
 jest.mock(
   '../renderer/components/SailorList',
   () =>
-    function () {
-      return <div>Sailor List Mock</div>;
+    function ({ onRemoveBoat }) {
+      return (
+        <div>
+          Sailor List Mock
+          <button type="button" onClick={() => onRemoveBoat(55)}>
+            Remove Boat 55
+          </button>
+        </div>
+      );
     },
 );
 jest.mock(
@@ -132,6 +139,59 @@ describe('EventPage', () => {
         screen.getByRole('heading', { name: /test event/i }),
       ).toBeInTheDocument();
     });
+  });
+
+  it('removes a boat from the event while no race has happened', async () => {
+    renderEventPage({
+      pathname: '/event/Test Event',
+      state: { event },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Sailor List Mock')).toBeInTheDocument();
+    });
+
+    screen.getByRole('button', { name: 'Remove Boat 55' }).click();
+
+    await waitFor(() => {
+      expect(
+        window.electron.sqlite.eventDB.removeBoatFromEvent,
+      ).toHaveBeenCalledWith(55, 1);
+    });
+  });
+
+  it('blocks removing a boat after a race has happened', async () => {
+    // eslint-disable-next-line global-require
+    const { reportInfo } = require('../renderer/utils/userFeedback');
+    window.electron.sqlite.heatRaceDB.readAllHeats.mockResolvedValue([
+      { heat_id: 20 },
+    ]);
+    window.electron.sqlite.heatRaceDB.readAllRaces.mockResolvedValue([
+      { race_id: 7 },
+    ]);
+
+    renderEventPage({
+      pathname: '/event/Test Event',
+      state: { event },
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/no more sailors or boats can be added/i),
+      ).toBeInTheDocument();
+    });
+
+    screen.getByRole('button', { name: 'Remove Boat 55' }).click();
+
+    await waitFor(() => {
+      expect(reportInfo).toHaveBeenCalledWith(
+        expect.stringMatching(/cannot be removed after a race/i),
+        'Action blocked',
+      );
+    });
+    expect(
+      window.electron.sqlite.eventDB.removeBoatFromEvent,
+    ).not.toHaveBeenCalled();
   });
 
   it('shows warning banner after races have started', async () => {
