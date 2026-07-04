@@ -317,6 +317,22 @@ describe('recomputeFinalLeaderboard (Final)', () => {
     expect(mockCalcFinal).toHaveBeenCalledWith(finalRows, 13);
   });
 
+  it('reads fleet membership from Heat_Boat so unraced fleets keep their boats (SHRS 4.5)', () => {
+    const h = installDb([], []);
+    mockCalcFinal.mockReturnValue(new Map());
+
+    recomputeFinalLeaderboard(1);
+
+    const readSql = h.preparedSql.find((sql) =>
+      sql.includes("heat_type = 'Final'"),
+    )!;
+    // Boats must come from fleet assignment (Heat_Boat), with scores only
+    // LEFT-joined in — a boat with no final scores still gets a 0-point row.
+    expect(readSql).toContain('FROM Heat_Boat');
+    expect(readSql).toContain('LEFT JOIN Scores');
+    expect(readSql).toContain('COALESCE(SUM(s.points), 0)');
+  });
+
   it('clears the final board before inserting, all inside one transaction', () => {
     const h = installDb(
       [],

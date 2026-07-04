@@ -297,6 +297,10 @@ For most feature/fix requests, do this in order:
 - When adding a preload channel, update all four: `type Channels`, the
   `electronHandler` map in `preload.ts`, the handler's `ipcMain.handle`, and the
   renderer `api/db` wrapper.
+- `updateGlobalLeaderboard` is a deprecated no-op (July 2026): the global
+  leaderboard feature is on hold, the channel stays registered but writes
+  nothing, and the app never populates `GlobalLeaderboard`. Do not "fix" it
+  back to writing without a decision to revive the feature.
 
 ## 11. What To Search Only If Needed
 

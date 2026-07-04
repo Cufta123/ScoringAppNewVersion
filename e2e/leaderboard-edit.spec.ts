@@ -197,6 +197,9 @@ test('numeric and penalty edits persist through Save and recompute', async () =>
     .getByRole('row', { name: /Bob/ })
     .getByLabel('Race 3 value');
   await bobR3.fill('9');
+  // While focused the input shows the raw draft ("9") so typing isn't fought
+  // by the clamp; the clamped value lands when focus leaves the field.
+  await bobR3.blur();
   await expect(bobR3).toHaveValue('4');
   await expect(overallCell(/Bob/)).toHaveText('8');
 
@@ -212,8 +215,19 @@ test('numeric and penalty edits persist through Save and recompute', async () =>
   ).toBeDisabled();
   await expect(overallCell(/Cara/)).toHaveText('11');
 
-  // Save and wait for the recompute + return to read mode.
+  // Save. The duplicate-place guard flags the deliberate Bob/Dan tie on
+  // place 4; keep the tie ("Save anyway") — RRS A7 point-splitting is the
+  // documented outcome of this manual override.
   await window.getByRole('button', { name: 'Save Changes' }).click();
+  await expect(
+    window.getByRole('dialog', { name: /Duplicate finishing place/i }),
+  ).toBeVisible();
+  await window
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Save anyway' })
+    .click();
+
+  // Wait for the recompute + return to read mode.
   await expect(
     window.getByRole('button', { name: 'Edit Results' }),
   ).toBeVisible();

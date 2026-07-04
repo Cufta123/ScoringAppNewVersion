@@ -163,7 +163,8 @@ function HeatComponent({
         heatDetails
           .filter((h) => h.heat_type === 'Qualifying')
           .map((h) => {
-            const m = h.heat_name.match(/Heat ([A-Z])/);
+            // Full base letters, consistent with the main-process group count.
+            const m = h.heat_name.match(/Heat ([A-Z]+)/);
             return m ? m[1] : null;
           })
           .filter(Boolean),
@@ -371,15 +372,13 @@ function HeatComponent({
     }
 
     try {
-      // readBoatsByEvent aliases the boat country as `boat_country`, so the
-      // `.country` sort key below is absent (undefined) at runtime — preserved
-      // as-is to keep heat composition identical to the prior JS version.
+      // readBoatsByEvent aliases the boat country as `boat_country`.
       const eventBoats = (await eventDB.readBoatsByEvent(
         event.event_id,
       )) as Array<{
         boat_id: number;
         sail_number: string | number;
-        country?: string | null;
+        boat_country?: string | null;
       }>;
       const existingHeats = await heatRaceDB.readAllHeats(event.event_id);
 
@@ -389,9 +388,11 @@ function HeatComponent({
         return;
       }
 
+      // SHRS 3: with no seeding list, rank first by alphabetical order of the
+      // national letters, then by sail number.
       eventBoats.sort((a, b) => {
-        if ((a.country ?? '') < (b.country ?? '')) return -1;
-        if ((a.country ?? '') > (b.country ?? '')) return 1;
+        if ((a.boat_country ?? '') < (b.boat_country ?? '')) return -1;
+        if ((a.boat_country ?? '') > (b.boat_country ?? '')) return 1;
         // Sail numbers are stored as TEXT and can be alphanumeric, so compare
         // them as strings with numeric awareness (e.g. "9" < "10") instead of
         // numeric subtraction, which would yield NaN for non-numeric values.

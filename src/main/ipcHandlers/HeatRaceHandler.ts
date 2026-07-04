@@ -2,7 +2,6 @@
 import { ipcMain, dialog } from 'electron';
 import fs from 'fs';
 import { db } from '../../../public/Database/DBManager';
-import calculateBoatScores from '../functions/calculateBoatScores';
 
 import {
   assignBoatsToNewHeatsZigZag,
@@ -1066,33 +1065,12 @@ ipcMain.handle('updateEventLeaderboard', async (event, event_id) => {
   }
 });
 
-ipcMain.handle('updateGlobalLeaderboard', async (event, event_id) => {
-  try {
-    const query = `
-      SELECT boat_id, RANK() OVER (ORDER BY total_points_event ASC) as final_position
-      FROM Leaderboard
-    `;
-    const readQuery = db.prepare(query);
-    const results = readQuery.all();
-
-    const updateQuery = db.prepare(
-      `INSERT INTO GlobalLeaderboard (boat_id, total_points_global)
-       VALUES (?, ?)
-       ON CONFLICT(boat_id) DO UPDATE SET total_points_global = total_points_global + excluded.total_points_global`,
-    );
-    const pointsMap = new Map<number, any[]>();
-    const temporaryTable = calculateBoatScores(results, event_id, pointsMap);
-    // Update the leaderboard with the sorted results
-    temporaryTable.forEach((boat) => {
-      updateQuery.run(boat.boat_id, boat.totalPoints);
-    });
-
-    console.log('Global leaderboard updated successfully.');
-    return { success: true };
-  } catch (error) {
-    console.error('Error updating global leaderboard:', error);
-    throw error;
-  }
+// Deprecated: the global-leaderboard feature is on hold. The channel is kept
+// so existing callers don't break, but it intentionally writes nothing — the
+// old implementation aggregated Leaderboard rows across ALL events and applied
+// no discards, producing wrong totals. Revisit if the feature returns.
+ipcMain.handle('updateGlobalLeaderboard', async () => {
+  return { success: true, deprecated: true };
 });
 
 ipcMain.handle('deleteScore', async (event, score_id) => {
@@ -1830,6 +1808,9 @@ ipcMain.handle('readFinalLeaderboard', async (event, event_id) => {
       recomputeFinalLeaderboard(event_id);
     }
 
+    // The final-score join is a LEFT JOIN onto a pre-filtered subquery so that
+    // boats in fleets that have not raced yet (SHRS 4.5) still return a row —
+    // with NULL race CSVs — instead of being dropped from the leaderboard.
     const query =
       'SELECT ' +
       'fl.boat_id, ' +
@@ -1841,18 +1822,21 @@ ipcMain.handle('readFinalLeaderboard', async (event, event_id) => {
       's.name, ' +
       's.surname, ' +
       'b.country, ' +
-      'GROUP_CONCAT(sc.position ORDER BY r.race_number, r.race_id) AS race_positions, ' +
-      'GROUP_CONCAT(sc.points ORDER BY r.race_number, r.race_id) AS race_points, ' +
-      'GROUP_CONCAT(r.race_id ORDER BY r.race_number, r.race_id) AS race_ids, ' +
-      "GROUP_CONCAT(COALESCE(sc.status, 'DNS') ORDER BY r.race_number, r.race_id) AS race_statuses " +
+      'GROUP_CONCAT(fs.position ORDER BY fs.race_number, fs.race_id) AS race_positions, ' +
+      'GROUP_CONCAT(fs.points ORDER BY fs.race_number, fs.race_id) AS race_points, ' +
+      'GROUP_CONCAT(fs.race_id ORDER BY fs.race_number, fs.race_id) AS race_ids, ' +
+      "GROUP_CONCAT(COALESCE(fs.status, 'DNS') ORDER BY fs.race_number, fs.race_id) AS race_statuses " +
       'FROM FinalLeaderboard fl ' +
       'LEFT JOIN Boats b ON fl.boat_id = b.boat_id ' +
       'LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id ' +
-      'LEFT JOIN Scores sc ON sc.boat_id = b.boat_id ' +
-      'LEFT JOIN Races r ON sc.race_id = r.race_id ' +
-      'LEFT JOIN Heats h ON r.heat_id = h.heat_id ' +
-      "WHERE fl.event_id = ? AND h.event_id = ? AND h.heat_type = 'Final' " +
-      'AND sc.race_id IS NOT NULL ' +
+      'LEFT JOIN (' +
+      'SELECT sc.boat_id, sc.position, sc.points, sc.status, sc.race_id, r.race_number ' +
+      'FROM Scores sc ' +
+      'JOIN Races r ON sc.race_id = r.race_id ' +
+      'JOIN Heats h ON r.heat_id = h.heat_id ' +
+      "WHERE h.event_id = ? AND h.heat_type = 'Final'" +
+      ') fs ON fs.boat_id = fl.boat_id ' +
+      'WHERE fl.event_id = ? ' +
       'GROUP BY fl.boat_id ' +
       'ORDER BY CASE fl.placement_group ' +
       "WHEN 'Gold' THEN 1 " +

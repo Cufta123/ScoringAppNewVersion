@@ -43,14 +43,19 @@ export function recomputeEventLeaderboard(event_id: any) {
 }
 
 export function recomputeFinalLeaderboard(event_id: any) {
+  // Start from Heat_Boat, not Scores: SHRS 4.5 lets fleets sail different
+  // numbers of races, so a fleet that has not raced yet must still keep its
+  // boats on the final leaderboard (with a 0-point final series so far)
+  // instead of vanishing until its first race is scored.
   const query = `
-    SELECT boat_id, heat_name, SUM(points) as total_points_final
-    FROM Scores
-    JOIN Races ON Scores.race_id = Races.race_id
-    JOIN Heats ON Races.heat_id = Heats.heat_id
-    WHERE Heats.event_id = ? AND Heats.heat_type = 'Final'
-    GROUP BY boat_id, heat_name
-    ORDER BY heat_name, total_points_final ASC
+    SELECT hb.boat_id, h.heat_name, COALESCE(SUM(s.points), 0) as total_points_final
+    FROM Heat_Boat hb
+    JOIN Heats h ON hb.heat_id = h.heat_id
+    LEFT JOIN Races r ON r.heat_id = h.heat_id
+    LEFT JOIN Scores s ON s.race_id = r.race_id AND s.boat_id = hb.boat_id
+    WHERE h.event_id = ? AND h.heat_type = 'Final'
+    GROUP BY hb.boat_id, h.heat_name
+    ORDER BY h.heat_name, total_points_final ASC
   `;
   const readQuery = db.prepare(query);
   const results = readQuery.all(event_id);

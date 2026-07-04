@@ -593,6 +593,15 @@ export default function useLeaderboard(eventId: number) {
     setEditMode(!editMode);
   };
 
+  // RRS A9: redress averages use the boat's POINTS in the other races. Race
+  // cells hold finishing places, which differ from points for position-keeping
+  // penalties (ZFP/SCP/T1), so averages must read race_points instead — with
+  // the cells as fallback when the points array is absent or misaligned.
+  const getPointsCellsForAverage = (entry: LeaderboardEntry): string[] =>
+    entry.race_points && entry.race_points.length === entry.races.length
+      ? entry.race_points.map(String)
+      : entry.races.map(String);
+
   const computeRdgAverage = (
     races: string[],
     statuses: string[],
@@ -720,7 +729,7 @@ export default function useLeaderboard(eventId: number) {
     let newPoints: number;
     if (newStatus === 'RDG1') {
       newPosition = computeRdgAverage(
-        targetEntry.races,
+        getPointsCellsForAverage(targetEntry),
         targetEntry.race_statuses,
         raceIndex,
         penaltyPosition,
@@ -942,16 +951,16 @@ export default function useLeaderboard(eventId: number) {
 
     // RRS A9(b): average of her points in the selected group of races.
     // Penalty scores are her points and are included.
+    const entryPoints = getPointsCellsForAverage(entry);
     const finalValues = [...(selectedIndices || new Set<number>())]
       .filter((i) => i !== raceIndex)
-      .map((i) => parseFloat(String(entry.races[i]).replace(/[()]/g, '')))
+      .map((i) => parseFloat(String(entryPoints[i]).replace(/[()]/g, '')))
       .filter((v) => !Number.isNaN(v));
 
     const qualEntry = eventLeaderboard?.find((e) => e.boat_id === boatId);
+    const qualPoints = qualEntry ? getPointsCellsForAverage(qualEntry) : [];
     const qualValues = [...(selectedQualIndices || new Set<number>())]
-      .map((i) =>
-        parseFloat(String(qualEntry?.races?.[i] ?? '').replace(/[()]/g, '')),
-      )
+      .map((i) => parseFloat(String(qualPoints[i] ?? '').replace(/[()]/g, '')))
       .filter((v) => !Number.isNaN(v));
 
     const allValues = [...qualValues, ...finalValues];
@@ -1636,7 +1645,14 @@ export default function useLeaderboard(eventId: number) {
   // ─── Derived values ──────────────────────────────────────────────────────────
 
   const hasEventData = eventLeaderboard.length > 0;
-  const hasFinalData = leaderboard.length > 0;
+  // "Final data" means at least one final race has been scored — not merely
+  // that fleets exist. Fleet rows now persist from the moment the final series
+  // starts (so unraced fleets stay visible once ANY fleet has raced), but with
+  // zero races everywhere the page must still show the qualifying standings
+  // (SHRS 1.5) behind the "final series ready" notice.
+  const hasFinalData = leaderboard.some(
+    (entry) => (entry.races?.length ?? 0) > 0,
+  );
 
   const groupedLeaderboard = useMemo(
     () =>

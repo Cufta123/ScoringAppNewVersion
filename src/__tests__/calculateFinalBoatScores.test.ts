@@ -363,6 +363,31 @@ describe('Edge cases', () => {
     const groupTables = calculateFinalBoatScores([], 1);
     expect(groupTables.size).toBe(0);
   });
+
+  // SHRS 4.5: fleets may sail different numbers of races. A fleet that has not
+  // raced yet must still appear on the final leaderboard with 0 points, not be
+  // dropped until its first race is scored.
+  it('keeps boats from an unraced fleet in the table with 0 points', () => {
+    setupMockDb({
+      goldA: [1, 2],
+      goldB: [2, 1],
+      // silverA / silverB have no final scores yet.
+    });
+    const groupTables = calculateFinalBoatScores(
+      [
+        makeResult('goldA', 'Final Gold'),
+        makeResult('goldB', 'Final Gold'),
+        makeResult('silverA', 'Final Silver'),
+        makeResult('silverB', 'Final Silver'),
+      ],
+      1,
+    );
+
+    const silver = groupTables.get('Silver')!;
+    expect(silver).toHaveLength(2);
+    silver.forEach((boat) => expect(boat.totalPoints).toBe(0));
+    expect(groupTables.get('Gold')).toHaveLength(2);
+  });
 });
 
 // ─── Large Groups (20+ participants) ─────────────────────────────────────────
