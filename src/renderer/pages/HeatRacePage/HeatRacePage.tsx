@@ -154,14 +154,54 @@ function HeatRacePage() {
       }
       refreshHeats();
     } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      if (message.includes('No races found for heat')) {
+        reportInfo(
+          'The current round has not been raced yet — score each heat before creating the next round.',
+          'Nothing to redistribute',
+        );
+        return;
+      }
       reportError('Could not create new heats from leaderboard.', error);
     }
   };
 
   // Contextual action: invoked from inside the selected heat card.
   const handleUndoLastScoredRace = async (heat: ScoringHeat) => {
+    // If a later round was already built from this round's results, the user
+    // must know the redistribution will NOT be undone with the race.
+    let laterRoundWarning = '';
+    if (event) {
+      try {
+        const allHeats = await heatRaceDB.readAllHeats(event.event_id);
+        const nameMatch = heat.heat_name.match(/Heat ([A-Z]+)(\d+)/);
+        if (nameMatch) {
+          const [, base, suffixText] = nameMatch;
+          const suffix = parseInt(suffixText, 10);
+          const hasLaterRound = (allHeats || []).some((other) => {
+            const otherMatch = other.heat_name.match(/Heat ([A-Z]+)(\d+)/);
+            return (
+              otherMatch != null &&
+              otherMatch[1] === base &&
+              parseInt(otherMatch[2], 10) > suffix
+            );
+          });
+          if (hasLaterRound) {
+            laterRoundWarning =
+              '\n\nWarning: a later round of heats was already created from ' +
+              "this round's results. Undoing this race does NOT undo that " +
+              'redistribution, so the next round will no longer match the ' +
+              'results it was seeded from. Consider "Undo Heat ' +
+              'Redistribution" first.';
+          }
+        }
+      } catch (_error) {
+        // Best-effort warning only — the confirm below still protects.
+      }
+    }
+
     const confirmed = await confirmAction(
-      `Undo the last scored race in "${heat.heat_name}"?\n\nThis will permanently delete that race's scores.`,
+      `Undo the last scored race in "${heat.heat_name}"?\n\nThis will permanently delete that race's scores.${laterRoundWarning}`,
       'Undo Last Race',
     );
     if (!confirmed) return;
@@ -309,10 +349,9 @@ function HeatRacePage() {
               refreshToken={heatsRefreshToken}
               onHeatSelect={handleHeatSelect}
               onStartScoring={handleStartScoring}
-              onUndoLastRace={
-                !finalSeriesStarted ? handleUndoLastScoredRace : null
-              }
+              onUndoLastRace={handleUndoLastScoredRace}
               onQualifyingGroupCountChange={setNumQualifyingGroups}
+              onFinalSeriesStateChange={setFinalSeriesStarted}
               clickable
             />
           </>

@@ -268,12 +268,9 @@ const dbMock = {
     }
 
     if (
+      sqlContains(sql, 'SELECT hb.boat_id, b.country, b.sail_number') &&
       sqlContains(sql, 'FROM Heat_Boat hb') &&
-      sqlContains(sql, 'JOIN Boats b ON b.boat_id = hb.boat_id') &&
-      sqlContains(
-        sql,
-        'ORDER BY b.country ASC, b.sail_number ASC, hb.boat_id ASC',
-      )
+      sqlContains(sql, 'JOIN Boats b ON b.boat_id = hb.boat_id')
     ) {
       return {
         all: jest.fn((heat_id: number) => {

@@ -25,6 +25,7 @@ jest.mock('electron', () => ({
 // if the callback completes without throwing.
 const state = {
   rows: [] as Array<{ heat_id: number; boat_id: number }>,
+  heats: {} as Record<number, { event_id: number }>,
   failInsert: false,
 };
 
@@ -45,6 +46,18 @@ const dbMock = {
   },
   prepare: (rawSql: string): PrepareStatement => {
     const sql = norm(rawSql);
+    if (sql.startsWith('SELECT event_id FROM Heats')) {
+      return {
+        get: (heatId: number) => state.heats[heatId],
+      };
+    }
+    if (sql.includes('COUNT(*) as count FROM Heat_Boat')) {
+      return {
+        get: (heatId: number) => ({
+          count: state.rows.filter((r) => r.heat_id === heatId).length,
+        }),
+      };
+    }
     if (sql.startsWith('DELETE FROM Heat_Boat')) {
       return {
         run: (heatId: number, boatId: number) => {
@@ -80,6 +93,7 @@ describe('transferBoatBetweenHeats atomicity', () => {
 
   beforeEach(() => {
     state.rows = [{ heat_id: 1, boat_id: 42 }];
+    state.heats = { 1: { event_id: 5 }, 2: { event_id: 5 } };
     state.failInsert = false;
   });
 
@@ -98,6 +112,39 @@ describe('transferBoatBetweenHeats atomicity', () => {
     ).rejects.toThrow(/insert failure/i);
 
     // Rolled back: the boat is still in its original heat, not lost.
+    expect(state.rows).toEqual([{ heat_id: 1, boat_id: 42 }]);
+  });
+
+  it('is a no-op when the target heat is the source heat', async () => {
+    const result = await handlerRegistry.transferBoatBetweenHeats({}, 1, 1, 42);
+
+    expect(result).toEqual({ success: true });
+    // No delete+insert churn: the row is untouched.
+    expect(state.rows).toEqual([{ heat_id: 1, boat_id: 42 }]);
+  });
+
+  it('refuses to transfer into a heat that already has 20 boats (SHRS cap)', async () => {
+    state.rows = [
+      { heat_id: 1, boat_id: 42 },
+      ...Array.from({ length: 20 }, (_v, i) => ({
+        heat_id: 2,
+        boat_id: 100 + i,
+      })),
+    ];
+
+    await expect(
+      handlerRegistry.transferBoatBetweenHeats({}, 1, 2, 42),
+    ).rejects.toThrow(/more than 20 boats/i);
+    // The boat stays where it was.
+    expect(state.rows).toContainEqual({ heat_id: 1, boat_id: 42 });
+  });
+
+  it('refuses to transfer between heats of different events', async () => {
+    state.heats = { 1: { event_id: 5 }, 2: { event_id: 6 } };
+
+    await expect(
+      handlerRegistry.transferBoatBetweenHeats({}, 1, 2, 42),
+    ).rejects.toThrow(/different events/i);
     expect(state.rows).toEqual([{ heat_id: 1, boat_id: 42 }]);
   });
 });

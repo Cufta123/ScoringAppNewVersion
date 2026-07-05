@@ -1,3 +1,53 @@
+/**
+ * SHRS 3 seeding order without a seeding list: national letters alphabetically,
+ * then sail number. Sail numbers are TEXT and can be alphanumeric, so compare
+ * numeric-aware ("9" < "10") — plain SQL ORDER BY would sort "10" before "9".
+ * Single source of truth for both initial heat creation and pre-assigned
+ * redistribution so every round seeds boats in the same order.
+ */
+export function compareByCountryThenSail(
+  left: { country?: string | null; sail_number?: string | number | null },
+  right: { country?: string | null; sail_number?: string | number | null },
+): number {
+  const byCountry = String(left.country ?? '').localeCompare(
+    String(right.country ?? ''),
+  );
+  if (byCountry !== 0) return byCountry;
+  return String(left.sail_number ?? '').localeCompare(
+    String(right.sail_number ?? ''),
+    undefined,
+    { numeric: true, sensitivity: 'base' },
+  );
+}
+
+/**
+ * SHRS 3.1 serpentine seeding for the FIRST round: walk the heats
+ * A,B,…,E,E,…,B,A,A,B,… (boundary heats doubled) so adjacent-strength boats
+ * spread evenly. Returns one heat index per boat, in boat order.
+ */
+export function assignBoatsToInitialHeatsSerpentine(
+  boatCount: number,
+  numHeats: number,
+): number[] {
+  if (numHeats <= 0) {
+    throw new Error('Number of heats must be greater than 0.');
+  }
+  const heatIndices: number[] = [];
+  let heatIndex = 0;
+  let direction = 1;
+  for (let i = 0; i < boatCount; i += 1) {
+    heatIndices.push(heatIndex);
+    if (direction === 1 && heatIndex === numHeats - 1) {
+      direction = -1; // stay on the boundary heat once, then reverse
+    } else if (direction === -1 && heatIndex === 0) {
+      direction = 1;
+    } else {
+      heatIndex += direction;
+    }
+  }
+  return heatIndices;
+}
+
 export function assignBoatsToNewHeatsZigZag(
   leaderboardResults: string | any[],
   nextHeatNames: string | any[],

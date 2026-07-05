@@ -28,6 +28,7 @@ export type Channels =
   | 'readAllHeats'
   | 'insertHeat'
   | 'insertHeatBoat'
+  | 'createInitialHeatsAtomic'
   | 'readAllRaces'
   | 'insertRace'
   | 'readAllScores'
@@ -185,6 +186,7 @@ const electronHandler = {
       insertHeat: makeInvoker('insertHeat'),
       deleteHeatsByEvent: makeInvoker('deleteHeatsByEvent'),
       insertHeatBoat: makeInvoker('insertHeatBoat'),
+      createInitialHeatsAtomic: makeInvoker('createInitialHeatsAtomic'),
       readBoatsByHeat: makeInvoker('readBoatsByHeat'),
       readAllRaces: makeInvoker('readAllRaces'),
       insertRace: makeInvoker('insertRace'),

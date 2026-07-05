@@ -1,11 +1,71 @@
 /* eslint-disable camelcase */
 import {
+  assignBoatsToInitialHeatsSerpentine,
   assignBoatsToNewHeatsZigZag,
+  compareByCountryThenSail,
   findLatestHeatsBySuffix,
   checkRaceCountForLatestHeats,
   generateNextHeatNames,
   getNextHeatIndexByMovementTable,
 } from '../main/functions/creatingNewHeatsUtls';
+
+// ─── compareByCountryThenSail ─────────────────────────────────────────────────
+
+describe('compareByCountryThenSail', () => {
+  it('orders by country first, then numeric-aware sail number', () => {
+    const rows = [
+      { country: 'GBR', sail_number: '2' },
+      { country: 'CRO', sail_number: '10' },
+      { country: 'CRO', sail_number: '9' },
+    ];
+    rows.sort(compareByCountryThenSail);
+    expect(rows).toEqual([
+      // "9" before "10": numeric-aware, not lexicographic.
+      { country: 'CRO', sail_number: '9' },
+      { country: 'CRO', sail_number: '10' },
+      { country: 'GBR', sail_number: '2' },
+    ]);
+  });
+
+  it('tolerates missing values', () => {
+    expect(
+      compareByCountryThenSail(
+        { country: null, sail_number: null },
+        { country: 'CRO', sail_number: 1 },
+      ),
+    ).toBeLessThan(0);
+  });
+});
+
+// ─── assignBoatsToInitialHeatsSerpentine ─────────────────────────────────────
+
+describe('assignBoatsToInitialHeatsSerpentine', () => {
+  it('throws when no heats are provided', () => {
+    expect(() => assignBoatsToInitialHeatsSerpentine(3, 0)).toThrow(
+      'Number of heats must be greater than 0.',
+    );
+  });
+
+  it('walks A,B,C,C,B,A,A,B,… doubling the boundary heats (SHRS 3.1)', () => {
+    expect(assignBoatsToInitialHeatsSerpentine(8, 3)).toEqual([
+      0, 1, 2, 2, 1, 0, 0, 1,
+    ]);
+  });
+
+  it('keeps heat sizes within one boat of each other', () => {
+    const indices = assignBoatsToInitialHeatsSerpentine(23, 5);
+    const sizes = [0, 0, 0, 0, 0];
+    indices.forEach((i) => {
+      sizes[i] += 1;
+    });
+    expect(Math.max(...sizes) - Math.min(...sizes)).toBeLessThanOrEqual(1);
+    expect(sizes.reduce((a, b) => a + b, 0)).toBe(23);
+  });
+
+  it('puts every boat in the single heat when numHeats is 1', () => {
+    expect(assignBoatsToInitialHeatsSerpentine(4, 1)).toEqual([0, 0, 0, 0]);
+  });
+});
 
 // ─── assignBoatsToNewHeatsZigZag ───────────────────────────────────────────────
 

@@ -6,7 +6,7 @@ import AppModal from './shared/AppModal';
 import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
 import { getExcludeCount } from '../utils/leaderboardUtils';
 import { computeAdjustedFleetTotals } from '../../shared/fleetAssignment';
-import { eventDB, heatRaceDB } from '../api/db';
+import { heatRaceDB } from '../api/db';
 import type { EventRow, HeatBoatRow, LeaderboardEntry } from '../types';
 
 /** A heat with its boats and current race count, as displayed by this view. */
@@ -43,6 +43,10 @@ interface HeatComponentProps {
   onUndoLastRace?: ((heat: HeatWithBoats) => void) | null;
   clickable: boolean;
   onQualifyingGroupCountChange?: ((count: number) => void) | null;
+  /** Notifies the host page whenever the final-series state changes (started
+   * here, detected on load, or reset by a snapshot restore) so the page's own
+   * copy of that state can never go stale. */
+  onFinalSeriesStateChange?: ((started: boolean) => void) | null;
   refreshToken?: number;
 }
 
@@ -70,9 +74,11 @@ function HeatComponent({
   onUndoLastRace = null,
   clickable,
   onQualifyingGroupCountChange = null,
+  onFinalSeriesStateChange = null,
   refreshToken = 0,
 }: HeatComponentProps) {
   const [heats, setHeats] = useState<HeatWithBoats[]>([]);
+  const [heatsLoadFailed, setHeatsLoadFailed] = useState(false);
   const [numHeats, setNumHeats] = useState(5); // Default number of heats
   const [selectedHeatId, setSelectedHeatId] = useState<number | null>(null);
   const [heatsCreated, setHeatsCreated] = useState(false);
@@ -152,6 +158,7 @@ function HeatComponent({
       const heatDetails = await Promise.all(heatDetailsPromises);
       setHeats(heatDetails);
       setHeatsCreated(heatDetails.length > 0);
+      setHeatsLoadFailed(false);
 
       // Check if any race has happened
       const anyRaceHappened = heatDetails.some((heat) => heat.raceNumber > 0);
@@ -174,6 +181,7 @@ function HeatComponent({
       reportError('Could not load heats for this event.', error);
       setHeats([]);
       setHeatsCreated(false);
+      setHeatsLoadFailed(true);
     }
   }, [event.event_id]);
 
@@ -198,6 +206,16 @@ function HeatComponent({
   useEffect(() => {
     checkFinalSeriesStarted();
   }, [checkFinalSeriesStarted]);
+
+  // Keep the host page's copy of the final-series state in sync. Without this,
+  // starting the final series from this embedded component leaves the Heat
+  // Race page believing it is still in qualifying — final races would then be
+  // submitted and displayed with qualifying semantics.
+  useEffect(() => {
+    if (onFinalSeriesStateChange) {
+      onFinalSeriesStateChange(finalSeriesStarted);
+    }
+  }, [finalSeriesStarted, onFinalSeriesStateChange]);
 
   useEffect(() => {
     loadSnapshotHistory();
@@ -372,78 +390,21 @@ function HeatComponent({
     }
 
     try {
-      // readBoatsByEvent aliases the boat country as `boat_country`.
-      const eventBoats = (await eventDB.readBoatsByEvent(
-        event.event_id,
-      )) as Array<{
-        boat_id: number;
-        sail_number: string | number;
-        boat_country?: string | null;
-      }>;
-      const existingHeats = await heatRaceDB.readAllHeats(event.event_id);
-
-      if (existingHeats.length > 0) {
-        reportInfo('Heats already exist for this event.', 'Action blocked');
-        setHeatsCreated(true);
-        return;
-      }
-
-      // SHRS 3: with no seeding list, rank first by alphabetical order of the
-      // national letters, then by sail number.
-      eventBoats.sort((a, b) => {
-        if ((a.boat_country ?? '') < (b.boat_country ?? '')) return -1;
-        if ((a.boat_country ?? '') > (b.boat_country ?? '')) return 1;
-        // Sail numbers are stored as TEXT and can be alphanumeric, so compare
-        // them as strings with numeric awareness (e.g. "9" < "10") instead of
-        // numeric subtraction, which would yield NaN for non-numeric values.
-        return String(a.sail_number).localeCompare(
-          String(b.sail_number),
-          undefined,
-          { numeric: true, sensitivity: 'base' },
-        );
-      });
-
-      const heatPromises = [];
-      for (let i = 0; i < numHeats; i += 1) {
-        const heatName = `Heat ${String.fromCharCode(65 + i)}1`;
-        const heatType = 'Qualifying';
-        heatPromises.push(
-          heatRaceDB.insertHeat(event.event_id, heatName, heatType),
-        );
-      }
-      await Promise.all(heatPromises);
-
-      const FetchedHeats = await heatRaceDB.readAllHeats(event.event_id);
-
-      // SHRS 3.1: Assign boats using snake/zigzag pattern
-      // A, B, C, D, E, E, D, C, B, A, A, B, C, D, E ...
-      // with the first extra boat going to Heat 1, the second to Heat 2, etc. (SHRS 2.2)
-      const heatBoatPromises = [];
-      let heatIndex = 0;
-      let direction = 1; // 1 = forward (A→E), -1 = backward (E→A)
-
-      for (let i = 0; i < eventBoats.length; i += 1) {
-        const heat = FetchedHeats[heatIndex];
-        heatBoatPromises.push(
-          heatRaceDB.insertHeatBoat(heat.heat_id, eventBoats[i].boat_id),
-        );
-
-        // Move to next heat in snake order
-        if (direction === 1 && heatIndex === numHeats - 1) {
-          direction = -1; // reached last heat, reverse
-        } else if (direction === -1 && heatIndex === 0) {
-          direction = 1; // reached first heat, reverse
-        } else {
-          heatIndex += direction;
-        }
-      }
-
-      await Promise.all(heatBoatPromises);
+      // Validation (boats exist, SHRS 20-boat cap), SHRS 3 seeding order and
+      // the SHRS 3.1 serpentine assignment all run in the main process inside
+      // one transaction — a failure can never leave half-created heats.
+      await heatRaceDB.createInitialHeatsAtomic(event.event_id, numHeats);
 
       reportInfo('Heats created successfully!', 'Success');
       setHeatsCreated(true);
       handleDisplayHeats(); // Refresh the heats display
     } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      if (message.includes('Heats already exist')) {
+        reportInfo('Heats already exist for this event.', 'Action blocked');
+        setHeatsCreated(true);
+        return;
+      }
       reportError('Could not create heats.', error);
     }
   };
@@ -570,11 +531,17 @@ function HeatComponent({
   };
   const handleDrop = async (e: React.DragEvent, toHeatId: number) => {
     e.preventDefault();
-    const data = JSON.parse(e.dataTransfer.getData('application/json')) as {
-      boat: HeatBoatRow;
-      fromHeatId: number;
-    };
-    const { boat, fromHeatId } = data;
+    // Only accept payloads created by handleDragStart — dropping anything
+    // foreign (text, files) must be ignored, not crash the handler.
+    let data: { boat?: HeatBoatRow; fromHeatId?: number };
+    try {
+      data = JSON.parse(e.dataTransfer.getData('application/json'));
+    } catch (_error) {
+      return;
+    }
+    const { boat, fromHeatId } = data ?? {};
+    if (!boat?.boat_id || fromHeatId == null) return;
+    if (fromHeatId === toHeatId) return; // dropped back onto its own heat
     await handleBoatTransfer(boat, fromHeatId, toHeatId);
   };
 
@@ -720,7 +687,19 @@ function HeatComponent({
         </div>
       ) : null}
 
-      {heatsToDisplay.length === 0 && !heatsCreated && (
+      {heatsLoadFailed && (
+        <div className="info-banner">
+          <i
+            className="fa fa-exclamation-triangle"
+            aria-hidden="true"
+            style={{ marginRight: '8px' }}
+          />
+          Could not load the heats for this event. The list below may be
+          incomplete — reload the page to try again.
+        </div>
+      )}
+
+      {heatsToDisplay.length === 0 && !heatsCreated && !heatsLoadFailed && (
         <div className="info-banner">
           <i
             className="fa fa-info-circle"
@@ -754,7 +733,10 @@ function HeatComponent({
               onDragOver={handleDragOver}
             >
               <h4>
-                {heat.heat_name} (Race {heat.raceNumber})
+                {heat.heat_name}{' '}
+                {heat.raceNumber > 0
+                  ? `(Race ${heat.raceNumber})`
+                  : '(no races yet)'}
               </h4>
               <table>
                 <thead>
