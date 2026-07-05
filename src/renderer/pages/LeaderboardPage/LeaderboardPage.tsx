@@ -140,6 +140,7 @@ function LeaderboardContent({
         editMode={editMode}
         compareMode={compareMode}
         shiftPositions={shiftPositions}
+        editDisabled={finalSeriesStarted && !hasFinalData}
         onToggleEdit={toggleEditMode}
         onSave={handleSave}
         onShiftChange={(e) => setShiftPositions(e.target.checked)}
@@ -219,6 +220,7 @@ function LeaderboardContent({
         <RdgLegend
           editableLeaderboard={editableLeaderboard}
           rdgMeta={rdgMeta}
+          racePrefix={finalSeriesStarted ? 'F' : 'Q'}
         />
       )}
     </div>

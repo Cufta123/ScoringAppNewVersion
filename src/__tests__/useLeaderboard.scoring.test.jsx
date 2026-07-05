@@ -402,13 +402,15 @@ describe('useLeaderboard scoring/edit flow', () => {
       const [, ops] =
         window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic.mock
           .calls[0];
-      // Only the edited boat is sent; b1 and b2 stay tied on place 2.
+      // Only the edited boat is sent; b1 and b2 stay tied on place 2. The op
+      // carries the shift-toggle state from when the edit was made (OFF).
       expect(ops).toEqual([
         {
           raceId: '201',
           boatId: 'b1',
           newPosition: 2,
           entryStatus: 'FINISHED',
+          shiftPositions: false,
         },
       ]);
     });
@@ -425,18 +427,21 @@ describe('useLeaderboard scoring/edit flow', () => {
       const [, ops] =
         window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic.mock
           .calls[0];
-      // b1 takes place 2; b2 is displaced to b1's vacated place 1.
+      // b1 takes place 2; b2 is displaced to b1's vacated place 1. Both are
+      // direct assignments (shift OFF) so the backend must not ripple them.
       expect(ops).toContainEqual({
         raceId: '201',
         boatId: 'b1',
         newPosition: 2,
         entryStatus: 'FINISHED',
+        shiftPositions: false,
       });
       expect(ops).toContainEqual({
         raceId: '201',
         boatId: 'b2',
         newPosition: 1,
         entryStatus: 'FINISHED',
+        shiftPositions: false,
       });
       expect(ops).toHaveLength(2);
     });
@@ -505,6 +510,7 @@ describe('useLeaderboard scoring/edit flow', () => {
     // Only the cell the user actually edited is sent; the backend re-ranks the
     // rest of the column on recompute. (The preview re-ranks for display, but
     // saving the cascade would not converge under the backend's per-op re-rank.)
+    // Each op carries the shift-toggle state from when that edit was made.
     expect(
       window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic,
     ).toHaveBeenCalledWith(
@@ -515,6 +521,7 @@ describe('useLeaderboard scoring/edit flow', () => {
           boatId: 'b2',
           newPosition: 4,
           entryStatus: 'DSQ',
+          shiftPositions: false,
         },
       ],
       false,
@@ -623,7 +630,7 @@ describe('useLeaderboard scoring/edit flow', () => {
     expect(payloadContract).toMatchSnapshot();
   });
 
-  it('reverts editable leaderboard when atomic save fails', async () => {
+  it('keeps the draft and edit mode when atomic save fails so the user can retry', async () => {
     window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic.mockRejectedValueOnce(
       new Error('Simulated failure'),
     );
@@ -635,23 +642,47 @@ describe('useLeaderboard scoring/edit flow', () => {
       await result.current.toggleEditMode();
     });
 
-    const beforeSave = JSON.parse(
-      JSON.stringify(result.current.eventLeaderboard),
-    );
-
     act(() => {
       result.current.handleRaceChange('b2', 0, null, 'DSQ');
     });
+
+    const draftBeforeSave = JSON.parse(
+      JSON.stringify(result.current.editableLeaderboard),
+    );
 
     await act(async () => {
       await result.current.handleSave();
     });
 
-    expect(result.current.editableLeaderboard).toEqual(beforeSave);
+    // The draft (including the DSQ edit) survives the failure — wiping only
+    // the visible state would leave the queued edit invisible but still
+    // pending, and a retry must resend exactly what the user sees.
+    expect(result.current.editableLeaderboard).toEqual(draftBeforeSave);
+    expect(result.current.editMode).toBe(true);
     expect(reportError).toHaveBeenCalledWith(
       'Could not save leaderboard changes.',
       expect.any(Error),
     );
+
+    // Retrying the save resends the same single edit.
+    await act(async () => {
+      await result.current.handleSave();
+    });
+    expect(
+      window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic,
+    ).toHaveBeenCalledTimes(2);
+    const [, retryOps] =
+      window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic.mock
+        .calls[1];
+    expect(retryOps).toEqual([
+      {
+        raceId: '101',
+        boatId: 'b2',
+        newPosition: 4,
+        entryStatus: 'DSQ',
+        shiftPositions: false,
+      },
+    ]);
   });
 
   it('exposes ordered tied-group entries in compare info for multi-boat ties', async () => {

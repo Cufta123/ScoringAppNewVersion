@@ -5,6 +5,9 @@ import type { LeaderboardEntry, RdgMeta } from '../../types';
 interface RdgLegendProps {
   editableLeaderboard: LeaderboardEntry[];
   rdgMeta: RdgMeta;
+  /** Race-column prefix matching the table headers: 'F' in the final series,
+   * 'Q' during qualifying. */
+  racePrefix?: string;
 }
 
 /**
@@ -12,7 +15,11 @@ interface RdgLegendProps {
  * leaderboard. Only rendered when edit mode is active and at least one
  * RDG cell exists.
  */
-function RdgLegend({ editableLeaderboard, rdgMeta }: RdgLegendProps) {
+function RdgLegend({
+  editableLeaderboard,
+  rdgMeta,
+  racePrefix = 'Q',
+}: RdgLegendProps) {
   const rdgEntries = editableLeaderboard.flatMap((entry) =>
     (entry.race_statuses || [])
       .map((status, ri) => ({ status, ri, entry }))
@@ -66,8 +73,8 @@ function RdgLegend({ editableLeaderboard, rdgMeta }: RdgLegendProps) {
             style={{ fontSize: '0.88rem', color: '#444', marginBottom: '3px' }}
           >
             <strong style={{ color: 'var(--teal,#2a9d8f)' }}>{status}</strong>{' '}
-            {entry.name} {entry.surname} — R{ri + 1}: {desc} ={' '}
-            <strong>{score}</strong>
+            {entry.name} {entry.surname} — {racePrefix}
+            {ri + 1}: {desc} = <strong>{score}</strong>
           </div>
         );
       })}

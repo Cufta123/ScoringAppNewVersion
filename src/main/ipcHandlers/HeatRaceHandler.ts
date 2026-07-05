@@ -1684,12 +1684,20 @@ ipcMain.handle(
       const safeOperations = Array.isArray(operations) ? operations : [];
       const tx = db.transaction(() => {
         safeOperations.forEach((operation) => {
+          // Each operation carries the shift-toggle state from when the user
+          // made that edit, so the write replays exactly what the renderer
+          // previewed. The call-level flag remains as fallback for callers
+          // that don't send per-operation state.
+          const shiftForOperation =
+            operation.shiftPositions != null
+              ? Boolean(operation.shiftPositions)
+              : Boolean(shift_positions);
           applyRaceResultUpdate(
             event_id,
             operation.raceId,
             operation.boatId,
             operation.newPosition,
-            Boolean(shift_positions),
+            shiftForOperation,
             operation.entryStatus,
           );
           lockDiscardProfileForRace(Number(operation.raceId));

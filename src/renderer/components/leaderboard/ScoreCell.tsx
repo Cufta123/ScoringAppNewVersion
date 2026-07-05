@@ -4,6 +4,7 @@ import {
   RDG_TYPES,
   getRaceCellDisplay,
 } from '../../utils/leaderboardUtils';
+import { scoringPenaltyStatuses } from '../../../shared/scoringPenalty';
 import Rdg2Picker from './Rdg2Picker';
 import type {
   LeaderboardEntry,
@@ -77,6 +78,11 @@ function ScoreCell({
   const inputValue = draft ?? rawNumeric;
 
   const isManualRdg = raceStatus === 'RDG3';
+  // Position-keeping penalties (ZFP/SCP/T1) are DEFINED by their finishing
+  // place, so their place stays typeable; only hard penalties (DNS/DSQ/…)
+  // and computed RDG cells lock the numeric input.
+  const keepsFinishingPlace = scoringPenaltyStatuses.has(raceStatus);
+  const isInputLocked = isPenalty && !keepsFinishingPlace && !isManualRdg;
 
   // Manual RDG caps at 2 digits (99); a normal finish caps at the heat size.
   let numericMax: number | undefined;
@@ -162,17 +168,19 @@ function ScoreCell({
           max={numericMax}
           step={1}
           value={inputValue}
-          disabled={isPenalty && raceStatus !== 'RDG3'}
+          disabled={isInputLocked}
           onFocus={(e) => e.target.select()}
           onChange={(e) => {
             const nextValue = capManualRdg(e.target.value);
             setDraft(nextValue);
-            onRaceChange(
-              boatId,
-              raceIndex,
-              nextValue,
-              isManualRdg ? 'RDG3' : 'FINISHED',
-            );
+            let statusForChange = 'FINISHED';
+            if (isManualRdg) {
+              statusForChange = 'RDG3';
+            } else if (keepsFinishingPlace) {
+              // Typing a new place must not clear the ZFP/SCP/T1 penalty.
+              statusForChange = raceStatus;
+            }
+            onRaceChange(boatId, raceIndex, nextValue, statusForChange);
           }}
           onBlur={() => setDraft(null)}
           aria-label={`Race ${raceIndex + 1} value`}
@@ -181,14 +189,14 @@ function ScoreCell({
             padding: '6px 8px',
             borderRadius: '4px',
             border: '1px solid var(--border,#dde3ea)',
-            opacity: isPenalty && raceStatus !== 'RDG3' ? 0.35 : 1,
+            opacity: isInputLocked ? 0.35 : 1,
             fontSize: '0.88rem',
           }}
         />
 
         {/* Status selector */}
         <select
-          value={raceStatus}
+          value={raceStatus === 'RAF' ? 'RET' : raceStatus}
           onChange={(e) => {
             if (e.target.value === 'RDG2') {
               const rect = e.target.getBoundingClientRect();
@@ -219,13 +227,15 @@ function ScoreCell({
           }}
         >
           <option value="FINISHED">Finish</option>
-          {PENALTY_CODES.filter((code) => !RDG_TYPES.includes(code)).map(
-            (code) => (
-              <option key={code} value={code}>
-                {code}
-              </option>
-            ),
-          )}
+          {/* RAF is normalized to RET on save, so offering both would show a
+              different code after saving than the one picked. */}
+          {PENALTY_CODES.filter(
+            (code) => !RDG_TYPES.includes(code) && code !== 'RAF',
+          ).map((code) => (
+            <option key={code} value={code}>
+              {code}
+            </option>
+          ))}
           <optgroup label="RDG – Redress">
             <option value="RDG1">RDG1 – avg all</option>
             <option value="RDG2">RDG2 – avg select</option>

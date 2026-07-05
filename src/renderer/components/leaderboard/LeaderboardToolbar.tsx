@@ -110,6 +110,9 @@ interface LeaderboardToolbarProps {
   editMode: boolean;
   compareMode: boolean;
   shiftPositions: boolean;
+  /** Disables the edit toggle, e.g. while the final series has no scored
+   * races yet (there would be nothing editable on screen). */
+  editDisabled?: boolean;
   onToggleEdit: () => void;
   onSave: () => void;
   onShiftChange: React.ChangeEventHandler<HTMLInputElement>;
@@ -122,6 +125,7 @@ function LeaderboardToolbar({
   editMode,
   compareMode,
   shiftPositions,
+  editDisabled = false,
   onToggleEdit,
   onSave,
   onShiftChange,
@@ -155,6 +159,12 @@ function LeaderboardToolbar({
         <button
           type="button"
           onClick={onToggleEdit}
+          disabled={editDisabled}
+          title={
+            editDisabled
+              ? 'Results become editable after the first final race is scored.'
+              : undefined
+          }
           style={{
             ...btnBase,
             display: 'flex',
@@ -165,6 +175,8 @@ function LeaderboardToolbar({
               ? 'var(--danger, #e63946)'
               : 'var(--surface, #f0f4f8)',
             color: editMode ? '#fff' : 'var(--navy)',
+            opacity: editDisabled ? 0.5 : 1,
+            cursor: editDisabled ? 'not-allowed' : 'pointer',
           }}
         >
           <i
@@ -224,10 +236,17 @@ function LeaderboardToolbar({
           </div>
         )}
 
-        {/* Compare toggle */}
+        {/* Compare toggle — comparing reads saved data, so it is unavailable
+            while a draft is being edited (the two would contradict). */}
         <button
           type="button"
           onClick={onToggleCompare}
+          disabled={editMode}
+          title={
+            editMode
+              ? 'Finish or cancel editing to compare competitors.'
+              : undefined
+          }
           style={{
             ...btnBase,
             display: 'flex',
@@ -238,6 +257,8 @@ function LeaderboardToolbar({
               ? 'var(--teal, #2a9d8f)'
               : 'var(--surface, #f0f4f8)',
             color: compareMode ? '#fff' : 'var(--navy)',
+            opacity: editMode ? 0.5 : 1,
+            cursor: editMode ? 'not-allowed' : 'pointer',
           }}
         >
           <i

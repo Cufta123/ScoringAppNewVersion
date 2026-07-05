@@ -69,6 +69,8 @@ interface SaveRaceOperation {
   raceIndex?: number;
   newPosition?: number;
   entryStatus?: string;
+  /** Shift-other-boats state when THIS edit was made (matches the preview). */
+  shiftPositions?: boolean;
   missingRaceId?: boolean;
 }
 
@@ -140,17 +142,20 @@ export default function useLeaderboard(eventId: number) {
   // preview re-ranks for display, but the save sends only these raw edits and
   // lets the backend re-rank — saving the cascaded preview values would not
   // converge under the backend's per-operation re-rank.
-  const userEditsRef = useRef<
-    Map<
-      string,
-      {
-        boatId: number;
-        raceIndex: number;
-        rawPosition: number;
-        status: string;
-      }
-    >
-  >(new Map());
+  // `shift` is the "Shift other boats" toggle state AT EDIT TIME: the preview
+  // applied that state, so the save must replay it per edit — applying the
+  // save-time toggle to every queued edit would diverge from the preview.
+  // `rdgSelection` keeps the RDG2 race choice so the average can be refreshed
+  // when later edits change the boat's points in the selected races.
+  interface UserRaceEdit {
+    boatId: number;
+    raceIndex: number;
+    rawPosition: number;
+    status: string;
+    shift: boolean;
+    rdgSelection?: { finalIndices: number[]; qualIndices: number[] };
+  }
+  const userEditsRef = useRef<Map<string, UserRaceEdit>>(new Map());
   const [overallLeaderboard, setOverallLeaderboard] = useState<
     OverallLeaderboardEntry[]
   >([]);
@@ -215,7 +220,7 @@ export default function useLeaderboard(eventId: number) {
     }
 
     const raceNumber = finalSeriesStarted
-      ? (editableLeaderboard?.[0]?.races?.length ?? 0)
+      ? (leaderboard?.[0]?.races?.length ?? 0)
       : (eventLeaderboard?.[0]?.races?.length ?? 0);
 
     const safeEventName = sanitizeFilenamePart(eventName, `event_${eventId}`);
@@ -590,6 +595,13 @@ export default function useLeaderboard(eventId: number) {
     setRdgMeta({});
     setRdg2Picker(null);
     userEditsRef.current.clear();
+    // Editing and comparing don't mix: row clicks (bubbling up from the edit
+    // inputs) would toggle compare selection, and the compare panel reads
+    // saved backend data that contradicts the on-screen draft.
+    if (!editMode) {
+      setCompareMode(false);
+      setSelectedBoatIds([]);
+    }
     setEditMode(!editMode);
   };
 
@@ -693,6 +705,93 @@ export default function useLeaderboard(eventId: number) {
     };
   };
 
+  // RRS A9: a redress average must reflect the boat's ACTUAL points, so RDG1/
+  // RDG2 cells granted THIS session are recomputed whenever an edit changes any
+  // race points they average over (the boat's own races, including shift-mode
+  // ripples caused by edits to other boats). The refreshed average replaces
+  // both the visible cell and the queued raw edit, so the save persists the
+  // up-to-date value. RDG cells loaded from the DB are left untouched — they
+  // were granted against an earlier state and are not this session's to alter.
+  const refreshSessionRdgAverages = (
+    rows: LeaderboardEntry[],
+  ): LeaderboardEntry[] => {
+    // All averages are computed from the SAME snapshot (the rows as passed in,
+    // i.e. right after the triggering edit). RDG cells can reference each
+    // other's points; cascading each refresh into the next would make the
+    // result depend on edit-map iteration order.
+    const snapshot = rows;
+    let next = rows;
+    userEditsRef.current.forEach((edit, key) => {
+      if (edit.status !== 'RDG1' && edit.status !== 'RDG2') return;
+      const snapEntry = snapshot.find((e) => e.boat_id === edit.boatId);
+      const entryIdx = next.findIndex((e) => e.boat_id === edit.boatId);
+      if (!snapEntry || entryIdx === -1) return;
+      const entry = next[entryIdx];
+      const penaltyPosition = getPenaltyPosition(next.length);
+
+      let avg: number;
+      if (edit.status === 'RDG1') {
+        avg = computeRdgAverage(
+          getPointsCellsForAverage(snapEntry),
+          snapEntry.race_statuses,
+          edit.raceIndex,
+          penaltyPosition,
+        );
+      } else {
+        const selection = edit.rdgSelection;
+        if (!selection) return;
+        const entryPoints = getPointsCellsForAverage(snapEntry);
+        const finalValues = selection.finalIndices
+          .filter((i) => i !== edit.raceIndex)
+          .map((i) => parseFloat(String(entryPoints[i]).replace(/[()]/g, '')))
+          .filter((v) => !Number.isNaN(v));
+        const qualEntry = eventLeaderboard?.find(
+          (e) => e.boat_id === edit.boatId,
+        );
+        const qualPoints = qualEntry ? getPointsCellsForAverage(qualEntry) : [];
+        const qualValues = selection.qualIndices
+          .map((i) =>
+            parseFloat(String(qualPoints[i] ?? '').replace(/[()]/g, '')),
+          )
+          .filter((v) => !Number.isNaN(v));
+        const allValues = [...qualValues, ...finalValues];
+        avg =
+          allValues.length > 0
+            ? roundToNearestTenthHalfUp(
+                allValues.reduce((s, v) => s + v, 0) / allValues.length,
+              )
+            : penaltyPosition;
+      }
+
+      if (avg === edit.rawPosition) return;
+      userEditsRef.current.set(key, { ...edit, rawPosition: avg });
+
+      const { rawRaces, statuses } = getEntryScoreInputs(entry);
+      rawRaces[edit.raceIndex] = String(avg);
+      statuses[edit.raceIndex] = edit.status;
+      const { markedRaces, scoreFields } = recomputeEntryScores(
+        rawRaces,
+        statuses,
+        penaltyPosition,
+      );
+      const refreshedEntry = {
+        ...entry,
+        races: markedRaces,
+        ...scoreFields,
+        race_statuses: statuses,
+        ...(finalSeriesStarted
+          ? {
+              total_points_combined:
+                (Number(entry.qualifying_points) || 0) +
+                scoreFields.computed_total,
+            }
+          : {}),
+      };
+      next = next.map((e, i) => (i === entryIdx ? refreshedEntry : e));
+    });
+    return next;
+  };
+
   const handleRaceChange = (
     boatId: number,
     raceIndex: number,
@@ -721,6 +820,15 @@ export default function useLeaderboard(eventId: number) {
       Number.isNaN(fallbackInput)
     )
       return;
+    // Position-keeping penalties (ZFP/SCP/T1) take a typed finishing place, so
+    // reject unusable input the same way a plain finish does.
+    if (
+      scoringPenaltyStatuses.has(newStatus) &&
+      newRaceValue !== null &&
+      (Number.isNaN(fallbackInput) || fallbackInput < 0)
+    ) {
+      return;
+    }
     const penaltyPosition = getPenaltyPosition(cloned.length);
     const maxBoats = penaltyPosition - 1;
 
@@ -792,11 +900,16 @@ export default function useLeaderboard(eventId: number) {
     });
 
     // A finishing place cannot exceed the number of boats in the race (SHRS).
-    // Penalty/RDG cells keep their computed value.
+    // Plain finishes AND position-keeping penalties hold a real finishing
+    // place, so both are clamped; hard-penalty/RDG cells keep their computed
+    // value.
     const heatSize = groupIdx.length || 1;
-    if (!isPenalty && !isRdgType && newStatus !== 'RDG3') {
+    const keepsFinishingPlace = scoringPenaltyStatuses.has(newStatus);
+    if (newStatus === 'FINISHED' || keepsFinishingPlace) {
       newPosition = Math.min(Math.max(Math.round(newPosition), 1), heatSize);
-      newPoints = newPosition;
+      newPoints = keepsFinishingPlace
+        ? getScoringPenaltyPoints(newPosition, maxBoats, newStatus)
+        : newPosition;
     }
 
     // Remember the raw user edit for the save payload (backend applies it).
@@ -805,6 +918,7 @@ export default function useLeaderboard(eventId: number) {
       raceIndex,
       rawPosition: newPosition,
       status: newStatus,
+      shift: shiftPositions,
     });
 
     // Rebuild one entry's race arrays + score-derived totals after changing its
@@ -933,7 +1047,7 @@ export default function useLeaderboard(eventId: number) {
       );
     }
 
-    setEditableLeaderboard(updated);
+    setEditableLeaderboard(refreshSessionRdgAverages(updated));
   };
 
   const confirmRdg2 = () => {
@@ -975,12 +1089,20 @@ export default function useLeaderboard(eventId: number) {
     rawRaces[raceIndex] = String(avg);
     statuses[raceIndex] = 'RDG2';
 
-    // Record the raw edit so handleSave persists this RDG2 cell.
+    // Record the raw edit so handleSave persists this RDG2 cell. Saved with
+    // shift OFF: the preview replaces only this cell (no column re-rank), so
+    // the backend must do the same. The selection is kept so the average can
+    // be refreshed if later edits change the selected races' points.
     userEditsRef.current.set(`${boatId}-${raceIndex}`, {
       boatId,
       raceIndex,
       rawPosition: avg,
       status: 'RDG2',
+      shift: false,
+      rdgSelection: {
+        finalIndices: [...(selectedIndices || new Set<number>())],
+        qualIndices: [...(selectedQualIndices || new Set<number>())],
+      },
     });
 
     const { markedRaces, scoreFields } = recomputeEntryScores(
@@ -1004,19 +1126,26 @@ export default function useLeaderboard(eventId: number) {
         : {}),
     };
 
+    // In a qualifying-only series `selectedIndices` ARE qualifying races, so
+    // label them Q… (the F… prefix only exists once the final series started).
+    const currentSeriesPrefix = finalSeriesStarted ? 'F' : 'Q';
     const qualLabels = [...(selectedQualIndices || new Set<number>())]
       .sort((a, b) => a - b)
       .map((i) => `Q${i + 1}`);
     const finalLabels = [...(selectedIndices || new Set<number>())]
       .sort((a, b) => a - b)
-      .map((i) => `F${i + 1}`);
+      .map((i) => `${currentSeriesPrefix}${i + 1}`);
     const selectedRaceLabels = [...qualLabels, ...finalLabels];
     setRdgMeta((prev) => ({
       ...prev,
       [`${boatId}-${raceIndex}`]: { type: 'RDG2', selectedRaceLabels },
     }));
+    // This RDG2 changes the boat's points in this race, which can feed other
+    // session-granted RDG averages on the same boat — refresh them too.
     setEditableLeaderboard(
-      cloned.map((e) => (e.boat_id === boatId ? updatedEntry : e)),
+      refreshSessionRdgAverages(
+        cloned.map((e) => (e.boat_id === boatId ? updatedEntry : e)),
+      ),
     );
     setRdg2Picker(null);
   };
@@ -1047,8 +1176,9 @@ export default function useLeaderboard(eventId: number) {
     });
     if (editedRaceIds.size === 0) return [];
 
-    // Group every FINISHED boat's place by the physical race it sailed. Penalty
-    // and RDG cells don't occupy a unique finishing slot, so they're skipped.
+    // Group every place-holding boat's place by the physical race it sailed.
+    // Finishers AND position-keeping penalties (ZFP/SCP/T1) occupy a finishing
+    // slot; hard-penalty and RDG cells don't, so they're skipped.
     interface Slot {
       label: string;
       place: number;
@@ -1061,10 +1191,13 @@ export default function useLeaderboard(eventId: number) {
         const raceIdStr = String(raceId);
         if (!editedRaceIds.has(raceIdStr)) return;
         const status = entry.race_statuses?.[idx] || 'FINISHED';
-        if (status !== 'FINISHED') return;
+        if (status !== 'FINISHED' && !scoringPenaltyStatuses.has(status)) {
+          return;
+        }
         const place = parseRaceNum(entry.races[idx]);
         if (!Number.isFinite(place) || place <= 0) return;
-        const label = finalSeriesStarted ? `F${idx + 1}` : `R${idx + 1}`;
+        // Match the table headers: F… for final races, Q… for qualifying.
+        const label = finalSeriesStarted ? `F${idx + 1}` : `Q${idx + 1}`;
         const slots = byRace.get(raceIdStr) ?? [];
         slots.push({ label, place, entry, raceIndex: idx });
         byRace.set(raceIdStr, slots);
@@ -1133,18 +1266,8 @@ export default function useLeaderboard(eventId: number) {
   const computeSwapEdits = (
     conflicts: PlaceConflict[],
     originalSource: LeaderboardEntry[],
-  ): Array<{
-    boatId: number;
-    raceIndex: number;
-    rawPosition: number;
-    status: string;
-  }> => {
-    const swaps: Array<{
-      boatId: number;
-      raceIndex: number;
-      rawPosition: number;
-      status: string;
-    }> = [];
+  ): UserRaceEdit[] => {
+    const swaps: UserRaceEdit[] = [];
     conflicts.forEach((conflict) => {
       // The boat(s) the user moved onto this place this session.
       const movedHere = conflict.boats.filter((boat) => {
@@ -1172,7 +1295,11 @@ export default function useLeaderboard(eventId: number) {
             boatId: boat.entry.boat_id,
             raceIndex: boat.raceIndex,
             rawPosition: vacatedPlace,
-            status: 'FINISHED',
+            // A position-keeping penalty (ZFP/SCP/T1) stays a penalty when it
+            // is moved to the vacated place — only its place changes.
+            status: boat.entry.race_statuses?.[boat.raceIndex] || 'FINISHED',
+            // Direct assignment into the vacated slot: no ripple wanted.
+            shift: false,
           });
         });
     });
@@ -1180,7 +1307,6 @@ export default function useLeaderboard(eventId: number) {
   };
 
   const handleSave = async () => {
-    let originalSourceSnapshot: LeaderboardEntry[] = [];
     try {
       if (!editableLeaderboard || !leaderboard) {
         throw new Error('Leaderboard data is not initialized');
@@ -1188,7 +1314,6 @@ export default function useLeaderboard(eventId: number) {
 
       const originalSource =
         activeTab === 'event' ? eventLeaderboard : leaderboard;
-      originalSourceSnapshot = cloneEntries(originalSource);
 
       // Start from the user's raw edits; a "Switch places" choice appends more.
       const effectiveEdits = [...userEditsRef.current.values()];
@@ -1222,31 +1347,39 @@ export default function useLeaderboard(eventId: number) {
       // Send only the cells that actually changed, with the RAW position chosen;
       // the backend re-ranks each race after the write. Sending the re-ranked
       // preview values instead would not converge (see rerankRaceColumn).
+      // Each operation carries the shift-toggle state from when the edit was
+      // made, so the backend replays exactly what the preview showed even if
+      // the toggle was flipped between edits.
       const updateOperations: SaveRaceOperation[] = [];
-      effectiveEdits.forEach(({ boatId, raceIndex, rawPosition, status }) => {
-        const entry = editableLeaderboard.find((e) => e.boat_id === boatId);
-        if (!entry) return;
-        const originalEntry = originalSource.find((e) => e.boat_id === boatId);
-        const origStatus =
-          originalEntry?.race_statuses?.[raceIndex] || 'FINISHED';
-        const origPosition = originalEntry
-          ? parseRaceNum(originalEntry.races[raceIndex])
-          : NaN;
-        // eslint-disable-next-line eqeqeq
-        if (origPosition == rawPosition && origStatus === status) return;
+      effectiveEdits.forEach(
+        ({ boatId, raceIndex, rawPosition, status, shift }) => {
+          const entry = editableLeaderboard.find((e) => e.boat_id === boatId);
+          if (!entry) return;
+          const originalEntry = originalSource.find(
+            (e) => e.boat_id === boatId,
+          );
+          const origStatus =
+            originalEntry?.race_statuses?.[raceIndex] || 'FINISHED';
+          const origPosition = originalEntry
+            ? parseRaceNum(originalEntry.races[raceIndex])
+            : NaN;
+          // eslint-disable-next-line eqeqeq
+          if (origPosition == rawPosition && origStatus === status) return;
 
-        const raceId = entry.race_ids?.[raceIndex];
-        if (!raceId) {
-          updateOperations.push({ missingRaceId: true, boatId, raceIndex });
-          return;
-        }
-        updateOperations.push({
-          raceId,
-          boatId,
-          newPosition: rawPosition,
-          entryStatus: status,
-        });
-      });
+          const raceId = entry.race_ids?.[raceIndex];
+          if (!raceId) {
+            updateOperations.push({ missingRaceId: true, boatId, raceIndex });
+            return;
+          }
+          updateOperations.push({
+            raceId,
+            boatId,
+            newPosition: rawPosition,
+            entryStatus: status,
+            shiftPositions: shift,
+          });
+        },
+      );
 
       const missingRaceIdOperation = updateOperations.find(
         (operation) => operation.missingRaceId,
@@ -1268,9 +1401,10 @@ export default function useLeaderboard(eventId: number) {
       userEditsRef.current.clear();
       setEditMode(false);
     } catch (error) {
-      setEditableLeaderboard(originalSourceSnapshot);
-      setRdgMeta({});
-      setRdg2Picker(null);
+      // Keep the draft, the queued edits, and edit mode intact so the user can
+      // fix the problem and retry. Resetting only the visible state here would
+      // leave the queued edits invisible but still pending — a later save
+      // would silently resend work the user could no longer see.
       reportError('Could not save leaderboard changes.', error);
     }
   };
@@ -1316,7 +1450,7 @@ export default function useLeaderboard(eventId: number) {
         );
         const overall = e.computed_total ?? e.total_points_event;
         return [
-          i + 1,
+          e.place ?? i + 1,
           `${e.name} ${e.surname}`,
           e.country ?? '',
           e.boat_number ?? '',
@@ -1332,8 +1466,11 @@ export default function useLeaderboard(eventId: number) {
     }
 
     // ── Final-series view ───────────────────────────────────────────────────
+    // Exports always read the SAVED leaderboard, never the edit-mode draft —
+    // a mid-edit export must not leak unsaved values (and the qualifying
+    // export above already behaves this way).
     const qualRaceCount = eventLeaderboard[0]?.races?.length ?? 0;
-    const finalRaceCount = (editableLeaderboard ?? [])[0]?.races?.length ?? 0;
+    const finalRaceCount = (leaderboard ?? [])[0]?.races?.length ?? 0;
 
     const header = [
       'Rank',
@@ -1347,7 +1484,7 @@ export default function useLeaderboard(eventId: number) {
       ...Array.from({ length: finalRaceCount }, (_, i) => `F${i + 1}`),
     ];
 
-    const grpMap = (editableLeaderboard ?? []).reduce(
+    const grpMap = (leaderboard ?? []).reduce(
       (acc, entry) => {
         const g = entry.placement_group || 'General';
         if (!acc[g]) acc[g] = [];
@@ -1385,7 +1522,7 @@ export default function useLeaderboard(eventId: number) {
             : '–';
 
         return [
-          i + 1,
+          entry.overall_rank ?? i + 1,
           `${entry.name} ${entry.surname}`,
           entry.country ?? '',
           entry.boat_number ?? '',

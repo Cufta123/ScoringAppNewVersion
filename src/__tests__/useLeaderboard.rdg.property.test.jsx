@@ -195,12 +195,14 @@ describe('Property-based: RDG1/RDG2/RDG3 random stress', () => {
 
       const rdg2FinalValues = [...selectedFinalIndices]
         .filter((i) => i !== rdg2Index)
-        // RRS A9(b): points in the selected races, penalties included.
-        .map((i) => parseScore(currentEntry.races[i]))
+        // RRS A9(b): the average is over the boat's POINTS in the selected
+        // races — race_points, not the finishing places in `races` (the two
+        // differ for position-keeping penalties like ZFP/SCP).
+        .map((i) => parseScore(currentEntry.race_points[i]))
         .filter((v) => v !== null);
 
       const rdg2QualValues = [...selectedQualIndices]
-        .map((i) => parseScore(qualEntry.races[i]))
+        .map((i) => parseScore(qualEntry.race_points[i]))
         .filter((v) => v !== null);
 
       const rdg2Pool = [...rdg2QualValues, ...rdg2FinalValues];

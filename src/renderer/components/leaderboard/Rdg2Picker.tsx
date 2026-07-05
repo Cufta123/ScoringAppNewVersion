@@ -14,6 +14,12 @@ interface Rdg2PickerProps {
  * Floating popover for selecting races to average for an RDG2 redress.
  * Supports qualifying races (qualifyingEntry) and/or final-series races (entry).
  */
+// Estimated max popover height: header + capped race list (300px) + buttons.
+// Used to flip the popover above the anchor when it would overflow the
+// viewport bottom.
+const PICKER_EST_HEIGHT = 420;
+const PICKER_MIN_WIDTH = 240;
+
 function Rdg2Picker({
   entry,
   raceIndex,
@@ -22,6 +28,44 @@ function Rdg2Picker({
   confirmRdg2,
   qualifyingEntry = null,
 }: Rdg2PickerProps) {
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  // The popover is fixed-positioned at the rect captured when it opened, so it
+  // cannot track its anchor cell. Close it on outside click, Escape, or any
+  // scroll outside the popover instead of letting it drift detached.
+  React.useEffect(() => {
+    const onMouseDown = (e: MouseEvent) => {
+      if (
+        containerRef.current &&
+        e.target instanceof Node &&
+        !containerRef.current.contains(e.target)
+      ) {
+        setRdg2Picker(null);
+      }
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setRdg2Picker(null);
+    };
+    const onScroll = (e: Event) => {
+      if (
+        containerRef.current &&
+        e.target instanceof Node &&
+        containerRef.current.contains(e.target)
+      ) {
+        return; // scrolling the race list inside the popover is fine
+      }
+      setRdg2Picker(null);
+    };
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('keydown', onKeyDown);
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  }, [setRdg2Picker]);
+
   if (!rdg2Picker?.anchorRect) return null;
 
   const totalSelected =
@@ -30,12 +74,27 @@ function Rdg2Picker({
 
   const hasQual = (qualifyingEntry?.races?.length ?? 0) > 0;
 
+  const { anchorRect } = rdg2Picker;
+  // Open upward when there's no room below but there is above; clamp the left
+  // edge so the popover never hangs off the right side of the window.
+  const openUp =
+    anchorRect.bottom + PICKER_EST_HEIGHT > window.innerHeight &&
+    anchorRect.top > PICKER_EST_HEIGHT;
+  const verticalPlacement: React.CSSProperties = openUp
+    ? { bottom: window.innerHeight - anchorRect.top + 4 }
+    : { top: anchorRect.bottom + 4 };
+  const left = Math.max(
+    8,
+    Math.min(anchorRect.left, window.innerWidth - PICKER_MIN_WIDTH - 8),
+  );
+
   return (
     <div
+      ref={containerRef}
       style={{
         position: 'fixed',
-        top: rdg2Picker.anchorRect.bottom + 4,
-        left: rdg2Picker.anchorRect.left,
+        ...verticalPlacement,
+        left,
         zIndex: 9999,
         background: '#fff',
         border: '1px solid var(--teal,#2a9d8f)',
