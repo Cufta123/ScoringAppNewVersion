@@ -212,9 +212,15 @@ test('a ZFP keeps the place but scores penalty points (Gross ≠ Overall) and pe
     .getByRole('row', { name: /Bob/ })
     .getByLabel('Race 1 status')
     .selectOption('ZFP');
+  // A ZFP keeps its finishing place, and that place drives the penalty points,
+  // so the value stays typeable (enabled) — unlike a hard penalty (DNS/DSQ) or a
+  // computed RDG cell, which lock the input. The place itself is unchanged (2).
   await expect(
     window.getByRole('row', { name: /Bob/ }).getByLabel('Race 1 value'),
-  ).toBeDisabled();
+  ).toBeEnabled();
+  await expect(
+    window.getByRole('row', { name: /Bob/ }).getByLabel('Race 1 value'),
+  ).toHaveValue('2');
   await expect(grossCell(/Bob/)).toHaveText('9');
   await expect(overallCell(/Bob/)).toHaveText('6');
 
