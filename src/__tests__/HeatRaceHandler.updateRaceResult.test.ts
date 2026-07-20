@@ -23,6 +23,11 @@ type Scenario = {
   currentPosition: number;
   currentStatus: string;
   finishedRows: Array<{ score_id: number; position: number; status?: string }>;
+  penaltyRowsBehind: Array<{
+    score_id: number;
+    position: number;
+    status: string;
+  }>;
 };
 
 let currentScenario: Scenario;
@@ -88,6 +93,16 @@ const dbMock = {
     ) {
       return {
         all: jest.fn(() => currentScenario.finishedRows),
+      };
+    }
+
+    if (
+      sqlContains(sql, 'SELECT score_id, position, status FROM Scores') &&
+      sqlContains(sql, 'AND status IN (') &&
+      sqlContains(sql, 'position > ?')
+    ) {
+      return {
+        all: jest.fn(() => currentScenario.penaltyRowsBehind),
       };
     }
 
@@ -163,6 +178,10 @@ const dbMock = {
       };
     }
 
+    if (sqlContains(sql, "COALESCE(s.status, 'FINISHED') AS status")) {
+      return { all: jest.fn(() => []) };
+    }
+
     throw new Error(`Unhandled SQL in test mock: ${sql}`);
   }),
   transaction: jest.fn(
@@ -184,6 +203,7 @@ function baseScenario(): Scenario {
     currentPosition: 3,
     currentStatus: 'FINISHED',
     finishedRows: [],
+    penaltyRowsBehind: [],
   };
 }
 
@@ -434,6 +454,22 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     expect(updateMain?.args.slice(0, 3)).toEqual([8, 8, 'RDG2']);
   });
 
+  it('keeps DPI points as the protest-committee-provided value, not largest-heat+1 (RRS A10 / M9)', async () => {
+    // maxBoats=10 => the old bug scored DPI like DSQ at maxBoats+1 = 11.
+    // DPI points are set by the PC, so the provided value (2) must stand.
+    currentScenario.maxBoats = 10;
+    const handler = handlerRegistry.updateRaceResult;
+    await handler({}, 99, 500, 'B1', 2, false, 'DPI');
+
+    const updateMain = runCalls.find((call) =>
+      sqlContains(
+        call.sql,
+        'UPDATE Scores SET position = ?, points = ?, status = ?',
+      ),
+    );
+    expect(updateMain?.args.slice(0, 3)).toEqual([2, 2, 'DPI']);
+  });
+
   it('rejects unsupported score status', async () => {
     const handler = handlerRegistry.updateRaceResult;
     await expect(handler({}, 99, 500, 'B1', 3, false, 'FOO')).rejects.toThrow(
@@ -643,6 +679,62 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
 
     const handler = handlerRegistry.updateRaceResult;
     await handler({}, 99, 500, 'B1', 4, false, 'DSQ');
+
+    const cascadeCalls = runCalls.filter(
+      (call) =>
+        sqlContains(
+          call.sql,
+          "WHERE race_id = ? AND status = 'FINISHED' AND position > ?",
+        ) ||
+        sqlContains(
+          call.sql,
+          'UPDATE Scores SET position = ?, points = ? WHERE score_id = ?',
+        ),
+    );
+    expect(cascadeCalls).toHaveLength(0);
+  });
+
+  it('moves a ZFP boat up and recomputes its points when a finisher ahead is DSQd (RRS A6.1/44.3c)', async () => {
+    // 10-boat heat, largest heat 10. Boat B finished 2nd is DSQd with shift on.
+    // A ZFP boat that finished 5th now finishes 4th: its points must be
+    // recomputed from place 4 as 4 + 20% of the DNF score (11) = 4 + 2 = 6,
+    // and it must not collide with the shifted 6th-place finisher.
+    currentScenario.maxBoats = 10;
+    currentScenario.currentPosition = 2;
+    currentScenario.currentStatus = 'FINISHED';
+    currentScenario.penaltyRowsBehind = [
+      { score_id: 55, position: 5, status: 'ZFP' },
+    ];
+
+    const handler = handlerRegistry.updateRaceResult;
+    await handler({}, 99, 500, 'B1', 3, true, 'DSQ');
+
+    const penaltyShift = runCalls.find(
+      (call) =>
+        sqlContains(
+          call.sql,
+          'UPDATE Scores SET position = ?, points = ? WHERE score_id = ?',
+        ) && call.args[2] === 55,
+    );
+    expect(penaltyShift).toBeDefined();
+    // New place 4, points 4 + roundHalfUp(0.2 * 11) = 4 + 2 = 6.
+    expect(penaltyShift?.args).toEqual([4, 6, 55]);
+  });
+
+  it('grants RDG without re-ranking other boats even with shifting ON (RRS A6.2)', async () => {
+    // Redress adjusts only the redressed boat's score; A6.2 forbids changing
+    // any other boat. Even with "shift other boats" ON, an RDG edit must not
+    // trigger the displacement or the tie-scoring cascade over the finishers.
+    currentScenario.currentPosition = 5;
+    currentScenario.currentStatus = 'FINISHED';
+    currentScenario.finishedRows = [
+      { score_id: 11, position: 1, status: 'FINISHED' },
+      { score_id: 12, position: 2, status: 'FINISHED' },
+      { score_id: 13, position: 3, status: 'FINISHED' },
+    ];
+
+    const handler = handlerRegistry.updateRaceResult;
+    await handler({}, 99, 500, 'B1', 4.5, true, 'RDG1');
 
     const cascadeCalls = runCalls.filter(
       (call) =>

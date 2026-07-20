@@ -23,6 +23,17 @@ import {
 // panel can never disagree with the actual placement. The steps, route and
 // race grid are narration built from the same underlying scores.
 
+// Map a comparator result to the winning boat id, or null when the boats are
+// still tied (cmp === 0) — SHRS 5.7(ii)(4): no rule-legal winner.
+function pickWinner(
+  cmp: number,
+  boatAId: string,
+  boatBId: string,
+): string | null {
+  if (cmp === 0) return null;
+  return cmp < 0 ? boatAId : boatBId;
+}
+
 type RaceRow = {
   race_id: number;
   race_number: number;
@@ -336,7 +347,9 @@ function explainQualifying(
     { boat_id: boatBId, keptScores: keptB },
     isSingleHeatEvent,
   );
-  base.winnerBoatId = cmp <= 0 ? boatAId : boatBId;
+  // cmp === 0 means the boats stay tied after every applicable rule
+  // (SHRS 5.7(ii)(4)) — report no winner rather than a boat_id-derived order.
+  base.winnerBoatId = pickWinner(cmp, boatAId, boatBId);
 
   const sharedPairs = base.sharedRacePairs;
   const a82PairsDesc = [...sharedPairs].sort(
@@ -458,11 +471,23 @@ function explainOverall(
   const packetA = buildOverallTiePacket(event_id, boatAId);
   const packetB = buildOverallTiePacket(event_id, boatBId);
   const cmp = compareOverallTiePackets(boatAId, boatBId, packetA, packetB);
-  base.winnerBoatId = cmp <= 0 ? boatAId : boatBId;
+  // cmp === 0 means the boats stay tied after every applicable rule
+  // (SHRS 5.7(ii)(4)) — report no winner rather than a boat_id-derived order.
+  base.winnerBoatId = pickWinner(cmp, boatAId, boatBId);
 
-  const a82PairsDesc = [...sharedPairs].sort(
-    (l, r) => r.raceNumber - l.raceNumber || r.raceId - l.raceId,
-  );
+  // RRS A8.2 walks from the event's last race backward. Final-series races are
+  // sailed after the qualifying series and restart their numbering at 1, so
+  // they must lead the A8.2 order regardless of race_number (mirrors the
+  // authoritative comparator in overallTieBreak.ts). Sort within each series by
+  // race_number descending, then place all final pairs before qualifying pairs.
+  const byRaceDesc = (
+    l: { raceNumber: number; raceId: number },
+    r: { raceNumber: number; raceId: number },
+  ) => r.raceNumber - l.raceNumber || r.raceId - l.raceId;
+  const a82PairsDesc = [
+    ...[...sharedFinalRacePairs].sort(byRaceDesc),
+    ...[...sharedQualRacePairs].sort(byRaceDesc),
+  ];
 
   let route: { rule: string; note: string };
   let stepResult: { steps: Step[]; breakerRaceId: number | null };

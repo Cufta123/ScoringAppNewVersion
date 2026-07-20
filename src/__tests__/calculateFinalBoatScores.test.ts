@@ -364,6 +364,30 @@ describe('Edge cases', () => {
     expect(groupTables.size).toBe(0);
   });
 
+  it('falls back to the literal heat_name when it does not match "Final <group>"', () => {
+    // heat_name group extraction is /^Final\s+(.+)$/i; a heat_name that never
+    // carries the "Final " prefix (e.g. legacy/malformed data) must still be
+    // grouped, using the raw heat_name as the group key instead of crashing
+    // or silently dropping the boat.
+    setupMockDb({ solo: [3, 2] });
+    const groupTables = calculateFinalBoatScores(
+      [makeResult('solo', 'Gold')],
+      1,
+    );
+    expect(groupTables.has('Gold')).toBe(true);
+    expect(groupTables.get('Gold')).toHaveLength(1);
+  });
+
+  it('matches "Final <group>" case-insensitively', () => {
+    setupMockDb({ solo: [3, 2] });
+    const groupTables = calculateFinalBoatScores(
+      [makeResult('solo', 'final gold')],
+      1,
+    );
+    // Capture group preserves the source casing of the remainder.
+    expect(groupTables.has('gold')).toBe(true);
+  });
+
   // SHRS 4.5: fleets may sail different numbers of races. A fleet that has not
   // raced yet must still appear on the final leaderboard with 0 points, not be
   // dropped until its first race is scored.

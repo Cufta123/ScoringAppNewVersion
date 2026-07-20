@@ -184,6 +184,71 @@ describe('explainTieBreak — qualifying series', () => {
     expect(res.steps.some((s) => s.rule.includes('5.7(ii)(2)'))).toBe(true);
   });
 
+  it('single-heat event confirmed at the EVENT level with 3+ boats sharing the identical race set (detectSingleHeatEvent)', () => {
+    // A, B and C all raced the identical two races -> event-level single-heat
+    // is true even though a third boat is present. A/B are tied at 5; A8.1
+    // best-to-worst: A [1,4] vs B [2,3] -> 1 < 2, A wins.
+    setupDb({
+      A: [
+        { race_id: 1, race_number: 1, points: 4 },
+        { race_id: 2, race_number: 2, points: 1 },
+      ],
+      B: [
+        { race_id: 1, race_number: 1, points: 3 },
+        { race_id: 2, race_number: 2, points: 2 },
+      ],
+      C: [
+        { race_id: 1, race_number: 1, points: 1 },
+        { race_id: 2, race_number: 2, points: 1 },
+      ],
+    });
+    const res = explainTieBreak(1, 'A', 'B', false);
+    expect(res.tied).toBe(true);
+    expect(res.route?.rule).toBe('SHRS 5.7(i)');
+    expect(res.winnerBoatId).toBe('A');
+  });
+
+  // SHRS 5.7(ii)(4) / RRS A8.1+A8.2: when neither rule can separate two boats,
+  // they remain tied. The shared-heat comparator in `calculateBoatScores.ts`
+  // (used here via `compareQualifyingTieCandidates`) falls back to
+  // `localeCompare(boat_id)` at line 211 instead of reporting "still tied",
+  // so `winnerBoatId` is always non-null even when every step below it says
+  // the tie could not be broken. This test's root cause is in
+  // calculateBoatScores.ts (not owned/edited by this pass) but the
+  // wrong-but-confident `winnerBoatId` is observable through
+  // explainTieBreak.ts, which is why it's pinned here.
+  // TODO(source-bug): calculateBoatScores.ts:211 — shared-heat A8 fallback
+  // should report "still tied" (e.g. return 0) instead of localeCompare.
+  it('multi-heat event, tied pair shares every race with identical points: stays tied, no winner (SHRS 5.7(ii))', () => {
+    setupDb({
+      A: [
+        { race_id: 601, race_number: 1, points: 1 },
+        { race_id: 602, race_number: 2, points: 2 },
+        { race_id: 603, race_number: 3, points: 3 },
+        { race_id: 604, race_number: 4, points: 4 },
+      ],
+      B: [
+        { race_id: 601, race_number: 1, points: 1 },
+        { race_id: 602, race_number: 2, points: 2 },
+        { race_id: 603, race_number: 3, points: 3 },
+        { race_id: 604, race_number: 4, points: 4 },
+      ],
+      // Different race set so the event is multi-heat.
+      C: [
+        { race_id: 701, race_number: 1, points: 1 },
+        { race_id: 702, race_number: 2, points: 1 },
+        { race_id: 703, race_number: 3, points: 1 },
+        { race_id: 704, race_number: 4, points: 2 },
+      ],
+    });
+    const res = explainTieBreak(1, 'A', 'B', false);
+    expect(res.tied).toBe(true);
+    expect(res.route?.rule).toBe('SHRS 5.7(ii)');
+    // Every score matches exactly, so A8.1 and A8.2 both report "still tied"
+    // and there is no rule-legal winner.
+    expect(res.winnerBoatId).toBeNull();
+  });
+
   it('multi-heat event, no shared races: standard A8 (SHRS 5.7(ii)(4))', () => {
     // A and B never shared a race; C provides a different race set so the event
     // is multi-heat. Tie on kept total (10 each); A8.1 best score 1 vs 1, then
@@ -260,5 +325,160 @@ describe('explainTieBreak — final/overall series', () => {
     // Shared pairs split across both series.
     expect(res.sharedQualRacePairs.length).toBe(2);
     expect(res.sharedRacePairs.length).toBe(2);
+  });
+
+  it('multi-heat event, no shared races anywhere: standard A8 fallback (SHRS 5.7(ii)(4))', () => {
+    // A and B never sailed the same qualifying or final heat (disjoint
+    // race_ids in both series) but are tied on combined total (10 each).
+    // A8.1 best-to-worst over the combined (unsorted-input, sorted-by-helper)
+    // score set: A [2,8] vs B [3,7] -> 2 < 3, A wins.
+    setupDb({
+      A: [
+        { race_id: 401, race_number: 1, points: 2, heat_type: 'Qualifying' },
+        { race_id: 402, race_number: 2, points: 8, heat_type: 'Qualifying' },
+      ],
+      B: [
+        { race_id: 501, race_number: 1, points: 3, heat_type: 'Qualifying' },
+        { race_id: 502, race_number: 2, points: 7, heat_type: 'Qualifying' },
+      ],
+    });
+    const res = explainTieBreak(1, 'A', 'B', true);
+    expect(res.tied).toBe(true);
+    expect(res.route?.rule).toBe('SHRS 5.7(ii)(4)');
+    expect(res.winnerBoatId).toBe('A');
+    expect(res.sharedQualRacePairs.length).toBe(0);
+    expect(res.sharedRacePairs.length).toBe(0);
+  });
+
+  it('M7: winnerBoatId is decided by the shared FINAL race, not a higher-numbered shared Qualifying race', () => {
+    // A and B share one qualifying race (race_number 4) and one final race
+    // (race_number 1, but it's the event's actual LAST race since final
+    // races are sailed after qualifying and restart numbering at 1).
+    // A8.1 ties ([1,5] vs [1,5] for both); the authoritative comparator
+    // (compareOverallTiePackets, already fixed for M7) must decide A8.2 by
+    // the final race: A=1 vs B=5 -> A wins. This mirrors the
+    // HeatRaceHandler.overallTieBreak.test.ts handler-level M7 test, but
+    // pins the SAME expectation through the explain panel's `winnerBoatId`.
+    setupDb({
+      A: [
+        { race_id: 1, race_number: 4, points: 5, heat_type: 'Qualifying' },
+        {
+          race_id: 11,
+          race_number: 1,
+          points: 1,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+      ],
+      B: [
+        { race_id: 1, race_number: 4, points: 1, heat_type: 'Qualifying' },
+        {
+          race_id: 11,
+          race_number: 1,
+          points: 5,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+      ],
+    });
+    const res = explainTieBreak(1, 'A', 'B', true);
+    expect(res.tied).toBe(true);
+    expect(res.route?.rule).toBe('SHRS 5.7(ii)');
+    expect(res.winnerBoatId).toBe('A');
+  });
+
+  // Same fixture as the M7 winner test above. The winner is correct (it comes
+  // from the already-fixed `compareOverallTiePackets`), but the narration's
+  // A8.2 "breaker race" is built independently in `explainTieBreak.ts` by
+  // sorting shared pairs on `race_number` alone, with no knowledge of
+  // heat_type (`a82PairsDesc` at explainTieBreak.ts:463). A Qualifying race
+  // numbered 4 sorts ahead of a Final race numbered 1, so the panel narrates
+  // and highlights the WRONG race as the tie-breaker even though the
+  // reported winner is right.
+  // TODO(source-bug): explainTieBreak.ts:463 — `a82PairsDesc` must rank
+  // shared Final-series pairs ahead of shared Qualifying pairs (mirror the
+  // `seriesRank` fix already applied in overallTieBreak.ts:153), not sort by
+  // race_number alone.
+  it('M7: the A8.2 narration step cites the shared FINAL race as the tie-breaker, not the higher-numbered Qualifying race', () => {
+    setupDb({
+      A: [
+        { race_id: 1, race_number: 4, points: 5, heat_type: 'Qualifying' },
+        {
+          race_id: 11,
+          race_number: 1,
+          points: 1,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+      ],
+      B: [
+        { race_id: 1, race_number: 4, points: 1, heat_type: 'Qualifying' },
+        {
+          race_id: 11,
+          race_number: 1,
+          points: 5,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+      ],
+    });
+    const res = explainTieBreak(1, 'A', 'B', true);
+    const a82Step = res.steps.find((s) => s.comparison?.mode === 'A8.2');
+    expect(a82Step?.comparison?.raceId).toBe(11); // the Final race, not race 1 (Qualifying)
+    expect(a82Step?.comparison?.scoreA).toBe(1);
+    expect(a82Step?.comparison?.scoreB).toBe(5);
+  });
+
+  // SHRS 5.7(ii)(4) / RRS A8.1+A8.2 fallback for the combined comparator
+  // (`compareOverallTiePackets`), the same root cause pinned directly in
+  // overallTieBreak.test.ts ("M8: unresolved tie must stay tied"). Included
+  // here too because it is directly observable through explainTieBreak.ts's
+  // `winnerBoatId`, which this panel promises will never disagree with the
+  // authoritative comparator.
+  // TODO(source-bug): overallTieBreak.ts:189 — shared-heat A8 fallback
+  // should report "still tied" (e.g. return 0) instead of localeCompare.
+  it('multi-heat overall tie, every shared race identical: stays tied, no winner (SHRS 5.7(ii))', () => {
+    setupDb({
+      A: [
+        { race_id: 1, race_number: 1, points: 2, heat_type: 'Qualifying' },
+        { race_id: 2, race_number: 2, points: 1, heat_type: 'Qualifying' },
+        {
+          race_id: 11,
+          race_number: 1,
+          points: 2,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+        {
+          race_id: 12,
+          race_number: 2,
+          points: 1,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+      ],
+      B: [
+        { race_id: 1, race_number: 1, points: 2, heat_type: 'Qualifying' },
+        { race_id: 2, race_number: 2, points: 1, heat_type: 'Qualifying' },
+        {
+          race_id: 11,
+          race_number: 1,
+          points: 2,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+        {
+          race_id: 12,
+          race_number: 2,
+          points: 1,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+      ],
+    });
+    const res = explainTieBreak(1, 'A', 'B', true);
+    expect(res.tied).toBe(true);
+    expect(res.route?.rule).toBe('SHRS 5.7(ii)');
+    expect(res.winnerBoatId).toBeNull();
   });
 });

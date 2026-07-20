@@ -815,7 +815,7 @@ export default function useLeaderboard(eventId: number) {
       return;
     }
     if (
-      newStatus === 'RDG3' &&
+      (newStatus === 'RDG3' || newStatus === 'DPI') &&
       newRaceValue !== null &&
       Number.isNaN(fallbackInput)
     )
@@ -861,6 +861,20 @@ export default function useLeaderboard(eventId: number) {
         ...prev,
         [`${boatId}-${raceIndex}`]: { type: 'RDG3' },
       }));
+    } else if (newStatus === 'DPI') {
+      // RRS A10: DPI (discretionary penalty imposed) points are set by the
+      // protest committee. The typed value IS the race score (like RDG3), never
+      // auto-derived from the heat size. A null value (status just selected)
+      // seeds from the existing cell so the user can then type the PC's number.
+      if (newRaceValue === null) {
+        const raw = parseFloat(
+          String(targetEntry.races[raceIndex]).replace(/[()]/g, ''),
+        );
+        newPosition = Number.isNaN(raw) ? 0 : raw;
+      } else {
+        newPosition = fallbackInput;
+      }
+      newPoints = newPosition;
     } else if (isRdgType) {
       newPosition = penaltyPosition;
       newPoints = penaltyPosition;

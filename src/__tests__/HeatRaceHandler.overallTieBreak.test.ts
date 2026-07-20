@@ -363,7 +363,7 @@ describe('HeatRaceHandler readOverallLeaderboard tie-break stress tests', () => 
     expect(rows.map((r: any) => r.overall_rank)).toEqual([1, 2, 3]);
   });
 
-  it('uses deterministic fallback for unresolved 3-way tie', async () => {
+  it('leaves an unresolvable 3-way tie in stable input order (no boat_id fallback)', async () => {
     currentScenario.overallRows = [
       {
         boat_id: 'Z9',
@@ -459,7 +459,9 @@ describe('HeatRaceHandler readOverallLeaderboard tie-break stress tests', () => 
     const handler = handlerRegistry.readOverallLeaderboard;
     const rows = await handler({}, 3);
 
-    expect(rows.map((r: any) => r.boat_id)).toEqual(['A1', 'M5', 'Z9']);
+    // All three are genuinely tied after every rule, so they keep their stable
+    // input order (Z9, A1, M5) instead of an invented alphabetical boat_id order.
+    expect(rows.map((r: any) => r.boat_id)).toEqual(['Z9', 'A1', 'M5']);
   });
 
   it('uses latest shared race by race_number for A8.2, not by race_id', async () => {
@@ -537,6 +539,71 @@ describe('HeatRaceHandler readOverallLeaderboard tie-break stress tests', () => 
 
     // In latest shared race (race_number=2), B has fewer points (1 vs 3), so B wins tie.
     expect(rows.map((r: any) => r.boat_id)).toEqual(['B', 'A']);
+  });
+
+  it('compares the final-series race before the qualifying race in A8.2 (last race of the event)', async () => {
+    currentScenario.overallRows = [
+      {
+        boat_id: 'X',
+        qualifying_points: 1,
+        final_points: 5,
+        overall_points: 6,
+        placement_group: 'Gold',
+        final_place: 1,
+      },
+      {
+        boat_id: 'Y',
+        qualifying_points: 5,
+        final_points: 1,
+        overall_points: 6,
+        placement_group: 'Gold',
+        final_place: 2,
+      },
+    ];
+
+    // Both boats share one qualifying race (race_number 4) and one final race
+    // (race_number 1). A8.1 ties ([1,5] vs [1,5]); A8.2 must be decided by the
+    // FINAL race (the event's last race), not the higher-numbered qualifying
+    // race. In the final race Y scored 1 to X's 5, so Y wins the tie.
+    currentScenario.tieScoresByBoatId = {
+      X: [
+        {
+          race_id: 10,
+          race_number: 4,
+          points: 1,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 20,
+          race_number: 1,
+          points: 5,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+      ],
+      Y: [
+        {
+          race_id: 10,
+          race_number: 4,
+          points: 5,
+          heat_type: 'Qualifying',
+          heat_name: 'Heat A1',
+        },
+        {
+          race_id: 20,
+          race_number: 1,
+          points: 1,
+          heat_type: 'Final',
+          heat_name: 'Final Gold',
+        },
+      ],
+    };
+
+    const handler = handlerRegistry.readOverallLeaderboard;
+    const rows = await handler({}, 3);
+
+    expect(rows.map((r: any) => r.boat_id)).toEqual(['Y', 'X']);
   });
 
   it('applies SHRS 5.7.2.2 (excluded scores) when tied boats shared ALL races', async () => {
@@ -687,6 +754,39 @@ describe('HeatRaceHandler readOverallLeaderboard tie-break stress tests', () => 
     const rows = await handler({}, 3);
 
     expect(rows.map((r: any) => r.boat_id)).toEqual(['Y', 'X']);
+  });
+
+  it('does not run cross-fleet tie-break when a Gold and a Silver boat happen to have EQUAL overall_points (SHRS 5.5)', async () => {
+    // Equal points across fleets must NOT be treated as a tie group: the
+    // grouping loop only merges consecutive rows that share BOTH fleet and
+    // points. No tie-score fixtures are provided for these boats, so if the
+    // fleet boundary were accidentally crossed, the tie-break comparator
+    // would run against empty score data and this test would still need to
+    // assert Gold-first — proving fleet order wins regardless either way.
+    currentScenario.overallRows = [
+      {
+        boat_id: 'S1',
+        qualifying_points: 5,
+        final_points: 5,
+        overall_points: 10,
+        placement_group: 'Silver',
+        final_place: 1,
+      },
+      {
+        boat_id: 'G1',
+        qualifying_points: 5,
+        final_points: 5,
+        overall_points: 10,
+        placement_group: 'Gold',
+        final_place: 1,
+      },
+    ];
+
+    const handler = handlerRegistry.readOverallLeaderboard;
+    const rows = await handler({}, 3);
+
+    expect(rows.map((r: any) => r.boat_id)).toEqual(['G1', 'S1']);
+    expect(rows.map((r: any) => r.overall_rank)).toEqual([1, 2]);
   });
 
   it('ranks every Gold boat above Silver boats regardless of points (SHRS 5.5)', async () => {

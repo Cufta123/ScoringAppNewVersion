@@ -102,7 +102,10 @@ export function buildOverallTiePacket(
     a81KeptScores: [...qualPacket.keptForA81, ...finalPacket.keptForA81].sort(
       (a, b) => a - b,
     ),
-    a82AllScores: [...qualPacket.allForA82, ...finalPacket.allForA82],
+    // RRS A8.2 walks from the event's LAST race backward. Final-series races
+    // are sailed after the qualifying series, so they must lead the combined
+    // A8.2 list (each packet is already ordered most-recent-first internally).
+    a82AllScores: [...finalPacket.allForA82, ...qualPacket.allForA82],
   };
 }
 
@@ -144,9 +147,18 @@ export function compareOverallTiePackets(
           leftRow?.race_number ??
           rightRow?.race_number ??
           Number.MIN_SAFE_INTEGER;
-        return { raceId, raceNumber };
+        const heatType = leftRow?.heat_type ?? rightRow?.heat_type ?? '';
+        // Final-series races are the event's last races, so rank them before
+        // qualifying races when walking A8.2 from the last race backward.
+        const seriesRank = heatType === 'Final' ? 0 : 1;
+        return { raceId, raceNumber, seriesRank };
       })
-      .sort((a, b) => b.raceNumber - a.raceNumber || b.raceId - a.raceId)
+      .sort(
+        (a, b) =>
+          a.seriesRank - b.seriesRank ||
+          b.raceNumber - a.raceNumber ||
+          b.raceId - a.raceId,
+      )
       .map((entry) => entry.raceId);
     const a82SharedLeft = sharedDescendingIds
       .map((raceId) => left.byRaceId.get(raceId)?.points)
@@ -173,8 +185,12 @@ export function compareOverallTiePackets(
     if (a82Comparison !== 0) return a82Comparison;
   }
 
-  // Deterministic fallback when still tied after all applicable rules.
-  return String(leftBoatId).localeCompare(String(rightBoatId));
+  // Still tied after every applicable rule (RRS A8.1/A8.2 and SHRS 5.7.2):
+  // the boats remain tied. Do NOT invent an order from the internal boat_id —
+  // returning 0 keeps their existing (stable) order instead of a non-rule-legal
+  // ordering. leftBoatId/rightBoatId are retained in the signature for callers
+  // and the explanation panel.
+  return 0;
 }
 
 export function resolveOverallTieGroupSequentially<T extends { boat_id: any }>(

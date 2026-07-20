@@ -14,9 +14,13 @@ export function getScoringPenaltyPoints(
   maxBoats: number,
   status?: string,
 ): number {
-  // RRS 44.3(c): ZFP/SCP = 20% of boats, rounded to nearest whole number
-  // (0.5 rounded up). RRS Appendix T1 = 30%, calculated the same way.
+  // RRS 44.3(c): ZFP/SCP worsen the score by 20% of the score for DNF, rounded
+  // to the nearest whole number (0.5 up). RRS Appendix T1 = 30%, same method.
+  // Under SHRS 5.2 the score for DNF is (boats in the largest heat) + 1, so the
+  // percentage base is maxBoats + 1 — NOT maxBoats. The cap below already uses
+  // maxBoats + 1 as the DNF score; the base must match it.
   const penaltyRate = status === 'T1' ? 0.3 : 0.2;
-  const penaltyPlaces = roundHalfUp(maxBoats * penaltyRate);
-  return Math.min(finishingPosition + penaltyPlaces, maxBoats + 1);
+  const dnfScore = maxBoats + 1;
+  const penaltyPlaces = roundHalfUp(dnfScore * penaltyRate);
+  return Math.min(finishingPosition + penaltyPlaces, dnfScore);
 }

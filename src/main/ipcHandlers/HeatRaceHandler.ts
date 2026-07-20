@@ -149,6 +149,10 @@ function applyRaceResultUpdate(
   const status = normalizeScoreStatus(new_status);
   const isRdg = rdgStatuses.includes(status);
   const isScoringPenalty = scoringPenaltyStatuses.has(status);
+  // RRS A10: DPI points are set by the protest committee, so — like RDG — the
+  // frontend-provided value is kept verbatim and never auto-derived to
+  // (largest heat + 1). Grouped with RDG under `keepsProvidedPoints`.
+  const keepsProvidedPoints = isRdg || status === 'DPI';
 
   // Determine heat info used by SHRS 5.2 / 44.3(c) scoring.
   const heatRow = db
@@ -165,12 +169,12 @@ function applyRaceResultUpdate(
     captureRaceAssignmentSnapshotIfMissing(heatRow.heat_id, Number(race_id));
   }
 
-  // For RDG statuses keep frontend-provided value;
+  // For RDG and DPI statuses keep the frontend-provided value (PC-set);
   // for ZFP/SCP apply scoring penalty on finishing place;
   // for other penalties use largest-heat size + 1 per SHRS 5.2.
   let finalPosition = Number(new_position);
   let points = finalPosition;
-  if (!isRdg && penaltyStatuses.includes(status)) {
+  if (!keepsProvidedPoints && penaltyStatuses.includes(status)) {
     if (isScoringPenalty) {
       points = getScoringPenaltyPoints(finalPosition, maxBoats, status);
     } else {
@@ -206,7 +210,12 @@ function applyRaceResultUpdate(
   // are — no displacement, no ripple, no re-rank — even if that leaves a tie or
   // a gap. The renderer preview behaves identically so Save never diverges from
   // what the user saw. With the toggle ON we mirror the full race re-scoring.
-  if (shift_positions) {
+  // RRS A6.2: giving redress by adjusting one boat's score must NOT change any
+  // other boat's score. So an RDG edit never triggers displacement or a re-rank,
+  // even with "shift other boats" on — only the redressed boat's own row (set
+  // above) changes. DPI is treated the same way: a discretionary points penalty
+  // does not vacate a finishing place, so it never displaces other boats.
+  if (shift_positions && !keepsProvidedPoints) {
     if (
       previousStatus === 'FINISHED' &&
       mandatoryDisplaceStatuses.has(status)
@@ -215,6 +224,38 @@ function applyRaceResultUpdate(
         `UPDATE Scores SET position = position - 1, points = position - 1
          WHERE race_id = ? AND status = 'FINISHED' AND position > ?`,
       ).run(race_id, currentPosition);
+
+      // RRS A6.1 applies to position-keeping penalty boats (ZFP/SCP/T1) too:
+      // they hold a finishing place, so a boat placed worse than the removed
+      // boat moves up one. Their points are a percentage of the DNF score, not
+      // the place, so recompute each instead of the flat position=points shift
+      // above. Doing this here also prevents a stale penalty position from
+      // colliding with a shifted finisher and being mis-read as an RRS A7 tie
+      // by applyRaceTieScoring.
+      const penaltyStatusList = [...scoringPenaltyStatuses]
+        .map((penaltyStatus) => `'${penaltyStatus}'`)
+        .join(', ');
+      const penaltyRowsBehind = db
+        .prepare(
+          `SELECT score_id, position, status FROM Scores
+           WHERE race_id = ? AND status IN (${penaltyStatusList}) AND position > ?`,
+        )
+        .all(race_id, currentPosition) as {
+        score_id: number;
+        position: number;
+        status: string;
+      }[];
+      const shiftPenaltyRow = db.prepare(
+        'UPDATE Scores SET position = ?, points = ? WHERE score_id = ?',
+      );
+      penaltyRowsBehind.forEach((row) => {
+        const newPosition = row.position - 1;
+        shiftPenaltyRow.run(
+          newPosition,
+          getScoringPenaltyPoints(newPosition, maxBoats, row.status),
+          row.score_id,
+        );
+      });
     }
 
     if (status === 'FINISHED') {

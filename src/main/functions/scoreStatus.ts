@@ -6,13 +6,15 @@
 // independently of the IPC handler wiring.
 
 // Scoring-penalty math lives in src/shared so the renderer's edit-mode preview
-// can score these penalties identically. Re-exported here to keep this module
-// the single import surface for the scoring vocabulary.
-export {
+// can score these penalties identically. Imported for local use and re-exported
+// to keep this module the single import surface for the scoring vocabulary.
+import {
   scoringPenaltyStatuses,
   roundHalfUp,
   getScoringPenaltyPoints,
 } from '../../shared/scoringPenalty';
+
+export { scoringPenaltyStatuses, roundHalfUp, getScoringPenaltyPoints };
 
 // SHRS 2026-1 (5.3) is source-of-truth for displacement order.
 // Appendix-only statuses are appended as fallback when SHRS text is silent.
@@ -64,6 +66,35 @@ export const allowedScoreStatuses = new Set<string>([
   ...penaltyStatuses,
   ...rdgStatuses,
 ]);
+
+// SHRS 5.2 / RRS 44.3(c): derive the points a non-finisher status should carry
+// given the current largest-heat size. Mirrors the write-time logic in
+// applyRaceResultUpdate so a leaderboard recompute can re-derive frozen scores
+// against the current series-wide largest heat (fixing stale DNF/DNS points).
+// Returns null for statuses whose points are NOT a function of the largest heat
+// (FINISHED keeps its place-based points; RDG keeps its redress value).
+export function deriveNonFinisherPoints(
+  status: string,
+  position: number,
+  maxBoats: number,
+): number | null {
+  if (rdgStatuses.includes(status)) {
+    return null;
+  }
+  // RRS A10: DPI (discretionary penalty imposed) points are SET BY THE PROTEST
+  // COMMITTEE, not a function of the largest heat. Keep the stored (PC-entered)
+  // value — never auto-derive it and never renormalize it (unlike DSQ et al.).
+  if (status === 'DPI') {
+    return null;
+  }
+  if (!penaltyStatuses.includes(status)) {
+    return null; // FINISHED
+  }
+  if (scoringPenaltyStatuses.has(status)) {
+    return getScoringPenaltyPoints(position, maxBoats, status);
+  }
+  return maxBoats + 1;
+}
 
 export function normalizeScoreStatus(status: unknown): string {
   if (typeof status !== 'string' || status.trim() === '') {
@@ -130,8 +161,19 @@ export function compareSeededRows(left: SeededRow, right: SeededRow): number {
     }
   }
 
-  return buildAlphanumericKey(left.country, left.sail_number).localeCompare(
-    buildAlphanumericKey(right.country, right.sail_number),
+  // SHRS 5.3 / 3.1(iv): break ties on national letter, then by NUMERICAL order
+  // of sail number (SHRS rule 3 preamble). A plain string compare would sort
+  // "10" before "9"; the numeric collator keeps them in sailing order.
+  const leftCountry = String(left.country ?? '').toUpperCase();
+  const rightCountry = String(right.country ?? '').toUpperCase();
+  const byCountry = leftCountry.localeCompare(rightCountry);
+  if (byCountry !== 0) {
+    return byCountry;
+  }
+  return String(left.sail_number ?? '').localeCompare(
+    String(right.sail_number ?? ''),
+    undefined,
+    { numeric: true, sensitivity: 'base' },
   );
 }
 

@@ -1,5 +1,5 @@
 SHRS Final Fleet Detailed Analysis (7 qualifying races)
-Rule used for fleet split: SHRS 4.2 temporary second worst score excluded (total 2 exclusions at 7 races).
+Rule used for fleet split: SHRS 4.3 temporary second worst score excluded (total 2 exclusions at 7 races).
 Penalty status points used in this reconstruction: 21.
 
 Marco Bagnara: original #35, adjusted #38, fleet Silver, movement down 3.

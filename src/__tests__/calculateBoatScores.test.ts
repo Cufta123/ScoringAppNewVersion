@@ -166,6 +166,19 @@ describe('Score exclusion thresholds', () => {
     expect(result.boatA.totalPoints).toBe(expected);
   });
 
+  it('applies the series-wide discard count to a boat that missed a race (SHRS 5.4)', () => {
+    // Series has 4 completed races (boat A sailed all 4); boat B sailed only 3.
+    // SHRS 5.4 keys the discard count off races completed in the SERIES, so
+    // both boats discard 1 worst score — B must not get 0 discards.
+    setupMockDb({
+      A: [10, 1, 1, 1], // DESC worst-first
+      B: [10, 1, 1],
+    });
+    const result = run([makeResult('A', 4), makeResult('B', 3)]);
+    expect(result.A.totalPoints).toBe(3); // 1+1+1 (10 excluded)
+    expect(result.B.totalPoints).toBe(2); // 1+1 (10 excluded, not kept)
+  });
+
   it('each threshold [4,8,16,24,32] adds one more exclusion', () => {
     const thresholds = [4, 8, 16, 24, 32];
     thresholds.forEach((numRaces, idx) => {
@@ -739,6 +752,98 @@ describe('Edge cases', () => {
     setupMockDb({ boatA: [3, 2, 1] });
     const result = run([makeResult('boatA', 0)]);
     expect(result.boatA.totalPoints).toBe(6);
+  });
+});
+
+describe('Score exclusion exact boundaries (SHRS 5.4)', () => {
+  it('excludes 1 score at exactly races = 7 (one below the 8-race second threshold)', () => {
+    // DESC worst-first: [7,6,5,4,3,2,1]
+    setupMockDb({ boatA: [7, 6, 5, 4, 3, 2, 1] });
+    const result = run([makeResult('boatA', 7)]);
+    // 4-7 band => 1 discard: drop worst (7) -> 6+5+4+3+2+1 = 21
+    expect(result.boatA.totalPoints).toBe(21);
+  });
+
+  it('excludes 2 scores at exactly races = 15 (one below the 16-race +1 threshold)', () => {
+    const scores = Array.from({ length: 15 }, (_, i) => 15 - i); // [15,...,1] DESC
+    setupMockDb({ boatA: scores });
+    const result = run([makeResult('boatA', 15)]);
+    // 8-15 band => 2 discards: drop 15,14
+    const expected = scores.slice(2).reduce((a, b) => a + b, 0);
+    expect(result.boatA.totalPoints).toBe(expected);
+  });
+});
+
+describe('Unequal per-boat race counts (C1) — series-wide max drives every boat', () => {
+  it('applies the series-max discard count to boats with fewer races each, not their own count', () => {
+    // Series max = 8 races (boat A sailed all 8). B sailed 4, C sailed 3.
+    // SHRS 5.4 keys the discard count off races completed in the SERIES (8 => 2
+    // discards) — not each boat's own race count — so B and C must ALSO discard
+    // 2 scores, not the 1 (for B, own count 4) or 0 (for C, own count 3) that a
+    // per-boat calculation would wrongly give them.
+    setupMockDb({
+      A: [9, 8, 1, 1, 1, 1, 1, 1], // 8 scores
+      B: [9, 8, 1, 1], // 4 scores
+      C: [9, 1, 1], // 3 scores
+    });
+    const result = run([
+      makeResult('A', 8),
+      makeResult('B', 4),
+      makeResult('C', 3),
+    ]);
+    // A: drop worst 2 (9,8) -> 1*6 = 6
+    expect(result.A.totalPoints).toBe(6);
+    // B: series-wide excludeCount=2 applied to its 4 scores -> drop 9,8 -> 1+1=2
+    expect(result.B.totalPoints).toBe(2);
+    // C: series-wide excludeCount=2 applied to its 3 scores -> drop 9 and the
+    // earliest of the two tied 1s -> keeps a single 1
+    expect(result.C.totalPoints).toBe(1);
+  });
+});
+
+describe('Fractional scores (RRS A7 shared points) flow through totals and tie-breaks', () => {
+  it('sums fractional (x.5) points correctly and can discard a fractional worst score', () => {
+    // A7: boats tied for a place share the summed points equally, producing a
+    // fractional score (e.g. two boats tied for 4th/5th each score 4.5).
+    setupMockDb({ boatA: [4.5, 4.5, 3, 2, 1] });
+    const result = run([makeResult('boatA', 5)]);
+    // races=5 -> 1 discard; among the tied 4.5s the earliest race is dropped,
+    // leaving 4.5+3+2+1 = 10.5
+    expect(result.boatA.totalPoints).toBe(10.5);
+  });
+
+  it('breaks an A8.1 tie correctly when kept-score arrays contain fractional values', () => {
+    // boatA kept ASC [1,2.5,4] vs boatB kept ASC [1,3,3.5]: totals both 7.5,
+    // first elements equal (1==1), second elements differ (2.5 < 3) -> boatA
+    // wins. Verifies compareScoreArrays does numeric (not lexicographic
+    // string) comparison of fractional A7 points.
+    setupMockDb({
+      boatA: [4, 2.5, 1],
+      boatB: [1, 3, 3.5],
+    });
+    const result = run([makeResult('boatA', 3), makeResult('boatB', 3)]);
+    expect(result.boatA.place).toBe(1);
+    expect(result.boatB.place).toBe(2);
+  });
+});
+
+describe('m6: empty custom threshold list integration (see docs/SCORING_AUDIT.md m6)', () => {
+  it('falls back to the standard 4/8/8 profile when thresholds is an empty array', () => {
+    // Documents CURRENT behavior end-to-end through calculateBoatScores:
+    // normalizeDiscardConfig keeps thresholds:[] but getExcludeCountForConfig
+    // only honours thresholds when length > 0, so an event configured for
+    // "never discard" via an empty threshold list silently reverts to
+    // standard discards. Flagged as m6 — needs a product decision; this test
+    // pins the current (not necessarily desired) behavior.
+    setupMockDb(
+      { boatA: [9, 8, 7, 6, 5, 4, 3, 2] },
+      {},
+      {},
+      { thresholds: [] },
+    );
+    const result = run([makeResult('boatA', 8)]);
+    // Standard profile at 8 races -> 2 discards (9,8 dropped), NOT 0.
+    expect(result.boatA.totalPoints).toBe(7 + 6 + 5 + 4 + 3 + 2);
   });
 });
 

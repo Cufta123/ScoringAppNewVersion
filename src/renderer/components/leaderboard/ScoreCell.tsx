@@ -78,24 +78,28 @@ function ScoreCell({
   const inputValue = draft ?? rawNumeric;
 
   const isManualRdg = raceStatus === 'RDG3';
+  // DPI (RRS A10) is a PC-typed numeric score, entered exactly like manual RDG.
+  const isManualDpi = raceStatus === 'DPI';
+  const isManualPoints = isManualRdg || isManualDpi;
   // Position-keeping penalties (ZFP/SCP/T1) are DEFINED by their finishing
   // place, so their place stays typeable; only hard penalties (DNS/DSQ/…)
-  // and computed RDG cells lock the numeric input.
+  // and computed RDG cells lock the numeric input. Manual-points cells
+  // (RDG3, DPI) stay typeable.
   const keepsFinishingPlace = scoringPenaltyStatuses.has(raceStatus);
-  const isInputLocked = isPenalty && !keepsFinishingPlace && !isManualRdg;
+  const isInputLocked = isPenalty && !keepsFinishingPlace && !isManualPoints;
 
-  // Manual RDG caps at 2 digits (99); a normal finish caps at the heat size.
+  // Manual-points cells cap at 2 digits (99); a normal finish caps at heat size.
   let numericMax: number | undefined;
-  if (isManualRdg) {
+  if (isManualPoints) {
     numericMax = 99;
   } else if (maxPosition > 0) {
     numericMax = maxPosition;
   }
 
-  // Manual RDG (RDG3) skips the heat-size clamp, so cap the typed value at two
-  // integer digits (max 99) to stop runaway entries. Decimals are kept.
+  // Manual-points cells (RDG3, DPI) skip the heat-size clamp, so cap the typed
+  // value at two integer digits (max 99) to stop runaway entries. Decimals kept.
   const capManualRdg = (value: string): string => {
-    if (!isManualRdg) return value;
+    if (!isManualPoints) return value;
     const dot = value.indexOf('.');
     const intPart = (dot === -1 ? value : value.slice(0, dot)).replace(
       /\D/g,
@@ -176,6 +180,9 @@ function ScoreCell({
             let statusForChange = 'FINISHED';
             if (isManualRdg) {
               statusForChange = 'RDG3';
+            } else if (isManualDpi) {
+              // Typing a value must not clear the DPI penalty (RRS A10).
+              statusForChange = 'DPI';
             } else if (keepsFinishingPlace) {
               // Typing a new place must not clear the ZFP/SCP/T1 penalty.
               statusForChange = raceStatus;

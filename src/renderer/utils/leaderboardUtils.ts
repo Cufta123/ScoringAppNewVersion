@@ -182,6 +182,9 @@ export const getRaceCellDisplay = (
 ): RaceCellDisplay => {
   const isPenalty = PENALTY_CODES.includes(raceStatus);
   const isRdgCell = RDG_TYPES.includes(raceStatus);
+  // DPI carries a PC-set numeric score (RRS A10), so it is displayed with its
+  // number (like RDG), not as a bare place-less penalty code.
+  const isDpiCell = raceStatus === 'DPI';
   const isExcluded = typeof race === 'string' && race.startsWith('(');
 
   let displayText: string;
@@ -194,6 +197,13 @@ export const getRaceCellDisplay = (
   } else if (isRdgCell) {
     displayText = `RDG (${race})`;
     displayColor = 'var(--teal, #2a9d8f)';
+  } else if (isDpiCell && isExcluded) {
+    const clean = race.replace(/[()]/g, '');
+    displayText = `(DPI (${clean}))`;
+    displayColor = '#888';
+  } else if (isDpiCell) {
+    displayText = `DPI (${race})`;
+    displayColor = 'var(--danger, #e63946)';
   } else if (isPenalty && isExcluded) {
     displayText = `(${raceStatus})`;
     displayColor = '#999';

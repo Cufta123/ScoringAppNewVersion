@@ -30,6 +30,15 @@ jest.mock('../../public/Database/DBManager', () => ({
       const flat = sql.replace(/\s+/g, ' ');
       return {
         all: () => {
+          // startFinalSeriesAtomic re-reads Heats without a SQL-side
+          // heat_type filter (it filters in JS instead), so it needs
+          // heat_type on each row too.
+          if (flat.includes('heat_id, heat_name, heat_type FROM Heats')) {
+            return scenario.heats.map((h) => ({
+              ...h,
+              heat_type: 'Qualifying',
+            }));
+          }
           if (
             flat.includes('FROM Heats') &&
             flat.includes("heat_type = 'Qualifying'")
@@ -206,5 +215,124 @@ describe('getFinalSeriesEligibility', () => {
     expect(res.ok).toBe(true);
     expect(res.latestRoundUnsailed).toBe(false);
     expect(res.noRacesCompleted).toBe(false);
+  });
+
+  describe('Rule 4.3 window boundaries (5/6/7/8 completed races)', () => {
+    it('5 completed races: window closed (below the >5 threshold)', async () => {
+      scenario = {
+        heats: [
+          { heat_name: 'Heat A1', heat_id: 11 },
+          { heat_name: 'Heat B1', heat_id: 12 },
+        ],
+        raceCounts: { 11: 5, 12: 5 },
+        maxScores: 5,
+      };
+      const res = await run();
+      expect(res.completedQualifyingRaces).toBe(5);
+      expect(res.rule43Applies).toBe(false);
+    });
+
+    it('6 completed races: window open (lower edge)', async () => {
+      scenario = {
+        heats: [
+          { heat_name: 'Heat A1', heat_id: 11 },
+          { heat_name: 'Heat B1', heat_id: 12 },
+        ],
+        raceCounts: { 11: 6, 12: 6 },
+        maxScores: 6,
+      };
+      const res = await run();
+      expect(res.completedQualifyingRaces).toBe(6);
+      expect(res.rule43Applies).toBe(true);
+    });
+
+    it('7 completed races: window open (upper edge)', async () => {
+      scenario = {
+        heats: [
+          { heat_name: 'Heat A1', heat_id: 11 },
+          { heat_name: 'Heat B1', heat_id: 12 },
+        ],
+        raceCounts: { 11: 7, 12: 7 },
+        maxScores: 7,
+      };
+      const res = await run();
+      expect(res.completedQualifyingRaces).toBe(7);
+      expect(res.rule43Applies).toBe(true);
+    });
+
+    it('8 completed races: window closed again (at the <8 threshold)', async () => {
+      scenario = {
+        heats: [
+          { heat_name: 'Heat A1', heat_id: 11 },
+          { heat_name: 'Heat B1', heat_id: 12 },
+        ],
+        raceCounts: { 11: 8, 12: 8 },
+        maxScores: 8,
+      };
+      const res = await run();
+      expect(res.completedQualifyingRaces).toBe(8);
+      expect(res.rule43Applies).toBe(false);
+    });
+  });
+
+  it('ignores qualifying heats whose name does not match "Heat <LETTERS>" when counting groups', async () => {
+    // A malformed/legacy heat_name must not be silently counted as its own
+    // fleet group — only heats matching /Heat ([A-Z]+)/ contribute.
+    scenario = {
+      heats: [
+        { heat_name: 'Heat A1', heat_id: 11 },
+        { heat_name: 'Heat B1', heat_id: 12 },
+        { heat_name: 'Malformed Group', heat_id: 13 },
+      ],
+      raceCounts: { 11: 5, 12: 5, 13: 5 },
+      maxScores: 5,
+    };
+    const res = await run();
+    expect(res.ok).toBe(true);
+    expect(res.numFinalHeats).toBe(2);
+  });
+
+  it('reports latestRoundNumber as null when the latest heat name has no numeric suffix', async () => {
+    scenario = {
+      heats: [
+        { heat_name: 'Heat A', heat_id: 11 },
+        { heat_name: 'Heat B', heat_id: 12 },
+      ],
+      raceCounts: { 11: 6, 12: 6 },
+      maxScores: 6,
+    };
+    const res = await run();
+    expect(res.ok).toBe(true);
+    expect(res.latestRoundNumber).toBeNull();
+  });
+
+  // m3 (docs/SCORING_AUDIT.md): getFinalSeriesEligibility can report ok:true
+  // with 0 completed qualifying races (only empty heats exist, nothing has
+  // been scored anywhere yet), but HeatRaceHandler's startFinalSeriesAtomic
+  // then throws because the qualifying Leaderboard has no rows. This test
+  // locks in the CURRENT (inconsistent) behavior of both functions side by
+  // side — see docs/SCORING_AUDIT.md m3 and HeatRaceHandler.ts around the
+  // `leaderboard.length === 0` check (~line 1335). Source bug, not fixed
+  // here: eligibility should not report "ok" for a state the start handler
+  // immediately rejects.
+  it('m3: eligibility says ok:true at 0 completed races, but startFinalSeriesAtomic throws — inconsistent', async () => {
+    scenario = {
+      heats: [
+        { heat_name: 'Heat A1', heat_id: 11 },
+        { heat_name: 'Heat B1', heat_id: 12 },
+      ],
+      raceCounts: { 11: 0, 12: 0 },
+      maxScores: 0,
+    };
+
+    const eligibility = await run();
+    expect(eligibility.ok).toBe(true);
+    expect(eligibility.reason).toBe('OK');
+    expect(eligibility.completedQualifyingRaces).toBe(0);
+    expect(eligibility.noRacesCompleted).toBe(true);
+
+    await expect(handlerRegistry.startFinalSeriesAtomic({}, 1)).rejects.toThrow(
+      'Cannot start final series without qualifying leaderboard data.',
+    );
   });
 });

@@ -64,6 +64,12 @@ const config: Config = {
     '**/src/__tests__/scoreStatus.test.ts',
     '**/src/__tests__/leaderboardRecompute.test.ts',
     '**/src/__tests__/EventForm.advancedDiscards.test.jsx',
+    '**/src/__tests__/fleetAssignment.test.ts',
+    '**/src/__tests__/SHRS.finalFleetAssignmentReport.test.ts',
+    '**/src/__tests__/leaderboardUtils.exclusions.test.ts',
+    '**/src/__tests__/overallTieBreak.test.ts',
+    '**/src/__tests__/discardConfig.test.ts',
+    '**/src/__tests__/scoringPenalty.test.ts',
   ],
 };
 

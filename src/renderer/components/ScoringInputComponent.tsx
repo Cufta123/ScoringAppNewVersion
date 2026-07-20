@@ -58,7 +58,9 @@ const PENALTY_OPTIONS = [
   { value: 'DSQ', label: 'DSQ — Disqualified' },
   { value: 'DNE', label: 'DNE — Disqualified (cannot be discarded)' },
   { value: 'DGM', label: 'DGM — Disqualified, gross misconduct' },
-  { value: 'DPI', label: 'DPI — Discretionary penalty' },
+  // DPI (RRS A10 discretionary penalty) carries a protest-committee-set points
+  // value, so it is applied afterwards via the leaderboard edit flow (where the
+  // points field exists), not during initial finish-order entry.
 ];
 
 function ScoringInputComponent({ heat, onSubmit }: ScoringInputComponentProps) {

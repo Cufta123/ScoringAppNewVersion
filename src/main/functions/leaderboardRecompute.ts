@@ -2,10 +2,54 @@
 import { db } from '../../../public/Database/DBManager';
 import calculateBoatScores from './calculateBoatScores';
 import calculateFinalBoatScores from './calculateFinalBoatScores';
+import { getMaxHeatSizeForEvent } from './heatQueries';
+import { deriveNonFinisherPoints } from './scoreStatus';
 
 // Recompute and persist the qualifying and final leaderboards for an event from
 // the raw Scores rows. Both rebuild their table inside a transaction so a failed
 // recompute never leaves a partially-updated leaderboard behind.
+
+// SHRS 5.2: every non-finisher score in a series must use the SAME largest-heat
+// value. Points are frozen into Scores.points at write time, so a race scored
+// when the largest heat was smaller keeps a stale DNF/DNS value once a later
+// round grows the largest heat. Re-derive them against the current series-wide
+// largest heat before aggregating, so all races in the series agree.
+export function renormalizeNonFinisherScores(
+  event_id: any,
+  heat_type: 'Qualifying' | 'Final',
+) {
+  const maxBoats = getMaxHeatSizeForEvent(event_id, heat_type);
+  if (!maxBoats) {
+    return;
+  }
+  const rows = db
+    .prepare(
+      `SELECT s.score_id, s.position, COALESCE(s.status, 'FINISHED') AS status
+       FROM Scores s
+       JOIN Races r ON s.race_id = r.race_id
+       JOIN Heats h ON r.heat_id = h.heat_id
+       WHERE h.event_id = ? AND h.heat_type = ?`,
+    )
+    .all(event_id, heat_type) as {
+    score_id: number;
+    position: number;
+    status: string;
+  }[];
+
+  if (rows.length === 0) {
+    return;
+  }
+
+  const updateStmt = db.prepare(
+    'UPDATE Scores SET points = ? WHERE score_id = ?',
+  );
+  rows.forEach((row) => {
+    const derived = deriveNonFinisherPoints(row.status, row.position, maxBoats);
+    if (derived !== null) {
+      updateStmt.run(derived, row.score_id);
+    }
+  });
+}
 
 export function recomputeEventLeaderboard(event_id: any) {
   const deleteStmt = db.prepare('DELETE FROM Leaderboard WHERE event_id = ?');
@@ -26,6 +70,9 @@ export function recomputeEventLeaderboard(event_id: any) {
   );
 
   const tx = db.transaction(() => {
+    // Re-derive frozen non-finisher points against the current series-wide
+    // largest heat (SHRS 5.2) before aggregating, so SUM(points) is consistent.
+    renormalizeNonFinisherScores(event_id, 'Qualifying');
     deleteStmt.run(event_id);
     const results = readQuery.all(event_id);
     if (results.length === 0) {
@@ -58,9 +105,6 @@ export function recomputeFinalLeaderboard(event_id: any) {
     ORDER BY h.heat_name, total_points_final ASC
   `;
   const readQuery = db.prepare(query);
-  const results = readQuery.all(event_id);
-
-  const groupTables = calculateFinalBoatScores(results, event_id);
 
   const deleteStmt = db.prepare(
     'DELETE FROM FinalLeaderboard WHERE event_id = ?',
@@ -72,6 +116,14 @@ export function recomputeFinalLeaderboard(event_id: any) {
   );
 
   const tx = db.transaction(() => {
+    // SHRS 5.2: re-derive frozen non-finisher points against the current
+    // series-wide largest final heat before aggregating, so a Final DNF/DNS
+    // does not keep a stale value once a later round grows the largest heat
+    // (same fix as the Qualifying path). M2 was withdrawn: SHRS 5.2 uses a
+    // single series-wide "largest heat", not a per-fleet value.
+    renormalizeNonFinisherScores(event_id, 'Final');
+    const results = readQuery.all(event_id);
+    const groupTables = calculateFinalBoatScores(results, event_id);
     deleteStmt.run(event_id);
     groupTables.forEach((table, groupName) => {
       table.forEach((boat) => {

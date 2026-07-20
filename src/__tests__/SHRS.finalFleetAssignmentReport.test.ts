@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { computeAdjustedFleetTotals } from '../shared/fleetAssignment';
 
 export {};
 
@@ -224,7 +225,7 @@ describe('SHRS final fleet detailed report', () => {
     const reportLines: string[] = [];
     reportLines.push('SHRS Final Fleet Detailed Analysis (7 qualifying races)');
     reportLines.push(
-      'Rule used for fleet split: SHRS 4.2 temporary second worst score excluded (total 2 exclusions at 7 races).',
+      'Rule used for fleet split: SHRS 4.3 temporary second worst score excluded (total 2 exclusions at 7 races).',
     );
     reportLines.push('Penalty status points used in this reconstruction: 21.');
     reportLines.push('');
@@ -274,5 +275,40 @@ describe('SHRS final fleet detailed report', () => {
     fs.writeFileSync(outPath, reportLines.join('\n'), 'utf8');
 
     expect(fs.existsSync(outPath)).toBe(true);
+  });
+
+  // The report above reconstructs the SHRS 4.3 exclusion locally
+  // (`computeAdjusted`) instead of exercising the real production function,
+  // so it gave no regression protection against `../shared/fleetAssignment`.
+  // This test feeds the same 77-boat, 7-qualifying-race fixture through the
+  // REAL `computeAdjustedFleetTotals` and asserts its per-boat totals match
+  // the local reference implementation exactly, turning this fixture into an
+  // actual correctness check on the source under test.
+  it('real computeAdjustedFleetTotals agrees with the reference reconstruction for all 77 boats', () => {
+    const parsed = parseRows(SOURCE_TABLE);
+    expect(parsed).toHaveLength(77);
+
+    const reference = computeAdjusted(parsed);
+
+    const standardExclude = (n: number): number => {
+      if (n < 4) return 0;
+      if (n < 8) return 1;
+      return 2 + Math.floor((n - 8) / 8);
+    };
+
+    const leaderboardEntries = parsed.map((boat) => ({
+      boat_id: boat.originalRank,
+      race_points: boat.qPoints.join(','),
+      race_statuses: boat.qStatuses.join(','),
+    }));
+
+    const real = computeAdjustedFleetTotals(leaderboardEntries, {
+      getExcludeCount: standardExclude,
+    });
+    const realByBoat = new Map(real.map((r) => [r.boat_id, r.totalPoints]));
+
+    reference.forEach((boat) => {
+      expect(realByBoat.get(boat.originalRank)).toBe(boat.adjustedPoints);
+    });
   });
 });

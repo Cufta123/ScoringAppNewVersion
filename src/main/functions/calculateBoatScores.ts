@@ -208,7 +208,9 @@ export function compareQualifyingTieCandidates(
       return sharedA82Comparison;
     }
 
-    return String(a.boat_id).localeCompare(String(b.boat_id));
+    // Still tied after SHRS 5.7.2 A8.1/A8.2 on shared races: the boats remain
+    // tied. Do not invent an order from the internal boat_id (SHRS 5.7(ii)(4)).
+    return 0;
   }
 
   // Standard A8.1: excluded scores are NOT used.
@@ -228,7 +230,9 @@ export function compareQualifyingTieCandidates(
   if (a82Comparison !== 0) {
     return a82Comparison;
   }
-  return String(a.boat_id).localeCompare(String(b.boat_id));
+  // Still tied after RRS A8.1/A8.2: the boats remain tied. Do not invent an
+  // order from the internal boat_id.
+  return 0;
 }
 
 // SHRS 5.4: after 4 races exclude 1, after 8 exclude 2, then +1 per 8 more
@@ -243,15 +247,25 @@ export default function calculateBoatScores(
     results.map((row) => String(row.boat_id)),
   );
 
+  // SHRS 5.4 keys the discard count off the number of races COMPLETED IN THE
+  // SERIES, a series-wide constant — not each boat's own race count. A boat
+  // that missed a race must still be scored under the same discard count as the
+  // rest of the fleet (otherwise it discards fewer scores and is ranked too
+  // high). The series length is the largest race count among the entered boats.
+  const seriesRaceCount = results.reduce(
+    (max, row) => Math.max(max, Number(row.number_of_races) || 0),
+    0,
+  );
+
   results.forEach((result) => {
     const { boat_id, number_of_races } = result;
 
     // Fetch all scores for the boat
     const scoreEntries = getScoresForA81(event_id, boat_id);
 
-    // Determine the number of scores to exclude per SHRS 5.4
+    // Determine the number of scores to exclude per SHRS 5.4 (series-wide count)
     const excludeCount = getExcludeCountForConfig(
-      number_of_races,
+      seriesRaceCount,
       discardConfig,
     );
     console.log(
@@ -323,16 +337,13 @@ export default function calculateBoatScores(
   Object.entries(boatsWithSamePoints).forEach(([totalPoints, boatIds]) => {
     if (boatIds.length > 1) {
       console.log(`Boats with total points ${totalPoints}:`, boatIds);
-      const raceCountByBoat = new Map<string, number>();
-      results.forEach((row) => {
-        raceCountByBoat.set(String(row.boat_id), Number(row.number_of_races));
-      });
-
       const sortedScores: TieCandidate[] = boatIds.map((boat_id) => {
         const scoreEntries = getScoresForA81(event_id, boat_id);
-        const raceCount =
-          raceCountByBoat.get(String(boat_id)) ?? scoreEntries.length;
-        const excludeCount = getExcludeCountForConfig(raceCount, discardConfig);
+        // SHRS 5.4: same series-wide discard count for every tied boat.
+        const excludeCount = getExcludeCountForConfig(
+          seriesRaceCount,
+          discardConfig,
+        );
         const keptScores = getKeptScores(scoreEntries, excludeCount).sort(
           (a: number, b: number) => a - b,
         );

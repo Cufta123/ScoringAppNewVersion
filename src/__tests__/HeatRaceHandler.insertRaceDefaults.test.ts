@@ -148,6 +148,10 @@ const dbMock = {
       };
     }
 
+    if (sqlContains(sql, "COALESCE(s.status, 'FINISHED') AS status")) {
+      return { all: jest.fn(() => []) };
+    }
+
     throw new Error(`Unhandled SQL in test mock: ${sql}`);
   }),
   transaction: jest.fn((fn: (...args: any[]) => any) => fn),

@@ -158,6 +158,30 @@ describe('useLeaderboard scoring/edit flow', () => {
     expect(edited.race_points[0]).toBe('3');
   });
 
+  it('keeps a DPI cell at the protest-committee-typed points, not fleet size + 1 (RRS A10 / M9)', async () => {
+    const { result } = renderHook(() => useLeaderboard(1));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.toggleEditMode();
+    });
+
+    // PC imposes a discretionary penalty of 2 points for this race. The old bug
+    // auto-scored DPI like DSQ (fleet size 3 + 1 = 4); the typed value must win.
+    act(() => {
+      result.current.handleRaceChange('b2', 0, 2, 'DPI');
+    });
+
+    const edited = result.current.editableLeaderboard.find(
+      (e) => e.boat_id === 'b2',
+    );
+    expect(edited.races[0]).toBe('2');
+    expect(edited.race_statuses[0]).toBe('DPI');
+    expect(edited.computed_total).toBe(2);
+    expect(edited.race_points[0]).toBe('2');
+  });
+
   it('previews ZFP penalty points (not the finishing place) in the edit total', async () => {
     const { result } = renderHook(() => useLeaderboard(1));
 
