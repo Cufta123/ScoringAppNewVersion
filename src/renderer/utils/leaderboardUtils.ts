@@ -190,29 +190,33 @@ export const getRaceCellDisplay = (
   let displayText: string;
   let displayColor: string;
 
+  // Excluded/discarded cells are de-emphasized but must stay readable: the
+  // muted token (#5A7389) clears WCAG AA (4.94:1) where the old #888/#999
+  // (3.5:1 / 2.85:1) failed. Active RDG text uses the darker teal (--teal-hover,
+  // 5.28:1) instead of --teal (#0F9478, 3.8:1) so it passes too.
   if (isRdgCell && isExcluded) {
     const clean = race.replace(/[()]/g, '');
     displayText = `(RDG (${clean}))`;
-    displayColor = '#888';
+    displayColor = 'var(--text-muted, #5A7389)';
   } else if (isRdgCell) {
     displayText = `RDG (${race})`;
-    displayColor = 'var(--teal, #2a9d8f)';
+    displayColor = 'var(--teal-hover, #0B7A63)';
   } else if (isDpiCell && isExcluded) {
     const clean = race.replace(/[()]/g, '');
     displayText = `(DPI (${clean}))`;
-    displayColor = '#888';
+    displayColor = 'var(--text-muted, #5A7389)';
   } else if (isDpiCell) {
     displayText = `DPI (${race})`;
     displayColor = 'var(--danger, #e63946)';
   } else if (isPenalty && isExcluded) {
     displayText = `(${raceStatus})`;
-    displayColor = '#999';
+    displayColor = 'var(--text-muted, #5A7389)';
   } else if (isPenalty) {
     displayText = raceStatus;
     displayColor = 'var(--danger, #e63946)';
   } else if (isExcluded) {
     displayText = race;
-    displayColor = '#999';
+    displayColor = 'var(--text-muted, #5A7389)';
   } else {
     displayText = race;
     displayColor = 'inherit';

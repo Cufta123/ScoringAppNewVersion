@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { reportError, reportInfo } from '../utils/userFeedback';
+import { reportError, reportWarning } from '../utils/userFeedback';
 import {
   POSITION_KEEPING_PENALTIES,
   orderBoatsByPenalty,
@@ -33,6 +33,9 @@ export interface ScoredBoat {
 interface ScoringInputComponentProps {
   heat: ScoringHeat;
   onSubmit: (boatPlaces: ScoredBoat[]) => void;
+  /** Notifies the parent when a not-yet-submitted finish order exists, so it
+   * can guard navigation away from the scoring view. */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 interface FormatPlaceOptions {
@@ -63,7 +66,11 @@ const PENALTY_OPTIONS = [
   // points field exists), not during initial finish-order entry.
 ];
 
-function ScoringInputComponent({ heat, onSubmit }: ScoringInputComponentProps) {
+function ScoringInputComponent({
+  heat,
+  onSubmit,
+  onDirtyChange = () => {},
+}: ScoringInputComponentProps) {
   const [inputValue, setInputValue] = useState('');
   const [boatNumbers, setBoatNumbers] = useState<SailNumber[]>([]);
   const [validBoats, setValidBoats] = useState<SailNumber[]>([]);
@@ -131,6 +138,12 @@ function ScoringInputComponent({ heat, onSubmit }: ScoringInputComponentProps) {
     };
   }, [heat.heat_id]);
 
+  // Tell the parent whenever an unsubmitted finish order exists so it can warn
+  // before navigating away (a place or a penalty counts as work-in-progress).
+  useEffect(() => {
+    onDirtyChange(boatNumbers.length > 0 || Object.keys(penalties).length > 0);
+  }, [boatNumbers, penalties, onDirtyChange]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
   };
@@ -174,7 +187,7 @@ function ScoringInputComponent({ heat, onSubmit }: ScoringInputComponentProps) {
     );
     const invalidInput = unique.filter((n) => !canonicalBySail.has(n));
     if (invalidInput.length > 0) {
-      reportInfo(
+      reportWarning(
         `These sail numbers are not in ${heat.heat_name}: ${invalidInput.join(', ')}`,
         'Unknown sail numbers',
       );
@@ -265,7 +278,7 @@ function ScoringInputComponent({ heat, onSubmit }: ScoringInputComponentProps) {
 
     if (invalidSubmitted.length > 0) {
       setInvalidBoatNumbers(invalidSubmitted.map((v) => Number(v) || v));
-      reportInfo(
+      reportWarning(
         `These sail numbers are not in ${heat.heat_name}: ${invalidSubmitted.join(', ')}.\n\n` +
           'Remove them from finish order and score only boats in this heat.',
         'Invalid sail numbers',
@@ -344,7 +357,7 @@ function ScoringInputComponent({ heat, onSubmit }: ScoringInputComponentProps) {
         (boatNumber) =>
           !assignedBoatNumbers.has(normalizeBoatNumber(boatNumber)),
       );
-      reportInfo(
+      reportWarning(
         `Still missing: sail ${missingBoats.join(', sail ')}.\n\n` +
           'Every boat needs a finishing place or a penalty before you can submit. ' +
           'Click the missing boats in the left table to add them, or pick a penalty (e.g. DNS if a boat did not start).',

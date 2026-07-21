@@ -2,6 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 
 const btnBase: React.CSSProperties = {
   padding: '6px 14px',
+  // Match the app-wide 44px minimum click target (App.css `button` rule). These
+  // inline-styled toolbar buttons previously rendered ~29px tall, below both the
+  // app standard and a comfortable target for slower/less-precise pointing.
+  minHeight: 44,
   borderRadius: 'var(--radius, 6px)',
   fontWeight: 600,
   fontSize: '0.9rem',
@@ -79,8 +83,10 @@ function ExportDropdown({ onExport }: ExportDropdownProps) {
               }}
               aria-label={`Export leaderboard as ${label}`}
               style={{
-                display: 'block',
+                display: 'flex',
+                alignItems: 'center',
                 width: '100%',
+                minHeight: 44,
                 padding: '8px 14px',
                 textAlign: 'left',
                 background: 'none',

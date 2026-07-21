@@ -48,6 +48,19 @@ export const reportInfo = (message?: string, title = 'Notice'): void => {
   toast.info(`${title}: ${body}`);
 };
 
+// Blocking validation the user must act on (e.g. "these sail numbers are not in
+// this heat", "some boats are not scored yet"). Unlike reportInfo these do NOT
+// auto-dismiss, so a slower reader has time to read multi-step instructions
+// before they vanish. `white-space: pre-line` on the toast body (see App.css)
+// keeps the numbered "1) … 2) …" steps on separate lines.
+export const reportWarning = (
+  message?: string,
+  title = 'Please check',
+): void => {
+  const body = message || 'Please review your input.';
+  toast.warning(`${title}: ${body}`, { autoClose: false, closeOnClick: true });
+};
+
 const safeString = (value: unknown, fallback: string): string =>
   typeof value === 'string' && value.trim() ? value : fallback;
 

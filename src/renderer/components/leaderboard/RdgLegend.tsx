@@ -44,7 +44,7 @@ function RdgLegend({
           fontWeight: 700,
           fontSize: '0.88rem',
           marginBottom: '6px',
-          color: 'var(--teal,#2a9d8f)',
+          color: 'var(--teal-hover,#0B7A63)',
         }}
       >
         RDG – Redress Legend
@@ -72,7 +72,9 @@ function RdgLegend({
             key={key}
             style={{ fontSize: '0.88rem', color: '#444', marginBottom: '3px' }}
           >
-            <strong style={{ color: 'var(--teal,#2a9d8f)' }}>{status}</strong>{' '}
+            <strong style={{ color: 'var(--teal-hover,#0B7A63)' }}>
+              {status}
+            </strong>{' '}
             {entry.name} {entry.surname} — {racePrefix}
             {ri + 1}: {desc} = <strong>{score}</strong>
           </div>

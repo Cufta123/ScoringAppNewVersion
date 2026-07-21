@@ -23,6 +23,7 @@ import {
   confirmAction,
   confirmChoice,
   reportError,
+  reportInfo,
 } from '../utils/userFeedback';
 import escapeHtml from '../utils/escapeHtml';
 import {
@@ -1414,6 +1415,10 @@ export default function useLeaderboard(eventId: number) {
       await fetchLeaderboard();
       userEditsRef.current.clear();
       setEditMode(false);
+      reportInfo(
+        'Your leaderboard changes have been saved.',
+        'Leaderboard saved',
+      );
     } catch (error) {
       // Keep the draft, the queued edits, and edit mode intact so the user can
       // fix the problem and retry. Resetting only the visible state here would

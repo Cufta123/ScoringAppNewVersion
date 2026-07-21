@@ -391,11 +391,11 @@ function FinalFleetTable({
                           padding: '8px 10px',
                           textAlign: 'center',
                           fontWeight: 600,
-                          color: '#888',
+                          color: 'var(--text-muted, #5A7389)',
                           background: 'rgba(0,0,0,0.02)',
                           borderLeft: '2px solid rgba(0,0,0,0.1)',
                           borderRight: '1px solid rgba(0,0,0,0.08)',
-                          fontSize: '0.85rem',
+                          fontSize: '0.9rem',
                         }}
                       >
                         {grossTotal > 0 ? grossTotal : '–'}
@@ -409,7 +409,7 @@ function FinalFleetTable({
                       padding: '8px 10px',
                       textAlign: 'center',
                       fontWeight: 700,
-                      color: 'var(--teal, #2a9d8f)',
+                      color: 'var(--teal-hover, #0B7A63)',
                       background: 'rgba(42,157,143,0.05)',
                       borderLeft: '2px solid rgba(42,157,143,0.3)',
                       borderRight: '2px solid rgba(42,157,143,0.3)',

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Autosuggest from 'react-autosuggest';
 import { toast } from 'react-toastify';
-import { reportError, reportInfo } from '../utils/userFeedback';
+import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
 import { checkRaceHappened } from '../utils/raceStatus';
 
 import iocCountries from '../constants/iocCountries.json';
@@ -157,6 +157,28 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
           String(b.boat_country || '').toUpperCase() ===
             selectedCountry.toUpperCase(),
       );
+
+      // Reusing a boat also reuses ITS sailor for scoring. If that boat already
+      // belongs to a different person than the one just entered, adding it would
+      // silently attribute this entry (and its results) to the wrong sailor —
+      // so confirm before proceeding instead of failing silently.
+      if (existingBoat) {
+        const ownerName =
+          `${existingBoat.name ?? ''} ${existingBoat.surname ?? ''}`.trim();
+        const typedName = `${name} ${surname}`.trim();
+        if (ownerName && ownerName.toLowerCase() !== typedName.toLowerCase()) {
+          const proceed = await confirmAction(
+            `Sail ${sailNumber} (${selectedCountry}) is already registered to ` +
+              `${ownerName}. If you add it now, this entry will be scored under ` +
+              `${ownerName}, not ${typedName}.\n\n` +
+              `Choose "Use existing sailor" to enter ${ownerName}, or Cancel to ` +
+              `correct the sail number or country.`,
+            'Sail number already in use',
+            { confirmLabel: 'Use existing sailor', cancelLabel: 'Cancel' },
+          );
+          if (!proceed) return;
+        }
+      }
 
       let boat_id: number | null = existingBoat?.boat_id ?? null;
 

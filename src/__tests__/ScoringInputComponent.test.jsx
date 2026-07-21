@@ -4,11 +4,12 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import ScoringInputComponent from '../renderer/components/ScoringInputComponent';
-import { reportError, reportInfo } from '../renderer/utils/userFeedback';
+import { reportError, reportWarning } from '../renderer/utils/userFeedback';
 
 jest.mock('../renderer/utils/userFeedback', () => ({
   reportError: jest.fn(),
   reportInfo: jest.fn(),
+  reportWarning: jest.fn(),
 }));
 
 const makeBoat = (
@@ -167,7 +168,7 @@ describe('ScoringInputComponent', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Submit Scores' }));
 
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(reportInfo).toHaveBeenCalledWith(
+    expect(reportWarning).toHaveBeenCalledWith(
       expect.stringContaining('Still missing: sail 102'),
       'Some boats are not scored yet',
     );
@@ -198,7 +199,7 @@ describe('ScoringInputComponent', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Submit Scores' }));
 
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(reportInfo).toHaveBeenCalled();
+    expect(reportWarning).toHaveBeenCalled();
   });
 
   it('allows manual add by input and Add button only for valid sail numbers', async () => {
@@ -335,7 +336,7 @@ describe('ScoringInputComponent', () => {
     );
 
     expect(screen.queryByText('Sail #101')).not.toBeInTheDocument();
-    expect(reportInfo).toHaveBeenCalledWith(
+    expect(reportWarning).toHaveBeenCalledWith(
       'These sail numbers are not in Heat B1: 101',
       'Unknown sail numbers',
     );

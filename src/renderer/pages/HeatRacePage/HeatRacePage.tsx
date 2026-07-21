@@ -13,6 +13,7 @@ import {
   confirmAction,
   reportError,
   reportInfo,
+  reportWarning,
 } from '../../utils/userFeedback';
 import { eventDB, heatRaceDB } from '../../api/db';
 import type { EventRow } from '../../types';
@@ -26,6 +27,9 @@ function HeatRacePage() {
   );
   const [selectedHeat, setSelectedHeat] = useState<ScoringHeat | null>(null);
   const [isScoring, setIsScoring] = useState(false);
+  // True while the scoring view holds an entered-but-not-yet-submitted finish
+  // order. Guards "Back to Heats" so a misclick can't silently discard it.
+  const [hasUnsavedEntry, setHasUnsavedEntry] = useState(false);
   const [finalSeriesStarted, setFinalSeriesStarted] = useState(false);
   // Bumped to tell HeatComponent to re-fetch its heats after a round-level
   // action (create-from-leaderboard, undo) without forcing a full remount.
@@ -69,10 +73,21 @@ function HeatRacePage() {
   };
 
   const handleStartScoring = () => {
+    setHasUnsavedEntry(false);
     setIsScoring(true);
   };
 
-  const handleBackToHeats = () => {
+  const handleBackToHeats = async () => {
+    if (hasUnsavedEntry) {
+      const proceed = await confirmAction(
+        'You have entered a finish order that has not been submitted yet. ' +
+          'Going back to Heats will discard it.',
+        'Discard finish order?',
+        { confirmLabel: 'Discard', cancelLabel: 'Keep scoring' },
+      );
+      if (!proceed) return;
+    }
+    setHasUnsavedEntry(false);
     setIsScoring(false);
   };
 
@@ -111,7 +126,7 @@ function HeatRacePage() {
       };
 
       if (result?.ok === false && result.reason === 'UNMATCHED_SAILS') {
-        reportInfo(
+        reportWarning(
           `Cannot save scores because these sail numbers are not in ${selectedHeat.heat_name}: ${(result.unmatched ?? []).join(', ')}.\n\n` +
             'What to do:\n' +
             '1) Go back to heats and re-open scoring for this heat.\n' +
@@ -122,8 +137,13 @@ function HeatRacePage() {
         return;
       }
 
+      setHasUnsavedEntry(false);
       setIsScoring(false);
       setSelectedHeat({ ...selectedHeat, raceNumber: result.raceNumber });
+      reportInfo(
+        `Race scores for "${selectedHeat.heat_name}" were saved.`,
+        'Scores submitted',
+      );
     } catch (error) {
       reportError('Could not save race scores.', error);
     }
@@ -369,6 +389,7 @@ function HeatRacePage() {
               <ScoringInputComponent
                 heat={selectedHeat}
                 onSubmit={handleSubmitScores}
+                onDirtyChange={setHasUnsavedEntry}
               />
             )}
           </>

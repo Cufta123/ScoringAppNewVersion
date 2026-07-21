@@ -110,6 +110,23 @@ function ScoreCell({
     return `${cappedInt}.${value.slice(dot + 1).replace(/\D/g, '')}`;
   };
 
+  // Keep the visible draft in step with the value the backend will actually
+  // store. A normal finishing place is clamped to [1, heat size] on save
+  // (useLeaderboard.handleRaceChange); mirroring that clamp here stops the box
+  // from showing e.g. "15" in a 10-boat heat while 10 is what gets saved, then
+  // silently snapping to 10 on blur. Empty stays empty so the field can be
+  // cleared and retyped; manual-points cells (RDG3/DPI) keep their 2-digit cap.
+  const clampTypedValue = (value: string): string => {
+    if (isManualPoints) return capManualRdg(value);
+    if (value === '') return '';
+    const rounded = Math.round(Number(value));
+    if (!Number.isFinite(rounded)) return '';
+    const lowerBounded = Math.max(rounded, 1);
+    return String(
+      numericMax ? Math.min(lowerBounded, numericMax) : lowerBounded,
+    );
+  };
+
   const tdStyle: React.CSSProperties = {
     padding: '8px 12px',
     textAlign: 'center',
@@ -175,7 +192,7 @@ function ScoreCell({
           disabled={isInputLocked}
           onFocus={(e) => e.target.select()}
           onChange={(e) => {
-            const nextValue = capManualRdg(e.target.value);
+            const nextValue = clampTypedValue(e.target.value);
             setDraft(nextValue);
             let statusForChange = 'FINISHED';
             if (isManualRdg) {
@@ -227,7 +244,7 @@ function ScoreCell({
             padding: '4px 6px',
             // eslint-disable-next-line no-nested-ternary
             color: isRdgCell
-              ? 'var(--teal,#2a9d8f)'
+              ? 'var(--teal-hover,#0B7A63)'
               : isPenalty
                 ? 'var(--danger,#e63946)'
                 : 'var(--navy)',
