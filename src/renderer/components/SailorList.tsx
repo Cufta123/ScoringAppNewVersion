@@ -4,6 +4,7 @@ import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
 import { toSubgroupLabel } from '../../shared/subgroups';
 import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
 import { sailorDB } from '../api/db';
+import LoadingState from './shared/LoadingState';
 import type { CategoryRow } from '../types';
 
 const EXPANDED_STORAGE_KEY = 'sailorListExpanded';
@@ -72,6 +73,9 @@ interface SailorListProps {
   onRemoveBoat: (boatId: number) => void | Promise<void>;
   onRefreshSailors: () => void;
   headerActions?: React.ReactNode;
+  /** True while the parent is still fetching boats — distinguishes "loading"
+   * from a genuinely empty list so we don't flash "No sailors registered". */
+  loading?: boolean;
 }
 
 function SailorList({
@@ -79,6 +83,7 @@ function SailorList({
   onRemoveBoat,
   onRefreshSailors,
   headerActions = null,
+  loading = false,
 }: SailorListProps) {
   const [sortCriteria, setSortCriteria] = useState('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -150,6 +155,13 @@ function SailorList({
       originalSurname: sailor.surname,
       originalClubName: sailor.club,
     });
+  };
+
+  // Back out of an in-progress edit without saving — the row reverts to its
+  // last-saved values instead of trapping the user into Save-or-lose-elsewhere.
+  const handleCancelEdit = () => {
+    setEditingSailorId(null);
+    setEditedSailor({});
   };
 
   const handleSave = async () => {
@@ -229,7 +241,10 @@ function SailorList({
           </button>
         </div>
       </div>
-      {isExpanded && sailors.length === 0 && (
+      {isExpanded && sailors.length === 0 && loading && (
+        <LoadingState label="Loading boats…" />
+      )}
+      {isExpanded && sailors.length === 0 && !loading && (
         <div className="info-banner">
           <i
             className="fa fa-info-circle"
@@ -346,6 +361,8 @@ function SailorList({
                         value={editedSailor.name}
                         onChange={handleInputChange}
                         className="editable-input"
+                        placeholder="First name"
+                        aria-label="First name"
                       />
                       <input
                         type="text"
@@ -353,6 +370,8 @@ function SailorList({
                         value={editedSailor.surname}
                         onChange={handleInputChange}
                         className="editable-input"
+                        placeholder="Surname"
+                        aria-label="Surname"
                       />
                     </>
                   ) : (
@@ -397,19 +416,34 @@ function SailorList({
                 <td>
                   <div className="icon-container">
                     {editingSailorId === sailor.boat_id ? (
-                      <button
-                        type="button"
-                        className="icon-action-btn"
-                        aria-label={`Save changes for ${sailor.name} ${sailor.surname}`}
-                        title="Save changes"
-                        onClick={handleSave}
-                      >
-                        <i
-                          className="fa fa-save"
-                          aria-hidden="true"
-                          style={{ color: 'var(--teal)' }}
-                        />
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          className="icon-action-btn"
+                          aria-label={`Save changes for ${sailor.name} ${sailor.surname}`}
+                          title="Save changes"
+                          onClick={handleSave}
+                        >
+                          <i
+                            className="fa fa-save"
+                            aria-hidden="true"
+                            style={{ color: 'var(--teal)' }}
+                          />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-action-btn"
+                          aria-label={`Cancel editing ${sailor.name} ${sailor.surname}`}
+                          title="Cancel editing"
+                          onClick={handleCancelEdit}
+                        >
+                          <i
+                            className="fa fa-xmark"
+                            aria-hidden="true"
+                            style={{ color: 'var(--text-secondary)' }}
+                          />
+                        </button>
+                      </>
                     ) : (
                       <button
                         type="button"

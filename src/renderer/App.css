@@ -623,7 +623,9 @@ a:hover {
 .event-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  /* More separation so the destructive Delete isn't a near-neighbour misclick
+     away from Edit for a less-precise pointer. */
+  gap: 12px;
 }
 .event-row > .btn-sm {
   flex-shrink: 0;
@@ -737,7 +739,9 @@ a:hover {
 .icon-container {
   display: flex;
   justify-content: flex-start;
-  gap: 8px;
+  /* More separation so the destructive Remove isn't a near-neighbour misclick
+     away from Edit/Save for a less-precise pointer. */
+  gap: 12px;
 }
 
 button.icon-action-btn {

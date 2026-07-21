@@ -15,7 +15,11 @@ import RdgLegend from '../../components/leaderboard/RdgLegend';
 import Breadcrumbs from '../../components/shared/Breadcrumbs';
 import EmptyState from '../../components/shared/EmptyState';
 import LoadingState from '../../components/shared/LoadingState';
-import { confirmAction, reportError } from '../../utils/userFeedback';
+import {
+  confirmAction,
+  reportError,
+  reportInfo,
+} from '../../utils/userFeedback';
 import './LeaderboardPage.css';
 import { eventDB } from '../../api/db';
 import type { EventRow } from '../../types';
@@ -249,6 +253,10 @@ function LeaderboardPage() {
         if (match) {
           setEvent(match);
         } else {
+          reportInfo(
+            'This event could not be found. It may have been deleted or renamed.',
+            'Event not found',
+          );
           navigate('/');
         }
       } catch (error) {
@@ -265,7 +273,7 @@ function LeaderboardPage() {
   }, [event, eventName, navigate]);
 
   if (!event) {
-    return null;
+    return <LoadingState label="Loading event…" />;
   }
 
   const navigateWithUnsavedCheck = async (target: {

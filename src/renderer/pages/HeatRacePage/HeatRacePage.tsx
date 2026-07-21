@@ -8,6 +8,7 @@ import ScoringInputComponent, {
 } from '../../components/ScoringInputComponent';
 import Navbar from '../../components/Navbar';
 import Breadcrumbs from '../../components/shared/Breadcrumbs';
+import LoadingState from '../../components/shared/LoadingState';
 import './HeatRacePage.css';
 import {
   confirmAction,
@@ -53,6 +54,10 @@ function HeatRacePage() {
         if (match) {
           setEvent(match);
         } else {
+          reportInfo(
+            'This event could not be found. It may have been deleted or renamed.',
+            'Event not found',
+          );
           navigate('/');
         }
       } catch (error) {
@@ -283,7 +288,7 @@ function HeatRacePage() {
   }, [checkFinalSeriesStarted]);
 
   if (!event) {
-    return null;
+    return <LoadingState label="Loading event…" />;
   }
 
   return (

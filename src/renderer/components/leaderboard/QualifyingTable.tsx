@@ -133,16 +133,18 @@ function QualifyingTable({
 
               {/* Gross column */}
               <th
+                title="Gross: total points before discards (the sum of every race score)."
                 style={{
                   textAlign: 'center',
                   padding: '7px 10px',
                   fontWeight: 700,
-                  color: 'rgba(255,255,255,0.75)',
+                  color: 'rgba(255,255,255,0.9)',
                   whiteSpace: 'nowrap',
                   background: 'rgba(0,0,0,0.15)',
                   borderLeft: '1px solid rgba(255,255,255,0.2)',
                   borderRight: '1px solid rgba(255,255,255,0.1)',
                   fontSize: '0.88rem',
+                  cursor: 'help',
                 }}
               >
                 Gross
@@ -150,6 +152,7 @@ function QualifyingTable({
 
               {/* Overall column */}
               <th
+                title="Overall: net series score after discards — this is what decides the ranking."
                 style={{
                   textAlign: 'center',
                   padding: '7px 10px',
@@ -159,6 +162,7 @@ function QualifyingTable({
                   background: '#2a9d8f',
                   borderLeft: '1px solid rgba(255,255,255,0.25)',
                   borderRight: '1px solid rgba(255,255,255,0.25)',
+                  cursor: 'help',
                 }}
               >
                 Overall
@@ -219,6 +223,7 @@ function QualifyingTable({
               return (
                 <tr
                   key={`ev-${entry.boat_id}`}
+                  className="leaderboard-row"
                   onClick={() => onCompareRowClick(entry.boat_id)}
                   style={{
                     background: isSelected

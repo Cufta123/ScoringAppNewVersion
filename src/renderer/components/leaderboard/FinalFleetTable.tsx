@@ -156,16 +156,18 @@ function FinalFleetTable({
 
               {/* Gross column */}
               <th
+                title="Gross: total points before discards (the sum of every race score)."
                 style={{
                   textAlign: 'center',
                   padding: '7px 10px',
                   fontWeight: 700,
-                  color: 'rgba(255,255,255,0.8)',
+                  color: 'rgba(255,255,255,0.9)',
                   whiteSpace: 'nowrap',
                   background: fleetAccent.thead,
                   borderLeft: '1px solid rgba(255,255,255,0.2)',
                   borderRight: '1px solid rgba(255,255,255,0.1)',
                   fontSize: '0.88rem',
+                  cursor: 'help',
                 }}
               >
                 Gross
@@ -173,6 +175,7 @@ function FinalFleetTable({
 
               {/* Overall column */}
               <th
+                title="Overall: net combined score after discards — this is what decides the ranking."
                 style={{
                   textAlign: 'center',
                   padding: '7px 10px',
@@ -182,6 +185,7 @@ function FinalFleetTable({
                   background: fleetAccent.thead,
                   borderLeft: '1px solid rgba(255,255,255,0.25)',
                   borderRight: '1px solid rgba(255,255,255,0.25)',
+                  cursor: 'help',
                 }}
               >
                 Overall
@@ -306,6 +310,7 @@ function FinalFleetTable({
               return (
                 <tr
                   key={`boat-${entry.boat_id}-${index}`}
+                  className="leaderboard-row"
                   onClick={() =>
                     onCompareRowClick(entry.boat_id, entry.placement_group)
                   }

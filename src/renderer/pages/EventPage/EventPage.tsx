@@ -6,6 +6,7 @@ import SailorList from '../../components/SailorList';
 import SailorImport from '../../components/SailorImport';
 import Navbar from '../../components/Navbar';
 import Breadcrumbs from '../../components/shared/Breadcrumbs';
+import LoadingState from '../../components/shared/LoadingState';
 import './EventPage.css';
 import HeatComponent from '../../components/HeatComponent';
 import printStartingList from '../../utils/printStartingList';
@@ -50,6 +51,10 @@ function EventPage() {
         if (match) {
           setEvent(match);
         } else {
+          reportInfo(
+            'This event could not be found. It may have been deleted or renamed.',
+            'Event not found',
+          );
           navigate('/');
         }
       } catch (error) {
@@ -66,6 +71,7 @@ function EventPage() {
   }, [event, name, navigate]);
 
   const [boats, setBoats] = useState<MappedEventBoat[]>([]);
+  const [boatsLoading, setBoatsLoading] = useState(true);
   const [allBoats, setAllBoats] = useState<EventBoatRow[]>([]);
   const [selectedBoats, setSelectedBoats] = useState<readonly BoatOption[]>([]);
   const [addSailorMode, setAddSailorMode] = useState('single');
@@ -77,6 +83,7 @@ function EventPage() {
   const fetchBoatsWithSailors = useCallback(async () => {
     if (!eventId) return;
 
+    setBoatsLoading(true);
     try {
       const boatsWithSailors = await eventDB.readBoatsByEvent(eventId);
       const mappedBoats: MappedEventBoat[] = boatsWithSailors.map((boat) => ({
@@ -89,6 +96,8 @@ function EventPage() {
       setBoats(mappedBoats);
     } catch (error) {
       reportError('Could not load boats for this event.', error);
+    } finally {
+      setBoatsLoading(false);
     }
   }, [eventId]);
 
@@ -220,7 +229,9 @@ function EventPage() {
   };
 
   if (!event) {
-    return null; // Render nothing while the event is being resolved
+    // Show a spinner (not a blank window) while the event resolves after a
+    // reload; a blank page reads as a freeze to a non-technical user.
+    return <LoadingState label="Loading event…" />;
   }
 
   const availableBoats = allBoats.filter(
@@ -371,6 +382,7 @@ function EventPage() {
         <div className="section-block">
           <SailorList
             sailors={Array.isArray(boats) ? boats : []}
+            loading={boatsLoading}
             onRemoveBoat={handleRemoveBoat}
             onRefreshSailors={fetchBoatsWithSailors}
             headerActions={

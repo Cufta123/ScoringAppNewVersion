@@ -5,3 +5,12 @@
   max-width: 1400px;
   margin: 0 auto;
 }
+
+/* Leaderboard rows paint their stripe/selection colour inline on the <tr>,
+   which beats the global `tbody tr:hover` rule. Tint the plain cells on hover
+   instead so the row under the pointer stays trackable across many columns.
+   Cells with their own inline background (shared/editable) win by specificity
+   and keep their meaning. */
+.leaderboard-row:hover td {
+  background-color: rgba(26, 111, 191, 0.1);
+}

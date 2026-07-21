@@ -506,6 +506,18 @@ function HeatComponent({
       return;
     }
 
+    // A drag-and-drop can happen by accident, and this reassigns a competitor's
+    // heat — confirm first, like every other heat-mutating action here.
+    const fromHeat = heatsToDisplay.find((h) => h.heat_id === fromHeatId);
+    const toHeat = heatsToDisplay.find((h) => h.heat_id === toHeatId);
+    const confirmed = await confirmAction(
+      `Move boat ${boat.sail_number} (${boat.name} ${boat.surname}) from ` +
+        `${fromHeat?.heat_name ?? 'its heat'} to ${toHeat?.heat_name ?? 'this heat'}?`,
+      'Move boat between heats',
+      { confirmLabel: 'Move boat', confirmClassName: 'btn-success' },
+    );
+    if (!confirmed) return;
+
     try {
       await heatRaceDB.transferBoatBetweenHeats(
         fromHeatId,
@@ -747,27 +759,38 @@ function HeatComponent({
                   </tr>
                 </thead>
                 <tbody>
-                  {heat.boats.map((boat) => (
-                    <tr
-                      key={boat.boat_id}
-                      draggable={!raceHappened && !finalSeriesStarted}
-                      onDragStart={(e) =>
-                        handleDragStart(e, boat, heat.heat_id)
-                      }
-                    >
-                      <td style={sailorNameColumnStyle}>
-                        {boat.name} {boat.surname}
-                      </td>
-                      <td>
-                        <Flag
-                          code={getFlagCode(boat.country ?? '')}
-                          style={{ width: '30px', marginRight: '5px' }}
-                        />
-                        {boat.country}
-                      </td>
-                      <td style={boatNumberColumnStyle}>{boat.sail_number}</td>
-                    </tr>
-                  ))}
+                  {heat.boats.map((boat) => {
+                    const isDraggable = !raceHappened && !finalSeriesStarted;
+                    return (
+                      <tr
+                        key={boat.boat_id}
+                        draggable={isDraggable}
+                        onDragStart={(e) =>
+                          handleDragStart(e, boat, heat.heat_id)
+                        }
+                        style={isDraggable ? { cursor: 'grab' } : undefined}
+                        title={
+                          isDraggable
+                            ? 'Drag this boat onto another heat to move it'
+                            : undefined
+                        }
+                      >
+                        <td style={sailorNameColumnStyle}>
+                          {boat.name} {boat.surname}
+                        </td>
+                        <td>
+                          <Flag
+                            code={getFlagCode(boat.country ?? '')}
+                            style={{ width: '30px', marginRight: '5px' }}
+                          />
+                          {boat.country}
+                        </td>
+                        <td style={boatNumberColumnStyle}>
+                          {boat.sail_number}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
               {heat.heat_id === selectedHeatId &&
