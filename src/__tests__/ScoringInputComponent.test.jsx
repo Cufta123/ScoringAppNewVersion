@@ -266,6 +266,36 @@ describe('ScoringInputComponent', () => {
     ]);
   });
 
+  it('moves a boat when a finishing place is typed directly', async () => {
+    const boats = [makeBoat(1, 101, 'Ana'), makeBoat(2, 102, 'Ivo')];
+    readBoatsByHeat.mockResolvedValueOnce(boats);
+    const onSubmit = jest.fn();
+
+    render(
+      <ScoringInputComponent
+        heat={makeHeat(19, 'Heat B5', boats)}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await waitFor(() => expect(readBoatsByHeat).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText('Ana Test')); // 101 -> place 1
+    fireEvent.click(screen.getByText('Ivo Test')); // 102 -> place 2
+
+    // Type place 1 for sail 102 and commit — it should jump ahead of 101.
+    const placeInput = screen.getByLabelText(/Finishing place for sail 102/);
+    fireEvent.change(placeInput, { target: { value: '1' } });
+    fireEvent.blur(placeInput);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Scores' }));
+
+    expect(onSubmit).toHaveBeenCalledWith([
+      { boatNumber: 102, place: 1, status: 'FINISHED' },
+      { boatNumber: 101, place: 2, status: 'FINISHED' },
+    ]);
+  });
+
   it('resets local scoring state when heat changes', async () => {
     const heatA = makeHeat(21, 'Heat A1', [makeBoat(1, 101, 'Ana')]);
     const heatB = makeHeat(22, 'Heat B1', [makeBoat(2, 201, 'Ivo')]);

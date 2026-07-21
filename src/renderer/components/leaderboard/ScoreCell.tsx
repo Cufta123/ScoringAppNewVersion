@@ -66,6 +66,8 @@ function ScoreCell({
 
   const isPickerOpen =
     rdg2Picker?.boatId === boatId && rdg2Picker?.raceIndex === raceIndex;
+  // Anchor the RDG2 popover to the status select so it can re-track it on scroll.
+  const statusSelectRef = React.useRef<HTMLSelectElement>(null);
 
   // Local draft of the numeric input so the user can freely clear and retype a
   // place even when the cell already shows the heat's maximum. Without it the
@@ -220,6 +222,7 @@ function ScoreCell({
 
         {/* Status selector */}
         <select
+          ref={statusSelectRef}
           value={raceStatus === 'RAF' ? 'RET' : raceStatus}
           onChange={(e) => {
             if (e.target.value === 'RDG2') {
@@ -276,6 +279,7 @@ function ScoreCell({
             setRdg2Picker={setRdg2Picker}
             confirmRdg2={confirmRdg2}
             qualifyingEntry={qualifyingEntry}
+            anchorEl={statusSelectRef.current}
           />
         )}
 

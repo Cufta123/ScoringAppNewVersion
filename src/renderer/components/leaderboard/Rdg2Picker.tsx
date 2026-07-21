@@ -8,6 +8,10 @@ interface Rdg2PickerProps {
   setRdg2Picker: React.Dispatch<React.SetStateAction<Rdg2PickerState | null>>;
   confirmRdg2: () => void;
   qualifyingEntry?: LeaderboardEntry | null;
+  /** The cell control the popover is anchored to. When provided, the popover
+   * re-tracks it on scroll/resize instead of closing (which would discard the
+   * user's in-progress selection). */
+  anchorEl?: HTMLElement | null;
 }
 
 /**
@@ -27,12 +31,16 @@ function Rdg2Picker({
   setRdg2Picker,
   confirmRdg2,
   qualifyingEntry = null,
+  anchorEl = null,
 }: Rdg2PickerProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
+  // Live anchor position. Seeded from the rect captured when the popover opened,
+  // then refreshed from the anchor element on scroll/resize so the popover stays
+  // glued to its cell instead of drifting or closing.
+  const [anchorRect, setAnchorRect] = React.useState<DOMRect | null>(
+    rdg2Picker?.anchorRect ?? null,
+  );
 
-  // The popover is fixed-positioned at the rect captured when it opened, so it
-  // cannot track its anchor cell. Close it on outside click, Escape, or any
-  // scroll outside the popover instead of letting it drift detached.
   React.useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
       if (
@@ -46,6 +54,9 @@ function Rdg2Picker({
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setRdg2Picker(null);
     };
+    const reposition = () => {
+      if (anchorEl) setAnchorRect(anchorEl.getBoundingClientRect());
+    };
     const onScroll = (e: Event) => {
       if (
         containerRef.current &&
@@ -54,19 +65,24 @@ function Rdg2Picker({
       ) {
         return; // scrolling the race list inside the popover is fine
       }
-      setRdg2Picker(null);
+      // Re-track the anchor on scroll so a stray page scroll no longer discards
+      // the selection. Only close when we have no anchor element to measure.
+      if (anchorEl) reposition();
+      else setRdg2Picker(null);
     };
     document.addEventListener('mousedown', onMouseDown);
     document.addEventListener('keydown', onKeyDown);
     window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', reposition);
     return () => {
       document.removeEventListener('mousedown', onMouseDown);
       document.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', reposition);
     };
-  }, [setRdg2Picker]);
+  }, [setRdg2Picker, anchorEl]);
 
-  if (!rdg2Picker?.anchorRect) return null;
+  if (!rdg2Picker || !anchorRect) return null;
 
   const totalSelected =
     (rdg2Picker.selectedIndices?.size ?? 0) +
@@ -74,7 +90,6 @@ function Rdg2Picker({
 
   const hasQual = (qualifyingEntry?.races?.length ?? 0) > 0;
 
-  const { anchorRect } = rdg2Picker;
   // Open upward when there's no room below but there is above; clamp the left
   // edge so the popover never hangs off the right side of the window.
   const openUp =
@@ -127,7 +142,7 @@ function Rdg2Picker({
               style={{
                 fontSize: '0.85rem',
                 fontWeight: 700,
-                color: '#888',
+                color: 'var(--text-muted)',
                 marginBottom: '4px',
                 textTransform: 'uppercase',
                 letterSpacing: '0.05em',
@@ -182,7 +197,7 @@ function Rdg2Picker({
               style={{
                 fontSize: '0.85rem',
                 fontWeight: 700,
-                color: '#888',
+                color: 'var(--text-muted)',
                 margin: '6px 0 4px',
                 textTransform: 'uppercase',
                 letterSpacing: '0.05em',

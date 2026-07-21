@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import Papa from 'papaparse';
 import { sailorDB, type ImportSailorsResult } from '../api/db';
+import { getErrorMessage } from '../utils/userFeedback';
 
 const TEMPLATE_CSV =
   'name,surname,birthday,sail_number,country,model,club_name,category_name\nJohn,Doe,,12345,CRO,Laser,YC Zagreb,M\nJane,Smith,,67890,SVN,Optimist,JK Piran,U16';
@@ -18,6 +19,12 @@ function SailorImport({ eventId, onImportComplete = null }: SailorImportProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ImportSailorsResult | null>(null);
+  // Parsed-but-not-yet-imported rows, held for a preview/confirm step so a
+  // wrong file (e.g. last year's roster) isn't committed with one click.
+  const [pending, setPending] = useState<{
+    rows: Record<string, string>[];
+    fileName: string;
+  } | null>(null);
 
   const downloadTemplate = () => {
     const blob = new Blob([TEMPLATE_CSV], { type: 'text/csv' });
@@ -34,19 +41,20 @@ function SailorImport({ eventId, onImportComplete = null }: SailorImportProps) {
     if (!file) return;
     setBusy(true);
     setResult(null);
+    setPending(null);
 
     Papa.parse<Record<string, string>>(file, {
       header: true,
       skipEmptyLines: true,
       transformHeader: (h) => h.trim().toLowerCase(),
-      complete: async ({ data, errors: parseErrors }) => {
+      complete: ({ data, errors: parseErrors }) => {
+        setBusy(false);
         if (parseErrors.length > 0) {
           setResult({
             imported: 0,
             skipped: 0,
             errors: parseErrors.map((err) => err.message),
           });
-          setBusy(false);
           return;
         }
         const cols = Object.keys(data[0] || {});
@@ -57,18 +65,35 @@ function SailorImport({ eventId, onImportComplete = null }: SailorImportProps) {
             skipped: 0,
             errors: [`Missing columns: ${missing.join(', ')}`],
           });
-          setBusy(false);
           return;
         }
-        const res = await sailorDB.importSailors(
-          data.map((r) => ({ ...r, eventId })),
-        );
-        setResult(res);
-        setBusy(false);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-        if ((res.imported ?? 0) > 0 && onImportComplete) onImportComplete();
+        // Stage for the confirm step instead of importing straight away.
+        setPending({ rows: data, fileName: file.name });
       },
     });
+  };
+
+  const confirmImport = async () => {
+    if (!pending) return;
+    setBusy(true);
+    try {
+      const res = await sailorDB.importSailors(
+        pending.rows.map((r) => ({ ...r, eventId })),
+      );
+      setResult(res);
+      if ((res.imported ?? 0) > 0 && onImportComplete) onImportComplete();
+    } catch (error) {
+      setResult({ imported: 0, skipped: 0, errors: [getErrorMessage(error)] });
+    } finally {
+      setBusy(false);
+      setPending(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const cancelImport = () => {
+    setPending(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   return (
@@ -116,6 +141,71 @@ function SailorImport({ eventId, onImportComplete = null }: SailorImportProps) {
         <code>birthday (YYYY-MM-DD), model, club_name, category_name</code> —
         category accepts a subgroup code (M, GM, L, U25, U16) or a full name.
       </p>
+
+      {/* Preview / confirm — commit only after the user reviews the file */}
+      {pending && (
+        <div className="info-banner" style={{ marginTop: '10px' }}>
+          <p style={{ margin: '0 0 8px' }}>
+            <strong>{pending.rows.length}</strong> row
+            {pending.rows.length !== 1 ? 's' : ''} found in{' '}
+            <strong>{pending.fileName}</strong>. Check this is the right file,
+            then confirm.
+          </p>
+          <div style={{ overflowX: 'auto' }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Surname</th>
+                  <th>Sail №</th>
+                  <th>Country</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pending.rows.slice(0, 5).map((r, i) => (
+                  // Static preview slice that never reorders — index key is fine.
+                  // eslint-disable-next-line react/no-array-index-key
+                  <tr key={`preview-${i}`}>
+                    <td>{r.name}</td>
+                    <td>{r.surname}</td>
+                    <td>{r.sail_number}</td>
+                    <td>{r.country}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {pending.rows.length > 5 && (
+            <p className="muted-note" style={{ margin: '6px 0 0' }}>
+              …and {pending.rows.length - 5} more row
+              {pending.rows.length - 5 !== 1 ? 's' : ''}.
+            </p>
+          )}
+          <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+            <button
+              type="button"
+              className="btn-success"
+              onClick={confirmImport}
+              disabled={busy}
+            >
+              <i className="fa fa-check" aria-hidden="true" />{' '}
+              {busy
+                ? 'Importing…'
+                : `Import ${pending.rows.length} sailor${
+                    pending.rows.length !== 1 ? 's' : ''
+                  }`}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={cancelImport}
+              disabled={busy}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Result */}
       {result && (

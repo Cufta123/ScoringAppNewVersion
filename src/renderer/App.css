@@ -1706,6 +1706,22 @@ button.finish-add-btn:hover {
   font-variant-numeric: tabular-nums;
 }
 
+/* Editable finishing-place field: type a place to move a boat there directly. */
+.finish-place-input {
+  width: 52px;
+  min-width: 52px;
+  flex-shrink: 0;
+  padding: 8px 4px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--teal-hover);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+}
+
 .finish-label {
   flex: 1;
   font-size: 0.9rem;
