@@ -222,13 +222,30 @@ function LeaderboardContent({
         </>
       )}
 
-      {editMode && (
-        <RdgLegend
-          editableLeaderboard={editableLeaderboard}
-          rdgMeta={rdgMeta}
-          racePrefix={finalSeriesStarted ? 'F' : 'Q'}
-        />
-      )}
+      {/* The RDG legend explains what RDG(x.x) cells mean. It must be visible in
+          read mode too — that's the view most people (officials posting
+          results, sailors checking standings) actually use, and a bare
+          "RDG (3.4)" cell is otherwise only explained on hover. In read mode
+          the RDG2 "selected races" labels aren't available (that detail is
+          edit-only state), so it degrades to the general description. */}
+      {(() => {
+        const showingFinalData = finalSeriesStarted && hasFinalData;
+        let legendSource = eventLeaderboard;
+        if (editMode) {
+          legendSource = editableLeaderboard;
+        } else if (showingFinalData) {
+          legendSource = sortedGroups.flatMap(
+            (group) => groupedLeaderboard[group] || [],
+          );
+        }
+        return (
+          <RdgLegend
+            editableLeaderboard={legendSource}
+            rdgMeta={rdgMeta}
+            racePrefix={showingFinalData ? 'F' : 'Q'}
+          />
+        );
+      })()}
     </div>
   );
 }

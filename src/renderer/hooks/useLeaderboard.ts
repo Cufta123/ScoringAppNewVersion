@@ -24,6 +24,7 @@ import {
   confirmChoice,
   reportError,
   reportInfo,
+  reportWarning,
 } from '../utils/userFeedback';
 import escapeHtml from '../utils/escapeHtml';
 import {
@@ -457,12 +458,20 @@ export default function useLeaderboard(eventId: number) {
 
   const fetchLeaderboard = useCallback(async () => {
     try {
+      // If a recompute fails we still fall back to the existing DB values, but
+      // the reader must be told the standings may not reflect the latest edits
+      // — otherwise a real backend failure is indistinguishable from a normal
+      // load and stale numbers are shown as if authoritative.
+      let recomputeFailed = false;
+
       // Recompute the event leaderboard in the DB so that place values
       // reflect correct exclusions and SHRS 5.7 tie-breaking.
       try {
         await heatRaceDB.updateEventLeaderboard(eventId);
-      } catch (_) {
-        // Recompute may fail; continue with existing DB values
+      } catch (error) {
+        recomputeFailed = true;
+        // eslint-disable-next-line no-console
+        console.error('updateEventLeaderboard failed', error);
       }
 
       // Recompute the final leaderboard so FinalLeaderboard is always current
@@ -470,9 +479,20 @@ export default function useLeaderboard(eventId: number) {
       if (finalSeriesStarted) {
         try {
           await heatRaceDB.updateFinalLeaderboard(eventId);
-        } catch (_) {
-          // Recompute may fail; continue with existing DB values
+        } catch (error) {
+          recomputeFailed = true;
+          // eslint-disable-next-line no-console
+          console.error('updateFinalLeaderboard failed', error);
         }
+      }
+
+      if (recomputeFailed) {
+        reportWarning(
+          'The leaderboard could not be fully recomputed, so the standings ' +
+            'shown may not reflect the most recent scores or edits. Try ' +
+            'reloading; if this keeps happening, re-check the latest race results.',
+          'Standings may be out of date',
+        );
       }
 
       const resultsTuple = await Promise.all([
@@ -601,6 +621,10 @@ export default function useLeaderboard(eventId: number) {
     setRdgMeta({});
     setRdg2Picker(null);
     userEditsRef.current.clear();
+    // Start every edit session with "Shift other boats" off (its default).
+    // It's a powerful cascade toggle; if it silently stayed on from a previous
+    // session a single place edit could reshuffle a whole heat unexpectedly.
+    setShiftPositions(false);
     // Editing and comparing don't mix: row clicks (bubbling up from the edit
     // inputs) would toggle compare selection, and the compare panel reads
     // saved backend data that contradicts the on-screen draft.
