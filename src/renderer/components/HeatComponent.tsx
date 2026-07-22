@@ -833,12 +833,14 @@ function HeatComponent({
       )}
 
       {/* ── Phase transition: Start Final Series + its safety net ─── */}
-      {/* SHRS 1.1: only show Final Series controls when there are 2+ qualifying heat groups.
-          Snapshots sit next to the action they protect. */}
-      {numQualifyingGroups >= 2 && (
+      {/* SHRS 1.1: Start Final Series only applies with 2+ qualifying heat
+          groups. Save/Restore Backup, however, protect any event that has
+          heats — including single-fleet events — so they must not be gated on
+          the group count. The bar shows once heats exist. */}
+      {heatsCreated && (
         <div className="final-series-bar">
           <div className="final-series-actions">
-            {!finalSeriesStarted && (
+            {numQualifyingGroups >= 2 && !finalSeriesStarted && (
               <button
                 type="button"
                 className="btn-success"
@@ -864,14 +866,14 @@ function HeatComponent({
             </button>
           </div>
           <span className="final-series-hint">
-            {finalSeriesStarted
-              ? 'Backups let you restore the event if something goes wrong.'
-              : 'Splits the boats into final fleets (Gold/Silver/…) based on current standings. Save a backup first so you can restore the event if something goes wrong.'}
+            {numQualifyingGroups >= 2 && !finalSeriesStarted
+              ? 'Splits the boats into final fleets (Gold/Silver/…) based on current standings. Save a backup first so you can restore the event if something goes wrong.'
+              : 'Backups let you restore the event if something goes wrong.'}
           </span>
         </div>
       )}
 
-      {numQualifyingGroups >= 2 && snapshotHistory.length > 0 && (
+      {heatsCreated && snapshotHistory.length > 0 && (
         <div className="snapshot-history">
           <div className="snapshot-history-title">Recent backups</div>
           <ul>
