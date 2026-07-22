@@ -93,7 +93,9 @@ describe('GlobalLeaderboardComponent', () => {
 
     render(<GlobalLeaderboardComponent />);
 
-    expect(await screen.findByText('No global results')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Global leaderboard unavailable'),
+    ).toBeInTheDocument();
     expect(reportError).toHaveBeenCalledWith(
       'Could not load global leaderboard.',
       expect.any(Error),
