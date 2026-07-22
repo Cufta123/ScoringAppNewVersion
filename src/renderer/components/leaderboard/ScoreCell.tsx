@@ -5,6 +5,7 @@ import {
   getRaceCellDisplay,
 } from '../../utils/leaderboardUtils';
 import { scoringPenaltyStatuses } from '../../../shared/scoringPenalty';
+import { penaltyLabel } from '../../constants/penaltyLabels';
 import Rdg2Picker from './Rdg2Picker';
 import type {
   LeaderboardEntry,
@@ -137,8 +138,13 @@ function ScoreCell({
 
   // ── Read mode ─────────────────────────────────────────────────────────────
   if (!editMode || !isEditable) {
+    // Hovering a penalty/redress cell explains the code in plain language, so a
+    // bare "BFD" on the printed standings never has to be recalled from memory.
+    const statusTitle =
+      isPenalty || isRdgCell ? penaltyLabel(raceStatus) : undefined;
     return (
       <td
+        title={statusTitle}
         aria-label={
           isShared
             ? `Shared race cell: ${displayText}`
@@ -255,18 +261,19 @@ function ScoreCell({
         >
           <option value="FINISHED">Finish</option>
           {/* RAF is normalized to RET on save, so offering both would show a
-              different code after saving than the one picked. */}
+              different code after saving than the one picked. Labels come from
+              the shared penaltyLabels map so codes never appear bare here. */}
           {PENALTY_CODES.filter(
             (code) => !RDG_TYPES.includes(code) && code !== 'RAF',
           ).map((code) => (
             <option key={code} value={code}>
-              {code}
+              {penaltyLabel(code)}
             </option>
           ))}
           <optgroup label="RDG – Redress">
-            <option value="RDG1">RDG1 – avg all</option>
-            <option value="RDG2">RDG2 – avg select</option>
-            <option value="RDG3">RDG3 – manual</option>
+            <option value="RDG1">{penaltyLabel('RDG1')}</option>
+            <option value="RDG2">{penaltyLabel('RDG2')}</option>
+            <option value="RDG3">{penaltyLabel('RDG3')}</option>
           </optgroup>
         </select>
 

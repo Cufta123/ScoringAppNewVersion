@@ -4,6 +4,10 @@ import {
   POSITION_KEEPING_PENALTIES,
   orderBoatsByPenalty,
 } from '../utils/penaltyOrder';
+import {
+  FINISH_ENTRY_PENALTY_CODES,
+  penaltyLabel,
+} from '../constants/penaltyLabels';
 import { heatRaceDB } from '../api/db';
 
 type SailNumber = string | number;
@@ -32,7 +36,7 @@ export interface ScoredBoat {
 
 interface ScoringInputComponentProps {
   heat: ScoringHeat;
-  onSubmit: (boatPlaces: ScoredBoat[]) => void;
+  onSubmit: (boatPlaces: ScoredBoat[]) => void | Promise<void>;
   /** Notifies the parent when a not-yet-submitted finish order exists, so it
    * can guard navigation away from the scoring view. */
   onDirtyChange?: (dirty: boolean) => void;
@@ -44,27 +48,12 @@ interface FormatPlaceOptions {
   emptyFallback?: string;
 }
 
-// Plain-language labels so non-expert scorers know what each code means.
-const PENALTY_OPTIONS = [
-  { value: 'ZFP', label: 'ZFP — 20% penalty (keeps finish place)' },
-  { value: 'SCP', label: 'SCP — Scoring penalty (keeps finish place)' },
-  { value: 'T1', label: 'T1 — Post-race penalty 30% (keeps finish place)' },
-  { value: 'DNS', label: 'DNS — Did not start' },
-  { value: 'DNF', label: 'DNF — Did not finish' },
-  { value: 'RET', label: 'RET — Retired' },
-  { value: 'NSC', label: 'NSC — Did not sail the course' },
-  { value: 'OCS', label: 'OCS — Over the start line early' },
-  { value: 'DNC', label: 'DNC — Did not come to start area' },
-  { value: 'WTH', label: 'WTH — Withdrawn from series' },
-  { value: 'UFD', label: 'UFD — U-flag disqualification' },
-  { value: 'BFD', label: 'BFD — Black-flag disqualification' },
-  { value: 'DSQ', label: 'DSQ — Disqualified' },
-  { value: 'DNE', label: 'DNE — Disqualified (cannot be discarded)' },
-  { value: 'DGM', label: 'DGM — Disqualified, gross misconduct' },
-  // DPI (RRS A10 discretionary penalty) carries a protest-committee-set points
-  // value, so it is applied afterwards via the leaderboard edit flow (where the
-  // points field exists), not during initial finish-order entry.
-];
+// Plain-language labels so non-expert scorers know what each code means. Sourced
+// from the shared penaltyLabels module so entry and leaderboard-edit stay in sync.
+const PENALTY_OPTIONS = FINISH_ENTRY_PENALTY_CODES.map((value) => ({
+  value,
+  label: penaltyLabel(value),
+}));
 
 /**
  * Editable finishing-place field for a plain finisher: type a number and press
@@ -131,6 +120,16 @@ function ScoringInputComponent({
   const [invalidBoatNumbers, setInvalidBoatNumbers] = useState<SailNumber[]>(
     [],
   );
+  // Guards against a double-submit writing the same heat twice (SHRS integrity):
+  // the button is locked from the first click until the atomic write settles.
+  const [submitting, setSubmitting] = useState(false);
+  // Focus the sail-number input as soon as a heat opens for scoring, so an RO can
+  // read the finish order aloud and type straight away without reaching for the
+  // mouse. Re-runs when switching heats.
+  const addInputRef = React.useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    addInputRef.current?.focus();
+  }, [heat.heat_id]);
 
   const normalizeBoatNumber = (value: SailNumber): string =>
     String(value).trim();
@@ -318,7 +317,9 @@ function ScoringInputComponent({
     setPenalties(newPenalties);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    // Ignore re-entrant clicks while a submit is already in flight.
+    if (submitting) return;
     const submittedBoatNumbers = [
       ...new Set([...boatNumbers, ...Object.keys(penalties)]),
     ];
@@ -401,7 +402,14 @@ function ScoringInputComponent({
     );
 
     if (allBoatsAccountedFor) {
-      onSubmit(boatPlaces);
+      setSubmitting(true);
+      try {
+        await onSubmit(boatPlaces);
+      } finally {
+        // On success the parent unmounts this view; on a warning/error path it
+        // stays mounted, so re-enable the button either way.
+        setSubmitting(false);
+      }
     } else {
       const missingBoats = allBoats.filter(
         (boatNumber) =>
@@ -471,7 +479,7 @@ function ScoringInputComponent({
             <thead>
               <tr>
                 <th>Sailor</th>
-                <th>CTR</th>
+                <th>Country</th>
                 <th>Sail #</th>
                 <th className="scoring-place-cell">Place</th>
                 <th>Penalty</th>
@@ -561,6 +569,7 @@ function ScoringInputComponent({
             type="button"
             className={`btn-success submit-scores-btn${allScored ? '' : ' is-unavailable'}`}
             aria-disabled={!allScored}
+            disabled={submitting}
             title={
               allScored
                 ? undefined
@@ -568,18 +577,19 @@ function ScoringInputComponent({
             }
             onClick={handleSubmit}
           >
-            Submit Scores
+            {submitting ? 'Saving…' : 'Submit Scores'}
           </button>
         </div>
 
         {/* Manual number input */}
         <div className="finish-add-row">
           <input
+            ref={addInputRef}
             type="text"
             value={inputValue}
             onChange={handleInputChange}
             onKeyDown={handleInputKeyDown}
-            placeholder="Type sail number and press Enter"
+            placeholder="Type sail numbers (e.g. 101 205 88), press Enter"
             aria-label="Add sail numbers manually"
           />
           <button

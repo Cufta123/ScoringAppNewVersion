@@ -382,8 +382,10 @@ tbody tr:last-child td:last-child {
 td {
   padding: 11px 16px;
   border-bottom: 1px solid var(--bg-subtle);
-  font-size: 0.92rem;
-  color: var(--text-secondary);
+  /* Larger + full-strength text: this is the primary data, read by older users,
+     so it should be the most legible content, not the smallest/most muted. */
+  font-size: 0.95rem;
+  color: var(--text);
 }
 tbody tr:last-child td {
   border-bottom: none;
@@ -925,6 +927,80 @@ th.sortable:hover {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+/* ── Help modal ─────────────────────────────────────────── */
+.help-modal {
+  width: min(640px, 96vw);
+}
+
+.help-modal-body {
+  max-height: 70vh;
+  overflow-y: auto;
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.help-modal-body section + section {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--bg-subtle);
+}
+
+.help-modal-body h4 {
+  margin: 0 0 10px;
+  color: var(--navy);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.help-modal-body ol {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.7;
+}
+
+.help-modal-body ol li {
+  list-style: decimal;
+}
+
+.help-terms dt {
+  font-weight: 700;
+  color: var(--navy);
+  margin-top: 10px;
+}
+
+.help-terms dt:first-child {
+  margin-top: 0;
+}
+
+.help-terms dd {
+  margin: 2px 0 0;
+  color: var(--text-secondary);
+}
+
+.help-glossary {
+  margin: 0;
+  display: grid;
+  gap: 6px 14px;
+}
+
+.help-glossary-row {
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.help-glossary-row dt {
+  font-weight: 800;
+  color: var(--danger, #d63b2f);
+  font-variant-numeric: tabular-nums;
+}
+
+.help-glossary-row dd {
+  margin: 0;
+  color: var(--text-secondary);
 }
 
 @media (prefers-reduced-motion: reduce) {

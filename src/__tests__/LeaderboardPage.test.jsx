@@ -200,6 +200,7 @@ describe('LeaderboardPage', () => {
       expect(confirmAction).toHaveBeenCalledWith(
         'You have unsaved leaderboard changes. Leave this page and discard them?',
         'Unsaved changes',
+        { confirmLabel: 'Leave and discard', confirmClassName: 'btn-danger' },
       );
     });
 

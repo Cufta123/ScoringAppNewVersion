@@ -37,8 +37,15 @@ export const reportError = (
   title: string | undefined,
   error?: unknown,
 ): void => {
-  const details = getErrorMessage(error);
-  const message = title ? `${title}: ${details}` : details;
+  // Keep the raw technical detail (SQLite/IPC/JS messages) for diagnosis, but
+  // never show it to the user — a race officer needs a plain-language message,
+  // not an error code. The detail goes to the console/devtools instead.
+  if (error !== undefined) {
+    // eslint-disable-next-line no-console
+    console.error(title ?? 'Application error', error, getErrorMessage(error));
+  }
+  const message =
+    title && title.trim() ? title : 'Something went wrong. Please try again.';
   // Errors stay on screen until dismissed so slower readers never miss them.
   toast.error(message, { autoClose: false, closeOnClick: true });
 };
@@ -74,7 +81,11 @@ export const confirmAction = async (
     body: message || 'Are you sure you want to continue?',
     confirmLabel: safeString(options?.confirmLabel, 'Confirm'),
     cancelLabel: safeString(options?.cancelLabel, 'Cancel'),
-    confirmClassName: safeString(options?.confirmClassName, 'btn-danger'),
+    // Default to the neutral "proceed" colour (matching AppModal). Red is
+    // reserved for genuinely destructive confirms, which opt in via
+    // confirmClassName: 'btn-danger'. This stops benign confirms (start final
+    // series, create new heats, continue anyway…) from signalling danger.
+    confirmClassName: safeString(options?.confirmClassName, 'btn-success'),
   });
   return choice === 'confirm';
 };

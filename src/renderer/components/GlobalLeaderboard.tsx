@@ -5,7 +5,7 @@ import { saveAs } from 'file-saver';
 import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
 import EmptyState from './shared/EmptyState';
 import LoadingState from './shared/LoadingState';
-import { reportError } from '../utils/userFeedback';
+import { reportError, reportInfo } from '../utils/userFeedback';
 import { heatRaceDB } from '../api/db';
 import type { GlobalLeaderboardRow } from '../types';
 
@@ -99,7 +99,7 @@ function GlobalLeaderboardComponent() {
       />
     );
   }
-  const exportToExcel = async () => {
+  const buildAndSaveExcel = async () => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Global Leaderboard');
 
@@ -135,6 +135,18 @@ function GlobalLeaderboardComponent() {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
     saveAs(blob, 'global_leaderboard.xlsx');
+  };
+
+  const exportToExcel = async () => {
+    try {
+      await buildAndSaveExcel();
+      reportInfo('Global leaderboard exported as Excel.', 'Export complete');
+    } catch (error) {
+      reportError(
+        'Could not export the global leaderboard to Excel. Please try again.',
+        error,
+      );
+    }
   };
 
   return (

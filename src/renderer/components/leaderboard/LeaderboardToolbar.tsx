@@ -114,6 +114,8 @@ function ExportDropdown({ onExport }: ExportDropdownProps) {
 interface LeaderboardToolbarProps {
   finalSeriesStarted: boolean;
   editMode: boolean;
+  /** True while a save is in flight — disables the Save button and shows progress. */
+  saving?: boolean;
   compareMode: boolean;
   shiftPositions: boolean;
   /** Disables the edit toggle, e.g. while the final series has no scored
@@ -129,6 +131,7 @@ interface LeaderboardToolbarProps {
 function LeaderboardToolbar({
   finalSeriesStarted,
   editMode,
+  saving = false,
   compareMode,
   shiftPositions,
   editDisabled = false,
@@ -176,9 +179,12 @@ function LeaderboardToolbar({
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
-            border: `1px solid ${editMode ? 'var(--danger, #e63946)' : 'var(--border, #dde3ea)'}`,
+            // Active = teal (matching the Compare toggle). Editing is not
+            // destructive, so it must not use the danger-red reserved for
+            // delete/discard actions.
+            border: `1px solid ${editMode ? 'var(--teal, #0f9478)' : 'var(--border, #dde3ea)'}`,
             background: editMode
-              ? 'var(--danger, #e63946)'
+              ? 'var(--teal, #0f9478)'
               : 'var(--surface, #f0f4f8)',
             color: editMode ? '#fff' : 'var(--navy)',
             opacity: editDisabled ? 0.5 : 1,
@@ -203,7 +209,7 @@ function LeaderboardToolbar({
               padding: '6px 8px 6px 14px',
               borderRadius: 'var(--radius, 6px)',
               border: '1px solid var(--border, #dde3ea)',
-              borderLeft: '3px solid var(--teal, #2a9d8f)',
+              borderLeft: '3px solid var(--teal, #0f9478)',
               background: 'var(--surface-2, #f8fbff)',
             }}
           >
@@ -226,18 +232,24 @@ function LeaderboardToolbar({
             <button
               type="button"
               onClick={onSave}
+              disabled={saving}
               style={{
                 ...btnBase,
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
                 border: 'none',
-                background: 'var(--teal, #2a9d8f)',
+                background: 'var(--teal, #0f9478)',
                 color: '#fff',
+                opacity: saving ? 0.7 : 1,
+                cursor: saving ? 'progress' : 'pointer',
               }}
             >
-              <i className="fa fa-save" aria-hidden="true" />
-              Save Changes
+              <i
+                className={`fa ${saving ? 'fa-spinner fa-spin' : 'fa-save'}`}
+                aria-hidden="true"
+              />
+              {saving ? 'Saving…' : 'Save Changes'}
             </button>
           </div>
         )}
@@ -258,9 +270,9 @@ function LeaderboardToolbar({
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
-            border: `1px solid ${compareMode ? 'var(--teal, #2a9d8f)' : 'var(--border, #dde3ea)'}`,
+            border: `1px solid ${compareMode ? 'var(--teal, #0f9478)' : 'var(--border, #dde3ea)'}`,
             background: compareMode
-              ? 'var(--teal, #2a9d8f)'
+              ? 'var(--teal, #0f9478)'
               : 'var(--surface, #f0f4f8)',
             color: compareMode ? '#fff' : 'var(--navy)',
             opacity: editMode ? 0.5 : 1,

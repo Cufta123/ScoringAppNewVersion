@@ -11,14 +11,19 @@ function LandingPage() {
   const navigate = useNavigate();
   // null = not loaded yet; [] = loaded and empty
   const [events, setEvents] = useState<EventRow[] | null>(null);
+  // Distinguish "load failed" from "no events yet" — otherwise a failed read
+  // would show the first-run onboarding and make the user think their events
+  // are gone.
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const refreshEvents = useCallback(async () => {
     try {
       const allEvents = await eventDB.readAllEvents();
       setEvents(Array.isArray(allEvents) ? allEvents : []);
+      setLoadFailed(false);
     } catch (error) {
-      reportError('Could not load events.', error);
-      setEvents([]);
+      reportError('Could not load your events.', error);
+      setLoadFailed(true);
     }
   }, []);
 
@@ -26,7 +31,8 @@ function LandingPage() {
     refreshEvents();
   }, [refreshEvents]);
 
-  const isFirstRun = Array.isArray(events) && events.length === 0;
+  const isFirstRun =
+    !loadFailed && Array.isArray(events) && events.length === 0;
 
   return (
     <div>
@@ -41,6 +47,28 @@ function LandingPage() {
           </h1>
           <p>Sailing event management &amp; race scoring</p>
         </div>
+
+        {/* ── Load failure — offer a retry instead of pretending there are no
+            events (which would show the first-run onboarding) ─── */}
+        {loadFailed && (
+          <div className="landing-card landing-load-error" role="alert">
+            <h2>
+              <i className="fa fa-triangle-exclamation" aria-hidden="true" />
+              Could not load your events
+            </h2>
+            <p>
+              Your events may still be saved — the app just couldn’t read them
+              right now. Please try again.
+            </p>
+            <button
+              type="button"
+              className="btn-success"
+              onClick={refreshEvents}
+            >
+              <i className="fa fa-rotate-right" aria-hidden="true" /> Retry
+            </button>
+          </div>
+        )}
 
         {/* ── Existing events — the common case comes first ─── */}
         {Array.isArray(events) && events.length > 0 && (

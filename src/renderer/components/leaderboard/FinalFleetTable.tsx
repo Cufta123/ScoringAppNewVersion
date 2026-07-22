@@ -127,7 +127,7 @@ function FinalFleetTable({
             minWidth: '100%',
             borderCollapse: 'separate',
             borderSpacing: 0,
-            fontSize: '0.9rem',
+            fontSize: '0.95rem',
           }}
         >
           <thead>
@@ -319,7 +319,7 @@ function FinalFleetTable({
                       ? 'rgba(42, 157, 143, 0.15)'
                       : index % 2 === 0
                         ? '#fff'
-                        : 'var(--surface, #f5f7fa)',
+                        : 'var(--surface-2, #f8fbff)',
                     borderBottom: '1px solid var(--border, #dde3ea)',
                     cursor: compareMode ? 'pointer' : 'default',
                     outline: isSelected

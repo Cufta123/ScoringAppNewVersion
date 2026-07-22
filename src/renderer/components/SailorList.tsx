@@ -200,6 +200,7 @@ function SailorList({
     const confirmed = await confirmAction(
       `Remove boat ${sailor.sail_number} (${sailor.name} ${sailor.surname}) from this event?`,
       'Remove boat',
+      { confirmLabel: 'Remove boat', confirmClassName: 'btn-danger' },
     );
 
     if (!confirmed) return;

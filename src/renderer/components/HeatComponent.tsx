@@ -331,8 +331,8 @@ function HeatComponent({
           ?.exportEventSnapshotToFile === 'function';
       if (canSnapshot) {
         const saveSnapshotNow = await confirmAction(
-          'Before starting the Final Series, do you want to save a recovery snapshot file now?\n\nThis allows you to restore the event state later if needed.',
-          'Save recovery snapshot?',
+          'Before starting the Final Series, do you want to save a recovery backup file now?\n\nThis lets you restore the event later if needed.',
+          'Save recovery backup?',
         );
 
         if (saveSnapshotNow) {
@@ -342,16 +342,13 @@ function HeatComponent({
 
           if (snapshotResult?.canceled) {
             const proceedWithoutSnapshot = await confirmAction(
-              'Snapshot save was canceled. Continue starting the Final Series without a snapshot?',
-              'Continue without snapshot?',
+              'Backup save was canceled. Continue starting the Final Series without a backup?',
+              'Continue without backup?',
             );
             if (!proceedWithoutSnapshot) return;
           } else {
             rememberSnapshot(snapshotResult.filePath);
-            reportInfo(
-              'Recovery snapshot saved successfully.',
-              'Snapshot saved',
-            );
+            reportInfo('Recovery backup saved successfully.', 'Backup saved');
           }
         }
       }
@@ -421,7 +418,11 @@ function HeatComponent({
     const confirmed = await confirmAction(
       'Recreate all heats?\n\nThe current heats and any manual boat moves between heats will be discarded, and boats will be re-assigned from scratch.',
       'Recreate heats',
-      { confirmLabel: 'Recreate heats', cancelLabel: 'Keep current heats' },
+      {
+        confirmLabel: 'Recreate heats',
+        cancelLabel: 'Keep current heats',
+        confirmClassName: 'btn-danger',
+      },
     );
     if (!confirmed) return;
 
@@ -576,16 +577,17 @@ function HeatComponent({
       )) as { canceled?: boolean; filePath?: string };
       if (result?.canceled) return;
       rememberSnapshot(result?.filePath);
-      reportInfo('Recovery snapshot saved successfully.', 'Snapshot saved');
+      reportInfo('Recovery backup saved successfully.', 'Backup saved');
     } catch (error) {
-      reportError('Could not save recovery snapshot.', error);
+      reportError('Could not save recovery backup.', error);
     }
   };
 
   const handleRestoreSnapshot = async () => {
     const confirmed = await confirmAction(
-      'Restore event state from a saved snapshot file?\n\nCurrent heats, races and scores for this event will be replaced.',
-      'Restore snapshot',
+      'Restore event state from a saved backup file?\n\nCurrent heats, races and scores for this event will be replaced.',
+      'Restore backup',
+      { confirmLabel: 'Restore backup', confirmClassName: 'btn-danger' },
     );
 
     if (!confirmed) return;
@@ -600,9 +602,9 @@ function HeatComponent({
       await checkFinalSeriesStarted();
       await handleDisplayHeats();
 
-      reportInfo('Event state restored from snapshot.', 'Snapshot restored');
+      reportInfo('Event restored from backup.', 'Backup restored');
     } catch (error) {
-      reportError('Could not restore snapshot.', error);
+      reportError('Could not restore backup.', error);
     }
   };
 
@@ -851,27 +853,27 @@ function HeatComponent({
               className="btn-ghost"
               onClick={handleSaveSnapshot}
             >
-              Save Snapshot
+              Save Backup
             </button>
             <button
               type="button"
               className="btn-ghost"
               onClick={handleRestoreSnapshot}
             >
-              Restore Snapshot
+              Restore Backup
             </button>
           </div>
           <span className="final-series-hint">
             {finalSeriesStarted
-              ? 'Snapshots let you restore the event state if something goes wrong.'
-              : 'Splits the boats into final fleets (Gold/Silver/…) based on current standings. Save a snapshot first so you can restore the event if something goes wrong.'}
+              ? 'Backups let you restore the event if something goes wrong.'
+              : 'Splits the boats into final fleets (Gold/Silver/…) based on current standings. Save a backup first so you can restore the event if something goes wrong.'}
           </span>
         </div>
       )}
 
       {numQualifyingGroups >= 2 && snapshotHistory.length > 0 && (
         <div className="snapshot-history">
-          <div className="snapshot-history-title">Last snapshots</div>
+          <div className="snapshot-history-title">Recent backups</div>
           <ul>
             {snapshotHistory.map((item) => (
               <li key={`${item.fileName}-${item.savedAt}`}>

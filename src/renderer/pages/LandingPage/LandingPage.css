@@ -26,7 +26,7 @@
 
 .landing-card {
   background: var(--surface);
-  border: 1px solid rgba(200, 223, 242, .6);
+  border: 1px solid rgba(200, 223, 242, 0.6);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   padding: 32px 40px;
@@ -35,7 +35,9 @@
   margin-bottom: 18px;
 }
 
-.landing-card > h2 { margin-top: 0; }
+.landing-card > h2 {
+  margin-top: 0;
+}
 
 .landing-steps {
   margin: 0;
@@ -43,4 +45,19 @@
   line-height: 1.7;
 }
 
-.landing-steps li { list-style: decimal; }
+.landing-steps li {
+  list-style: decimal;
+}
+
+.landing-load-error {
+  border-color: rgba(214, 59, 47, 0.35);
+  background: rgba(214, 59, 47, 0.05);
+}
+
+.landing-load-error > h2 {
+  color: var(--danger, #d63b2f);
+}
+
+.landing-load-error p {
+  margin: 8px 0 16px;
+}

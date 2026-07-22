@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
-import { eventDB } from '../api/db';
+import { confirmChoice, reportError, reportInfo } from '../utils/userFeedback';
+import { eventDB, heatRaceDB } from '../api/db';
 import type { EventRow } from '../types';
 
 interface DiscardConfig {
@@ -669,16 +669,43 @@ export function EventList({ events, onEventsChanged = null }: EventListProps) {
     }
   };
 
-  const handleDeleteEvent = async (e: React.MouseEvent, eventId: number) => {
+  const handleDeleteEvent = async (e: React.MouseEvent, event: EventRow) => {
     e.stopPropagation();
+    const eventId = event.event_id;
 
-    const confirmed = await confirmAction(
-      'This will permanently delete the event together with all its sailors, heats, races and scores. This cannot be undone.\n\nDelete this event?',
+    // Echo the event name (so a misclick on the wrong row is obvious) and offer
+    // a recovery path: save a backup file before the irreversible delete.
+    const choice = await confirmChoice(
+      `This permanently deletes "${event.event_name}" and all its sailors, heats, races and scores. This cannot be undone.\n\n` +
+        'You can save a backup file first, so the event can be restored later if needed.',
       'Delete event',
-      { confirmLabel: 'Delete permanently', cancelLabel: 'Keep event' },
+      {
+        confirmLabel: 'Delete permanently',
+        extraLabel: 'Back up, then delete',
+        cancelLabel: 'Keep event',
+        confirmClassName: 'btn-danger',
+        extraClassName: 'btn-success',
+      },
     );
 
-    if (!confirmed) return;
+    if (choice === 'cancel') return;
+
+    if (choice === 'extra') {
+      try {
+        const result = (await heatRaceDB.exportEventSnapshotToFile(
+          eventId,
+        )) as { canceled?: boolean };
+        // If the user cancels the save dialog, abort the delete too — deleting
+        // without the backup they just asked for would be the worst outcome.
+        if (result?.canceled) return;
+      } catch (error) {
+        reportError(
+          'Could not save the backup, so the event was NOT deleted. Please try again.',
+          error,
+        );
+        return;
+      }
+    }
 
     try {
       await eventDB.deleteEvent(eventId);
@@ -977,7 +1004,7 @@ export function EventList({ events, onEventsChanged = null }: EventListProps) {
                 title="Delete event"
                 onClick={(e) => {
                   setEditingId(null);
-                  handleDeleteEvent(e, event.event_id);
+                  handleDeleteEvent(e, event);
                 }}
                 className="btn-danger btn-sm"
               >

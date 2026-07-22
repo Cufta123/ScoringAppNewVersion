@@ -82,16 +82,33 @@ function HeatRacePage() {
     setIsScoring(true);
   };
 
+  // Shared guard for any exit from the scoring view that would drop an
+  // entered-but-unsubmitted finish order. Returns true when it is safe to leave.
+  const confirmDiscardEntry = async (): Promise<boolean> => {
+    if (!isScoring || !hasUnsavedEntry) return true;
+    return confirmAction(
+      'You have entered a finish order that has not been submitted yet. ' +
+        'Leaving will discard it.',
+      'Discard finish order?',
+      {
+        confirmLabel: 'Discard',
+        cancelLabel: 'Keep scoring',
+        confirmClassName: 'btn-danger',
+      },
+    );
+  };
+
+  // Navigate away from the scoring view, confirming first if there is unsaved
+  // work. Used by the breadcrumbs and the Navbar brand so every exit path — not
+  // just "Back to Heats" — is protected.
+  const guardedNavigate = async (navFn: () => void) => {
+    if (!(await confirmDiscardEntry())) return;
+    setHasUnsavedEntry(false);
+    navFn();
+  };
+
   const handleBackToHeats = async () => {
-    if (hasUnsavedEntry) {
-      const proceed = await confirmAction(
-        'You have entered a finish order that has not been submitted yet. ' +
-          'Going back to Heats will discard it.',
-        'Discard finish order?',
-        { confirmLabel: 'Discard', cancelLabel: 'Keep scoring' },
-      );
-      if (!proceed) return;
-    }
+    if (!(await confirmDiscardEntry())) return;
     setHasUnsavedEntry(false);
     setIsScoring(false);
   };
@@ -228,6 +245,7 @@ function HeatRacePage() {
     const confirmed = await confirmAction(
       `Undo the last scored race in "${heat.heat_name}"?\n\nThis will permanently delete that race's scores.${laterRoundWarning}`,
       'Undo Last Race',
+      { confirmLabel: 'Undo race', confirmClassName: 'btn-danger' },
     );
     if (!confirmed) return;
 
@@ -250,6 +268,7 @@ function HeatRacePage() {
     const confirmed = await confirmAction(
       'Undo latest heat redistribution?\n\nThis will delete the latest qualifying heats and all their boat assignments. This cannot be undone.',
       'Undo Heat Redistribution',
+      { confirmLabel: 'Undo redistribution', confirmClassName: 'btn-danger' },
     );
     if (!confirmed) {
       return;
@@ -287,22 +306,39 @@ function HeatRacePage() {
     checkFinalSeriesStarted();
   }, [checkFinalSeriesStarted]);
 
+  // Warn before closing/reloading the window while a finish order is entered but
+  // not submitted, so it can't be lost to an accidental close.
+  useEffect(() => {
+    if (!(isScoring && hasUnsavedEntry)) return undefined;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isScoring, hasUnsavedEntry]);
+
   if (!event) {
     return <LoadingState label="Loading event…" />;
   }
 
   return (
     <div>
-      <Navbar />
+      <Navbar onNavigateHome={() => guardedNavigate(() => navigate('/'))} />
 
       <main id="main-content" className="page-wrapper" tabIndex={-1}>
         <Breadcrumbs
           items={[
-            { label: 'Home', onClick: () => navigate('/') },
+            {
+              label: 'Home',
+              onClick: () => guardedNavigate(() => navigate('/')),
+            },
             {
               label: event?.event_name || 'Event',
               onClick: () =>
-                navigate(`/event/${event.event_name}`, { state: { event } }),
+                guardedNavigate(() =>
+                  navigate(`/event/${event.event_name}`, { state: { event } }),
+                ),
             },
             isScoring
               ? { label: 'Heat Race', onClick: handleBackToHeats }
@@ -390,6 +426,27 @@ function HeatRacePage() {
               <i className="fa fa-arrow-left" aria-hidden="true" /> Back to
               Heats
             </button>
+            {/* Persistent context so the scorer always knows which event and
+                which series (Qualifying vs Final) they are scoring — the two
+                have different SHRS scoring rules. */}
+            <div className="scoring-context" role="status">
+              <span className="scoring-context-event">
+                <i className="fa fa-flag-checkered" aria-hidden="true" />{' '}
+                {event.event_name}
+              </span>
+              <span
+                className={`scoring-context-phase ${
+                  finalSeriesStarted ? 'is-final' : 'is-qualifying'
+                }`}
+              >
+                {finalSeriesStarted ? 'Final Series' : 'Qualifying Series'}
+              </span>
+              {selectedHeat && (
+                <span className="scoring-context-heat">
+                  {selectedHeat.heat_name}
+                </span>
+              )}
+            </div>
             {selectedHeat && (
               <ScoringInputComponent
                 heat={selectedHeat}

@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import HelpModal from './shared/HelpModal';
 
 interface NavbarProps {
   onOpenGlobalLeaderboard?: (() => void) | null;
@@ -15,6 +16,7 @@ function Navbar({
   onNavigateHome = null,
 }: NavbarProps) {
   const navigate = useNavigate();
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // Pages with unsaved work (e.g. the leaderboard editor) pass their own
   // handler so the brand button goes through the same discard-changes guard as
@@ -68,6 +70,19 @@ function Navbar({
           Go to Scoring
         </button>
       )}
+
+      {/* Always available so help is reachable from every screen. */}
+      <button
+        type="button"
+        className="app-navbar-help"
+        onClick={() => setHelpOpen(true)}
+        aria-label="Open help and glossary"
+      >
+        <i className="fa fa-circle-question" aria-hidden="true" />
+        Help
+      </button>
+
+      <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
     </nav>
   );
 }

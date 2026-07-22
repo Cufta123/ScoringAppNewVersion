@@ -9,10 +9,11 @@ import type {
   Rdg2PickerState,
 } from '../../types';
 
-// Accent colours for the qualifying series (blue scheme)
+// Accent colours for the qualifying series (blue scheme). `thead` is darker than
+// `border` so the white header text clears WCAG AA (white on #4a7fc1 was ≈3.3:1).
 const QUAL_ACCENT = {
   border: '#4a7fc1',
-  thead: '#4a7fc1',
+  thead: '#3468a8',
   dot: '#1a56a0',
 };
 
@@ -104,7 +105,7 @@ function QualifyingTable({
             minWidth: '100%',
             borderCollapse: 'separate',
             borderSpacing: 0,
-            fontSize: '0.9rem',
+            fontSize: '0.95rem',
           }}
         >
           <thead>
@@ -218,7 +219,7 @@ function QualifyingTable({
               const overallNet =
                 entry.computed_total ?? entry.total_points_event;
               const stripeBackground =
-                index % 2 === 0 ? '#fff' : 'var(--surface, #f5f7fa)';
+                index % 2 === 0 ? '#fff' : 'var(--surface-2, #f8fbff)';
 
               return (
                 <tr

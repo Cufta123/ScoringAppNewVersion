@@ -15,11 +15,17 @@ import { reportError } from './utils/userFeedback';
 function App() {
   useEffect(() => {
     const onUnhandledRejection = (event: PromiseRejectionEvent) => {
-      reportError('Unexpected application error', event.reason);
+      reportError(
+        'Something went wrong and your last action may not have been saved. Please try again — if it keeps happening, restart the app.',
+        event.reason,
+      );
     };
 
     const onWindowError = (event: ErrorEvent) => {
-      reportError('Unexpected application error', event.error || event.message);
+      reportError(
+        'Something went wrong and your last action may not have been saved. Please try again — if it keeps happening, restart the app.',
+        event.error || event.message,
+      );
     };
 
     window.addEventListener('unhandledrejection', onUnhandledRejection);

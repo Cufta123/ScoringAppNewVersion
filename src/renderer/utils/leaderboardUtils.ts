@@ -225,12 +225,15 @@ export const getRaceCellDisplay = (
   return { displayText, displayColor, isPenalty, isRdgCell, isExcluded };
 };
 
+// `border` keeps the lighter, recognisable fleet colour for the table outline;
+// `thead` is darkened so the WHITE header text clears WCAG AA (4.5:1). The
+// original shared colours (e.g. white on Gold #c8960a ≈2.6:1) failed AA.
 export const FLEET_COLORS: Record<string, { border: string; thead: string }> = {
-  Gold: { border: '#c8960a', thead: '#c8960a' },
-  Silver: { border: '#7a8a94', thead: '#7a8a94' },
-  Bronze: { border: '#9a6020', thead: '#9a6020' },
-  Copper: { border: '#8a5020', thead: '#8a5020' },
-  General: { border: '#6b7c93', thead: '#6b7c93' },
+  Gold: { border: '#c8960a', thead: '#8a6800' },
+  Silver: { border: '#7a8a94', thead: '#5c6870' },
+  Bronze: { border: '#9a6020', thead: '#86521a' },
+  Copper: { border: '#8a5020', thead: '#7a461a' },
+  General: { border: '#6b7c93', thead: '#566575' },
 };
 
 export const GROUP_ORDER = ['Gold', 'Silver', 'Bronze', 'Copper', 'General'];

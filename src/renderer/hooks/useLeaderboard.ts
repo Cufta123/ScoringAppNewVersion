@@ -135,6 +135,10 @@ export default function useLeaderboard(eventId: number) {
   const [finalSeriesStarted, setFinalSeriesStarted] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>('event');
   const [editMode, setEditMode] = useState(false);
+  // True while a save (atomic write + leaderboard refetch/recompute) is running,
+  // so the toolbar can disable the button and show progress instead of looking
+  // frozen during the recompute.
+  const [saving, setSaving] = useState(false);
   const [editableLeaderboard, setEditableLeaderboard] = useState<
     LeaderboardEntry[]
   >([]);
@@ -587,6 +591,7 @@ export default function useLeaderboard(eventId: number) {
       const shouldDiscard = await confirmAction(
         'You have unsaved leaderboard changes. Cancel editing and discard them?',
         'Discard changes',
+        { confirmLabel: 'Discard', confirmClassName: 'btn-danger' },
       );
       if (!shouldDiscard) return;
     }
@@ -1322,6 +1327,8 @@ export default function useLeaderboard(eventId: number) {
   };
 
   const handleSave = async () => {
+    // Ignore re-entrant clicks while a save is already running.
+    if (saving) return;
     try {
       if (!editableLeaderboard || !leaderboard) {
         throw new Error('Leaderboard data is not initialized');
@@ -1405,20 +1412,25 @@ export default function useLeaderboard(eventId: number) {
         );
       }
 
-      await heatRaceDB.saveLeaderboardRaceResultsAtomic(
-        eventId,
-        updateOperations,
-        shiftPositions,
-        finalSeriesStarted && activeTab !== 'event',
-      );
+      setSaving(true);
+      try {
+        await heatRaceDB.saveLeaderboardRaceResultsAtomic(
+          eventId,
+          updateOperations,
+          shiftPositions,
+          finalSeriesStarted && activeTab !== 'event',
+        );
 
-      await fetchLeaderboard();
-      userEditsRef.current.clear();
-      setEditMode(false);
-      reportInfo(
-        'Your leaderboard changes have been saved.',
-        'Leaderboard saved',
-      );
+        await fetchLeaderboard();
+        userEditsRef.current.clear();
+        setEditMode(false);
+        reportInfo(
+          'Your leaderboard changes have been saved.',
+          'Leaderboard saved',
+        );
+      } finally {
+        setSaving(false);
+      }
     } catch (error) {
       // Keep the draft, the queued edits, and edit mode intact so the user can
       // fix the problem and retry. Resetting only the visible state here would
@@ -1779,7 +1791,16 @@ export default function useLeaderboard(eventId: number) {
 
   // ─── Unified export dispatcher ───────────────────────────────────────────────
 
-  const exportAs = async (format: string) => {
+  const EXPORT_LABELS: Record<string, string> = {
+    excel: 'Excel',
+    csv: 'CSV',
+    txt: 'Plain text',
+    md: 'Markdown',
+    html: 'HTML',
+    pdf: 'PDF',
+  };
+
+  const runExport = (format: string): Promise<void> => {
     switch (format) {
       case 'excel':
         return exportToExcel();
@@ -1795,6 +1816,21 @@ export default function useLeaderboard(eventId: number) {
         return exportToPDF();
       default:
         return exportToExcel();
+    }
+  };
+
+  const exportAs = async (format: string) => {
+    const label = EXPORT_LABELS[format] ?? 'Excel';
+    try {
+      await runExport(format);
+      reportInfo(`Leaderboard exported as ${label}.`, 'Export complete');
+    } catch (error) {
+      // A single format can fail (e.g. PDF font embedding) while others work, so
+      // point the user at an alternative rather than a dead end.
+      reportError(
+        `Could not export the leaderboard as ${label}. Try a different format (Excel or CSV usually works).`,
+        error,
+      );
     }
   };
 
@@ -1840,6 +1876,7 @@ export default function useLeaderboard(eventId: number) {
     finalSeriesStarted,
     activeTab,
     editMode,
+    saving,
     editableLeaderboard,
     overallLeaderboard,
     shiftPositions,

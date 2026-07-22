@@ -2,8 +2,12 @@
 /* eslint-disable camelcase */
 import React, { useState, useEffect, useCallback } from 'react';
 import Autosuggest from 'react-autosuggest';
-import { toast } from 'react-toastify';
-import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
+import {
+  confirmAction,
+  reportError,
+  reportInfo,
+  reportWarning,
+} from '../utils/userFeedback';
 import { checkRaceHappened } from '../utils/raceStatus';
 
 import iocCountries from '../constants/iocCountries.json';
@@ -27,6 +31,7 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
   const [model, setModel] = useState('');
   const [raceHappened, setRaceHappened] = useState(false);
   const [suggestions, setSuggestions] = useState<ClubRow[]>([]);
+  const nameInputRef = React.useRef<HTMLInputElement>(null);
 
   const fetchClubs = async () => {
     try {
@@ -54,8 +59,9 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
     e.preventDefault();
 
     if (raceHappened) {
-      toast.error(
+      reportInfo(
         'No more sailors can be added as a race has already happened.',
+        'Action blocked',
       );
       return;
     }
@@ -65,7 +71,7 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
       );
 
       if (!selectedSubgroup) {
-        reportError('Please select a subgroup.');
+        reportWarning('Please select a subgroup.', 'Missing information');
         return;
       }
 
@@ -218,13 +224,17 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
           return; // Exit the function gracefully
         }
       }
+      // Clear only the per-sailor fields. Country and Club are intentionally
+      // retained: rosters are usually entered club-by-club / nation-by-nation,
+      // so keeping them saves re-selecting the same values for every sailor.
       setName('');
       setSurname('');
       setSubgroup('');
-      setClub('');
-      setSelectedCountry('');
       setSailNumber('');
       setModel('');
+      // Return focus to the first field so the next sailor can be typed straight
+      // away without reaching for the mouse.
+      nameInputRef.current?.focus();
 
       onAddSailor();
       reportInfo('Sailor and boat added successfully.', 'Success');
@@ -269,6 +279,7 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
               <label htmlFor="sf-name">First Name</label>
               <input
                 id="sf-name"
+                ref={nameInputRef}
                 type="text"
                 placeholder="e.g. Antonio"
                 value={name}

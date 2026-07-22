@@ -38,6 +38,7 @@ function LeaderboardContent({
     loading,
     finalSeriesStarted,
     editMode,
+    saving,
     editableLeaderboard,
     shiftPositions,
     compareMode,
@@ -142,6 +143,7 @@ function LeaderboardContent({
       <LeaderboardToolbar
         finalSeriesStarted={finalSeriesStarted}
         editMode={editMode}
+        saving={saving}
         compareMode={compareMode}
         shiftPositions={shiftPositions}
         editDisabled={finalSeriesStarted && !hasFinalData}
@@ -284,6 +286,7 @@ function LeaderboardPage() {
       const confirmed = await confirmAction(
         'You have unsaved leaderboard changes. Leave this page and discard them?',
         'Unsaved changes',
+        { confirmLabel: 'Leave and discard', confirmClassName: 'btn-danger' },
       );
       if (!confirmed) return;
     }
