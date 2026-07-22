@@ -208,17 +208,11 @@ describe('explainTieBreak — qualifying series', () => {
     expect(res.winnerBoatId).toBe('A');
   });
 
-  // SHRS 5.7(ii)(4) / RRS A8.1+A8.2: when neither rule can separate two boats,
-  // they remain tied. The shared-heat comparator in `calculateBoatScores.ts`
-  // (used here via `compareQualifyingTieCandidates`) falls back to
-  // `localeCompare(boat_id)` at line 211 instead of reporting "still tied",
-  // so `winnerBoatId` is always non-null even when every step below it says
-  // the tie could not be broken. This test's root cause is in
-  // calculateBoatScores.ts (not owned/edited by this pass) but the
-  // wrong-but-confident `winnerBoatId` is observable through
-  // explainTieBreak.ts, which is why it's pinned here.
-  // TODO(source-bug): calculateBoatScores.ts:211 — shared-heat A8 fallback
-  // should report "still tied" (e.g. return 0) instead of localeCompare.
+  // Regression guard (fixed in 7ec1616). SHRS 5.7(ii)(4) / RRS A8.1+A8.2: when
+  // neither rule can separate two boats they remain tied. The shared-heat
+  // comparator in `calculateBoatScores.ts` (via `compareQualifyingTieCandidates`)
+  // returns "still tied" rather than a `localeCompare(boat_id)` order, so
+  // `winnerBoatId` is null when every step reports the tie could not be broken.
   it('multi-heat event, tied pair shares every race with identical points: stays tied, no winner (SHRS 5.7(ii))', () => {
     setupDb({
       A: [
@@ -387,18 +381,13 @@ describe('explainTieBreak — final/overall series', () => {
     expect(res.winnerBoatId).toBe('A');
   });
 
-  // Same fixture as the M7 winner test above. The winner is correct (it comes
-  // from the already-fixed `compareOverallTiePackets`), but the narration's
-  // A8.2 "breaker race" is built independently in `explainTieBreak.ts` by
-  // sorting shared pairs on `race_number` alone, with no knowledge of
-  // heat_type (`a82PairsDesc` at explainTieBreak.ts:463). A Qualifying race
-  // numbered 4 sorts ahead of a Final race numbered 1, so the panel narrates
-  // and highlights the WRONG race as the tie-breaker even though the
-  // reported winner is right.
-  // TODO(source-bug): explainTieBreak.ts:463 — `a82PairsDesc` must rank
-  // shared Final-series pairs ahead of shared Qualifying pairs (mirror the
-  // `seriesRank` fix already applied in overallTieBreak.ts:153), not sort by
-  // race_number alone.
+  // Regression guard (fixed in 7ec1616). RRS A8.2 walks the event's last race
+  // backward, and final-series races are sailed after the qualifying series but
+  // restart their numbering at 1. The narration's `a82PairsDesc` must therefore
+  // rank shared Final-series pairs ahead of shared Qualifying pairs (mirroring
+  // the `seriesRank` order in overallTieBreak.ts), NOT sort by race_number
+  // alone — otherwise a Qualifying race numbered 4 would outrank a Final race
+  // numbered 1 and the panel would cite the wrong tie-breaker race.
   it('M7: the A8.2 narration step cites the shared FINAL race as the tie-breaker, not the higher-numbered Qualifying race', () => {
     setupDb({
       A: [
@@ -429,14 +418,12 @@ describe('explainTieBreak — final/overall series', () => {
     expect(a82Step?.comparison?.scoreB).toBe(5);
   });
 
-  // SHRS 5.7(ii)(4) / RRS A8.1+A8.2 fallback for the combined comparator
-  // (`compareOverallTiePackets`), the same root cause pinned directly in
-  // overallTieBreak.test.ts ("M8: unresolved tie must stay tied"). Included
-  // here too because it is directly observable through explainTieBreak.ts's
-  // `winnerBoatId`, which this panel promises will never disagree with the
-  // authoritative comparator.
-  // TODO(source-bug): overallTieBreak.ts:189 — shared-heat A8 fallback
-  // should report "still tied" (e.g. return 0) instead of localeCompare.
+  // Regression guard (fixed in 7ec1616). When every shared race is identical the
+  // boats stay genuinely tied: `compareOverallTiePackets` returns 0 rather than
+  // inventing an order from the internal boat_id, and this panel's `winnerBoatId`
+  // reports no winner. Directly observable here because the panel promises never
+  // to disagree with the authoritative comparator. See the companion assertion
+  // in overallTieBreak.test.ts ("M8: unresolved tie must stay tied").
   it('multi-heat overall tie, every shared race identical: stays tied, no winner (SHRS 5.7(ii))', () => {
     setupDb({
       A: [

@@ -74,6 +74,7 @@ type RaceGridCell = {
 type RacePair = {
   raceId: number;
   raceNumber: number;
+  heatType: string;
   pointsA: number;
   pointsB: number;
   excludedA: boolean;
@@ -174,6 +175,7 @@ function buildSharedPairs(
       return {
         raceId: race.race_id,
         raceNumber: race.race_number,
+        heatType: race.heat_type,
         pointsA: race.points,
         pointsB: other.points,
         excludedA: race.excluded,
@@ -189,9 +191,9 @@ function buildSharedRaceGrid(
   sharedPairs: RacePair[],
   breakerRaceId: number | null,
 ): RaceGridCell[] {
-  return sharedPairs.map((pair, idx) => ({
+  return sharedPairs.map((pair) => ({
     key: String(pair.raceId),
-    label: `R${idx + 1}`,
+    label: `${pair.heatType === 'Final' ? 'F' : 'Q'}${pair.raceNumber}`,
     scoreA: pair.pointsA,
     scoreB: pair.pointsB,
     excludedA: pair.excludedA,

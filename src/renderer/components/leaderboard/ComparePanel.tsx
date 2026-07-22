@@ -347,22 +347,22 @@ function ComparePanel({
         {sharedQualRacePairs?.length > 0 || sharedIds.size > 0 ? (
           <div className="compare-badges-wrap">
             <span className="compare-badges-label">Shared heat races:</span>
-            {sharedQualRacePairs?.map((pair, i) => (
+            {sharedQualRacePairs?.map((pair) => (
               <span
                 key={`q-${pair.raceId}`}
                 className="compare-badge compare-badge-qual"
               >
-                Q{i + 1}: {pair.displayA} <span className="compare-vs">vs</span>{' '}
-                {pair.displayB}
+                Q{pair.raceNumber}: {pair.displayA}{' '}
+                <span className="compare-vs">vs</span> {pair.displayB}
               </span>
             ))}
-            {sharedRacePairs.map((pair, i) => (
+            {sharedRacePairs.map((pair) => (
               <span
                 key={`f-${pair.raceId}`}
                 className="compare-badge compare-badge-final"
               >
-                F{i + 1}: {pair.displayA} <span className="compare-vs">vs</span>{' '}
-                {pair.displayB}
+                F{pair.raceNumber}: {pair.displayA}{' '}
+                <span className="compare-vs">vs</span> {pair.displayB}
               </span>
             ))}
           </div>

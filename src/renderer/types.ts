@@ -274,6 +274,8 @@ export interface OverallLeaderboardEntry {
 
 export interface TieBreakRacePair {
   raceId: number | string;
+  raceNumber?: number;
+  heatType?: string;
   displayA?: string | number;
   displayB?: string | number;
   [key: string]: unknown;

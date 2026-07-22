@@ -138,13 +138,10 @@ describe('compareOverallTiePackets — shared heat (SHRS 5.7.2.2, excluded score
 });
 
 describe('compareOverallTiePackets — M8: unresolved tie must stay tied, not be ordered by boat_id', () => {
-  // SHRS 5.7(ii)(4) / RRS A8.1+A8.2: when neither rule can separate two boats,
-  // they remain tied. `overallTieBreak.ts:189` currently falls back to
-  // `localeCompare(boat_id)`, inventing a non-rule order from an internal DB
-  // id. Rule-correct behaviour is a return value of 0 (still tied).
-  // TODO(source-bug): overallTieBreak.ts:189 — replace the localeCompare
-  // fallback with `return 0` (or otherwise surface "still tied") for both
-  // the no-shared-heat branch and the shared-heat branch below.
+  // Regression guard (fixed in 7ec1616). SHRS 5.7(ii)(4) / RRS A8.1+A8.2: when
+  // neither rule can separate two boats they remain tied. `compareOverallTiePackets`
+  // returns 0 rather than inventing a non-rule order from the internal DB boat_id,
+  // for both the no-shared-heat and shared-heat branches below.
   it('no-shared-heat: returns 0 (tied) when A8.1 and A8.2 are both fully identical', () => {
     const b2 = packet([1, 2, 3], [1, 2, 3], [3, 2, 1]);
     const a1 = packet([4, 5, 6], [1, 2, 3], [3, 2, 1]);
