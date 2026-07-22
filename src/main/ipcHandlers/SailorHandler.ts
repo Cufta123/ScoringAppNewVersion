@@ -130,7 +130,7 @@ ipcMain.handle('updateSailor', async (event, sailorData) => {
     // can never edit the wrong "John Doe" the way a name+surname lookup could.
     const boatRow = db
       .prepare(
-        'SELECT sailor_id, club_id FROM Boats b JOIN Sailors s ON s.sailor_id = b.sailor_id WHERE b.boat_id = ?',
+        'SELECT s.sailor_id, s.club_id FROM Boats b JOIN Sailors s ON s.sailor_id = b.sailor_id WHERE b.boat_id = ?',
       )
       .get(boat_id) as { sailor_id: number; club_id: number } | undefined;
     if (!boatRow) throw new Error(`Boat not found: ${boat_id}`);

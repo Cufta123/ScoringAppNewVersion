@@ -53,6 +53,7 @@ const config: Config = {
     '**/src/__tests__/Scores.uniqueIndex.migration.test.ts',
     '**/src/__tests__/SailorHandler.importLookup.test.ts',
     '**/src/__tests__/SailorHandler.updateSailor.test.ts',
+    '**/src/__tests__/SailorHandler.updateSailor.integration.test.ts',
     '**/src/__tests__/SHRS_comprehensive.test.ts',
     '**/src/__tests__/compareUtils.test.ts',
     '**/src/__tests__/leaderboardStatusCodes.test.ts',
