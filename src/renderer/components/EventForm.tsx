@@ -1,6 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { confirmChoice, reportError, reportInfo } from '../utils/userFeedback';
+import {
+  confirmAction,
+  confirmChoice,
+  reportError,
+  reportInfo,
+} from '../utils/userFeedback';
 import { eventDB, heatRaceDB } from '../api/db';
 import type { EventRow } from '../types';
 
@@ -557,14 +562,57 @@ export function EventList({ events, onEventsChanged = null }: EventListProps) {
     useState(false);
   const [editFinalDiscardLocked, setEditFinalDiscardLocked] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
+  // Snapshot of the values an edit session started with, so we can tell whether
+  // the user has actually changed anything before silently discarding an
+  // in-progress edit when they jump to another row.
+  const editBaselineRef = useRef<Record<string, unknown> | null>(null);
 
   const navigate = useNavigate();
+
+  const currentEditSnapshot = (): Record<string, unknown> => ({
+    name: editName,
+    location: editLocation,
+    start: editStartDate,
+    end: editEndDate,
+    advanced: editAdvancedEnabled,
+    assignment: editAssignmentMode,
+    qMode: editQualifyingDiscardMode,
+    qInput: editQualifyingDiscardInput,
+    fMode: editFinalDiscardMode,
+    fInput: editFinalDiscardInput,
+    overflow: editHeatOverflowPolicy,
+  });
+
+  const hasUnsavedEdits = (): boolean => {
+    if (editingId == null || editBaselineRef.current == null) return false;
+    return (
+      JSON.stringify(currentEditSnapshot()) !==
+      JSON.stringify(editBaselineRef.current)
+    );
+  };
 
   const handleEventClick = (event: EventRow) => {
     navigate(`/event/${event.event_name}`, { state: { event } });
   };
 
-  const startEdit = (e: React.MouseEvent, event: EventRow) => {
+  const startEdit = async (e: React.MouseEvent, event: EventRow) => {
+    e.stopPropagation();
+
+    // Jumping straight from one row's unsaved edit into another would discard
+    // the first with no warning — confirm before throwing that work away.
+    if (
+      editingId != null &&
+      editingId !== event.event_id &&
+      hasUnsavedEdits()
+    ) {
+      const proceed = await confirmAction(
+        'You have unsaved changes to another event. Discard them and edit this one instead?',
+        'Discard unsaved changes',
+        { confirmLabel: 'Discard changes', confirmClassName: 'btn-danger' },
+      );
+      if (!proceed) return;
+    }
+
     const qualifyingProfile = parseDiscardModeAndConfig(
       event.shrs_discard_profile_qualifying,
     );
@@ -572,7 +620,6 @@ export function EventList({ events, onEventsChanged = null }: EventListProps) {
       event.shrs_discard_profile_final,
     );
 
-    e.stopPropagation();
     setEditingId(event.event_id);
     setEditName(event.event_name);
     setEditLocation(event.event_location);
@@ -600,6 +647,22 @@ export function EventList({ events, onEventsChanged = null }: EventListProps) {
     );
     setEditQualifyingDiscardLocked(event.shrs_discard_locked_qualifying === 1);
     setEditFinalDiscardLocked(event.shrs_discard_locked_final === 1);
+
+    // Record the starting values (from the same source used for the setters
+    // above, since state updates are async and can't be read back here).
+    editBaselineRef.current = {
+      name: event.event_name,
+      location: event.event_location,
+      start: event.start_date,
+      end: event.end_date,
+      advanced: hasAdvancedSettings,
+      assignment: event.shrs_qualifying_assignment_mode || 'progressive',
+      qMode: qualifyingProfile.mode,
+      qInput: qualifyingProfile.thresholdsInput,
+      fMode: finalProfile.mode,
+      fInput: finalProfile.thresholdsInput,
+      overflow: event.shrs_heat_overflow_policy || 'auto-increase',
+    };
   };
 
   const cancelEdit = () => {
