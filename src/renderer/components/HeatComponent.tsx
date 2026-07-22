@@ -1,9 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Flag from 'react-world-flags';
 import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
 import printNewHeats from '../utils/printNewHeats';
 import AppModal from './shared/AppModal';
-import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
+import {
+  confirmAction,
+  reportError,
+  reportInfo,
+  reportWarning,
+} from '../utils/userFeedback';
 import { getExcludeCount } from '../utils/leaderboardUtils';
 import { computeAdjustedFleetTotals } from '../../shared/fleetAssignment';
 import { heatRaceDB } from '../api/db';
@@ -96,6 +101,28 @@ function HeatComponent({
     'excel' | 'pdf' | 'html'
   >('excel');
   const [snapshotHistory, setSnapshotHistory] = useState<SnapshotEntry[]>([]);
+
+  // Every heat-mutating action here (create/recreate/transfer/start-final/
+  // restore) chains one or more DB round-trips, and Start Final Series chains
+  // up to four confirm dialogs. ConfirmDialogHost rejects a second confirm
+  // while one is open (it silently resolves to 'cancel'), so a double-click
+  // would launch a second chain that self-aborts with no explanation. Gate all
+  // of them through one exclusive runner: a ref gives a synchronous guard (two
+  // clicks in the same tick both see busy=false otherwise), and `busy` drives
+  // the disabled state on the trigger buttons.
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const runExclusive = useCallback(async (fn: () => Promise<void>) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      await fn();
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }, []);
 
   const snapshotStorageKey = `eventSnapshotHistory:${event.event_id}`;
 
@@ -402,6 +429,20 @@ function HeatComponent({
         setHeatsCreated(true);
         return;
       }
+      // The main process throws deliberately authored, plain-language
+      // validation messages for these cases (no boats registered, the SHRS
+      // per-heat cap, an out-of-range heat count). Surface them verbatim so the
+      // user knows exactly what to change, instead of a generic "could not
+      // create" that hides the reason. Anything else is treated as a technical
+      // error and routed through reportError (detail to console only).
+      if (
+        message.includes('boats per heat') ||
+        message.includes('No boats are registered') ||
+        message.includes('Number of heats must be')
+      ) {
+        reportWarning(message, 'Cannot create heats');
+        return;
+      }
       reportError('Could not create heats.', error);
     }
   };
@@ -555,7 +596,7 @@ function HeatComponent({
     const { boat, fromHeatId } = data ?? {};
     if (!boat?.boat_id || fromHeatId == null) return;
     if (fromHeatId === toHeatId) return; // dropped back onto its own heat
-    await handleBoatTransfer(boat, fromHeatId, toHeatId);
+    await runExclusive(() => handleBoatTransfer(boat, fromHeatId, toHeatId));
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -624,7 +665,7 @@ function HeatComponent({
         confirmLabel="Yes, Start Final Series"
         cancelLabel="Cancel"
         onCancel={() => setShowFinalConfirm(false)}
-        onConfirm={handleConfirmFinalSeries}
+        onConfirm={() => runExclusive(() => handleConfirmFinalSeries())}
       >
         This will create <strong>{pendingFinalHeats}</strong> final fleet
         {pendingFinalHeats > 1 ? 's' : ''} based on current standings. This
@@ -652,8 +693,8 @@ function HeatComponent({
           <button
             type="button"
             className="btn-ghost"
-            onClick={handleExportNewHeats}
-            disabled={heatsToDisplay.length === 0}
+            onClick={() => runExclusive(handleExportNewHeats)}
+            disabled={heatsToDisplay.length === 0 || busy}
           >
             {isFinalSeriesView ? 'Print Final Series Heats' : 'Print New Heats'}
           </button>
@@ -682,8 +723,12 @@ function HeatComponent({
               </label>
               <button
                 type="button"
-                onClick={heatsCreated ? handleRecreateHeats : handleCreateHeats}
-                disabled={raceHappened || finalSeriesStarted}
+                onClick={() =>
+                  runExclusive(
+                    heatsCreated ? handleRecreateHeats : handleCreateHeats,
+                  )
+                }
+                disabled={raceHappened || finalSeriesStarted || busy}
               >
                 {heatsCreated ? 'Recreate Heats' : 'Create Heats'}
               </button>
@@ -844,7 +889,8 @@ function HeatComponent({
               <button
                 type="button"
                 className="btn-success"
-                onClick={handleStartFinalSeries}
+                onClick={() => runExclusive(handleStartFinalSeries)}
+                disabled={busy}
               >
                 <i className="fa fa-flag-checkered" aria-hidden="true" /> Start
                 Final Series
@@ -853,14 +899,16 @@ function HeatComponent({
             <button
               type="button"
               className="btn-ghost"
-              onClick={handleSaveSnapshot}
+              onClick={() => runExclusive(handleSaveSnapshot)}
+              disabled={busy}
             >
               Save Backup
             </button>
             <button
               type="button"
               className="btn-ghost"
-              onClick={handleRestoreSnapshot}
+              onClick={() => runExclusive(handleRestoreSnapshot)}
+              disabled={busy}
             >
               Restore Backup
             </button>
