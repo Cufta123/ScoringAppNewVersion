@@ -277,9 +277,12 @@ function EventForm({ onEventCreated = null }: EventFormProps) {
 
     setSubmitting(true);
     try {
+      // Store the trimmed values so what's saved matches what the duplicate
+      // check above normalized — otherwise a stray trailing space passes the
+      // check yet is written into the name that keys the /event/:name route.
       await eventDB.insertEvent(
-        eventName,
-        eventLocation,
+        eventName.trim(),
+        eventLocation.trim(),
         eventStartDate,
         eventEndDate,
         advancedEnabled ? assignmentMode : 'progressive',
@@ -663,10 +666,12 @@ export function EventList({ events, onEventsChanged = null }: EventListProps) {
 
     setSavingEdit(true);
     try {
+      // Store trimmed values so the saved name matches the rename-collision
+      // check above (and never keys the route with trailing whitespace).
       await eventDB.updateEvent(
         editingId,
-        editName,
-        editLocation,
+        editName.trim(),
+        editLocation.trim(),
         editStartDate,
         editEndDate,
         editAdvancedEnabled ? editAssignmentMode : 'progressive',

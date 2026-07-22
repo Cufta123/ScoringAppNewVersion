@@ -199,9 +199,13 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
       if (boat_id == null) {
         try {
           const boatResult = await sailorDB.insertBoat(
-            sailNumber,
+            // Store the trimmed sail number so it matches the existing-boat
+            // lookup above (which compares sailNumber.trim()); otherwise a
+            // stray space creates a boat that lookup can never find again,
+            // defeating the duplicate-boat guard on the next submit.
+            sailNumber.trim(),
             selectedCountry,
-            model,
+            model.trim(),
             sailor_id,
           );
           boat_id = boatResult.lastInsertRowid;
