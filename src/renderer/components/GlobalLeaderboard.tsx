@@ -92,10 +92,14 @@ function GlobalLeaderboardComponent() {
   }
 
   if (!leaderboard.length) {
+    // The global leaderboard feature is currently on hold: the backend never
+    // populates the GlobalLeaderboard table (see AGENTS.md §10), so this view
+    // is always empty by design. Say so plainly rather than "no results yet",
+    // which reads as missing/broken data and sends users hunting for a fault.
     return (
       <EmptyState
-        title="No global results"
-        description="No scored races are available yet across events."
+        title="Global leaderboard unavailable"
+        description="The cross-event global leaderboard is currently on hold and isn’t being updated. Your event results are unaffected — open a specific event to see its standings."
       />
     );
   }
