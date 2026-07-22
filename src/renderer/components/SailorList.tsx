@@ -91,6 +91,7 @@ function SailorList({
   const [editedSailor, setEditedSailor] = useState<EditedSailor>({});
   const [isExpanded, setIsExpanded] = useState(true);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
     const savedIsExpanded = localStorage.getItem(EXPANDED_STORAGE_KEY);
@@ -165,6 +166,9 @@ function SailorList({
   };
 
   const handleSave = async () => {
+    // Prevent a second save while the update round-trip is still in flight.
+    if (savingEdit) return;
+    setSavingEdit(true);
     try {
       const sailorData = {
         originalName: editedSailor.originalName,
@@ -193,6 +197,8 @@ function SailorList({
       reportInfo('Sailor details saved successfully.', 'Saved');
     } catch (error) {
       reportError('Could not save sailor changes.', error);
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -424,9 +430,14 @@ function SailorList({
                           aria-label={`Save changes for ${sailor.name} ${sailor.surname}`}
                           title="Save changes"
                           onClick={handleSave}
+                          disabled={savingEdit}
                         >
                           <i
-                            className="fa fa-save"
+                            className={
+                              savingEdit
+                                ? 'fa fa-spinner fa-spin'
+                                : 'fa fa-save'
+                            }
                             aria-hidden="true"
                             style={{ color: 'var(--teal)' }}
                           />
@@ -437,6 +448,7 @@ function SailorList({
                           aria-label={`Cancel editing ${sailor.name} ${sailor.surname}`}
                           title="Cancel editing"
                           onClick={handleCancelEdit}
+                          disabled={savingEdit}
                         >
                           <i
                             className="fa fa-xmark"

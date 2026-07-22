@@ -30,6 +30,7 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
   const [sailNumber, setSailNumber] = useState('');
   const [model, setModel] = useState('');
   const [raceHappened, setRaceHappened] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [suggestions, setSuggestions] = useState<ClubRow[]>([]);
   const nameInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -58,6 +59,12 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Guard against a second submission while the first is still in flight.
+    // handleSubmit chains several sequential DB round-trips, so without this a
+    // fast double-click (or a slow IPC/SQLite response) can run the handler
+    // twice and pile up duplicate club/boat rows.
+    if (submitting) return;
+
     if (raceHappened) {
       reportInfo(
         'No more sailors can be added as a race has already happened.',
@@ -65,6 +72,7 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
       );
       return;
     }
+    setSubmitting(true);
     try {
       const selectedSubgroup = SUBGROUP_OPTIONS.find(
         (option) => option.value === subgroup,
@@ -240,6 +248,8 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
       reportInfo('Sailor and boat added successfully.', 'Success');
     } catch (error) {
       reportError('An unexpected error occurred.', error);
+    } finally {
+      setSubmitting(false);
     }
   };
   const getSuggestions = (value: string): ClubRow[] => {
@@ -387,8 +397,17 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
             </div>
           </div>
           <div style={{ marginTop: '16px' }}>
-            <button type="submit" className="btn-success">
-              <i className="fa fa-plus" aria-hidden="true" /> Add Sailor
+            <button type="submit" className="btn-success" disabled={submitting}>
+              {submitting ? (
+                <>
+                  <i className="fa fa-spinner fa-spin" aria-hidden="true" />{' '}
+                  Saving…
+                </>
+              ) : (
+                <>
+                  <i className="fa fa-plus" aria-hidden="true" /> Add Sailor
+                </>
+              )}
             </button>
           </div>
         </form>

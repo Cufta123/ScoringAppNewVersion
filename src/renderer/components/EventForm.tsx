@@ -218,9 +218,13 @@ function EventForm({ onEventCreated = null }: EventFormProps) {
   );
   const [finalDiscardError, setFinalDiscardError] = useState('');
   const [heatOverflowPolicy, setHeatOverflowPolicy] = useState('auto-increase');
+  const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Prevent a second create while the first round-trip is still in flight.
+    if (submitting) return;
 
     if (eventStartDate && eventEndDate && eventEndDate < eventStartDate) {
       reportInfo(
@@ -271,6 +275,7 @@ function EventForm({ onEventCreated = null }: EventFormProps) {
       }
     }
 
+    setSubmitting(true);
     try {
       await eventDB.insertEvent(
         eventName,
@@ -305,6 +310,8 @@ function EventForm({ onEventCreated = null }: EventFormProps) {
       if (onEventCreated) onEventCreated();
     } catch (error) {
       reportError('Could not create the event.', error);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -501,8 +508,16 @@ function EventForm({ onEventCreated = null }: EventFormProps) {
           </div>
         </div>
       )}
-      <button type="submit" className="btn-success">
-        <i className="fa fa-plus-circle" aria-hidden="true" /> Create Event
+      <button type="submit" className="btn-success" disabled={submitting}>
+        {submitting ? (
+          <>
+            <i className="fa fa-spinner fa-spin" aria-hidden="true" /> Creating…
+          </>
+        ) : (
+          <>
+            <i className="fa fa-plus-circle" aria-hidden="true" /> Create Event
+          </>
+        )}
       </button>
     </form>
   );
@@ -538,6 +553,7 @@ export function EventList({ events, onEventsChanged = null }: EventListProps) {
   const [editQualifyingDiscardLocked, setEditQualifyingDiscardLocked] =
     useState(false);
   const [editFinalDiscardLocked, setEditFinalDiscardLocked] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const navigate = useNavigate();
 
@@ -592,6 +608,9 @@ export function EventList({ events, onEventsChanged = null }: EventListProps) {
     e.preventDefault();
     if (editingId == null) return;
 
+    // Prevent a second save while the update round-trip is still in flight.
+    if (savingEdit) return;
+
     if (editStartDate && editEndDate && editEndDate < editStartDate) {
       reportInfo(
         'The end date is before the start date. Please pick an end date that is the same day or later.',
@@ -642,6 +661,7 @@ export function EventList({ events, onEventsChanged = null }: EventListProps) {
       }
     }
 
+    setSavingEdit(true);
     try {
       await eventDB.updateEvent(
         editingId,
@@ -666,6 +686,8 @@ export function EventList({ events, onEventsChanged = null }: EventListProps) {
       if (onEventsChanged) onEventsChanged();
     } catch (error) {
       reportError('Could not update the event.', error);
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -952,13 +974,27 @@ export function EventList({ events, onEventsChanged = null }: EventListProps) {
                 </div>
               )}
               <div className="flex gap-2">
-                <button type="submit" className="btn-success">
-                  <i className="fa fa-check" aria-hidden="true" /> Save
+                <button
+                  type="submit"
+                  className="btn-success"
+                  disabled={savingEdit}
+                >
+                  {savingEdit ? (
+                    <>
+                      <i className="fa fa-spinner fa-spin" aria-hidden="true" />{' '}
+                      Saving…
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa fa-check" aria-hidden="true" /> Save
+                    </>
+                  )}
                 </button>
                 <button
                   type="button"
                   onClick={cancelEdit}
                   className="btn-outline"
+                  disabled={savingEdit}
                 >
                   Cancel
                 </button>
