@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { reportError, reportWarning } from '../utils/userFeedback';
+import { reportError, reportInfo, reportWarning } from '../utils/userFeedback';
 import {
   POSITION_KEEPING_PENALTIES,
   orderBoatsByPenalty,
@@ -241,11 +241,25 @@ function ScoringInputComponent({
         'Unknown sail numbers',
       );
     }
-    addBoatsToList(
-      unique
-        .filter((n) => canonicalBySail.has(n))
-        .map((n) => canonicalBySail.get(n) as SailNumber),
-    );
+    const alreadyInOrder = new Set(boatNumbers.map(normalizeBoatNumber));
+    const validCanonical = unique.filter((n) => canonicalBySail.has(n));
+    const newlyAdded = validCanonical.filter((n) => !alreadyInOrder.has(n));
+    // Every typed number was valid but already scored, and nothing else was
+    // added — without this note the input just clears and the action looks
+    // like it silently failed.
+    if (
+      newlyAdded.length === 0 &&
+      validCanonical.length > 0 &&
+      invalidInput.length === 0
+    ) {
+      reportInfo(
+        `Already in the finish order: ${validCanonical
+          .map((n) => canonicalBySail.get(n))
+          .join(', ')}`,
+        'No change',
+      );
+    }
+    addBoatsToList(newlyAdded.map((n) => canonicalBySail.get(n) as SailNumber));
     setInputValue('');
   };
 
@@ -558,6 +572,7 @@ function ScoringInputComponent({
         <div className="finish-actionbar">
           {/* Progress indicator so the user always knows how many boats remain */}
           <p
+            id="finish-progress-status"
             aria-live="polite"
             className={`finish-progress${allScored ? ' is-done' : ''}`}
           >
@@ -565,10 +580,16 @@ function ScoringInputComponent({
               ? `All ${totalBoats} boats scored — ready to submit ✓`
               : `${scoredCount} of ${totalBoats} boats scored — ${totalBoats - scoredCount} remaining`}
           </p>
+          {/* The button stays actionable even when not all boats are scored: a
+              click surfaces a warning naming the missing boats, which is more
+              helpful than a dead disabled control. So it must NOT claim
+              aria-disabled (that would tell assistive tech it's inert while it
+              still acts). Readiness is conveyed by the aria-live status above,
+              referenced here via aria-describedby. */}
           <button
             type="button"
             className={`btn-success submit-scores-btn${allScored ? '' : ' is-unavailable'}`}
-            aria-disabled={!allScored}
+            aria-describedby="finish-progress-status"
             disabled={submitting}
             title={
               allScored
