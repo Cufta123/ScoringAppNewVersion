@@ -1,5 +1,7 @@
 /* eslint-disable camelcase */
 
+import { scoringPenaltyStatuses } from '../../shared/scoringPenalty';
+
 // SHRS 5.3 recording order for a heat: boats are recorded by finishing place,
 // then non-finishers in this severity order. Position-keeping penalties
 // (ZFP/SCP/T1) keep the boat's finishing place and are NOT displaced.
@@ -7,7 +9,11 @@
 // Kept as a standalone module so this scoring rule has one home and can be
 // unit-tested independently of the data-entry component.
 
-export const POSITION_KEEPING_PENALTIES = new Set(['ZFP', 'SCP', 'T1']);
+// LB-10: single-source the position-keeping penalty set from the shared scoring
+// module (`scoringPenaltyStatuses`) instead of re-declaring `['ZFP','SCP','T1']`
+// here. The renderer and main process must agree on which penalties keep their
+// finishing place, or edit-mode previews drift from the persisted scores.
+export const POSITION_KEEPING_PENALTIES = scoringPenaltyStatuses;
 
 // SHRS (5.3) is the primary order used by this app.
 export const SHRS_PENALTY_ORDER = [

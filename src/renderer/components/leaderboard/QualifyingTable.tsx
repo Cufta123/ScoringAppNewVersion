@@ -327,7 +327,12 @@ function QualifyingTable({
                         false);
                     return (
                       <ScoreCell
-                        key={`ev-${entry.boat_id}-${raceId}`}
+                        // LB-4: DNS placeholder cells have a null race_id, so
+                        // keying on raceId alone collapses every such cell in a
+                        // row to `ev-<boat>-undefined` (duplicate keys → DOM
+                        // misreconciliation). Fall back to the race index, prefixed
+                        // so a real race_id can't collide with a fallback index.
+                        key={`ev-${entry.boat_id}-${raceId ?? `i${ri}`}`}
                         race={race}
                         raceStatus={raceStatus}
                         raceIndex={ri}

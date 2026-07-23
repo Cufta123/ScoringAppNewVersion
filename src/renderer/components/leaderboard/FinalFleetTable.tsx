@@ -55,8 +55,18 @@ function FinalFleetTable({
 
   const fleetAccent = FLEET_COLORS[group] || FLEET_COLORS.General;
 
-  const qualRaceCount = eventLeaderboard[0]?.races?.length || 0;
-  const finalRaceCount = entries[0]?.races?.length || 0;
+  // MEGA H-NEW-15: derive the column count from the WIDEST boat, not just the
+  // top-ranked one. If the first entry happens to have fewer races than the
+  // others (e.g. 0 final races yet), keying the header off entries[0] hides
+  // every other boat's scores in the missing columns.
+  const qualRaceCount = Math.max(
+    0,
+    ...eventLeaderboard.map((e) => e.races?.length || 0),
+  );
+  const finalRaceCount = Math.max(
+    0,
+    ...entries.map((e) => e.races?.length || 0),
+  );
 
   return (
     <div style={{ marginBottom: '18px' }}>
