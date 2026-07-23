@@ -335,6 +335,9 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
   });
 
   it('asks SHRS 4.3 when leaderboard shows 7 completed races even if latest heats show 0 races', async () => {
+    // 7 races ARE completed (from scores), but the latest round of heats has 0
+    // races — the `latestRoundUnsailed` case, NOT `noRacesCompleted` (RULE-m3
+    // removed the 0-race seeding-only path; a 0-race event is now ineligible).
     window.electron.sqlite.heatRaceDB.getFinalSeriesEligibility = jest
       .fn()
       .mockResolvedValue({
@@ -343,15 +346,17 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
         numFinalHeats: 2,
         completedQualifyingRaces: 7,
         rule43Applies: true,
-        noRacesCompleted: true,
+        noRacesCompleted: false,
+        latestRoundUnsailed: true,
+        latestRoundNumber: 8,
         raceCountBreakdown: [
-          { name: 'Heat A1', count: 0 },
-          { name: 'Heat B1', count: 0 },
+          { name: 'Heat A8', count: 0 },
+          { name: 'Heat B8', count: 0 },
         ],
       });
 
     confirmActionMock
-      .mockResolvedValueOnce(true) // Proceed with 0 races warning.
+      .mockResolvedValueOnce(true) // Proceed past the "latest round unsailed" notice.
       .mockResolvedValueOnce(true) // Snapshot question.
       .mockResolvedValueOnce(true); // SHRS 4.3 choice.
 
@@ -377,8 +382,8 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
 
     await waitFor(() => {
       expect(confirmActionMock).toHaveBeenCalledWith(
-        expect.stringContaining('No qualifying races have been completed yet.'),
-        'Start Final Series',
+        expect.stringContaining('The latest round of heats'),
+        'Latest round not sailed',
       );
     });
 

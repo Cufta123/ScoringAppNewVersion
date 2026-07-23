@@ -5,7 +5,12 @@ import { getRaceCountForHeat } from './heatQueries';
 
 export type FinalSeriesEligibility = {
   ok: boolean;
-  reason: 'OK' | 'NO_HEATS' | 'SINGLE_FLEET' | 'UNEQUAL_RACE_COUNTS';
+  reason:
+    | 'OK'
+    | 'NO_HEATS'
+    | 'SINGLE_FLEET'
+    | 'UNEQUAL_RACE_COUNTS'
+    | 'NO_RACES_COMPLETED';
   numFinalHeats: number;
   completedQualifyingRaces: number;
   rule43Applies: boolean;
@@ -106,6 +111,23 @@ export function getFinalSeriesEligibility(
     racesFromHeats === 0 && completedQualifyingRaces > 0;
   const suffixMatch = latestHeats[0]?.heat_name.match(/Heat [A-Z]+(\d+)/);
   const latestRoundNumber = suffixMatch ? parseInt(suffixMatch[1], 10) : null;
+
+  // RULE-m3 / SHRS 4.2: final-fleet assignment is based on the boats' ranking in
+  // the Qualifying Series, which requires at least one completed qualifying race
+  // (a ranking needs race scores — 5.4). With nothing scored there is no valid
+  // ranking, so the Final Series cannot start. Returning ok:false here also makes
+  // eligibility consistent with startFinalSeriesAtomic, which rejects a
+  // zero-row qualifying leaderboard. (The §3 national-letter/sail seeding order
+  // is only for qualifying heat assignment, NOT for final-fleet division.)
+  if (completedQualifyingRaces === 0) {
+    return {
+      ok: false,
+      reason: 'NO_RACES_COMPLETED',
+      ...empty,
+      numFinalHeats,
+      raceCountBreakdown,
+    };
+  }
 
   return {
     ok: true,

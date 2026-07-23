@@ -317,6 +317,9 @@ function HeatComponent({
         } else if (eligibility.reason === 'SINGLE_FLEET') {
           message =
             'With only one heat the event is a single-fleet event (SHRS 1.1) — no Final Series applies.';
+        } else if (eligibility.reason === 'NO_RACES_COMPLETED') {
+          message =
+            'No qualifying races have been completed yet. Final-fleet assignment is based on the Qualifying Series ranking (SHRS 4.2), so complete at least one qualifying race before starting the Final Series.';
         } else {
           const breakdown = (eligibility.raceCountBreakdown || [])
             .map((r) => `${r.name}: ${r.count} race(s)`)
@@ -330,13 +333,11 @@ function HeatComponent({
       const { numFinalHeats, rule43Applies } = eligibility;
       const finalHeatCount = numFinalHeats ?? 0;
 
-      if (eligibility.noRacesCompleted) {
-        const proceed = await confirmAction(
-          'No qualifying races have been completed yet. Boats will be assigned to fleets based on their initial seeding only.\n\nStart the Final Series anyway?',
-          'Start Final Series',
-        );
-        if (!proceed) return;
-      } else if (eligibility.latestRoundUnsailed) {
+      // RULE-m3: the "0 races → assign by initial seeding only" path was removed.
+      // SHRS 4.2 requires a Qualifying Series ranking to divide fleets, so the
+      // 0-race case is now rejected up front (reason NO_RACES_COMPLETED above)
+      // rather than offered as a seeding-only start.
+      if (eligibility.latestRoundUnsailed) {
         // A new round of heats exists but has 0 races. It is NOT "no races
         // completed" — earlier rounds were sailed. Tell the user the empty
         // latest round is ignored and the last completed round is used.
