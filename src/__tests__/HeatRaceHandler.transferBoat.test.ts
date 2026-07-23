@@ -69,11 +69,20 @@ const dbMock = {
         },
       };
     }
-    if (sql.startsWith('INSERT INTO Heat_Boat')) {
+    // BK-1: the handler now uses `INSERT OR IGNORE INTO Heat_Boat`, so match on
+    // the table rather than the exact verb, and honour OR IGNORE's dedup no-op.
+    if (sql.startsWith('INSERT') && sql.includes('INTO Heat_Boat')) {
+      const orIgnore = sql.includes('OR IGNORE');
       return {
         run: (heatId: number, boatId: number) => {
           if (state.failInsert) {
             throw new Error('Simulated insert failure');
+          }
+          const exists = state.rows.some(
+            (r) => r.heat_id === heatId && r.boat_id === boatId,
+          );
+          if (orIgnore && exists) {
+            return { changes: 0, lastInsertRowid: state.rows.length };
           }
           state.rows.push({ heat_id: heatId, boat_id: boatId });
           return { changes: 1, lastInsertRowid: state.rows.length };

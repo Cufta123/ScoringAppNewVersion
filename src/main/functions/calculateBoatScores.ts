@@ -264,12 +264,27 @@ export default function calculateBoatScores(
     const scoreEntries = getScoresForA81(event_id, boat_id);
 
     // Determine the number of scores to exclude per SHRS 5.4 (series-wide count)
-    const excludeCount = getExcludeCountForConfig(
+    const seriesExcludeCount = getExcludeCountForConfig(
       seriesRaceCount,
       discardConfig,
     );
+
+    // LB-11: the discard count is series-wide, but a boat that has fewer races
+    // than the series (e.g. a late entrant whose missing races are not seeded)
+    // must never have *all* of its scores discarded — low-point scoring can
+    // never drop a boat below its single best race. Without this cap such a
+    // boat's total collapses to 0 and it is wrongly ranked first. Keep at least
+    // one score by capping to (scores available − 1).
+    const excludeCount = Math.min(
+      seriesExcludeCount,
+      Math.max(0, scoreEntries.length - 1),
+    );
+    const excludeCapNote =
+      excludeCount !== seriesExcludeCount
+        ? ` (capped from series-wide ${seriesExcludeCount}; boat has only ${scoreEntries.length} score(s))`
+        : '';
     console.log(
-      `Boat ID: ${boat_id}, Number of Races: ${number_of_races}, Places to Exclude: ${excludeCount}`,
+      `Boat ID: ${boat_id}, Number of Races: ${number_of_races}, Places to Exclude: ${excludeCount}${excludeCapNote}`,
     );
 
     // Exclude the worst scores

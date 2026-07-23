@@ -179,6 +179,24 @@ describe('Score exclusion thresholds', () => {
     expect(result.B.totalPoints).toBe(2); // 1+1 (10 excluded, not kept)
   });
 
+  // LB-11: a boat with fewer scores than the series-wide discard count must
+  // never have ALL of its scores discarded (→ total 0 → wrongly ranked first).
+  // The discard count is capped so at least one score always survives.
+  it('caps discards so a boat with fewer races than the discard count keeps a score (LB-11)', () => {
+    // Series-wide race count is 8 (boatFull sailed 8) → SHRS 5.4 gives 2
+    // discards. boatLate sailed a single race (20th place) and its missing
+    // races are not seeded. Without the cap it would discard its only score →
+    // total 0 → ranked ahead of a boat that finished 1st in every race.
+    setupMockDb({
+      boatFull: [1, 1, 1, 1, 1, 1, 1, 1], // 2 discards → keeps six 1s → total 6
+      boatLate: [20], // one race only
+    });
+    const result = run([makeResult('boatFull', 8), makeResult('boatLate', 1)]);
+    expect(result.boatLate.totalPoints).toBe(20); // score kept, not zeroed
+    expect(result.boatFull.place).toBe(1); // all-firsts boat correctly on top
+    expect(result.boatLate.place).toBe(2);
+  });
+
   it('each threshold [4,8,16,24,32] adds one more exclusion', () => {
     const thresholds = [4, 8, 16, 24, 32];
     thresholds.forEach((numRaces, idx) => {

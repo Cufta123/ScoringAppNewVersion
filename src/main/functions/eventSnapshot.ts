@@ -151,8 +151,11 @@ export function restoreEventSnapshot(
       insertHeat.run(row.heat_id, row.event_id, row.heat_name, row.heat_type);
     });
 
+    // BK-1: OR IGNORE so restoring a snapshot captured before the
+    // UNIQUE(heat_id, boat_id) constraint (which could contain duplicate
+    // Heat_Boat rows) can't throw mid-restore — duplicates are simply dropped.
     const insertHeatBoat = db.prepare(
-      'INSERT INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)',
+      'INSERT OR IGNORE INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)',
     );
     (tables.Heat_Boat || []).forEach((row) => {
       insertHeatBoat.run(row.heat_id, row.boat_id);

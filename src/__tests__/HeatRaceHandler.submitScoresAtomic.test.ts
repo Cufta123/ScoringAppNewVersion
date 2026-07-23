@@ -32,6 +32,10 @@ type ScoreRow = {
 
 const MAX_HEAT_SIZE = 10;
 const HEAT_ID = 10;
+// Heat 10 belongs to event 1 (see the 'SELECT event_id, heat_type FROM Heats'
+// mock). HRH M4: the handler must score against the heat's event, not any
+// event_id the payload carries.
+const HEAT_EVENT_ID = 1;
 
 const state = {
   races: [] as Array<{ race_id: number; heat_id: number; race_number: number }>,
@@ -39,6 +43,8 @@ const state = {
   eventLocked: 0,
   raceSeq: 900,
   scoreSeq: 0,
+  // HRH M4 probe: the event_id passed to getMaxHeatSize's MAX(boat_count) query.
+  maxHeatSizeEventId: null as number | null,
   // Heat 10 has the boats we score; heat 20 has no races so the latest heats
   // have unequal race counts and the leaderboard recompute branch is skipped.
   boatsByHeat: {
@@ -62,7 +68,12 @@ const dbMock = {
       return { all: (heatId: number) => state.boatsByHeat[heatId] || [] };
     }
     if (sql.includes('MAX(boat_count) AS max_boats')) {
-      return { get: () => ({ max_boats: MAX_HEAT_SIZE }) };
+      return {
+        get: (eventId: number) => {
+          state.maxHeatSizeEventId = eventId;
+          return { max_boats: MAX_HEAT_SIZE };
+        },
+      };
     }
     if (sql.includes('SELECT COUNT(*) AS count FROM Races')) {
       return {
@@ -263,6 +274,7 @@ describe('submitHeatRaceScoresAtomic handler', () => {
     state.eventLocked = 0;
     state.raceSeq = 900;
     state.scoreSeq = 0;
+    state.maxHeatSizeEventId = null;
   });
 
   const scoresForRace = (raceId: number) =>
@@ -310,6 +322,65 @@ describe('submitHeatRaceScoresAtomic handler', () => {
     expect(scoresForRace(raceId)).toHaveLength(10);
     // Scoring locks the qualifying discard profile.
     expect(state.eventLocked).toBe(1);
+  });
+
+  it("scores against the heat's own event, ignoring a wrong payload event_id (HRH M4)", async () => {
+    // The payload lies about the event (999); the heat actually belongs to
+    // event 1. getMaxHeatSize must be computed for the heat's event, not the
+    // payload's, or SHRS 5.2 penalties would be based on the wrong heat sizes.
+    const result = await handlerRegistry.submitHeatRaceScoresAtomic(
+      {},
+      {
+        event_id: 999,
+        heat_id: HEAT_ID,
+        placeNumbers: [{ boatNumber: 101, place: 1, status: 'FINISHED' }],
+        isFinalSeries: false,
+      },
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    expect(state.maxHeatSizeEventId).toBe(HEAT_EVENT_ID);
+    expect(state.maxHeatSizeEventId).not.toBe(999);
+  });
+
+  it('stores non-scoring-penalty boats at the shared penalty position, not their sequential place (BK-3 / SHRS 5.2)', async () => {
+    // A DNF and a DSQ boat are submitted with sequential places (2 and 3) as the
+    // frontend always sends. SHRS 5.2 gives every non-finisher the same position
+    // and points = largest-heat size + 1 (= 11 here). The old
+    // `position = place || penaltyPlace` stored 2 and 3; the fix stores 11.
+    const result = await handlerRegistry.submitHeatRaceScoresAtomic(
+      {},
+      {
+        event_id: 1,
+        heat_id: HEAT_ID,
+        placeNumbers: [
+          { boatNumber: 101, place: 1, status: 'FINISHED' },
+          { boatNumber: 102, place: 2, status: 'DNF' },
+          { boatNumber: 103, place: 3, status: 'DSQ' },
+        ],
+        isFinalSeries: false,
+      },
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    const { raceId } = result;
+
+    expect(scoreForBoat(raceId, 1)).toMatchObject({
+      position: 1,
+      points: 1,
+      status: 'FINISHED',
+    });
+    // Both non-finishers share penaltyPlace (11) for BOTH position and points.
+    expect(scoreForBoat(raceId, 2)).toMatchObject({
+      position: 11,
+      points: 11,
+      status: 'DNF',
+    });
+    expect(scoreForBoat(raceId, 3)).toMatchObject({
+      position: 11,
+      points: 11,
+      status: 'DSQ',
+    });
   });
 
   it('does not shift finishers behind a position-keeping penalty (RRS A7 / 44.3c)', async () => {

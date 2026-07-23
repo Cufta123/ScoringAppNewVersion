@@ -109,6 +109,30 @@ const lockDiscardProfileForRace = (race_id: number) => {
   }
 };
 
+// BK-7: after a single-score edit or delete, refresh the affected event's
+// leaderboard so standings don't go stale. A Final race must also refresh the
+// FinalLeaderboard (the event recompute alone leaves it out of date), mirroring
+// undoLastScoredRaceForHeat.
+const recomputeLeaderboardsForRace = (race_id: number) => {
+  const row = db
+    .prepare(
+      `SELECT h.event_id, h.heat_type
+       FROM Races r
+       JOIN Heats h ON h.heat_id = r.heat_id
+       WHERE r.race_id = ?`,
+    )
+    .get(race_id) as { event_id: number; heat_type: string } | undefined;
+
+  if (!row) {
+    return;
+  }
+
+  recomputeEventLeaderboard(row.event_id);
+  if (row.heat_type === 'Final') {
+    recomputeFinalLeaderboard(row.event_id);
+  }
+};
+
 function getLatestRaceRowsForHeats(
   latestHeats: { heat_name: string; heat_id: number }[],
 ) {
@@ -722,8 +746,12 @@ ipcMain.handle('insertHeatBoat', async (event, heat_id, boat_id) => {
       );
     }
 
+    // BK-1: OR IGNORE so re-adding a boat already in this heat is a benign no-op
+    // rather than a UNIQUE-constraint throw now that (heat_id, boat_id) is unique.
     const result = db
-      .prepare('INSERT INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)')
+      .prepare(
+        'INSERT OR IGNORE INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)',
+      )
       .run(heat_id, boat_id);
     return { lastInsertRowid: result.lastInsertRowid };
   } catch (error) {
@@ -1052,8 +1080,16 @@ ipcMain.handle('getFinalSeriesEligibility', async (_event, event_id) => {
 // leave a half-scored race. Keeping it here makes scoring all-or-nothing and
 // keeps the domain logic in the main process.
 ipcMain.handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
-  const { event_id, heat_id, placeNumbers } = payload as {
-    event_id: number;
+  const {
+    event_id: payloadEventId,
+    heat_id,
+    placeNumbers,
+  } = payload as {
+    // HRH M4: event_id may arrive from the renderer but is NOT trusted — the
+    // authoritative event is read from the heat row below. Trusting a stale/
+    // wrong payload event_id would compute getMaxHeatSize for the wrong event
+    // (mis-scoring SHRS 5.2 penalties) and recompute the wrong leaderboard.
+    event_id?: number;
     heat_id: number;
     placeNumbers: Array<{
       boatNumber: string | number;
@@ -1072,6 +1108,13 @@ ipcMain.handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
       .get(heat_id) as { event_id: number; heat_type: string } | undefined;
     if (!heatRow) {
       throw new Error('Heat not found.');
+    }
+    // HRH M4: derive the event from the heat itself; ignore the payload value.
+    const { event_id } = heatRow;
+    if (payloadEventId != null && Number(payloadEventId) !== event_id) {
+      console.warn(
+        `HRH M4: submitHeatRaceScoresAtomic payload event_id ${payloadEventId} does not match heat ${heat_id}'s event ${event_id}; using the heat's event.`,
+      );
     }
     const isFinalHeat = heatRow.heat_type === 'Final';
 
@@ -1136,8 +1179,13 @@ ipcMain.handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
               normalizedStatus,
             );
           } else {
-            // Non-scoring penalties (DNF/DNS/...) take the penalty score.
-            position = place || penaltyPlace;
+            // Non-scoring penalties (DNF/DNS/...) take the penalty score AND the
+            // shared penalty position (largest-heat size + 1) per SHRS 5.2.
+            // BK-3: the frontend always sends a sequential `place` (>=1), so the
+            // old `place || penaltyPlace` never fell through to penaltyPlace and
+            // these boats were stored with sequential positions (5, 6, …)
+            // instead of the shared penaltyPlace. Points were already correct.
+            position = penaltyPlace;
             points = penaltyPlace;
           }
         } else {
@@ -1160,29 +1208,35 @@ ipcMain.handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
         applyRaceTieScoring(raceId);
       }
       lockDiscardProfileForRace(raceId);
+
+      // BK-2: recompute leaderboards inside the same transaction so a recompute
+      // failure rolls back the entire scoring write. Previously the recompute ran
+      // after writeScores() committed, leaving scores persisted but leaderboards
+      // stale on failure — a retry would then create a duplicate race.
+      if (isFinalHeat) {
+        recomputeFinalLeaderboard(event_id);
+      } else {
+        let allHeatsEqual = false;
+        try {
+          const latestHeats = getLatestQualifyingHeats(event_id);
+          const raceCounts = latestHeats.map((heat: { heat_id: number }) =>
+            getRaceCountForHeat(heat.heat_id),
+          );
+          allHeatsEqual = raceCounts.every((count) => count === raceCounts[0]);
+        } catch (countError) {
+          allHeatsEqual = false;
+          console.error(
+            `BK-2: could not verify equal heat race counts for event ${event_id}; skipping qualifying leaderboard recompute (standings may be stale until the next scored race). Cause:`,
+            (countError as Error).message,
+          );
+        }
+        if (allHeatsEqual) {
+          recomputeEventLeaderboard(event_id);
+        }
+      }
     });
 
     writeScores();
-
-    // Recompute leaderboards exactly as the renderer used to orchestrate it:
-    // qualifying only updates once every latest heat has the same race count.
-    if (isFinalHeat) {
-      recomputeFinalLeaderboard(event_id);
-    } else {
-      let allHeatsEqual = false;
-      try {
-        const latestHeats = getLatestQualifyingHeats(event_id);
-        const raceCounts = latestHeats.map((heat: { heat_id: number }) =>
-          getRaceCountForHeat(heat.heat_id),
-        );
-        allHeatsEqual = raceCounts.every((count) => count === raceCounts[0]);
-      } catch (countError) {
-        allHeatsEqual = false;
-      }
-      if (allHeatsEqual) {
-        recomputeEventLeaderboard(event_id);
-      }
-    }
 
     return { ok: true as const, raceNumber: nextRaceNumber, raceId };
   } catch (error) {
@@ -1199,13 +1253,27 @@ ipcMain.handle(
       const row = db
         .prepare('SELECT race_id FROM Scores WHERE score_id = ?')
         .get(score_id) as { race_id?: number } | undefined;
-      const result = db
-        .prepare(
-          'UPDATE Scores SET position = ?, points = ?, status = ? WHERE score_id = ?',
-        )
-        .run(position, points, normalizedStatus, score_id);
-      if (row?.race_id != null) {
-        lockDiscardProfileForRace(Number(row.race_id));
+      const raceId = row?.race_id != null ? Number(row.race_id) : null;
+      // BK-7: wrap the write, tie re-scoring and recompute in one transaction so
+      // an edit that changes a finisher can't leave stale A7 tie points on the
+      // other finishers or a stale leaderboard behind.
+      const applyUpdate = db.transaction(() => {
+        const runResult = db
+          .prepare(
+            'UPDATE Scores SET position = ?, points = ?, status = ? WHERE score_id = ?',
+          )
+          .run(position, points, normalizedStatus, score_id);
+        if (raceId != null) {
+          lockDiscardProfileForRace(raceId);
+          // Re-run RRS A7 tie scoring for the race so the remaining finishers
+          // get correct shared/averaged points after this edit.
+          applyRaceTieScoring(raceId);
+        }
+        return runResult;
+      });
+      const result = applyUpdate();
+      if (raceId != null) {
+        recomputeLeaderboardsForRace(raceId);
       }
       return { changes: result.changes };
     } catch (error) {
@@ -1217,6 +1285,10 @@ ipcMain.handle(
 ipcMain.handle('updateEventLeaderboard', async (event, event_id) => {
   try {
     recomputeEventLeaderboard(event_id);
+    // BK-9: return the same {success:true} contract as updateFinalLeaderboard
+    // so renderer callers that inspect the result get a consistent shape
+    // instead of `undefined`.
+    return { success: true };
   } catch (error) {
     console.error(
       'Error updating event leaderboard:',
@@ -1236,9 +1308,27 @@ ipcMain.handle('updateGlobalLeaderboard', async () => {
 
 ipcMain.handle('deleteScore', async (event, score_id) => {
   try {
-    const result = db
-      .prepare('DELETE FROM Scores WHERE score_id = ?')
-      .run(score_id);
+    // BK-7: capture the race BEFORE deleting so we can re-run tie scoring and
+    // recompute the leaderboard afterwards. Deleting a finisher's row otherwise
+    // leaves the remaining tied boats on stale averaged points and the stored
+    // leaderboard out of date.
+    const row = db
+      .prepare('SELECT race_id FROM Scores WHERE score_id = ?')
+      .get(score_id) as { race_id?: number } | undefined;
+    const raceId = row?.race_id != null ? Number(row.race_id) : null;
+    const applyDelete = db.transaction(() => {
+      const runResult = db
+        .prepare('DELETE FROM Scores WHERE score_id = ?')
+        .run(score_id);
+      if (raceId != null && runResult.changes > 0) {
+        applyRaceTieScoring(raceId);
+      }
+      return runResult;
+    });
+    const result = applyDelete();
+    if (raceId != null && result.changes > 0) {
+      recomputeLeaderboardsForRace(raceId);
+    }
     return { changes: result.changes };
   } catch (error) {
     console.error('Error deleting score:', error);
@@ -1828,8 +1918,11 @@ ipcMain.handle(
       const deleteQuery = db.prepare(
         'DELETE FROM Heat_Boat WHERE heat_id = ? AND boat_id = ?',
       );
+      // BK-1: OR IGNORE so transferring a boat that is somehow already in the
+      // target heat collapses to the target (delete-from-source + no-op insert)
+      // instead of throwing on the new UNIQUE(heat_id, boat_id) constraint.
       const insertQuery = db.prepare(
-        'INSERT INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)',
+        'INSERT OR IGNORE INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)',
       );
 
       // Atomic: a failed insert must not leave the boat removed from both heats

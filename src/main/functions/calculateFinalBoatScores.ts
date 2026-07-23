@@ -145,7 +145,10 @@ export default function calculateFinalBoatScores(
           const a82Comparison = compareScoreArrays(a.a82Scores, b.a82Scores);
           if (a82Comparison !== 0) return a82Comparison;
 
-          return String(a.boat_id).localeCompare(String(b.boat_id));
+          // SHRS 5.7(ii)(4) / A8: if neither A8.1 nor A8.2 separates the boats
+          // they remain tied. Do not invent an order from the internal boat_id
+          // (mirrors the qualifying/overall paths fixed under RULE-M8).
+          return 0;
         };
 
         // SHRS 2026 5.7(ii)(3): resolve higher-place tie before lower ties.

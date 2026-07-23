@@ -238,9 +238,11 @@ Tooling notes:
   JS/TS and `prettier --write` on staged json/css/md. It blocks commits on lint
   **errors** but not on the existing `no-console` warnings. Installed via the
   `prepare` script on `npm install`; hook lives in `.husky/pre-commit`.
-- `Scores.uniqueIndex.migration.test.ts` shells out to `python`; it fails in
-  environments where `python` is not on PATH (e.g. a bare `pyenv`). This is an
-  environment gap, not a code regression — confirm any failure is this one.
+- DB-migration safety tests (`Scores.uniqueIndex.migration.test.ts`,
+  `Heat_Boat.uniqueIndex.migration.test.ts`) run the migration SQL against a
+  real in-memory SQLite via the built-in `node:sqlite` module — no `python` and
+  no native `better-sqlite3` build. (The Scores test previously shelled out to
+  `python` and failed without it on PATH; that dependency has been removed.)
 
 ## 8. Test Map
 
