@@ -91,9 +91,23 @@ export const applyExclusions = (
   raceStatuses: string[] = [],
   scoreValues: Array<string | number> = rawPositions,
   discardProfile: string | null = 'standard',
+  // MEGA M-NEW-1 / SHRS 5.4: the discard count keys off races completed IN THE
+  // SERIES, not the boat's own race count. Callers that know the series-wide
+  // count pass it here so the renderer agrees with the backend
+  // (calculateBoatScores). Omitting it falls back to per-boat (legacy behavior,
+  // used by unit tests and any single-entry caller).
+  seriesRaceCount: number | undefined = undefined,
 ): { markedRaces: string[]; total: number } => {
   const n = rawPositions.length;
-  const excludeCount = getExcludeCount(n, discardProfile);
+  const raceCountForDiscards = seriesRaceCount ?? n;
+  const seriesExcludeCount = getExcludeCount(
+    raceCountForDiscards,
+    discardProfile,
+  );
+  // LB-11: never discard ALL of a boat's scores (a boat with fewer races than
+  // the series-wide discard count must keep at least one), mirroring the backend
+  // cap in calculateBoatScores.ts.
+  const excludeCount = Math.min(seriesExcludeCount, Math.max(0, n - 1));
   const points = scoreValues.map((r) => {
     const v = parseFloat(String(r).replace(/[()]/g, ''));
     return Number.isNaN(v) ? 0 : v;
@@ -135,6 +149,10 @@ export const applyExclusions = (
 export const processLeaderboardEntry = (
   entry: RawLeaderboardEntry,
   discardProfile: string | null = 'standard',
+  // SHRS 5.4 series-wide completed-race count (see applyExclusions). Callers
+  // that process a whole leaderboard compute this once as the max race count
+  // across all entries and pass it in.
+  seriesRaceCount: number | undefined = undefined,
 ): LeaderboardEntry => {
   const races = entry.race_positions ? entry.race_positions.split(',') : [];
   const race_points = entry.race_points ? entry.race_points.split(',') : races;
@@ -142,11 +160,12 @@ export const processLeaderboardEntry = (
   const race_statuses = entry.race_statuses
     ? entry.race_statuses.split(',')
     : races.map(() => 'FINISHED');
-  const { markedRaces } = applyExclusions(
+  const { markedRaces, total } = applyExclusions(
     races,
     race_statuses,
     race_points,
     discardProfile,
+    seriesRaceCount,
   );
   return {
     ...entry,
@@ -154,8 +173,14 @@ export const processLeaderboardEntry = (
     race_points,
     race_ids,
     race_statuses,
+    // LB-9: use the locally computed net total, which is consistent with the
+    // parenthesised markings and the CURRENT discard profile. The DB-stored
+    // total can be stale if the profile changed without a recompute. Fall back
+    // to the stored value only when there are no races to compute from.
     computed_total:
-      entry.total_points_final ?? entry.total_points_event ?? null,
+      races.length > 0
+        ? total
+        : (entry.total_points_final ?? entry.total_points_event ?? null),
   };
 };
 

@@ -36,11 +36,10 @@ import type {
   CompareInfo,
   LeaderboardEntry,
   OverallLeaderboardEntry,
+  RawLeaderboardEntry,
   RdgMetaEntry,
   Rdg2PickerState,
 } from '../types';
-
-type ActiveTab = 'event' | 'final';
 
 interface DiscardProfiles {
   qualifying: string;
@@ -133,8 +132,14 @@ export default function useLeaderboard(eventId: number) {
     [],
   );
   const [loading, setLoading] = useState(true);
+  // LB-16 / RULE-m4: there is no separate `activeTab` state. The series being
+  // viewed/edited is fully determined by `finalSeriesStarted` — the leaderboard
+  // page only makes the *active* series' cells editable (qualifying cells only
+  // before finals start; final cells only after), so the discard profile and
+  // largest-heat used for an edit always match that cell's series (SHRS
+  // 5.1/5.4/5.2). The old `activeTab` was always kept in lockstep with
+  // `finalSeriesStarted` and consumed by nothing, so it was removed.
   const [finalSeriesStarted, setFinalSeriesStarted] = useState(false);
-  const [activeTab, setActiveTab] = useState<ActiveTab>('event');
   const [editMode, setEditMode] = useState(false);
   // True while a save (atomic write + leaderboard refetch/recompute) is running,
   // so the toolbar can disable the button and show progress instead of looking
@@ -195,11 +200,23 @@ export default function useLeaderboard(eventId: number) {
     ? discardProfiles.final
     : discardProfiles.qualifying;
 
+  // SHRS 5.4 (MEGA M-NEW-1): series-wide completed-race count for the series
+  // being edited, used so edit-mode discard previews match the backend's
+  // series-wide count. Column count is stable across a single cell edit, so
+  // reading it from editableLeaderboard here is safe.
+  const editSeriesRaceCount = Math.max(
+    0,
+    ...editableLeaderboard.map((e) => e.races?.length || 0),
+  );
+
   // SHRS 5.2: a non-position-keeping penalty scores largest-heat-size + 1.
   // Falls back to the entry count only if heat sizes are not yet loaded.
   const getPenaltyPosition = (entryCount: number): number => {
-    const isFinalEdit = finalSeriesStarted && activeTab !== 'event';
-    const size = isFinalEdit ? maxHeatSizes.final : maxHeatSizes.qualifying;
+    // RULE-m4 / SHRS 5.2: use the largest-heat size of the series whose cells are
+    // editable — final once finals have started, qualifying otherwise.
+    const size = finalSeriesStarted
+      ? maxHeatSizes.final
+      : maxHeatSizes.qualifying;
     return (size || entryCount) + 1;
   };
 
@@ -425,7 +442,6 @@ export default function useLeaderboard(eventId: number) {
       const finalHeats = heats.filter((heat) => heat.heat_type === 'Final');
       if (finalHeats.length > 0) {
         setFinalSeriesStarted(true);
-        setActiveTab('final');
       }
     } catch (error) {
       reportError('Could not check final series status.', error);
@@ -519,16 +535,40 @@ export default function useLeaderboard(eventId: number) {
       };
       setDiscardProfiles(nextProfiles);
 
+      // SHRS 5.4 (MEGA M-NEW-1): the discard count is series-wide, so compute the
+      // number of races completed in the series as the max race count across all
+      // entries and hand it to processLeaderboardEntry (which forwards it to
+      // applyExclusions). This makes the renderer's discards/total agree with the
+      // backend's series-wide count instead of using each boat's own race count.
+      const seriesRaceCountOf = (rows: RawLeaderboardEntry[]): number =>
+        Math.max(
+          0,
+          ...rows.map((r) =>
+            typeof r.race_positions === 'string' && r.race_positions
+              ? r.race_positions.split(',').length
+              : 0,
+          ),
+        );
+
+      const eventSeriesRaceCount = seriesRaceCountOf(eventResults);
       const eventLeaderboardWithRaces = eventResults
-        .map((entry) => processLeaderboardEntry(entry, nextProfiles.qualifying))
+        .map((entry) =>
+          processLeaderboardEntry(
+            entry,
+            nextProfiles.qualifying,
+            eventSeriesRaceCount,
+          ),
+        )
         .sort((a, b) => (a.place ?? Infinity) - (b.place ?? Infinity));
       setEventLeaderboard(eventLeaderboardWithRaces);
 
       const results = finalSeriesStarted ? finalResults : eventResults;
+      const resultsSeriesRaceCount = seriesRaceCountOf(results);
       const leaderboardWithRaces = results.map((entry) =>
         processLeaderboardEntry(
           entry,
           finalSeriesStarted ? nextProfiles.final : nextProfiles.qualifying,
+          resultsSeriesRaceCount,
         ),
       );
 
@@ -721,6 +761,7 @@ export default function useLeaderboard(eventId: number) {
       statuses,
       scoreValues,
       activeDiscardProfile,
+      editSeriesRaceCount,
     );
     return {
       markedRaces,
@@ -991,6 +1032,7 @@ export default function useLeaderboard(eventId: number) {
         statuses,
         points,
         activeDiscardProfile,
+        editSeriesRaceCount,
       );
       return {
         ...entry,
@@ -1358,8 +1400,9 @@ export default function useLeaderboard(eventId: number) {
         throw new Error('Leaderboard data is not initialized');
       }
 
-      const originalSource =
-        activeTab === 'event' ? eventLeaderboard : leaderboard;
+      const originalSource = finalSeriesStarted
+        ? leaderboard
+        : eventLeaderboard;
 
       // Start from the user's raw edits; a "Switch places" choice appends more.
       const effectiveEdits = [...userEditsRef.current.values()];
@@ -1442,7 +1485,7 @@ export default function useLeaderboard(eventId: number) {
           eventId,
           updateOperations,
           shiftPositions,
-          finalSeriesStarted && activeTab !== 'event',
+          finalSeriesStarted,
         );
 
         await fetchLeaderboard();
@@ -1898,7 +1941,6 @@ export default function useLeaderboard(eventId: number) {
     eventLeaderboard,
     loading,
     finalSeriesStarted,
-    activeTab,
     editMode,
     saving,
     editableLeaderboard,

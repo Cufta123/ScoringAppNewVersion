@@ -22,6 +22,43 @@ describe('leaderboardUtils applyExclusions edge cases', () => {
     expect(markedRaces).toEqual(['(7)', '7', '2', '1']);
     expect(total).toBe(10);
   });
+
+  // MEGA M-NEW-1 / SHRS 5.4: the discard count is series-wide. A boat that sailed
+  // 5 races in an 8-race series must get 2 discards (getExcludeCount(8)), not 1
+  // (getExcludeCount(5)).
+  it('uses the series-wide race count for the discard threshold, not the boat count', () => {
+    const raw = ['5', '4', '3', '2', '1'];
+    const statuses = raw.map(() => 'FINISHED');
+
+    // Per-boat (legacy): 5 races -> 1 discard -> drop the 5 -> total 10.
+    const perBoat = applyExclusions(raw, statuses, raw);
+    expect(perBoat.total).toBe(10);
+    expect(perBoat.markedRaces).toEqual(['(5)', '4', '3', '2', '1']);
+
+    // Series-wide 8 races -> 2 discards -> drop 5 and 4 -> total 6.
+    const seriesWide = applyExclusions(raw, statuses, raw, 'standard', 8);
+    expect(seriesWide.total).toBe(6);
+    expect(seriesWide.markedRaces).toEqual(['(5)', '(4)', '3', '2', '1']);
+  });
+
+  // LB-11 (renderer side): a boat with fewer races than the series-wide discard
+  // count must keep at least one score — never discard them all.
+  it('caps discards so a single-race boat in an 8-race series keeps its score', () => {
+    const raw = ['3'];
+    const statuses = ['FINISHED'];
+
+    // seriesRaceCount 8 -> getExcludeCount = 2, but only 1 race exists; the cap
+    // (n-1 = 0) keeps it, so the score is NOT zeroed.
+    const { markedRaces, total } = applyExclusions(
+      raw,
+      statuses,
+      raw,
+      'standard',
+      8,
+    );
+    expect(total).toBe(3);
+    expect(markedRaces).toEqual(['3']);
+  });
 });
 
 describe('getExcludeCount — SHRS 5.4 boundaries and custom-profile edge cases', () => {
@@ -71,5 +108,25 @@ describe('processLeaderboardEntry race_points handling', () => {
     const processed = processLeaderboardEntry(entry);
     expect(processed.races).toEqual(['(3)', '2', '1', '4']);
     expect(processed.race_points).toEqual(['5', '2', '1', '4']);
+  });
+
+  // LB-9: computed_total comes from the locally computed net total (consistent
+  // with the parenthesised markings and the current discard profile), NOT the
+  // possibly-stale DB-stored total_points_event.
+  it('computes computed_total locally instead of trusting a stale DB total', () => {
+    const entry = {
+      boat_id: 7,
+      // Deliberately stale/wrong stored total.
+      total_points_event: 999,
+      race_positions: '5,4,3,2,1',
+      race_points: '5,4,3,2,1',
+      race_ids: '1,2,3,4,5',
+      race_statuses: 'FINISHED,FINISHED,FINISHED,FINISHED,FINISHED',
+    };
+
+    // 5-race series -> 1 discard -> drop the 5 -> net total 10 (not 999).
+    const processed = processLeaderboardEntry(entry, 'standard', 5);
+    expect(processed.computed_total).toBe(10);
+    expect(processed.races).toEqual(['(5)', '4', '3', '2', '1']);
   });
 });
