@@ -1670,6 +1670,9 @@ small.form-locked-note {
 .scoring-table tbody tr.is-added,
 .scoring-table tbody tr.is-added:hover {
   background: var(--teal-light);
+  /* Left accent visible even when background contrast is washed out in bright
+     sunlight on a regatta tablet. */
+  border-left: 4px solid var(--teal-hover);
   cursor: default;
 }
 .scoring-table tbody tr.is-invalid {
@@ -1709,7 +1712,10 @@ select.penalty-select {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  padding: 4px 6px;
+  /* 44px minimum touch target (Apple HIG / Material Design) so race officers
+     can reliably tap penalty options on a moving jury boat. */
+  min-height: 44px;
+  padding: 8px 8px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   font-size: 0.95rem;
@@ -1784,10 +1790,11 @@ button.finish-add-btn:hover {
 
 /* Editable finishing-place field: type a place to move a boat there directly. */
 .finish-place-input {
-  width: 52px;
-  min-width: 52px;
+  width: 64px;
+  min-width: 64px;
   flex-shrink: 0;
-  padding: 8px 4px;
+  min-height: 44px;
+  padding: 8px 6px;
   text-align: center;
   font-weight: 700;
   color: var(--teal-hover);
@@ -1796,6 +1803,16 @@ button.finish-add-btn:hover {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   box-shadow: none;
+}
+/* Hide browser spinner arrows so they don't compete with the touch target inside
+   the already-narrow place-input field. */
+.finish-place-input::-webkit-inner-spin-button,
+.finish-place-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.finish-place-input[type='number'] {
+  -moz-appearance: textfield;
 }
 
 .finish-label {

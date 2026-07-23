@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, { useState, useEffect } from 'react';
 import { reportError, reportInfo, reportWarning } from '../utils/userFeedback';
 import {
@@ -78,7 +79,17 @@ function FinishPlaceInput({
   const commit = () => {
     if (draft !== null && draft !== '') {
       const parsed = parseInt(draft, 10);
-      if (!Number.isNaN(parsed)) onCommit(parsed);
+      if (!Number.isNaN(parsed)) {
+        // Warn if the parsed value differs from what the user typed (e.g.
+        // decimal "3.5" silently truncated to 3, or scientific "2e1"→2).
+        if (String(parsed) !== draft.trim()) {
+          reportWarning(
+            `"${draft}" was interpreted as place ${parsed}. Type a whole number.`,
+            'Place adjusted',
+          );
+        }
+        onCommit(parsed);
+      }
     }
     setDraft(null);
   };
@@ -123,6 +134,17 @@ function ScoringInputComponent({
   // Guards against a double-submit writing the same heat twice (SHRS integrity):
   // the button is locked from the first click until the atomic write settles.
   const [submitting, setSubmitting] = useState(false);
+  // Inline error state so a boat-fetch failure shows a persistent banner with a
+  // Retry button, not just a fleeting toast.
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  // Bumped from the error banner's Retry button to re-trigger the fetch effect
+  // without changing heat.heat_id.
+  const [fetchToken, setFetchToken] = useState(0);
+  // Tracks boats that were added to the finish order SOLELY by selecting a
+  // penalty (never explicitly clicked or typed). When the penalty is cleared,
+  // these boats are removed from the finish order instead of becoming orphan
+  // finishers.
+  const autoAddedByPenalty = React.useRef<Set<string>>(new Set());
   // Focus the sail-number input as soon as a heat opens for scoring, so an RO can
   // read the finish order aloud and type straight away without reaching for the
   // mouse. Re-runs when switching heats.
@@ -132,7 +154,7 @@ function ScoringInputComponent({
   }, [heat.heat_id]);
 
   const normalizeBoatNumber = (value: SailNumber): string =>
-    String(value).trim();
+    value != null ? String(value).trim() : '';
   const compareBoatNumbers = (a: SailNumber, b: SailNumber): number =>
     normalizeBoatNumber(a).localeCompare(normalizeBoatNumber(b), undefined, {
       numeric: true,
@@ -168,14 +190,20 @@ function ScoringInputComponent({
     setDraggingIndex(null);
     setDropIndex(null);
     setInvalidBoatNumbers([]);
+    setFetchError(null);
+    autoAddedByPenalty.current = new Set();
 
     const fetchBoats = async () => {
       try {
         const boats = await heatRaceDB.readBoatsByHeat(heat.heat_id);
         if (!isActive) return;
         setValidBoats(boats.map((boat) => boat.sail_number));
+        setFetchError(null);
       } catch (error) {
         if (!isActive) return;
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
+        setFetchError(message);
         reportError('Could not load boats for selected heat.', error);
       }
     };
@@ -185,7 +213,7 @@ function ScoringInputComponent({
     return () => {
       isActive = false;
     };
-  }, [heat.heat_id]);
+  }, [heat.heat_id, fetchToken]);
 
   // Tell the parent whenever an unsubmitted finish order exists so it can warn
   // before navigating away (a place or a penalty counts as work-in-progress).
@@ -220,6 +248,8 @@ function ScoringInputComponent({
   // Clicking a row immediately adds the boat — no separate button press needed
   const handleBoatClick = (sailNumber: SailNumber) => {
     if (boatNumbers.includes(sailNumber)) return;
+    // Explicit click overrides any penalty-only auto-add tracking.
+    autoAddedByPenalty.current.delete(normalizeBoatNumber(sailNumber));
     addBoatsToList([sailNumber]);
   };
 
@@ -237,7 +267,8 @@ function ScoringInputComponent({
     const invalidInput = unique.filter((n) => !canonicalBySail.has(n));
     if (invalidInput.length > 0) {
       reportWarning(
-        `These sail numbers are not in ${heat.heat_name}: ${invalidInput.join(', ')}`,
+        `These sail numbers are not in ${heat.heat_name}: ${invalidInput.join(', ')}.\n\n` +
+          'Check the boat list on the left for valid sail numbers, or verify the heat assignment.',
         'Unknown sail numbers',
       );
     }
@@ -288,7 +319,7 @@ function ScoringInputComponent({
   };
 
   const handleReorderBoat = (fromIndex: number, toIndex: number) => {
-    if (toIndex < 0 || toIndex >= boatNumbers.length || fromIndex === toIndex) {
+    if (toIndex < 0 || toIndex > boatNumbers.length || fromIndex === toIndex) {
       return;
     }
     const updatedBoatNumbers = [...boatNumbers];
@@ -312,16 +343,42 @@ function ScoringInputComponent({
   const handleDrop = () => {
     if (draggingIndex !== null && dropIndex !== null) {
       handleReorderBoat(draggingIndex, dropIndex);
-      setDraggingIndex(null);
-      setDropIndex(null);
     }
+    setDraggingIndex(null);
+    setDropIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggingIndex(null);
+    setDropIndex(null);
   };
 
   const handlePenaltyChange = (boatNumber: SailNumber, penalty: string) => {
-    const nextBoatNumbers =
-      penalty && !boatNumbers.includes(boatNumber)
-        ? [...boatNumbers, boatNumber]
-        : [...boatNumbers];
+    const norm = normalizeBoatNumber(boatNumber);
+    const wasAutoAdded = autoAddedByPenalty.current.has(norm);
+    const wasInList = boatNumbers.some((b) => normalizeBoatNumber(b) === norm);
+
+    if (penalty) {
+      // Auto-add the boat if it's not already in the finish order.
+      if (!wasInList) {
+        autoAddedByPenalty.current.add(norm);
+      }
+    } else {
+      // Penalty cleared. If the boat was auto-added (only present because of
+      // a penalty selection), remove it entirely; otherwise keep it as a
+      // finisher (it was explicitly added via click/type).
+      autoAddedByPenalty.current.delete(norm);
+    }
+
+    let nextBoatNumbers = [...boatNumbers];
+    if (penalty && !wasInList) {
+      nextBoatNumbers = [...boatNumbers, boatNumber];
+    } else if (!penalty && wasAutoAdded) {
+      nextBoatNumbers = boatNumbers.filter(
+        (b) => normalizeBoatNumber(b) !== norm,
+      );
+    }
+
     const newPenalties = { ...penalties, [boatNumber]: penalty };
     if (!penalty) delete newPenalties[boatNumber];
 
@@ -331,11 +388,27 @@ function ScoringInputComponent({
     setPenalties(newPenalties);
   };
 
+  // Synchronous guard so rapid clicks that all hit the warning path (before
+  // setSubmitting(true) runs) don't produce duplicate toasts.
+  const submitGuardRef = React.useRef(false);
+
   const handleSubmit = async () => {
     // Ignore re-entrant clicks while a submit is already in flight.
-    if (submitting) return;
+    if (submitting || submitGuardRef.current) return;
+    submitGuardRef.current = true;
+    // Prevent creating an empty race when the heat has no boats.
+    if (validBoats.length === 0) {
+      reportInfo(
+        'This heat has no boats assigned — nothing to score.',
+        'Empty heat',
+      );
+      submitGuardRef.current = false;
+      return;
+    }
     const submittedBoatNumbers = [
-      ...new Set([...boatNumbers, ...Object.keys(penalties)]),
+      ...new Set(
+        [...boatNumbers, ...Object.keys(penalties)].map(normalizeBoatNumber),
+      ),
     ];
     const invalidSubmitted = submittedBoatNumbers.filter(
       (boatNumber) => !isValidBoatNumber(boatNumber),
@@ -348,6 +421,7 @@ function ScoringInputComponent({
           'Remove them from finish order and score only boats in this heat.',
         'Invalid sail numbers',
       );
+      submitGuardRef.current = false;
       return;
     }
 
@@ -423,6 +497,7 @@ function ScoringInputComponent({
         // On success the parent unmounts this view; on a warning/error path it
         // stays mounted, so re-enable the button either way.
         setSubmitting(false);
+        submitGuardRef.current = false;
       }
     } else {
       const missingBoats = allBoats.filter(
@@ -435,6 +510,7 @@ function ScoringInputComponent({
           'Click the missing boats in the left table to add them, or pick a penalty (e.g. DNS if a boat did not start).',
         'Some boats are not scored yet',
       );
+      submitGuardRef.current = false;
     }
   };
 
@@ -479,83 +555,108 @@ function ScoringInputComponent({
   ).length;
   const totalBoats = validBoats.length;
   const allScored = totalBoats > 0 && scoredCount === totalBoats;
+  const isEmpty = totalBoats === 0;
 
   return (
     <div className="scoring-layout">
       {/* Left panel — boat list */}
       <div className="scoring-panel">
         <h2 className="scoring-panel-title">{heat.heat_name} — Boats</h2>
-        <p className="scoring-hint">
-          Click a row or select a penalty to include the boat in scoring
-        </p>
-        <div className="scoring-table-wrap">
-          <table className="scoring-table">
-            <thead>
-              <tr>
-                <th>Sailor</th>
-                <th>Country</th>
-                <th>Sail #</th>
-                <th className="scoring-place-cell">Place</th>
-                <th>Penalty</th>
-              </tr>
-            </thead>
-            <tbody>
-              {heat.boats.map((boat) => {
-                const added = boatNumbers.includes(boat.sail_number);
-                const invalid = isInvalidSail(boat.sail_number);
-                return (
-                  <tr
-                    key={boat.boat_id}
-                    onClick={() => handleBoatClick(boat.sail_number)}
-                    className={`${added ? 'is-added' : ''}${invalid ? ' is-invalid' : ''}`}
-                    title={
-                      added
-                        ? `Already added at place ${getPlaceDisplay(boat.sail_number)}`
-                        : 'Click to add to finish order'
-                    }
-                  >
-                    <td>
-                      {boat.name} {boat.surname}
-                      {/* Always rendered (hidden until added) so adding the
-                          check never reflows the row. */}
-                      <span
-                        className={`scoring-added-check${added ? '' : ' is-placeholder'}`}
-                        aria-hidden={!added}
-                      >
-                        ✓
-                      </span>
-                    </td>
-                    <td>{boat.country}</td>
-                    <td className="scoring-sail-cell">{boat.sail_number}</td>
-                    <td
-                      className={`scoring-place-cell${added ? ' is-added' : ''}`}
-                    >
-                      {getPlaceDisplay(boat.sail_number)}
-                    </td>
-                    <td>
-                      <select
-                        className="penalty-select"
-                        value={penalties[boat.sail_number] || ''}
-                        onChange={(e) =>
-                          handlePenaltyChange(boat.sail_number, e.target.value)
-                        }
-                        onClick={(e) => e.stopPropagation()}
-                        aria-label={`Penalty for sail ${boat.sail_number}`}
-                      >
-                        <option value="">None</option>
-                        {PENALTY_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
+        {fetchError && (
+          <div role="alert" className="fetch-error-banner">
+            <p>Could not load boats: {fetchError}</p>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => {
+                setFetchError(null);
+                setFetchToken((t) => t + 1);
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+        {!fetchError && (
+          <>
+            <p className="scoring-hint">
+              Click a row or select a penalty to include the boat in scoring
+            </p>
+            <div className="scoring-table-wrap">
+              <table className="scoring-table">
+                <thead>
+                  <tr>
+                    <th>Sailor</th>
+                    <th>Country</th>
+                    <th>Sail #</th>
+                    <th className="scoring-place-cell">Place</th>
+                    <th>Penalty</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {heat.boats.map((boat) => {
+                    const added = boatNumbers.includes(boat.sail_number);
+                    const invalid = isInvalidSail(boat.sail_number);
+                    return (
+                      <tr
+                        key={boat.boat_id}
+                        onClick={() => handleBoatClick(boat.sail_number)}
+                        className={`${added ? 'is-added' : ''}${invalid ? ' is-invalid' : ''}`}
+                        title={
+                          added
+                            ? `Already added at place ${getPlaceDisplay(boat.sail_number)}`
+                            : 'Click to add to finish order'
+                        }
+                      >
+                        <td>
+                          {boat.name} {boat.surname}
+                          {/* Always rendered (hidden until added) so adding the
+                          check never reflows the row. */}
+                          <span
+                            className={`scoring-added-check${added ? '' : ' is-placeholder'}`}
+                            aria-hidden={!added}
+                          >
+                            ✓
+                          </span>
+                        </td>
+                        <td>{boat.country}</td>
+                        <td className="scoring-sail-cell">
+                          {boat.sail_number}
+                        </td>
+                        <td
+                          className={`scoring-place-cell${added ? ' is-added' : ''}`}
+                        >
+                          {getPlaceDisplay(boat.sail_number)}
+                        </td>
+                        <td>
+                          <select
+                            className="penalty-select"
+                            value={penalties[boat.sail_number] || ''}
+                            onChange={(e) =>
+                              handlePenaltyChange(
+                                boat.sail_number,
+                                e.target.value,
+                              )
+                            }
+                            onClick={(e) => e.stopPropagation()}
+                            aria-label={`Penalty for sail ${boat.sail_number}`}
+                          >
+                            <option value="">None</option>
+                            {PENALTY_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Right panel — finish order */}
@@ -576,9 +677,11 @@ function ScoringInputComponent({
             aria-live="polite"
             className={`finish-progress${allScored ? ' is-done' : ''}`}
           >
-            {allScored
-              ? `All ${totalBoats} boats scored — ready to submit ✓`
-              : `${scoredCount} of ${totalBoats} boats scored — ${totalBoats - scoredCount} remaining`}
+            {isEmpty
+              ? 'No boats in this heat'
+              : allScored
+                ? `All ${totalBoats} boats scored — ready to submit ✓`
+                : `${scoredCount} of ${totalBoats} boats scored — ${totalBoats - scoredCount} remaining`}
           </p>
           {/* The button stays actionable even when not all boats are scored: a
               click surfaces a warning naming the missing boats, which is more
@@ -592,9 +695,11 @@ function ScoringInputComponent({
             aria-describedby="finish-progress-status"
             disabled={submitting}
             title={
-              allScored
-                ? undefined
-                : 'Score every boat (a place or a penalty) before submitting'
+              isEmpty
+                ? 'No boats to score in this heat'
+                : allScored
+                  ? undefined
+                  : 'Score every boat (a place or a penalty) before submitting'
             }
             onClick={handleSubmit}
           >
@@ -624,7 +729,14 @@ function ScoringInputComponent({
         </div>
 
         {/* Ranked list */}
-        <ul className="finish-list">
+        <ul
+          className="finish-list"
+          onDragOver={(e) => {
+            e.preventDefault();
+            // Allow dropping at the very end of the list (after the last item).
+            setDropIndex(boatNumbers.length);
+          }}
+        >
           {boatNumbers.map((number, index) => (
             <React.Fragment key={number}>
               {dropIndex === index && <div className="drop-indicator" />}
@@ -634,6 +746,7 @@ function ScoringInputComponent({
                 draggable
                 onDragStart={() => handleDragStart(index)}
                 onDragOver={handleDragOver(index)}
+                onDragEnd={handleDragEnd}
                 onDrop={handleDrop}
               >
                 {penalties[number] ? (
@@ -659,26 +772,46 @@ function ScoringInputComponent({
                     <span className="finish-not-in-heat">Not in this heat</span>
                   )}
                 </span>
-                <button
-                  type="button"
-                  className="finish-move-btn"
-                  aria-label={`Move sail ${number} up`}
-                  onClick={() => handleReorderBoat(index, index - 1)}
-                  disabled={index === 0}
-                  title="Move up"
-                >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  className="finish-move-btn"
-                  aria-label={`Move sail ${number} down`}
-                  onClick={() => handleReorderBoat(index, index + 1)}
-                  disabled={index === boatNumbers.length - 1}
-                  title="Move down"
-                >
-                  ↓
-                </button>
+                {(() => {
+                  const p = penalties[number];
+                  const isDisplacing = Boolean(
+                    p && !POSITION_KEEPING_PENALTIES.has(p),
+                  );
+                  return (
+                    <>
+                      <button
+                        type="button"
+                        className="finish-move-btn"
+                        aria-label={`Move sail ${number} up`}
+                        onClick={() => handleReorderBoat(index, index - 1)}
+                        disabled={index === 0 || isDisplacing}
+                        title={
+                          isDisplacing
+                            ? `Boats with ${p} stay at the end of the finish order (SHRS 5.3)`
+                            : 'Move up'
+                        }
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        className="finish-move-btn"
+                        aria-label={`Move sail ${number} down`}
+                        onClick={() => handleReorderBoat(index, index + 1)}
+                        disabled={
+                          index === boatNumbers.length - 1 || isDisplacing
+                        }
+                        title={
+                          isDisplacing
+                            ? `Boats with ${p} stay at the end of the finish order (SHRS 5.3)`
+                            : 'Move down'
+                        }
+                      >
+                        ↓
+                      </button>
+                    </>
+                  );
+                })()}
                 <button
                   type="button"
                   className="finish-remove-btn"

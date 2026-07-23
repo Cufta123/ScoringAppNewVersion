@@ -367,7 +367,7 @@ describe('ScoringInputComponent', () => {
 
     expect(screen.queryByText('Sail #101')).not.toBeInTheDocument();
     expect(reportWarning).toHaveBeenCalledWith(
-      'These sail numbers are not in Heat B1: 101',
+      expect.stringContaining('These sail numbers are not in Heat B1: 101'),
       'Unknown sail numbers',
     );
   });

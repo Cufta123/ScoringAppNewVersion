@@ -82,11 +82,16 @@ function HeatRacePage() {
     setIsScoring(true);
   };
 
+  // Set while a submit is in-flight so the navigation guard can detect when a
+  // submission resolved during a pending dialog and avoid silently discarding the
+  // user's "Keep scoring" choice.
+  const submittingRef = React.useRef(false);
+
   // Shared guard for any exit from the scoring view that would drop an
   // entered-but-unsubmitted finish order. Returns true when it is safe to leave.
   const confirmDiscardEntry = async (): Promise<boolean> => {
     if (!isScoring || !hasUnsavedEntry) return true;
-    return confirmAction(
+    const result = await confirmAction(
       'You have entered a finish order that has not been submitted yet. ' +
         'Leaving will discard it.',
       'Discard finish order?',
@@ -96,6 +101,17 @@ function HeatRacePage() {
         confirmClassName: 'btn-danger',
       },
     );
+    // If the submit completed while the dialog was open, the scoring view is
+    // already transitioning away — respect the user's explicit choice only if
+    // the submit hasn't resolved in the meantime.
+    if (submittingRef.current) {
+      reportInfo(
+        'Your scores were saved while the dialog was open.',
+        'Scores saved',
+      );
+      return true;
+    }
+    return result;
   };
 
   // Navigate away from the scoring view, confirming first if there is unsaved
@@ -115,6 +131,7 @@ function HeatRacePage() {
 
   const handleSubmitScores = async (placeNumbers: ScoredBoat[]) => {
     if (!selectedHeat || !event) return;
+    submittingRef.current = true;
     try {
       // SHRS 3.2 warning: in a multi-heat qualifying series each heat group
       // should only ever race once before redistribution. Warn any time the
@@ -147,15 +164,21 @@ function HeatRacePage() {
         raceNumber?: number;
       };
 
-      if (result?.ok === false && result.reason === 'UNMATCHED_SAILS') {
-        reportWarning(
-          `Cannot save scores because these sail numbers are not in ${selectedHeat.heat_name}: ${(result.unmatched ?? []).join(', ')}.\n\n` +
-            'What to do:\n' +
-            '1) Go back to heats and re-open scoring for this heat.\n' +
-            '2) Check that each sail number belongs to the selected heat.\n' +
-            '3) Re-enter the race results and submit again.',
-          'Invalid sail number mapping',
-        );
+      if (result?.ok === false) {
+        if (result.reason === 'UNMATCHED_SAILS') {
+          reportWarning(
+            `Cannot save scores because these sail numbers are not in ${selectedHeat.heat_name}: ${(result.unmatched ?? []).join(', ')}.\n\n` +
+              'What to do:\n' +
+              '1) Go back to heats and re-open scoring for this heat.\n' +
+              '2) Check that each sail number belongs to the selected heat.\n' +
+              '3) Re-enter the race results and submit again.',
+            'Invalid sail number mapping',
+          );
+        } else {
+          reportError(
+            `Could not save scores: ${result.reason || 'unknown error'}.`,
+          );
+        }
         return;
       }
 
@@ -168,6 +191,8 @@ function HeatRacePage() {
       );
     } catch (error) {
       reportError('Could not save race scores.', error);
+    } finally {
+      submittingRef.current = false;
     }
   };
 
