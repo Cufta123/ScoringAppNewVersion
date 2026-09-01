@@ -259,6 +259,26 @@ describe('Tie-breaking A82 within final group', () => {
     expect(byBoat.boatB).toBe(1);
     expect(byBoat.boatA).toBe(2);
   });
+
+  // LB-12 / RULE-M8: when neither A8.1 nor A8.2 can separate two boats they
+  // stay tied and MUST NOT be reordered by internal boat_id. The comparator
+  // returns 0, so the stable input order survives. Here boatZ is listed before
+  // boatA; the old `localeCompare(boat_id)` fallback would have pulled boatA to
+  // 1st. A `return 0` fallback keeps boatZ first (input order preserved).
+  it('leaves a perfectly-tied final group in stable order (no boat_id fallback)', () => {
+    setupMockDb(
+      { boatZ: [3, 1], boatA: [3, 1] },
+      { boatZ: [3, 1], boatA: [3, 1] },
+    );
+    const groupTables = calculateFinalBoatScores(
+      [makeResult('boatZ', 'Final Gold'), makeResult('boatA', 'Final Gold')],
+      1,
+    );
+    const gold = groupTables.get('Gold')!;
+    const byBoat = Object.fromEntries(gold.map((b) => [b.boat_id, b.place]));
+    expect(byBoat.boatZ).toBe(1);
+    expect(byBoat.boatA).toBe(2);
+  });
 });
 
 describe('A8.1 regression in final group', () => {
@@ -522,6 +542,72 @@ describe('Large final groups', () => {
     expect(byBoat.tieA).toBe(1);
     expect(byBoat.tieB).toBe(2);
     expect(byBoat.tieC).toBe(3);
+  });
+});
+
+describe('Final-series discard count is fleet-wide (SHRS 5.4 + 5.1)', () => {
+  it('uses the fleet race count, not each boat’s own, for the discard count', () => {
+    // The Gold fleet completed 4 races, so SHRS 5.4 gives every boat in it one
+    // discard. boatMissed sailed only 3 of them. Under the old per-boat count
+    // it got 0 discards (3 < 4) while boatAll got 1 — the boat that missed a
+    // race was scored under a stricter rule than the fleet it races in.
+    setupMockDb({
+      boatAll: [20, 3, 2, 1], // 4 races, 1 discard -> 3+2+1 = 6
+      boatMissed: [8, 2, 1], // 3 races, still 1 discard -> 2+1 = 3
+    });
+
+    const groups = calculateFinalBoatScores(
+      [
+        makeResult('boatAll', 'Final Gold'),
+        makeResult('boatMissed', 'Final Gold'),
+      ],
+      1,
+    );
+
+    const byBoat = Object.fromEntries(
+      groups.get('Gold')!.map((boat) => [boat.boat_id, boat.totalPoints]),
+    );
+    expect(byBoat.boatAll).toBe(6);
+    expect(byBoat.boatMissed).toBe(3); // was 11 (8+2+1) with the per-boat count
+  });
+
+  it('scores each fleet on its own race count (SHRS 4.5)', () => {
+    // Gold sailed 4 races (1 discard); Silver sailed only 3 (0 discards).
+    setupMockDb({
+      gold1: [9, 3, 2, 1],
+      silver1: [9, 2, 1],
+    });
+
+    const groups = calculateFinalBoatScores(
+      [
+        makeResult('gold1', 'Final Gold'),
+        makeResult('silver1', 'Final Silver'),
+      ],
+      1,
+    );
+
+    expect(groups.get('Gold')![0].totalPoints).toBe(6); // 9 discarded
+    expect(groups.get('Silver')![0].totalPoints).toBe(12); // nothing discarded
+  });
+
+  it('caps the fleet discard count so a boat always keeps one score (LB-11)', () => {
+    // Fleet completed 8 races -> 2 discards. A boat with a single final race
+    // must not have it discarded away to a 0 total.
+    setupMockDb({
+      full: [1, 1, 1, 1, 1, 1, 1, 1],
+      late: [15],
+    });
+
+    const groups = calculateFinalBoatScores(
+      [makeResult('full', 'Final Gold'), makeResult('late', 'Final Gold')],
+      1,
+    );
+
+    const byBoat = Object.fromEntries(
+      groups.get('Gold')!.map((boat) => [boat.boat_id, boat]),
+    );
+    expect(byBoat.late.totalPoints).toBe(15);
+    expect(byBoat.full.place).toBe(1);
   });
 });
 

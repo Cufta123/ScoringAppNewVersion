@@ -4,8 +4,10 @@ import {
   DiscardConfig,
   getEventDiscardConfig,
   getExcludeCountForConfig,
+  getSeriesDiscardRaceCount,
 } from './discardConfig';
 import {
+  capExcludeCountForBoat,
   compareScoreArrays,
   getKeptScores,
   resolveTiesSequentially,
@@ -40,21 +42,38 @@ function getKeptSeriesPoints(
     race_id?: number;
   }[],
   discardConfig: DiscardConfig,
+  seriesRaceCount: number,
 ): number[] {
-  const excludeCount = getExcludeCountForConfig(scores.length, discardConfig);
+  // SHRS 5.4: the discard count is series-wide (qualifying) / fleet-wide
+  // (final), capped per boat so a boat with fewer scores than the discard count
+  // still keeps its single best race — matching how the totals were computed
+  // (calculateBoatScores / calculateFinalBoatScores). Using the boat's own
+  // score count here diverged for late entrants and made the A8.1 vector
+  // disagree with the stored totals (RULE-M22).
+  const seriesExcludeCount = getExcludeCountForConfig(
+    seriesRaceCount,
+    discardConfig,
+  );
+  const excludeCount = capExcludeCountForBoat(
+    seriesExcludeCount,
+    scores.length,
+  );
   return getKeptScores(scores, excludeCount);
 }
 
 function buildSeriesPacketWithConfig(
   scores: OverallRaceScore[],
   discardConfig: DiscardConfig,
+  seriesRaceCount: number,
 ): {
   keptForA81: number[];
   allForA82: number[];
 } {
-  const keptForA81 = getKeptSeriesPoints(scores, discardConfig).sort(
-    (a, b) => a - b,
-  );
+  const keptForA81 = getKeptSeriesPoints(
+    scores,
+    discardConfig,
+    seriesRaceCount,
+  ).sort((a, b) => a - b);
   const allForA82 = [...scores]
     .sort((a, b) => b.race_number - a.race_number || b.race_id - a.race_id)
     .map((entry) => entry.points);
@@ -82,13 +101,23 @@ export function buildOverallTiePacket(
   const qualifyingDiscardConfig = getEventDiscardConfig(event_id, 'qualifying');
   const finalDiscardConfig = getEventDiscardConfig(event_id, 'final');
 
+  // SHRS 5.4 denominators: the qualifying discard count is series-wide; the
+  // final discard count is fleet-wide (the boat's own final fleet).
+  const qualSeriesRaceCount = getSeriesDiscardRaceCount(event_id, 'Qualifying');
+  const finalHeatName = finalScores[0]?.heat_name;
+  const finalFleetRaceCount = finalHeatName
+    ? getSeriesDiscardRaceCount(event_id, 'Final', finalHeatName)
+    : 0;
+
   const qualPacket = buildSeriesPacketWithConfig(
     qualScores,
     qualifyingDiscardConfig,
+    qualSeriesRaceCount,
   );
   const finalPacket = buildSeriesPacketWithConfig(
     finalScores,
     finalDiscardConfig,
+    finalFleetRaceCount,
   );
 
   const byRaceId = new Map<number, OverallRaceScore>();

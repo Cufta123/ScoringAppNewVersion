@@ -1670,6 +1670,9 @@ small.form-locked-note {
 .scoring-table tbody tr.is-added,
 .scoring-table tbody tr.is-added:hover {
   background: var(--teal-light);
+  /* Left accent visible even when background contrast is washed out in bright
+     sunlight on a regatta tablet. */
+  border-left: 4px solid var(--teal-hover);
   cursor: default;
 }
 .scoring-table tbody tr.is-invalid {
@@ -1709,7 +1712,10 @@ select.penalty-select {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  padding: 4px 6px;
+  /* 44px minimum touch target (Apple HIG / Material Design) so race officers
+     can reliably tap penalty options on a moving jury boat. */
+  min-height: 44px;
+  padding: 8px 8px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   font-size: 0.95rem;
@@ -1784,10 +1790,11 @@ button.finish-add-btn:hover {
 
 /* Editable finishing-place field: type a place to move a boat there directly. */
 .finish-place-input {
-  width: 52px;
-  min-width: 52px;
+  width: 64px;
+  min-width: 64px;
   flex-shrink: 0;
-  padding: 8px 4px;
+  min-height: 44px;
+  padding: 8px 6px;
   text-align: center;
   font-weight: 700;
   color: var(--teal-hover);
@@ -1796,6 +1803,16 @@ button.finish-add-btn:hover {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   box-shadow: none;
+}
+/* Hide browser spinner arrows so they don't compete with the touch target inside
+   the already-narrow place-input field. */
+.finish-place-input::-webkit-inner-spin-button,
+.finish-place-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.finish-place-input[type='number'] {
+  -moz-appearance: textfield;
 }
 
 .finish-label {
@@ -1811,6 +1828,7 @@ button.finish-add-btn:hover {
 }
 
 button.finish-move-btn,
+button.finish-tie-btn,
 button.finish-remove-btn {
   background: #fff;
   border: 1px solid var(--border);
@@ -1825,14 +1843,31 @@ button.finish-remove-btn {
 }
 
 button.finish-move-btn:hover,
+button.finish-tie-btn:hover,
 button.finish-remove-btn:hover {
   background: var(--bg-subtle);
   box-shadow: none;
 }
 
-button.finish-move-btn:disabled {
+button.finish-move-btn:disabled,
+button.finish-tie-btn:disabled {
   background: #fff;
   cursor: not-allowed;
+}
+
+/* RRS A7 dead heat: this boat shares a place with the one above. Pressed state
+   needs to read at a glance on a rocking jury boat, so it inverts rather than
+   relying on a subtle tint. */
+button.finish-tie-btn {
+  font-weight: 700;
+}
+button.finish-tie-btn.is-tied {
+  background: var(--ocean);
+  border-color: var(--ocean);
+  color: #fff;
+}
+button.finish-tie-btn.is-tied:hover {
+  background: var(--ocean);
 }
 
 button.finish-remove-btn {
@@ -1914,4 +1949,43 @@ button.submit-scores-btn.is-unavailable:hover {
    steps instead of one run-on sentence. */
 .Toastify__toast-body {
   white-space: pre-line;
+}
+
+/* ── Error boundary ───────────────────────────────────────── */
+.error-boundary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+  background: var(--bg);
+}
+
+.error-boundary-card {
+  width: min(520px, 96vw);
+  text-align: center;
+  margin-bottom: 0;
+}
+
+.error-boundary-icon {
+  font-size: 2.2rem;
+  color: var(--danger);
+  margin-bottom: 12px;
+}
+
+.error-boundary-title {
+  margin: 0 0 10px;
+  color: var(--navy);
+}
+
+.error-boundary-description {
+  margin: 0 0 20px;
+  color: var(--text-secondary);
+}
+
+.error-boundary-actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
 }

@@ -29,7 +29,8 @@ interface ScoreCellProps {
   rdg2Picker?: Rdg2PickerState | null;
   setRdg2Picker: React.Dispatch<React.SetStateAction<Rdg2PickerState | null>>;
   confirmRdg2: () => void;
-  qualifyingEntry?: LeaderboardEntry | null;
+  /** Series of this cell, for RDG2 race labels (SHRS 5.6). */
+  seriesPrefix?: 'Q' | 'F';
 }
 
 /**
@@ -57,7 +58,7 @@ function ScoreCell({
   rdg2Picker = null,
   setRdg2Picker,
   confirmRdg2,
-  qualifyingEntry = null,
+  seriesPrefix = 'Q',
 }: ScoreCellProps) {
   const { displayText, displayColor, isPenalty, isRdgCell, isExcluded } =
     getRaceCellDisplay(
@@ -237,10 +238,13 @@ function ScoreCell({
                 boatId,
                 raceIndex,
                 selectedIndices: new Set<number>(),
-                selectedQualIndices: new Set<number>(),
                 anchorRect: rect,
               });
             } else {
+              // LB-3: selecting any non-RDG2 status closes this cell's open RDG2
+              // picker. Otherwise the picker stays open and clicking Apply
+              // (confirmRdg2) would silently revert the user back to RDG2.
+              if (isPickerOpen) setRdg2Picker(null);
               onRaceChange(boatId, raceIndex, null, e.target.value);
             }
           }}
@@ -285,7 +289,7 @@ function ScoreCell({
             rdg2Picker={rdg2Picker}
             setRdg2Picker={setRdg2Picker}
             confirmRdg2={confirmRdg2}
-            qualifyingEntry={qualifyingEntry}
+            seriesPrefix={seriesPrefix}
             anchorEl={statusSelectRef.current}
           />
         )}

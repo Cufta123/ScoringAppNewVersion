@@ -180,20 +180,18 @@ describe('Property-based: RDG1/RDG2/RDG3 random stress', () => {
       expect(afterRdg3.race_statuses[rdg3Index]).toBe('RDG3');
       expect(parseScore(afterRdg3.race_points[rdg3Index])).toBe(rdg3Value);
 
-      const selectedFinalIndices = new Set([
-        rdg2Index,
-        (rdg2Index + 1) % raceCount,
-      ]);
-      const selectedQualIndices = new Set([0, raceCount - 1]);
+      // SHRS 5.6 (RULE-M10): redress averages are calculated SEPARATELY for the
+      // Qualifying and Final Series, so the selection — and the average — cover
+      // only races in the series the redressed cell belongs to. This test
+      // previously pooled qualifying and final race points into one average,
+      // which encoded a misreading of 5.6.
+      const selectedIndices = new Set([rdg2Index, (rdg2Index + 1) % raceCount]);
 
-      const qualEntry = result.current.eventLeaderboard.find(
-        (e) => e.boat_id === boatId,
-      );
       const currentEntry = result.current.editableLeaderboard.find(
         (e) => e.boat_id === boatId,
       );
 
-      const rdg2FinalValues = [...selectedFinalIndices]
+      const rdg2Values = [...selectedIndices]
         .filter((i) => i !== rdg2Index)
         // RRS A9(b): the average is over the boat's POINTS in the selected
         // races — race_points, not the finishing places in `races` (the two
@@ -201,15 +199,10 @@ describe('Property-based: RDG1/RDG2/RDG3 random stress', () => {
         .map((i) => parseScore(currentEntry.race_points[i]))
         .filter((v) => v !== null);
 
-      const rdg2QualValues = [...selectedQualIndices]
-        .map((i) => parseScore(qualEntry.race_points[i]))
-        .filter((v) => v !== null);
-
-      const rdg2Pool = [...rdg2QualValues, ...rdg2FinalValues];
       const expectedRdg2 =
-        rdg2Pool.length > 0
+        rdg2Values.length > 0
           ? roundToTenthHalfUp(
-              rdg2Pool.reduce((sum, v) => sum + v, 0) / rdg2Pool.length,
+              rdg2Values.reduce((sum, v) => sum + v, 0) / rdg2Values.length,
             )
           : penaltyPosition;
 
@@ -217,8 +210,7 @@ describe('Property-based: RDG1/RDG2/RDG3 random stress', () => {
         result.current.setRdg2Picker({
           boatId,
           raceIndex: rdg2Index,
-          selectedIndices: selectedFinalIndices,
-          selectedQualIndices,
+          selectedIndices,
         });
       });
 

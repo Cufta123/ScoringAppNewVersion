@@ -36,3 +36,7 @@ out/
 /test-results/
 /playwright-report/
 /e2e/.cache/
+
+# Claude Code — local DeepSeek worker credentials/backups (never commit)
+.claude/settings.local.json
+.claude/deepseek/*.backup

@@ -223,11 +223,11 @@ export default async function printNewHeats(
     heats.forEach((heat) => {
       html += `<h2>Heat: ${escapeHtml(heat.heat_name)}</h2>`;
       html += `<table><thead><tr>
-        <th>Sailor Name</th>
-        <th>Country</th>
-        <th>Boat Number</th>
-        <th>Subgroup</th>
-        <th>Boat Model</th>
+        <th scope="col">Sailor Name</th>
+        <th scope="col">Country</th>
+        <th scope="col">Boat Number</th>
+        <th scope="col">Subgroup</th>
+        <th scope="col">Boat Model</th>
         </tr></thead><tbody>`;
       (heat.boats || []).forEach((boat) => {
         html += `<tr>

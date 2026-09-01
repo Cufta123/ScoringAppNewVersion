@@ -1,70 +1,43 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { confirmChoice, reportError, reportInfo } from '../utils/userFeedback';
+import {
+  confirmAction,
+  confirmChoice,
+  reportError,
+  reportInfo,
+} from '../utils/userFeedback';
 import { eventDB, heatRaceDB } from '../api/db';
 import type { EventRow } from '../types';
-
-interface DiscardConfig {
-  firstDiscardAt: number;
-  secondDiscardAt: number;
-  additionalEvery: number;
-}
+import {
+  DEFAULT_DISCARD_CONFIG,
+  normalizeDiscardConfig,
+  normalizeDiscardConfigString,
+} from '../../shared/discardProfile';
+import type { DiscardConfig } from '../../shared/discardProfile';
 
 interface DiscardModeAndConfig {
   mode: string;
   thresholdsInput: string;
 }
 
-const DEFAULT_DISCARD_CONFIG: DiscardConfig = {
-  firstDiscardAt: 4,
-  secondDiscardAt: 8,
-  additionalEvery: 8,
-};
-
 const DEFAULT_THRESHOLD_PREVIEW = '4,8,16,24';
 
-const clampPositiveInt = (value: unknown, fallback: number): number => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  const rounded = Math.trunc(parsed);
-  return rounded > 0 ? rounded : fallback;
-};
+const isStandardArithmetic = (config: DiscardConfig): boolean =>
+  config.firstDiscardAt === DEFAULT_DISCARD_CONFIG.firstDiscardAt &&
+  config.secondDiscardAt === DEFAULT_DISCARD_CONFIG.secondDiscardAt &&
+  config.additionalEvery === DEFAULT_DISCARD_CONFIG.additionalEvery;
 
-const normalizeDiscardConfig = (
-  raw: Record<string, unknown> | null | undefined,
-): DiscardConfig => {
-  const firstDiscardAt = clampPositiveInt(
-    raw?.firstDiscardAt,
-    DEFAULT_DISCARD_CONFIG.firstDiscardAt,
-  );
-  const secondDiscardAt = clampPositiveInt(
-    raw?.secondDiscardAt,
-    DEFAULT_DISCARD_CONFIG.secondDiscardAt,
-  );
-  const additionalEvery = clampPositiveInt(
-    raw?.additionalEvery,
-    DEFAULT_DISCARD_CONFIG.additionalEvery,
-  );
-
-  return {
-    firstDiscardAt,
-    secondDiscardAt:
-      secondDiscardAt > firstDiscardAt
-        ? secondDiscardAt
-        : firstDiscardAt + additionalEvery,
-    additionalEvery,
-  };
-};
-
-const toLegacyThresholdPreview = (
-  config: Record<string, unknown> | null | undefined,
-): string => {
-  const normalized = normalizeDiscardConfig(config);
+// A legacy custom first/second/every profile has no threshold list to edit, so
+// surface it as the equivalent threshold list. The arithmetic count
+// 2 + floor((n - secondDiscardAt) / additionalEvery) matches the thresholds
+// [firstDiscardAt, secondDiscardAt, secondDiscardAt + additionalEvery, ...]
+// over the first four steps shown in the preview.
+const toLegacyThresholdPreview = (config: DiscardConfig): string => {
   return [
-    normalized.firstDiscardAt,
-    normalized.secondDiscardAt,
-    normalized.secondDiscardAt + normalized.additionalEvery,
-    normalized.secondDiscardAt + normalized.additionalEvery * 2,
+    config.firstDiscardAt,
+    config.secondDiscardAt,
+    config.secondDiscardAt + config.additionalEvery,
+    config.secondDiscardAt + config.additionalEvery * 2,
   ].join(',');
 };
 
@@ -111,6 +84,9 @@ const parseThresholdInput = (
   return { thresholds, error: null };
 };
 
+// Parsing and counting are delegated to src/shared/discardProfile.ts so this
+// form can never drift from the backend. The form only adds the UI's
+// standard/custom/never mode and comma-separated threshold presentation.
 const parseDiscardModeAndConfig = (
   raw: string | null | undefined,
 ): DiscardModeAndConfig => {
@@ -122,17 +98,31 @@ const parseDiscardModeAndConfig = (
   }
 
   try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed?.thresholds)) {
+    const normalized = normalizeDiscardConfig(raw);
+    if (normalized.neverDiscard) {
+      return { mode: 'never', thresholdsInput: '' };
+    }
+    if (
+      Array.isArray(normalized.thresholds) &&
+      normalized.thresholds.length > 0
+    ) {
       return {
         mode: 'custom',
-        thresholdsInput: parsed.thresholds.join(','),
+        thresholdsInput: normalized.thresholds.join(','),
       };
     }
-
+    // Arithmetic (first/second/every) profile with no threshold list. The
+    // standard default reads back as standard; a legacy custom profile becomes
+    // an editable threshold list via the preview above.
+    if (isStandardArithmetic(normalized)) {
+      return {
+        mode: 'standard',
+        thresholdsInput: DEFAULT_THRESHOLD_PREVIEW,
+      };
+    }
     return {
       mode: 'custom',
-      thresholdsInput: toLegacyThresholdPreview(parsed),
+      thresholdsInput: toLegacyThresholdPreview(normalized),
     };
   } catch (_error) {
     return {
@@ -147,16 +137,22 @@ const serializeDiscardProfile = (
   thresholdsInput: string,
 ): string => {
   if (mode === 'standard') return 'standard';
+  if (mode === 'never') {
+    return normalizeDiscardConfigString({ thresholds: [] });
+  }
   const { thresholds, error } = parseThresholdInput(thresholdsInput);
   if (error) {
     throw new Error(error);
   }
-  return JSON.stringify({ thresholds });
+  return normalizeDiscardConfigString({ thresholds });
 };
 
 const getDiscardSummary = (mode: string, thresholdsInput: string): string => {
   if (mode === 'standard') {
     return 'Standard SHRS 5.4 is active: after 4 races exclude 1, after 8 exclude 2, then +1 every 8 races.';
+  }
+  if (mode === 'never') {
+    return 'Never discard is active: no race is ever excluded, regardless of how many races are completed.';
   }
 
   const { thresholds, error } = parseThresholdInput(thresholdsInput);
@@ -167,6 +163,9 @@ const getDiscardSummary = (mode: string, thresholdsInput: string): string => {
 const getDiscardExamples = (mode: string, thresholdsInput: string): string => {
   if (mode === 'standard') {
     return 'Examples: 4 races = 1 discard | 8 races = 2 discards | 16 races = 3 discards | 24 races = 4 discards';
+  }
+  if (mode === 'never') {
+    return 'Examples: 4 races = 0 discards | 8 races = 0 discards | 50 races = 0 discards';
   }
 
   const { thresholds, error } = parseThresholdInput(thresholdsInput);
@@ -218,9 +217,13 @@ function EventForm({ onEventCreated = null }: EventFormProps) {
   );
   const [finalDiscardError, setFinalDiscardError] = useState('');
   const [heatOverflowPolicy, setHeatOverflowPolicy] = useState('auto-increase');
+  const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Prevent a second create while the first round-trip is still in flight.
+    if (submitting) return;
 
     if (eventStartDate && eventEndDate && eventEndDate < eventStartDate) {
       reportInfo(
@@ -271,10 +274,14 @@ function EventForm({ onEventCreated = null }: EventFormProps) {
       }
     }
 
+    setSubmitting(true);
     try {
+      // Store the trimmed values so what's saved matches what the duplicate
+      // check above normalized — otherwise a stray trailing space passes the
+      // check yet is written into the name that keys the /event/:name route.
       await eventDB.insertEvent(
-        eventName,
-        eventLocation,
+        eventName.trim(),
+        eventLocation.trim(),
         eventStartDate,
         eventEndDate,
         advancedEnabled ? assignmentMode : 'progressive',
@@ -305,6 +312,8 @@ function EventForm({ onEventCreated = null }: EventFormProps) {
       if (onEventCreated) onEventCreated();
     } catch (error) {
       reportError('Could not create the event.', error);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -313,6 +322,8 @@ function EventForm({ onEventCreated = null }: EventFormProps) {
     setQualifyingDiscardError('');
     if (value === 'standard') {
       setQualifyingDiscardInput(DEFAULT_THRESHOLD_PREVIEW);
+    } else if (value === 'never') {
+      setQualifyingDiscardInput('');
     }
   };
 
@@ -321,6 +332,8 @@ function EventForm({ onEventCreated = null }: EventFormProps) {
     setFinalDiscardError('');
     if (value === 'standard') {
       setFinalDiscardInput(DEFAULT_THRESHOLD_PREVIEW);
+    } else if (value === 'never') {
+      setFinalDiscardInput('');
     }
   };
 
@@ -433,6 +446,7 @@ function EventForm({ onEventCreated = null }: EventFormProps) {
               >
                 <option value="standard">Standard SHRS 5.4</option>
                 <option value="custom">Custom thresholds list</option>
+                <option value="never">Never discard</option>
               </select>
               {qualifyingDiscardMode === 'custom' && (
                 <input
@@ -474,6 +488,7 @@ function EventForm({ onEventCreated = null }: EventFormProps) {
               >
                 <option value="standard">Standard SHRS 5.4</option>
                 <option value="custom">Custom thresholds list</option>
+                <option value="never">Never discard</option>
               </select>
               {finalDiscardMode === 'custom' && (
                 <input
@@ -501,8 +516,16 @@ function EventForm({ onEventCreated = null }: EventFormProps) {
           </div>
         </div>
       )}
-      <button type="submit" className="btn-success">
-        <i className="fa fa-plus-circle" aria-hidden="true" /> Create Event
+      <button type="submit" className="btn-success" disabled={submitting}>
+        {submitting ? (
+          <>
+            <i className="fa fa-spinner fa-spin" aria-hidden="true" /> Creating…
+          </>
+        ) : (
+          <>
+            <i className="fa fa-plus-circle" aria-hidden="true" /> Create Event
+          </>
+        )}
       </button>
     </form>
   );
@@ -538,14 +561,58 @@ export function EventList({ events, onEventsChanged = null }: EventListProps) {
   const [editQualifyingDiscardLocked, setEditQualifyingDiscardLocked] =
     useState(false);
   const [editFinalDiscardLocked, setEditFinalDiscardLocked] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  // Snapshot of the values an edit session started with, so we can tell whether
+  // the user has actually changed anything before silently discarding an
+  // in-progress edit when they jump to another row.
+  const editBaselineRef = useRef<Record<string, unknown> | null>(null);
 
   const navigate = useNavigate();
+
+  const currentEditSnapshot = (): Record<string, unknown> => ({
+    name: editName,
+    location: editLocation,
+    start: editStartDate,
+    end: editEndDate,
+    advanced: editAdvancedEnabled,
+    assignment: editAssignmentMode,
+    qMode: editQualifyingDiscardMode,
+    qInput: editQualifyingDiscardInput,
+    fMode: editFinalDiscardMode,
+    fInput: editFinalDiscardInput,
+    overflow: editHeatOverflowPolicy,
+  });
+
+  const hasUnsavedEdits = (): boolean => {
+    if (editingId == null || editBaselineRef.current == null) return false;
+    return (
+      JSON.stringify(currentEditSnapshot()) !==
+      JSON.stringify(editBaselineRef.current)
+    );
+  };
 
   const handleEventClick = (event: EventRow) => {
     navigate(`/event/${event.event_name}`, { state: { event } });
   };
 
-  const startEdit = (e: React.MouseEvent, event: EventRow) => {
+  const startEdit = async (e: React.MouseEvent, event: EventRow) => {
+    e.stopPropagation();
+
+    // Jumping straight from one row's unsaved edit into another would discard
+    // the first with no warning — confirm before throwing that work away.
+    if (
+      editingId != null &&
+      editingId !== event.event_id &&
+      hasUnsavedEdits()
+    ) {
+      const proceed = await confirmAction(
+        'You have unsaved changes to another event. Discard them and edit this one instead?',
+        'Discard unsaved changes',
+        { confirmLabel: 'Discard changes', confirmClassName: 'btn-danger' },
+      );
+      if (!proceed) return;
+    }
+
     const qualifyingProfile = parseDiscardModeAndConfig(
       event.shrs_discard_profile_qualifying,
     );
@@ -553,7 +620,6 @@ export function EventList({ events, onEventsChanged = null }: EventListProps) {
       event.shrs_discard_profile_final,
     );
 
-    e.stopPropagation();
     setEditingId(event.event_id);
     setEditName(event.event_name);
     setEditLocation(event.event_location);
@@ -564,8 +630,8 @@ export function EventList({ events, onEventsChanged = null }: EventListProps) {
         'progressive' ||
       (event.shrs_heat_overflow_policy || 'auto-increase') !==
         'auto-increase' ||
-      qualifyingProfile.mode === 'custom' ||
-      finalProfile.mode === 'custom';
+      qualifyingProfile.mode !== 'standard' ||
+      finalProfile.mode !== 'standard';
     setEditAdvancedEnabled(hasAdvancedSettings);
     setEditAssignmentMode(
       event.shrs_qualifying_assignment_mode || 'progressive',
@@ -581,6 +647,22 @@ export function EventList({ events, onEventsChanged = null }: EventListProps) {
     );
     setEditQualifyingDiscardLocked(event.shrs_discard_locked_qualifying === 1);
     setEditFinalDiscardLocked(event.shrs_discard_locked_final === 1);
+
+    // Record the starting values (from the same source used for the setters
+    // above, since state updates are async and can't be read back here).
+    editBaselineRef.current = {
+      name: event.event_name,
+      location: event.event_location,
+      start: event.start_date,
+      end: event.end_date,
+      advanced: hasAdvancedSettings,
+      assignment: event.shrs_qualifying_assignment_mode || 'progressive',
+      qMode: qualifyingProfile.mode,
+      qInput: qualifyingProfile.thresholdsInput,
+      fMode: finalProfile.mode,
+      fInput: finalProfile.thresholdsInput,
+      overflow: event.shrs_heat_overflow_policy || 'auto-increase',
+    };
   };
 
   const cancelEdit = () => {
@@ -591,6 +673,9 @@ export function EventList({ events, onEventsChanged = null }: EventListProps) {
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editingId == null) return;
+
+    // Prevent a second save while the update round-trip is still in flight.
+    if (savingEdit) return;
 
     if (editStartDate && editEndDate && editEndDate < editStartDate) {
       reportInfo(
@@ -642,11 +727,14 @@ export function EventList({ events, onEventsChanged = null }: EventListProps) {
       }
     }
 
+    setSavingEdit(true);
     try {
+      // Store trimmed values so the saved name matches the rename-collision
+      // check above (and never keys the route with trailing whitespace).
       await eventDB.updateEvent(
         editingId,
-        editName,
-        editLocation,
+        editName.trim(),
+        editLocation.trim(),
         editStartDate,
         editEndDate,
         editAdvancedEnabled ? editAssignmentMode : 'progressive',
@@ -666,6 +754,8 @@ export function EventList({ events, onEventsChanged = null }: EventListProps) {
       if (onEventsChanged) onEventsChanged();
     } catch (error) {
       reportError('Could not update the event.', error);
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -721,6 +811,8 @@ export function EventList({ events, onEventsChanged = null }: EventListProps) {
     setEditQualifyingDiscardError('');
     if (value === 'standard') {
       setEditQualifyingDiscardInput(DEFAULT_THRESHOLD_PREVIEW);
+    } else if (value === 'never') {
+      setEditQualifyingDiscardInput('');
     }
   };
 
@@ -729,6 +821,8 @@ export function EventList({ events, onEventsChanged = null }: EventListProps) {
     setEditFinalDiscardError('');
     if (value === 'standard') {
       setEditFinalDiscardInput(DEFAULT_THRESHOLD_PREVIEW);
+    } else if (value === 'never') {
+      setEditFinalDiscardInput('');
     }
   };
 
@@ -852,6 +946,7 @@ export function EventList({ events, onEventsChanged = null }: EventListProps) {
                       >
                         <option value="standard">Standard SHRS 5.4</option>
                         <option value="custom">Custom thresholds list</option>
+                        <option value="never">Never discard</option>
                       </select>
                       {editQualifyingDiscardMode === 'custom' && (
                         <input
@@ -908,6 +1003,7 @@ export function EventList({ events, onEventsChanged = null }: EventListProps) {
                       >
                         <option value="standard">Standard SHRS 5.4</option>
                         <option value="custom">Custom thresholds list</option>
+                        <option value="never">Never discard</option>
                       </select>
                       {editFinalDiscardMode === 'custom' && (
                         <input
@@ -952,13 +1048,27 @@ export function EventList({ events, onEventsChanged = null }: EventListProps) {
                 </div>
               )}
               <div className="flex gap-2">
-                <button type="submit" className="btn-success">
-                  <i className="fa fa-check" aria-hidden="true" /> Save
+                <button
+                  type="submit"
+                  className="btn-success"
+                  disabled={savingEdit}
+                >
+                  {savingEdit ? (
+                    <>
+                      <i className="fa fa-spinner fa-spin" aria-hidden="true" />{' '}
+                      Saving…
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa fa-check" aria-hidden="true" /> Save
+                    </>
+                  )}
                 </button>
                 <button
                   type="button"
                   onClick={cancelEdit}
                   className="btn-outline"
+                  disabled={savingEdit}
                 >
                   Cancel
                 </button>

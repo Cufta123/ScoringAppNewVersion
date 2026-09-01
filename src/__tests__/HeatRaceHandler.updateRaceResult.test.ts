@@ -1,5 +1,12 @@
 export {};
 
+// Loaded via require in beforeAll (after dbMock is defined) so the module's
+// `import { db } from DBManager` resolves the mock, not a TDZ `const`.
+let raceAssignmentSnapshots: Map<
+  number,
+  Map<string, { position: number | null; status: string }>
+>;
+
 type PrepareStatement = {
   get?: (...args: any[]) => any;
   all?: (...args: any[]) => any[];
@@ -27,6 +34,20 @@ type Scenario = {
     score_id: number;
     position: number;
     status: string;
+  }>;
+  ripplePenaltyRows: Array<{
+    score_id: number;
+    position: number;
+    status: string;
+  }>;
+  // Live ranked rows for the heat/race, as getRankedBoatsInHeatForRace returns
+  // them. Used by the SHRS 3.1.5 per-boat freeze tests.
+  rankedBoats: Array<{
+    boat_id: string;
+    position: number | null;
+    status: string;
+    country?: string;
+    sail_number?: string;
   }>;
 };
 
@@ -107,6 +128,16 @@ const dbMock = {
     }
 
     if (
+      sqlContains(sql, 'SELECT score_id, position, status FROM Scores') &&
+      sqlContains(sql, 'AND status IN (') &&
+      sqlContains(sql, 'position BETWEEN ? AND ?')
+    ) {
+      return {
+        all: jest.fn(() => currentScenario.ripplePenaltyRows),
+      };
+    }
+
+    if (
       sqlContains(sql, 'FROM Heat_Boat hb') &&
       sqlContains(
         sql,
@@ -114,7 +145,7 @@ const dbMock = {
       )
     ) {
       return {
-        all: jest.fn(() => []),
+        all: jest.fn(() => currentScenario.rankedBoats),
       };
     }
 
@@ -204,6 +235,8 @@ function baseScenario(): Scenario {
     currentStatus: 'FINISHED',
     finishedRows: [],
     penaltyRowsBehind: [],
+    ripplePenaltyRows: [],
+    rankedBoats: [],
   };
 }
 
@@ -440,6 +473,32 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     expect(shiftCall?.args).toEqual([500, 7, 2, 'B1']);
   });
 
+  it('shifts position-keeping penalty boats (ZFP/SCP/T1) on the manual ripple (LB-7)', async () => {
+    currentScenario.currentPosition = 6;
+    currentScenario.currentStatus = 'FINISHED';
+    currentScenario.ripplePenaltyRows = [
+      { score_id: 10, position: 4, status: 'ZFP' },
+    ];
+
+    const handler = handlerRegistry.updateRaceResult;
+    await handler({}, 99, 500, 'B1', 2, true, 'FINISHED');
+
+    // The ZFP boat at place 4 (between the moved-from 6 and moved-to 2) must
+    // shift down one place to 5, with its points recomputed as a scoring penalty
+    // rather than the flat position=points shift used for FINISHED boats.
+    const penaltyShift = runCalls.find(
+      (call) =>
+        sqlContains(
+          call.sql,
+          'UPDATE Scores SET position = ?, points = ? WHERE score_id = ?',
+        ) &&
+        call.args[0] === 5 &&
+        call.args[2] === 10,
+    );
+    expect(penaltyShift).toBeDefined();
+    expect(penaltyShift?.args[1]).toBeGreaterThan(0);
+  });
+
   it('keeps RDG position/points as provided without penalty normalization', async () => {
     currentScenario.maxBoats = 5;
     const handler = handlerRegistry.updateRaceResult;
@@ -474,6 +533,26 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     const handler = handlerRegistry.updateRaceResult;
     await expect(handler({}, 99, 500, 'B1', 3, false, 'FOO')).rejects.toThrow(
       'Unsupported score status: FOO',
+    );
+  });
+
+  it('rejects a 0 / NaN finishing position instead of writing it (BK-6)', async () => {
+    const handler = handlerRegistry.updateRaceResult;
+    await expect(
+      handler({}, 99, 500, 'B1', 0, false, 'FINISHED'),
+    ).rejects.toThrow(/must be a positive integer/);
+    await expect(
+      handler({}, 99, 500, 'B1', Number.NaN, false, 'FINISHED'),
+    ).rejects.toThrow(/must be a positive integer/);
+  });
+
+  it('rejects a 0 / negative RDG/DPI value (BK-6 / CMP C-23)', async () => {
+    const handler = handlerRegistry.updateRaceResult;
+    await expect(handler({}, 99, 500, 'B1', 0, false, 'RDG2')).rejects.toThrow(
+      /must be a positive number/,
+    );
+    await expect(handler({}, 99, 500, 'B1', -1, false, 'DPI')).rejects.toThrow(
+      /must be a positive number/,
     );
   });
 
@@ -545,8 +624,14 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
         ),
       );
 
+      // RRS A6.1: a boat that HAD finished — including a position-keeping
+      // penalty (ZFP/SCP/T1), which holds a real finishing place — promotes the
+      // boats behind it when later DSQ'd/RET/DNE/DGM.
+      const hadFinished =
+        currentScenario.currentStatus === 'FINISHED' ||
+        ['SCP', 'ZFP', 'T1'].includes(currentScenario.currentStatus);
       const expectedShift =
-        currentScenario.currentStatus === 'FINISHED' &&
+        hadFinished &&
         displacementStatuses.has(normalizeStatusForTest(newStatus));
 
       expect(hasMandatoryShift).toBe(expectedShift);
@@ -623,8 +708,11 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
         ),
       );
 
+      const hadFinished =
+        previousStatus === 'FINISHED' ||
+        ['SCP', 'ZFP', 'T1'].includes(previousStatus);
       const expectedShift =
-        previousStatus === 'FINISHED' &&
+        hadFinished &&
         displacementStatuses.has(normalizeStatusForTest(newStatus));
 
       if (expectedShift) {
@@ -664,11 +752,11 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     );
   });
 
-  it('with shifting OFF, edits only the named boat — no A6.1/A7 cascade', async () => {
-    // Manual-override mode (the leaderboard "Shift other boats" toggle off):
-    // only the edited boat's row is written. No displacement of finishers, no
-    // re-rank/tie averaging — even though that can leave a tie or a gap. This
-    // keeps the saved result identical to the renderer's edit preview.
+  // RULE-M16 / RRS A6.1: "each boat with a worse finishing place shall be moved
+  // up one place." That is mandatory, so it must NOT depend on the leaderboard's
+  // "Shift other boats" toggle. This previously asserted the opposite — that a
+  // shift-off DSQ left every boat behind it one place too low.
+  it('with shifting OFF, a DSQ still promotes the boats behind it (RRS A6.1)', async () => {
     currentScenario.currentPosition = 1;
     currentScenario.currentStatus = 'FINISHED';
     currentScenario.finishedRows = [
@@ -679,6 +767,32 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
 
     const handler = handlerRegistry.updateRaceResult;
     await handler({}, 99, 500, 'B1', 4, false, 'DSQ');
+
+    const promotionCalls = runCalls.filter((call) =>
+      sqlContains(
+        call.sql,
+        "WHERE race_id = ? AND status = 'FINISHED' AND position > ?",
+      ),
+    );
+    expect(promotionCalls).toHaveLength(1);
+    expect(promotionCalls[0].args).toEqual([500, 1]);
+  });
+
+  it('with shifting OFF, a plain place change still edits only the named boat', async () => {
+    // The toggle governs the manual place-move ripple, which is a data-entry
+    // convenience rather than a rule: moving one finisher must not renumber the
+    // rest, even if that leaves a tie or a gap, so the saved result matches the
+    // renderer's edit preview exactly.
+    currentScenario.currentPosition = 1;
+    currentScenario.currentStatus = 'FINISHED';
+    currentScenario.finishedRows = [
+      { score_id: 11, position: 1, status: 'FINISHED' },
+      { score_id: 12, position: 2, status: 'FINISHED' },
+      { score_id: 13, position: 3, status: 'FINISHED' },
+    ];
+
+    const handler = handlerRegistry.updateRaceResult;
+    await handler({}, 99, 500, 'B1', 3, false, 'FINISHED');
 
     const cascadeCalls = runCalls.filter(
       (call) =>
@@ -760,5 +874,135 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
 
     expect(selectSql).toContain('ORDER BY score_id DESC');
     expect(selectSql).toContain('LIMIT 1');
+  });
+});
+
+describe('SHRS 3.1.5 assignment-snapshot invalidation (RULE-M14)', () => {
+  beforeAll(() => {
+    ({
+      raceAssignmentSnapshots,
+    } = require('../main/functions/raceAssignmentSnapshot'));
+    require('../main/ipcHandlers/HeatRaceHandler');
+  });
+
+  beforeEach(() => {
+    currentScenario = baseScenario();
+    runCalls.length = 0;
+    dbMock.prepare.mockClear();
+    raceAssignmentSnapshots.clear();
+  });
+
+  it('a protest-committee edit (DSQ) captures the assignment snapshot', async () => {
+    const handler = handlerRegistry.updateRaceResult;
+    await handler({}, 99, 500, 'B1', 4, false, 'DSQ');
+
+    // A protest decision is shielded from changing heat assignments (SHRS 3.1.5),
+    // so the pre-decision order is snapshotted for the next round.
+    expect(raceAssignmentSnapshots.has(500)).toBe(true);
+  });
+
+  it('an ordinary correction (FINISHED) unshields only the corrected boat', async () => {
+    raceAssignmentSnapshots.set(
+      500,
+      new Map([
+        ['B1', { position: 1, status: 'FINISHED' }],
+        ['B2', { position: 2, status: 'FINISHED' }],
+      ]),
+    );
+    const handler = handlerRegistry.updateRaceResult;
+
+    await handler({}, 99, 500, 'B1', 2, false, 'FINISHED');
+
+    // RULE-M21: the corrected boat B1 is un-shielded (its corrected result now
+    // drives the next assignment), but B2's protest shield stays intact.
+    expect(raceAssignmentSnapshots.has(500)).toBe(true);
+    expect(raceAssignmentSnapshots.get(500)?.has('B1')).toBe(false);
+    expect(raceAssignmentSnapshots.get(500)?.has('B2')).toBe(true);
+  });
+
+  it('an ordinary correction (DNF) also unshields only the corrected boat', async () => {
+    raceAssignmentSnapshots.set(
+      500,
+      new Map([
+        ['B1', { position: 1, status: 'FINISHED' }],
+        ['B2', { position: 2, status: 'FINISHED' }],
+      ]),
+    );
+    const handler = handlerRegistry.updateRaceResult;
+
+    await handler({}, 99, 500, 'B1', 2, false, 'DNF');
+
+    expect(raceAssignmentSnapshots.has(500)).toBe(true);
+    expect(raceAssignmentSnapshots.get(500)?.has('B1')).toBe(false);
+    expect(raceAssignmentSnapshots.get(500)?.has('B2')).toBe(true);
+  });
+
+  it('clears the snapshot once the last shielded boat is unshielded', async () => {
+    raceAssignmentSnapshots.set(
+      500,
+      new Map([['B1', { position: 1, status: 'FINISHED' }]]),
+    );
+    const handler = handlerRegistry.updateRaceResult;
+
+    await handler({}, 99, 500, 'B1', 2, false, 'FINISHED');
+
+    expect(raceAssignmentSnapshots.has(500)).toBe(false);
+  });
+
+  it('re-freezes a boat that a previous ordinary correction had unshielded', async () => {
+    // RULE-M21 regression: the capture guard is per BOAT, not per race. B2 was
+    // un-shielded by an earlier race-office correction, so when the protest
+    // committee later disqualifies B2 its pre-decision place must be frozen —
+    // otherwise the DSQ reorders B2's next-round assignment, which SHRS 3.1.5
+    // forbids. A per-race "snapshot already exists" guard skips this.
+    raceAssignmentSnapshots.set(
+      500,
+      new Map([['B1', { position: 1, status: 'FINISHED' }]]),
+    );
+    currentScenario.rankedBoats = [
+      { boat_id: 'B1', position: 1, status: 'FINISHED' },
+      { boat_id: 'B2', position: 2, status: 'FINISHED' },
+    ];
+
+    const handler = handlerRegistry.updateRaceResult;
+    await handler({}, 99, 500, 'B2', 2, false, 'DSQ');
+
+    const frozen = raceAssignmentSnapshots.get(500);
+    expect(frozen?.has('B1')).toBe(true);
+    // B2's PRE-decision place, not its post-DSQ result.
+    expect(frozen?.get('B2')).toEqual({ position: 2, status: 'FINISHED' });
+  });
+
+  it('restores the frozen rows of an existing snapshot when the transaction fails', async () => {
+    // RULE-M21 regression: the in-memory cache survives a DB rollback, and an
+    // unshield MUTATES an existing entry rather than adding one. A guard that
+    // only remembers whether the race id was present leaves the un-shielded
+    // boat missing from memory while the DB still holds its frozen row.
+    raceAssignmentSnapshots.set(
+      500,
+      new Map([
+        ['B1', { position: 1, status: 'FINISHED' }],
+        ['B2', { position: 2, status: 'FINISHED' }],
+      ]),
+    );
+
+    // Run the transaction body (so B1 is actually un-shielded in memory) and
+    // only then fail, mirroring a mid-write error that rolls the DB back.
+    const failing = jest
+      .spyOn(dbMock, 'transaction')
+      .mockImplementationOnce((cb: any) => (...args: any[]) => {
+        cb(...args);
+        throw new Error('forced rollback');
+      });
+
+    const handler = handlerRegistry.updateRaceResult;
+    await expect(
+      handler({}, 99, 500, 'B1', 2, false, 'FINISHED'),
+    ).rejects.toThrow(/forced rollback/);
+    failing.mockRestore();
+
+    const frozen = raceAssignmentSnapshots.get(500);
+    expect(frozen?.has('B1')).toBe(true);
+    expect(frozen?.has('B2')).toBe(true);
   });
 });

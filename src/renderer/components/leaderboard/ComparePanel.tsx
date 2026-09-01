@@ -33,14 +33,14 @@ function ComparePanel({
     if (!show) {
       setDisplayed(compareInfo);
       setFading(false);
-      return;
+      return undefined;
     }
 
-    if (compareInfo === displayed) return;
+    if (compareInfo === displayed) return undefined;
 
     if (!displayed && compareInfo) {
       setDisplayed(compareInfo);
-      return;
+      return undefined;
     }
 
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -49,6 +49,17 @@ function ComparePanel({
       setDisplayed(compareInfo);
       setFading(false);
     }, 160);
+
+    // MEGA M-NEW-8: clear any pending fade timer when the effect re-runs or the
+    // panel unmounts. Without this, a timer scheduled here could fire after a
+    // dep change (or after unmount) and overwrite `displayed` with a stale
+    // compareInfo — or setState on an unmounted component.
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
   }, [compareInfo, displayed, show]);
 
   useEffect(() => {
@@ -299,9 +310,12 @@ function ComparePanel({
                     }}
                   >
                     <div className="compare-grid-header-cell compare-grid-row-label" />
-                    {raceGrid.map((race) => (
+                    {raceGrid.map((race, ri) => (
                       <div
-                        key={`h-${race.key}`}
+                        // LB-15: race.key is optional; fall back to label then
+                        // index so cells without a key don't collide on
+                        // `h-undefined` (duplicate React keys → misreconciliation).
+                        key={`h-${race.key ?? race.label ?? ri}`}
                         className={`compare-grid-header-cell ${
                           race.isBreaker ? 'compare-grid-breaker' : ''
                         }`}
@@ -313,9 +327,9 @@ function ComparePanel({
                     <div className="compare-grid-row-label compare-grid-row-a">
                       {boatAName}
                     </div>
-                    {raceGrid.map((race) => (
+                    {raceGrid.map((race, ri) => (
                       <div
-                        key={`a-${race.key}`}
+                        key={`a-${race.key ?? race.label ?? ri}`}
                         className={`compare-grid-score ${
                           race.isBreaker ? 'compare-grid-breaker' : ''
                         } ${race.excludedA ? 'compare-grid-excluded' : ''}`}
@@ -327,9 +341,9 @@ function ComparePanel({
                     <div className="compare-grid-row-label compare-grid-row-b">
                       {boatBName}
                     </div>
-                    {raceGrid.map((race) => (
+                    {raceGrid.map((race, ri) => (
                       <div
-                        key={`b-${race.key}`}
+                        key={`b-${race.key ?? race.label ?? ri}`}
                         className={`compare-grid-score ${
                           race.isBreaker ? 'compare-grid-breaker' : ''
                         } ${race.excludedB ? 'compare-grid-excluded' : ''}`}
@@ -347,22 +361,22 @@ function ComparePanel({
         {sharedQualRacePairs?.length > 0 || sharedIds.size > 0 ? (
           <div className="compare-badges-wrap">
             <span className="compare-badges-label">Shared heat races:</span>
-            {sharedQualRacePairs?.map((pair, i) => (
+            {sharedQualRacePairs?.map((pair) => (
               <span
                 key={`q-${pair.raceId}`}
                 className="compare-badge compare-badge-qual"
               >
-                Q{i + 1}: {pair.displayA} <span className="compare-vs">vs</span>{' '}
-                {pair.displayB}
+                Q{pair.raceNumber}: {pair.displayA}{' '}
+                <span className="compare-vs">vs</span> {pair.displayB}
               </span>
             ))}
-            {sharedRacePairs.map((pair, i) => (
+            {sharedRacePairs.map((pair) => (
               <span
                 key={`f-${pair.raceId}`}
                 className="compare-badge compare-badge-final"
               >
-                F{i + 1}: {pair.displayA} <span className="compare-vs">vs</span>{' '}
-                {pair.displayB}
+                F{pair.raceNumber}: {pair.displayA}{' '}
+                <span className="compare-vs">vs</span> {pair.displayB}
               </span>
             ))}
           </div>

@@ -1,5 +1,6 @@
+/* eslint-disable no-nested-ternary */
 import React, { useState, useEffect } from 'react';
-import { reportError, reportWarning } from '../utils/userFeedback';
+import { reportError, reportInfo, reportWarning } from '../utils/userFeedback';
 import {
   POSITION_KEEPING_PENALTIES,
   orderBoatsByPenalty,
@@ -78,7 +79,17 @@ function FinishPlaceInput({
   const commit = () => {
     if (draft !== null && draft !== '') {
       const parsed = parseInt(draft, 10);
-      if (!Number.isNaN(parsed)) onCommit(parsed);
+      if (!Number.isNaN(parsed)) {
+        // Warn if the parsed value differs from what the user typed (e.g.
+        // decimal "3.5" silently truncated to 3, or scientific "2e1"→2).
+        if (String(parsed) !== draft.trim()) {
+          reportWarning(
+            `"${draft}" was interpreted as place ${parsed}. Type a whole number.`,
+            'Place adjusted',
+          );
+        }
+        onCommit(parsed);
+      }
     }
     setDraft(null);
   };
@@ -115,6 +126,9 @@ function ScoringInputComponent({
   const [validBoats, setValidBoats] = useState<SailNumber[]>([]);
   const [placeNumbers, setPlaceNumbers] = useState<Record<string, number>>({});
   const [penalties, setPenalties] = useState<Record<string, string>>({});
+  // RRS A7 dead heats: boats tied with the boat above share a finishing place.
+  // Keys are normalized sail numbers; presence means "tied with the boat above".
+  const [ties, setTies] = useState<Set<string>>(new Set());
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
   const [invalidBoatNumbers, setInvalidBoatNumbers] = useState<SailNumber[]>(
@@ -123,6 +137,17 @@ function ScoringInputComponent({
   // Guards against a double-submit writing the same heat twice (SHRS integrity):
   // the button is locked from the first click until the atomic write settles.
   const [submitting, setSubmitting] = useState(false);
+  // Inline error state so a boat-fetch failure shows a persistent banner with a
+  // Retry button, not just a fleeting toast.
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  // Bumped from the error banner's Retry button to re-trigger the fetch effect
+  // without changing heat.heat_id.
+  const [fetchToken, setFetchToken] = useState(0);
+  // Tracks boats that were added to the finish order SOLELY by selecting a
+  // penalty (never explicitly clicked or typed). When the penalty is cleared,
+  // these boats are removed from the finish order instead of becoming orphan
+  // finishers.
+  const autoAddedByPenalty = React.useRef<Set<string>>(new Set());
   // Focus the sail-number input as soon as a heat opens for scoring, so an RO can
   // read the finish order aloud and type straight away without reaching for the
   // mouse. Re-runs when switching heats.
@@ -132,7 +157,12 @@ function ScoringInputComponent({
   }, [heat.heat_id]);
 
   const normalizeBoatNumber = (value: SailNumber): string =>
-    String(value).trim();
+    value != null ? String(value).trim() : '';
+  // Identity key for an RRS A7 tie between two ADJACENT boats. Encoding both
+  // boats (not just the lower one) means a tie can never silently rebind to a
+  // different boat when the boat above is removed or displaced.
+  const tieKey = (lower: SailNumber, upper: SailNumber): string =>
+    `${normalizeBoatNumber(lower)}::${normalizeBoatNumber(upper)}`;
   const compareBoatNumbers = (a: SailNumber, b: SailNumber): number =>
     normalizeBoatNumber(a).localeCompare(normalizeBoatNumber(b), undefined, {
       numeric: true,
@@ -140,12 +170,63 @@ function ScoringInputComponent({
     });
   const buildPlaceNumbers = (
     orderedBoats: SailNumber[],
+    tiesSet: Set<string> = new Set(),
   ): Record<string, number> => {
     const newPlaceNumbers: Record<string, number> = {};
+    let nextPlace = 1;
     orderedBoats.forEach((boat, index) => {
-      newPlaceNumbers[boat] = index + 1;
+      // RRS A7: a boat tied with the one above shares its place. The skipped
+      // place is recovered because `nextPlace` advances past every boat, tied
+      // or not, so the next distinct finisher gets the correct place (e.g. two
+      // boats tied for 1st → the next boat is 3rd).
+      if (index > 0 && tiesSet.has(tieKey(boat, orderedBoats[index - 1]))) {
+        newPlaceNumbers[boat] = newPlaceNumbers[orderedBoats[index - 1]];
+      } else {
+        newPlaceNumbers[boat] = nextPlace;
+      }
+      nextPlace += 1;
     });
     return newPlaceNumbers;
+  };
+
+  // Drop tie markers that are no longer valid: boats removed from the finish
+  // order, or boats that now carry a displacing penalty (they are no longer
+  // "tied at the finishing line" — SHRS 5.3 sends them to the end).
+  const pruneTies = (
+    boats: SailNumber[],
+    penaltiesByBoat: Record<string, string>,
+    tiesSet: Set<string>,
+  ): Set<string> => {
+    const remaining = new Set(boats.map(normalizeBoatNumber));
+    // Position of each boat in the (ordered) list. Tie keys are directional
+    // adjacency pairs (`lower::upper`), so a tie is only valid while `upper`
+    // sits directly above `lower` in the finish order.
+    const indexOf = new Map<string, number>();
+    boats.forEach((boat, index) => {
+      indexOf.set(normalizeBoatNumber(boat), index);
+    });
+    const pruned = new Set<string>();
+    tiesSet.forEach((key) => {
+      const [lower, upper] = key.split('::');
+      if (!remaining.has(lower) || !remaining.has(upper)) return;
+      const lowerPenalty = penaltiesByBoat[lower];
+      const upperPenalty = penaltiesByBoat[upper];
+      if (
+        (lowerPenalty && !POSITION_KEEPING_PENALTIES.has(lowerPenalty)) ||
+        (upperPenalty && !POSITION_KEEPING_PENALTIES.has(upperPenalty))
+      ) {
+        return;
+      }
+      // A reorder can separate a tied pair; once they are no longer directly
+      // adjacent the tie must be dropped, otherwise it silently re-activates if
+      // adjacency is restored later.
+      const lowerIndex = indexOf.get(lower);
+      const upperIndex = indexOf.get(upper);
+      if (lowerIndex === undefined || upperIndex === undefined) return;
+      if (lowerIndex !== upperIndex + 1) return;
+      pruned.add(key);
+    });
+    return pruned;
   };
   const getOrderedBoatNumbers = (
     boats: SailNumber[],
@@ -165,17 +246,24 @@ function ScoringInputComponent({
     setValidBoats([]);
     setPlaceNumbers({});
     setPenalties({});
+    setTies(new Set());
     setDraggingIndex(null);
     setDropIndex(null);
     setInvalidBoatNumbers([]);
+    setFetchError(null);
+    autoAddedByPenalty.current = new Set();
 
     const fetchBoats = async () => {
       try {
         const boats = await heatRaceDB.readBoatsByHeat(heat.heat_id);
         if (!isActive) return;
         setValidBoats(boats.map((boat) => boat.sail_number));
+        setFetchError(null);
       } catch (error) {
         if (!isActive) return;
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
+        setFetchError(message);
         reportError('Could not load boats for selected heat.', error);
       }
     };
@@ -185,7 +273,7 @@ function ScoringInputComponent({
     return () => {
       isActive = false;
     };
-  }, [heat.heat_id]);
+  }, [heat.heat_id, fetchToken]);
 
   // Tell the parent whenever an unsubmitted finish order exists so it can warn
   // before navigating away (a place or a penalty counts as work-in-progress).
@@ -214,12 +302,14 @@ function ScoringInputComponent({
     const merged = [...boatNumbers, ...validNew];
     const ordered = getOrderedBoatNumbers(merged, penalties);
     setBoatNumbers(ordered);
-    setPlaceNumbers(buildPlaceNumbers(ordered));
+    setPlaceNumbers(buildPlaceNumbers(ordered, ties));
   };
 
   // Clicking a row immediately adds the boat — no separate button press needed
   const handleBoatClick = (sailNumber: SailNumber) => {
     if (boatNumbers.includes(sailNumber)) return;
+    // Explicit click overrides any penalty-only auto-add tracking.
+    autoAddedByPenalty.current.delete(normalizeBoatNumber(sailNumber));
     addBoatsToList([sailNumber]);
   };
 
@@ -237,15 +327,30 @@ function ScoringInputComponent({
     const invalidInput = unique.filter((n) => !canonicalBySail.has(n));
     if (invalidInput.length > 0) {
       reportWarning(
-        `These sail numbers are not in ${heat.heat_name}: ${invalidInput.join(', ')}`,
+        `These sail numbers are not in ${heat.heat_name}: ${invalidInput.join(', ')}.\n\n` +
+          'Check the boat list on the left for valid sail numbers, or verify the heat assignment.',
         'Unknown sail numbers',
       );
     }
-    addBoatsToList(
-      unique
-        .filter((n) => canonicalBySail.has(n))
-        .map((n) => canonicalBySail.get(n) as SailNumber),
-    );
+    const alreadyInOrder = new Set(boatNumbers.map(normalizeBoatNumber));
+    const validCanonical = unique.filter((n) => canonicalBySail.has(n));
+    const newlyAdded = validCanonical.filter((n) => !alreadyInOrder.has(n));
+    // Every typed number was valid but already scored, and nothing else was
+    // added — without this note the input just clears and the action looks
+    // like it silently failed.
+    if (
+      newlyAdded.length === 0 &&
+      validCanonical.length > 0 &&
+      invalidInput.length === 0
+    ) {
+      reportInfo(
+        `Already in the finish order: ${validCanonical
+          .map((n) => canonicalBySail.get(n))
+          .join(', ')}`,
+        'No change',
+      );
+    }
+    addBoatsToList(newlyAdded.map((n) => canonicalBySail.get(n) as SailNumber));
     setInputValue('');
   };
 
@@ -256,10 +361,6 @@ function ScoringInputComponent({
     }
   };
 
-  const updatePlaces = (boats: SailNumber[]) => {
-    setPlaceNumbers(buildPlaceNumbers(boats));
-  };
-
   const handleRemoveBoat = (index: number) => {
     const updatedBoatNumbers = [...boatNumbers];
     const removedBoat = updatedBoatNumbers.splice(index, 1)[0];
@@ -268,21 +369,27 @@ function ScoringInputComponent({
     delete updatedPenalties[removedBoat];
 
     const ordered = getOrderedBoatNumbers(updatedBoatNumbers, updatedPenalties);
+    const prunedTies = pruneTies(ordered, updatedPenalties, ties);
     setBoatNumbers(ordered);
-    setPlaceNumbers(buildPlaceNumbers(ordered));
+    setPlaceNumbers(buildPlaceNumbers(ordered, prunedTies));
+    setTies(prunedTies);
     setPenalties(updatedPenalties);
   };
 
   const handleReorderBoat = (fromIndex: number, toIndex: number) => {
-    if (toIndex < 0 || toIndex >= boatNumbers.length || fromIndex === toIndex) {
+    if (toIndex < 0 || toIndex > boatNumbers.length || fromIndex === toIndex) {
       return;
     }
     const updatedBoatNumbers = [...boatNumbers];
     const [movedBoat] = updatedBoatNumbers.splice(fromIndex, 1);
     updatedBoatNumbers.splice(toIndex, 0, movedBoat);
     const ordered = getOrderedBoatNumbers(updatedBoatNumbers, penalties);
+    // A reorder can break an RRS A7 tie's adjacency, so prune stale ties (as
+    // remove/penalty already do) before recomputing places.
+    const prunedTies = pruneTies(ordered, penalties, ties);
     setBoatNumbers(ordered);
-    updatePlaces(ordered);
+    setPlaceNumbers(buildPlaceNumbers(ordered, prunedTies));
+    setTies(prunedTies);
   };
 
   const handleDragStart = (index: number) => {
@@ -292,36 +399,100 @@ function ScoringInputComponent({
   const handleDragOver =
     (index: number) => (e: React.DragEvent<HTMLLIElement>) => {
       e.preventDefault();
+      // The <ul> also has an onDragOver for the tail zone (drop after the last
+      // item). Without stopping propagation, that handler fires after this one
+      // and overwrites dropIndex with boatNumbers.length, so every drop lands at
+      // the end and the per-item indicator never shows.
+      e.stopPropagation();
       setDropIndex(index);
     };
 
   const handleDrop = () => {
     if (draggingIndex !== null && dropIndex !== null) {
       handleReorderBoat(draggingIndex, dropIndex);
-      setDraggingIndex(null);
-      setDropIndex(null);
     }
+    setDraggingIndex(null);
+    setDropIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggingIndex(null);
+    setDropIndex(null);
   };
 
   const handlePenaltyChange = (boatNumber: SailNumber, penalty: string) => {
-    const nextBoatNumbers =
-      penalty && !boatNumbers.includes(boatNumber)
-        ? [...boatNumbers, boatNumber]
-        : [...boatNumbers];
+    const norm = normalizeBoatNumber(boatNumber);
+    const wasAutoAdded = autoAddedByPenalty.current.has(norm);
+    const wasInList = boatNumbers.some((b) => normalizeBoatNumber(b) === norm);
+
+    if (penalty) {
+      // Auto-add the boat if it's not already in the finish order.
+      if (!wasInList) {
+        autoAddedByPenalty.current.add(norm);
+      }
+    } else {
+      // Penalty cleared. If the boat was auto-added (only present because of
+      // a penalty selection), remove it entirely; otherwise keep it as a
+      // finisher (it was explicitly added via click/type).
+      autoAddedByPenalty.current.delete(norm);
+    }
+
+    let nextBoatNumbers = [...boatNumbers];
+    if (penalty && !wasInList) {
+      nextBoatNumbers = [...boatNumbers, boatNumber];
+    } else if (!penalty && wasAutoAdded) {
+      nextBoatNumbers = boatNumbers.filter(
+        (b) => normalizeBoatNumber(b) !== norm,
+      );
+    }
+
     const newPenalties = { ...penalties, [boatNumber]: penalty };
     if (!penalty) delete newPenalties[boatNumber];
 
     const ordered = getOrderedBoatNumbers(nextBoatNumbers, newPenalties);
+    const prunedTies = pruneTies(ordered, newPenalties, ties);
     setBoatNumbers(ordered);
-    setPlaceNumbers(buildPlaceNumbers(ordered));
+    setPlaceNumbers(buildPlaceNumbers(ordered, prunedTies));
+    setTies(prunedTies);
     setPenalties(newPenalties);
   };
 
+  // Toggle an RRS A7 dead heat: mark/unmark this boat as tied with the boat
+  // directly above it in the finish order, then recompute the shared places.
+  const handleToggleTie = (boatNumber: SailNumber, index: number) => {
+    if (index < 1) return;
+    const key = tieKey(boatNumber, boatNumbers[index - 1]);
+    const next = new Set(ties);
+    if (next.has(key)) {
+      next.delete(key);
+    } else {
+      next.add(key);
+    }
+    setTies(next);
+    setPlaceNumbers(buildPlaceNumbers(boatNumbers, next));
+  };
+
+  // Synchronous guard so rapid clicks that all hit the warning path (before
+  // setSubmitting(true) runs) don't produce duplicate toasts.
+  const submitGuardRef = React.useRef(false);
+
   const handleSubmit = async () => {
     // Ignore re-entrant clicks while a submit is already in flight.
-    if (submitting) return;
+    if (submitting || submitGuardRef.current) return;
+    submitGuardRef.current = true;
+    // Prevent creating an empty race when the heat has no boats.
+    if (validBoats.length === 0) {
+      reportInfo(
+        'This heat has no boats assigned — nothing to score.',
+        'Empty heat',
+      );
+      submitGuardRef.current = false;
+      return;
+    }
     const submittedBoatNumbers = [
-      ...new Set([...boatNumbers, ...Object.keys(penalties)]),
+      ...new Set(
+        [...boatNumbers, ...Object.keys(penalties)].map(normalizeBoatNumber),
+      ),
     ];
     const invalidSubmitted = submittedBoatNumbers.filter(
       (boatNumber) => !isValidBoatNumber(boatNumber),
@@ -334,6 +505,7 @@ function ScoringInputComponent({
           'Remove them from finish order and score only boats in this heat.',
         'Invalid sail numbers',
       );
+      submitGuardRef.current = false;
       return;
     }
 
@@ -352,7 +524,9 @@ function ScoringInputComponent({
       if (!penalty) {
         boatPlaces.push({
           boatNumber,
-          place: finishingPlace,
+          // RRS A7: use the tie-aware place so boats dead-heated at the line
+          // submit the same place (the next boat skips to place + 1).
+          place: placeNumbers[boatNumber],
           status: 'FINISHED',
         });
         finishingPlace += 1;
@@ -360,7 +534,14 @@ function ScoringInputComponent({
       }
 
       if (POSITION_KEEPING_PENALTIES.has(penalty)) {
-        boatPlaces.push({ boatNumber, place: finishingPlace, status: penalty });
+        // A position-keeping penalty (ZFP/SCP/T1) keeps its finishing place —
+        // which, when the boat is tied, is the shared place, not the running
+        // counter (RRS A7).
+        boatPlaces.push({
+          boatNumber,
+          place: placeNumbers[boatNumber],
+          status: penalty,
+        });
         finishingPlace += 1;
         return;
       }
@@ -409,6 +590,7 @@ function ScoringInputComponent({
         // On success the parent unmounts this view; on a warning/error path it
         // stays mounted, so re-enable the button either way.
         setSubmitting(false);
+        submitGuardRef.current = false;
       }
     } else {
       const missingBoats = allBoats.filter(
@@ -421,6 +603,7 @@ function ScoringInputComponent({
           'Click the missing boats in the left table to add them, or pick a penalty (e.g. DNS if a boat did not start).',
         'Some boats are not scored yet',
       );
+      submitGuardRef.current = false;
     }
   };
 
@@ -465,83 +648,110 @@ function ScoringInputComponent({
   ).length;
   const totalBoats = validBoats.length;
   const allScored = totalBoats > 0 && scoredCount === totalBoats;
+  const isEmpty = totalBoats === 0;
 
   return (
     <div className="scoring-layout">
       {/* Left panel — boat list */}
       <div className="scoring-panel">
         <h2 className="scoring-panel-title">{heat.heat_name} — Boats</h2>
-        <p className="scoring-hint">
-          Click a row or select a penalty to include the boat in scoring
-        </p>
-        <div className="scoring-table-wrap">
-          <table className="scoring-table">
-            <thead>
-              <tr>
-                <th>Sailor</th>
-                <th>Country</th>
-                <th>Sail #</th>
-                <th className="scoring-place-cell">Place</th>
-                <th>Penalty</th>
-              </tr>
-            </thead>
-            <tbody>
-              {heat.boats.map((boat) => {
-                const added = boatNumbers.includes(boat.sail_number);
-                const invalid = isInvalidSail(boat.sail_number);
-                return (
-                  <tr
-                    key={boat.boat_id}
-                    onClick={() => handleBoatClick(boat.sail_number)}
-                    className={`${added ? 'is-added' : ''}${invalid ? ' is-invalid' : ''}`}
-                    title={
-                      added
-                        ? `Already added at place ${getPlaceDisplay(boat.sail_number)}`
-                        : 'Click to add to finish order'
-                    }
-                  >
-                    <td>
-                      {boat.name} {boat.surname}
-                      {/* Always rendered (hidden until added) so adding the
-                          check never reflows the row. */}
-                      <span
-                        className={`scoring-added-check${added ? '' : ' is-placeholder'}`}
-                        aria-hidden={!added}
-                      >
-                        ✓
-                      </span>
-                    </td>
-                    <td>{boat.country}</td>
-                    <td className="scoring-sail-cell">{boat.sail_number}</td>
-                    <td
-                      className={`scoring-place-cell${added ? ' is-added' : ''}`}
-                    >
-                      {getPlaceDisplay(boat.sail_number)}
-                    </td>
-                    <td>
-                      <select
-                        className="penalty-select"
-                        value={penalties[boat.sail_number] || ''}
-                        onChange={(e) =>
-                          handlePenaltyChange(boat.sail_number, e.target.value)
-                        }
-                        onClick={(e) => e.stopPropagation()}
-                        aria-label={`Penalty for sail ${boat.sail_number}`}
-                      >
-                        <option value="">None</option>
-                        {PENALTY_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
+        {fetchError && (
+          <div role="alert" className="fetch-error-banner">
+            <p>Could not load boats: {fetchError}</p>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => {
+                setFetchError(null);
+                setFetchToken((t) => t + 1);
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+        {!fetchError && (
+          <>
+            <p className="scoring-hint">
+              Click a row or select a penalty to include the boat in scoring
+            </p>
+            <div className="scoring-table-wrap">
+              <table className="scoring-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Sailor</th>
+                    <th scope="col">Country</th>
+                    <th scope="col">Sail #</th>
+                    <th scope="col" className="scoring-place-cell">
+                      Place
+                    </th>
+                    <th scope="col">Penalty</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {heat.boats.map((boat) => {
+                    const added = boatNumbers.includes(boat.sail_number);
+                    const invalid = isInvalidSail(boat.sail_number);
+                    return (
+                      <tr
+                        key={boat.boat_id}
+                        onClick={() => handleBoatClick(boat.sail_number)}
+                        className={`${added ? 'is-added' : ''}${invalid ? ' is-invalid' : ''}`}
+                        title={
+                          added
+                            ? `Already added at place ${getPlaceDisplay(boat.sail_number)}`
+                            : 'Click to add to finish order'
+                        }
+                      >
+                        <td>
+                          {boat.name} {boat.surname}
+                          {/* Always rendered (hidden until added) so adding the
+                          check never reflows the row. */}
+                          <span
+                            className={`scoring-added-check${added ? '' : ' is-placeholder'}`}
+                            aria-hidden={!added}
+                          >
+                            ✓
+                          </span>
+                        </td>
+                        <td>{boat.country}</td>
+                        <td className="scoring-sail-cell">
+                          {boat.sail_number}
+                        </td>
+                        <td
+                          className={`scoring-place-cell${added ? ' is-added' : ''}`}
+                        >
+                          {getPlaceDisplay(boat.sail_number)}
+                        </td>
+                        <td>
+                          <select
+                            className="penalty-select"
+                            value={penalties[boat.sail_number] || ''}
+                            onChange={(e) =>
+                              handlePenaltyChange(
+                                boat.sail_number,
+                                e.target.value,
+                              )
+                            }
+                            onClick={(e) => e.stopPropagation()}
+                            aria-label={`Penalty for sail ${boat.sail_number}`}
+                          >
+                            <option value="">None</option>
+                            {PENALTY_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Right panel — finish order */}
@@ -558,22 +768,33 @@ function ScoringInputComponent({
         <div className="finish-actionbar">
           {/* Progress indicator so the user always knows how many boats remain */}
           <p
+            id="finish-progress-status"
             aria-live="polite"
             className={`finish-progress${allScored ? ' is-done' : ''}`}
           >
-            {allScored
-              ? `All ${totalBoats} boats scored — ready to submit ✓`
-              : `${scoredCount} of ${totalBoats} boats scored — ${totalBoats - scoredCount} remaining`}
+            {isEmpty
+              ? 'No boats in this heat'
+              : allScored
+                ? `All ${totalBoats} boats scored — ready to submit ✓`
+                : `${scoredCount} of ${totalBoats} boats scored — ${totalBoats - scoredCount} remaining`}
           </p>
+          {/* The button stays actionable even when not all boats are scored: a
+              click surfaces a warning naming the missing boats, which is more
+              helpful than a dead disabled control. So it must NOT claim
+              aria-disabled (that would tell assistive tech it's inert while it
+              still acts). Readiness is conveyed by the aria-live status above,
+              referenced here via aria-describedby. */}
           <button
             type="button"
             className={`btn-success submit-scores-btn${allScored ? '' : ' is-unavailable'}`}
-            aria-disabled={!allScored}
+            aria-describedby="finish-progress-status"
             disabled={submitting}
             title={
-              allScored
-                ? undefined
-                : 'Score every boat (a place or a penalty) before submitting'
+              isEmpty
+                ? 'No boats to score in this heat'
+                : allScored
+                  ? undefined
+                  : 'Score every boat (a place or a penalty) before submitting'
             }
             onClick={handleSubmit}
           >
@@ -603,7 +824,14 @@ function ScoringInputComponent({
         </div>
 
         {/* Ranked list */}
-        <ul className="finish-list">
+        <ul
+          className="finish-list"
+          onDragOver={(e) => {
+            e.preventDefault();
+            // Allow dropping at the very end of the list (after the last item).
+            setDropIndex(boatNumbers.length);
+          }}
+        >
           {boatNumbers.map((number, index) => (
             <React.Fragment key={number}>
               {dropIndex === index && <div className="drop-indicator" />}
@@ -613,6 +841,7 @@ function ScoringInputComponent({
                 draggable
                 onDragStart={() => handleDragStart(index)}
                 onDragOver={handleDragOver(index)}
+                onDragEnd={handleDragEnd}
                 onDrop={handleDrop}
               >
                 {penalties[number] ? (
@@ -638,26 +867,68 @@ function ScoringInputComponent({
                     <span className="finish-not-in-heat">Not in this heat</span>
                   )}
                 </span>
-                <button
-                  type="button"
-                  className="finish-move-btn"
-                  aria-label={`Move sail ${number} up`}
-                  onClick={() => handleReorderBoat(index, index - 1)}
-                  disabled={index === 0}
-                  title="Move up"
-                >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  className="finish-move-btn"
-                  aria-label={`Move sail ${number} down`}
-                  onClick={() => handleReorderBoat(index, index + 1)}
-                  disabled={index === boatNumbers.length - 1}
-                  title="Move down"
-                >
-                  ↓
-                </button>
+                {(() => {
+                  const p = penalties[number];
+                  const isDisplacing = Boolean(
+                    p && !POSITION_KEEPING_PENALTIES.has(p),
+                  );
+                  const isTied =
+                    index > 0 &&
+                    ties.has(tieKey(number, boatNumbers[index - 1]));
+                  return (
+                    <>
+                      <button
+                        type="button"
+                        className="finish-move-btn"
+                        aria-label={`Move sail ${number} up`}
+                        onClick={() => handleReorderBoat(index, index - 1)}
+                        disabled={index === 0 || isDisplacing}
+                        title={
+                          isDisplacing
+                            ? `Boats with ${p} stay at the end of the finish order (SHRS 5.3)`
+                            : 'Move up'
+                        }
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        className="finish-move-btn"
+                        aria-label={`Move sail ${number} down`}
+                        onClick={() => handleReorderBoat(index, index + 1)}
+                        disabled={
+                          index === boatNumbers.length - 1 || isDisplacing
+                        }
+                        title={
+                          isDisplacing
+                            ? `Boats with ${p} stay at the end of the finish order (SHRS 5.3)`
+                            : 'Move down'
+                        }
+                      >
+                        ↓
+                      </button>
+                      <button
+                        type="button"
+                        className={`finish-tie-btn${isTied ? ' is-tied' : ''}`}
+                        aria-label={`Sail ${number} tied with the boat above`}
+                        aria-pressed={isTied}
+                        onClick={() => handleToggleTie(number, index)}
+                        disabled={index === 0 || isDisplacing}
+                        title={
+                          index === 0
+                            ? 'The first boat cannot be tied with a boat above'
+                            : isDisplacing
+                              ? 'Penalised boats are not tied at the finishing line'
+                              : isTied
+                                ? 'Untie from the boat above (RRS A7 dead heat)'
+                                : 'Tie with the boat above (RRS A7 dead heat)'
+                        }
+                      >
+                        =
+                      </button>
+                    </>
+                  );
+                })()}
                 <button
                   type="button"
                   className="finish-remove-btn"

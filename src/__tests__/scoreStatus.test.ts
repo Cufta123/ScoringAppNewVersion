@@ -13,8 +13,10 @@ import {
   deriveNonFinisherPoints,
   getHeatBaseFromName,
   getScoringPenaltyPoints,
+  isNonScoringPenalty,
   normalizeScoreStatus,
   normalizeStatus,
+  promotesBoatsBehind,
   roundHalfUp,
   shrsPrimaryStatusOrder,
   statusOrder,
@@ -187,6 +189,63 @@ describe('deriveNonFinisherPoints (SHRS 5.2 re-derivation)', () => {
   it('does NOT auto-score DPI as largest-heat + 1 — points are protest-committee-set (RRS A10)', () => {
     expect(deriveNonFinisherPoints('DPI', 5, 20)).toBeNull();
   });
+});
+
+describe('isNonScoringPenalty (SHRS 5.2 write-path classification)', () => {
+  it.each([
+    'DNF',
+    'DNS',
+    'DSQ',
+    'OCS',
+    'RET',
+    'BFD',
+    'UFD',
+    'DNC',
+    'NSC',
+    'WTH',
+    'DNE',
+    'DGM',
+  ])('classifies %s as non-scoring', (status) => {
+    expect(isNonScoringPenalty(status)).toBe(true);
+  });
+
+  it.each(['FINISHED', 'ZFP', 'SCP', 'T1', 'RDG1', 'RDG2', 'RDG3', 'DPI'])(
+    'does NOT classify %s as non-scoring',
+    (status) => {
+      expect(isNonScoringPenalty(status)).toBe(false);
+    },
+  );
+});
+
+describe('promotesBoatsBehind (RRS A6.1 / RULE-M16)', () => {
+  it.each(['DSQ', 'RET', 'DNE', 'DGM'])(
+    'promotes the boats behind when a finisher becomes %s',
+    (status) => {
+      expect(promotesBoatsBehind('FINISHED', status)).toBe(true);
+    },
+  );
+
+  it('does not promote when the previous status was not FINISHED', () => {
+    expect(promotesBoatsBehind('DNS', 'DSQ')).toBe(false);
+    expect(promotesBoatsBehind('DNF', 'DSQ')).toBe(false);
+  });
+
+  it.each(['ZFP', 'SCP', 'T1'])(
+    'promotes when a position-keeping penalty boat (previous %s) is displaced',
+    (previousStatus) => {
+      expect(promotesBoatsBehind(previousStatus, 'DSQ')).toBe(true);
+      expect(promotesBoatsBehind(previousStatus, 'RET')).toBe(true);
+      expect(promotesBoatsBehind(previousStatus, 'DNE')).toBe(true);
+      expect(promotesBoatsBehind(previousStatus, 'DGM')).toBe(true);
+    },
+  );
+
+  it.each(['FINISHED', 'DNF', 'DNS', 'OCS', 'ZFP', 'SCP', 'T1', 'DPI', 'RDG1'])(
+    'does not promote for a new status of %s',
+    (status) => {
+      expect(promotesBoatsBehind('FINISHED', status)).toBe(false);
+    },
+  );
 });
 
 describe('buildAlphanumericKey', () => {

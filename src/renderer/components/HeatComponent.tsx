@@ -1,9 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Flag from 'react-world-flags';
 import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
 import printNewHeats from '../utils/printNewHeats';
 import AppModal from './shared/AppModal';
-import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
+import {
+  confirmAction,
+  reportError,
+  reportInfo,
+  reportWarning,
+} from '../utils/userFeedback';
 import { getExcludeCount } from '../utils/leaderboardUtils';
 import { computeAdjustedFleetTotals } from '../../shared/fleetAssignment';
 import { heatRaceDB } from '../api/db';
@@ -96,6 +101,28 @@ function HeatComponent({
     'excel' | 'pdf' | 'html'
   >('excel');
   const [snapshotHistory, setSnapshotHistory] = useState<SnapshotEntry[]>([]);
+
+  // Every heat-mutating action here (create/recreate/transfer/start-final/
+  // restore) chains one or more DB round-trips, and Start Final Series chains
+  // up to four confirm dialogs. ConfirmDialogHost rejects a second confirm
+  // while one is open (it silently resolves to 'cancel'), so a double-click
+  // would launch a second chain that self-aborts with no explanation. Gate all
+  // of them through one exclusive runner: a ref gives a synchronous guard (two
+  // clicks in the same tick both see busy=false otherwise), and `busy` drives
+  // the disabled state on the trigger buttons.
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const runExclusive = useCallback(async (fn: () => Promise<void>) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      await fn();
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }, []);
 
   const snapshotStorageKey = `eventSnapshotHistory:${event.event_id}`;
 
@@ -290,6 +317,9 @@ function HeatComponent({
         } else if (eligibility.reason === 'SINGLE_FLEET') {
           message =
             'With only one heat the event is a single-fleet event (SHRS 1.1) — no Final Series applies.';
+        } else if (eligibility.reason === 'NO_RACES_COMPLETED') {
+          message =
+            'No qualifying races have been completed yet. Final-fleet assignment is based on the Qualifying Series ranking (SHRS 4.2), so complete at least one qualifying race before starting the Final Series.';
         } else {
           const breakdown = (eligibility.raceCountBreakdown || [])
             .map((r) => `${r.name}: ${r.count} race(s)`)
@@ -303,13 +333,11 @@ function HeatComponent({
       const { numFinalHeats, rule43Applies } = eligibility;
       const finalHeatCount = numFinalHeats ?? 0;
 
-      if (eligibility.noRacesCompleted) {
-        const proceed = await confirmAction(
-          'No qualifying races have been completed yet. Boats will be assigned to fleets based on their initial seeding only.\n\nStart the Final Series anyway?',
-          'Start Final Series',
-        );
-        if (!proceed) return;
-      } else if (eligibility.latestRoundUnsailed) {
+      // RULE-m3: the "0 races → assign by initial seeding only" path was removed.
+      // SHRS 4.2 requires a Qualifying Series ranking to divide fleets, so the
+      // 0-race case is now rejected up front (reason NO_RACES_COMPLETED above)
+      // rather than offered as a seeding-only start.
+      if (eligibility.latestRoundUnsailed) {
         // A new round of heats exists but has 0 races. It is NOT "no races
         // completed" — earlier rounds were sailed. Tell the user the empty
         // latest round is ignored and the last completed round is used.
@@ -400,6 +428,20 @@ function HeatComponent({
       if (message.includes('Heats already exist')) {
         reportInfo('Heats already exist for this event.', 'Action blocked');
         setHeatsCreated(true);
+        return;
+      }
+      // The main process throws deliberately authored, plain-language
+      // validation messages for these cases (no boats registered, the SHRS
+      // per-heat cap, an out-of-range heat count). Surface them verbatim so the
+      // user knows exactly what to change, instead of a generic "could not
+      // create" that hides the reason. Anything else is treated as a technical
+      // error and routed through reportError (detail to console only).
+      if (
+        message.includes('boats per heat') ||
+        message.includes('No boats are registered') ||
+        message.includes('Number of heats must be')
+      ) {
+        reportWarning(message, 'Cannot create heats');
         return;
       }
       reportError('Could not create heats.', error);
@@ -555,7 +597,7 @@ function HeatComponent({
     const { boat, fromHeatId } = data ?? {};
     if (!boat?.boat_id || fromHeatId == null) return;
     if (fromHeatId === toHeatId) return; // dropped back onto its own heat
-    await handleBoatTransfer(boat, fromHeatId, toHeatId);
+    await runExclusive(() => handleBoatTransfer(boat, fromHeatId, toHeatId));
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -624,7 +666,7 @@ function HeatComponent({
         confirmLabel="Yes, Start Final Series"
         cancelLabel="Cancel"
         onCancel={() => setShowFinalConfirm(false)}
-        onConfirm={handleConfirmFinalSeries}
+        onConfirm={() => runExclusive(() => handleConfirmFinalSeries())}
       >
         This will create <strong>{pendingFinalHeats}</strong> final fleet
         {pendingFinalHeats > 1 ? 's' : ''} based on current standings. This
@@ -652,8 +694,8 @@ function HeatComponent({
           <button
             type="button"
             className="btn-ghost"
-            onClick={handleExportNewHeats}
-            disabled={heatsToDisplay.length === 0}
+            onClick={() => runExclusive(handleExportNewHeats)}
+            disabled={heatsToDisplay.length === 0 || busy}
           >
             {isFinalSeriesView ? 'Print Final Series Heats' : 'Print New Heats'}
           </button>
@@ -673,7 +715,10 @@ function HeatComponent({
                   onChange={(e) => setNumHeats(Number(e.target.value))}
                   disabled={raceHappened || finalSeriesStarted}
                 >
-                  {[...Array(10).keys()].map((i) => (
+                  {/* Match the backend's 1–26 heat limit (createInitialHeatsAtomic)
+                      so an event of up to 26×20=520 boats can be split without
+                      hitting a UI dead-end (RULE-M24). */}
+                  {[...Array(26).keys()].map((i) => (
                     <option key={i + 1} value={i + 1}>
                       {i + 1}
                     </option>
@@ -682,8 +727,12 @@ function HeatComponent({
               </label>
               <button
                 type="button"
-                onClick={heatsCreated ? handleRecreateHeats : handleCreateHeats}
-                disabled={raceHappened || finalSeriesStarted}
+                onClick={() =>
+                  runExclusive(
+                    heatsCreated ? handleRecreateHeats : handleCreateHeats,
+                  )
+                }
+                disabled={raceHappened || finalSeriesStarted || busy}
               >
                 {heatsCreated ? 'Recreate Heats' : 'Create Heats'}
               </button>
@@ -755,9 +804,13 @@ function HeatComponent({
               <table>
                 <thead>
                   <tr>
-                    <th style={sailorNameColumnStyle}>Sailor Name</th>
-                    <th>Country</th>
-                    <th style={boatNumberColumnStyle}>Boat Number</th>
+                    <th scope="col" style={sailorNameColumnStyle}>
+                      Sailor Name
+                    </th>
+                    <th scope="col">Country</th>
+                    <th scope="col" style={boatNumberColumnStyle}>
+                      Boat Number
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -833,16 +886,19 @@ function HeatComponent({
       )}
 
       {/* ── Phase transition: Start Final Series + its safety net ─── */}
-      {/* SHRS 1.1: only show Final Series controls when there are 2+ qualifying heat groups.
-          Snapshots sit next to the action they protect. */}
-      {numQualifyingGroups >= 2 && (
+      {/* SHRS 1.1: Start Final Series only applies with 2+ qualifying heat
+          groups. Save/Restore Backup, however, protect any event that has
+          heats — including single-fleet events — so they must not be gated on
+          the group count. The bar shows once heats exist. */}
+      {heatsCreated && (
         <div className="final-series-bar">
           <div className="final-series-actions">
-            {!finalSeriesStarted && (
+            {numQualifyingGroups >= 2 && !finalSeriesStarted && (
               <button
                 type="button"
                 className="btn-success"
-                onClick={handleStartFinalSeries}
+                onClick={() => runExclusive(handleStartFinalSeries)}
+                disabled={busy}
               >
                 <i className="fa fa-flag-checkered" aria-hidden="true" /> Start
                 Final Series
@@ -851,27 +907,29 @@ function HeatComponent({
             <button
               type="button"
               className="btn-ghost"
-              onClick={handleSaveSnapshot}
+              onClick={() => runExclusive(handleSaveSnapshot)}
+              disabled={busy}
             >
               Save Backup
             </button>
             <button
               type="button"
               className="btn-ghost"
-              onClick={handleRestoreSnapshot}
+              onClick={() => runExclusive(handleRestoreSnapshot)}
+              disabled={busy}
             >
               Restore Backup
             </button>
           </div>
           <span className="final-series-hint">
-            {finalSeriesStarted
-              ? 'Backups let you restore the event if something goes wrong.'
-              : 'Splits the boats into final fleets (Gold/Silver/…) based on current standings. Save a backup first so you can restore the event if something goes wrong.'}
+            {numQualifyingGroups >= 2 && !finalSeriesStarted
+              ? 'Splits the boats into final fleets (Gold/Silver/…) based on current standings. Save a backup first so you can restore the event if something goes wrong.'
+              : 'Backups let you restore the event if something goes wrong.'}
           </span>
         </div>
       )}
 
-      {numQualifyingGroups >= 2 && snapshotHistory.length > 0 && (
+      {heatsCreated && snapshotHistory.length > 0 && (
         <div className="snapshot-history">
           <div className="snapshot-history-title">Recent backups</div>
           <ul>

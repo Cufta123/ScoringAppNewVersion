@@ -1,143 +1,23 @@
 /* eslint-disable camelcase */
 import { db } from '../../../public/Database/DBManager';
+import {
+  DiscardConfig,
+  getExcludeCountForConfig,
+  normalizeDiscardConfig,
+  normalizeDiscardConfigString,
+} from '../../shared/discardProfile';
 
-export type DiscardConfig = {
-  firstDiscardAt: number;
-  secondDiscardAt: number;
-  additionalEvery: number;
-  thresholds?: number[];
+// SHRS 5.4 profile parsing and the exclusion count itself are PURE and live in
+// src/shared/discardProfile so the renderer's edit-mode preview computes the
+// discard count from the same implementation instead of its own copy.
+// Re-exported here to keep this module the single import surface for the main
+// process's discard logic.
+export type { DiscardConfig };
+export {
+  getExcludeCountForConfig,
+  normalizeDiscardConfig,
+  normalizeDiscardConfigString,
 };
-
-const DEFAULT_DISCARD_CONFIG: DiscardConfig = {
-  firstDiscardAt: 4,
-  secondDiscardAt: 8,
-  additionalEvery: 8,
-};
-
-function sanitizePositiveInteger(value: unknown, fallback: number): number {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) {
-    return fallback;
-  }
-  const integer = Math.trunc(parsed);
-  if (integer <= 0) {
-    return fallback;
-  }
-  return integer;
-}
-
-function normalizeThresholdList(value: unknown): number[] {
-  if (!Array.isArray(value)) {
-    throw new Error(
-      'Discard thresholds must be an array of positive integers.',
-    );
-  }
-
-  const normalized = value.map((entry) => {
-    const parsed = Number(entry);
-    if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) {
-      throw new Error(
-        'Discard thresholds must contain only positive integers.',
-      );
-    }
-    return parsed;
-  });
-
-  for (let index = 1; index < normalized.length; index += 1) {
-    if (normalized[index] <= normalized[index - 1]) {
-      throw new Error(
-        'Discard thresholds must be in strictly increasing order.',
-      );
-    }
-  }
-
-  return normalized;
-}
-
-export function normalizeDiscardConfig(value: unknown): DiscardConfig {
-  if (value == null || value === '' || value === 'standard') {
-    return { ...DEFAULT_DISCARD_CONFIG };
-  }
-
-  let raw: unknown = value;
-  if (typeof value === 'string') {
-    try {
-      raw = JSON.parse(value);
-    } catch (_error) {
-      return { ...DEFAULT_DISCARD_CONFIG };
-    }
-  }
-
-  if (!raw || typeof raw !== 'object') {
-    return { ...DEFAULT_DISCARD_CONFIG };
-  }
-
-  const candidate = raw as Partial<DiscardConfig> & { thresholds?: unknown };
-  if (Object.prototype.hasOwnProperty.call(candidate, 'thresholds')) {
-    const thresholds = normalizeThresholdList(candidate.thresholds);
-    if (thresholds.length === 0) {
-      return { ...DEFAULT_DISCARD_CONFIG, thresholds: [] };
-    }
-
-    return {
-      firstDiscardAt: thresholds[0],
-      secondDiscardAt:
-        thresholds[1] ?? thresholds[0] + DEFAULT_DISCARD_CONFIG.additionalEvery,
-      additionalEvery: DEFAULT_DISCARD_CONFIG.additionalEvery,
-      thresholds,
-    };
-  }
-
-  const firstDiscardAt = sanitizePositiveInteger(
-    candidate.firstDiscardAt,
-    DEFAULT_DISCARD_CONFIG.firstDiscardAt,
-  );
-  const secondDiscardAt = sanitizePositiveInteger(
-    candidate.secondDiscardAt,
-    DEFAULT_DISCARD_CONFIG.secondDiscardAt,
-  );
-  const additionalEvery = sanitizePositiveInteger(
-    candidate.additionalEvery,
-    DEFAULT_DISCARD_CONFIG.additionalEvery,
-  );
-
-  const normalizedSecondDiscardAt =
-    secondDiscardAt > firstDiscardAt
-      ? secondDiscardAt
-      : firstDiscardAt + DEFAULT_DISCARD_CONFIG.additionalEvery;
-
-  return {
-    firstDiscardAt,
-    secondDiscardAt: normalizedSecondDiscardAt,
-    additionalEvery,
-    thresholds: [],
-  };
-}
-
-export function normalizeDiscardConfigString(value: unknown): string {
-  return JSON.stringify(normalizeDiscardConfig(value));
-}
-
-export function getExcludeCountForConfig(
-  numberOfRaces: number,
-  config: DiscardConfig,
-): number {
-  if (Array.isArray(config.thresholds) && config.thresholds.length > 0) {
-    return config.thresholds.reduce(
-      (count, threshold) => (numberOfRaces >= threshold ? count + 1 : count),
-      0,
-    );
-  }
-
-  if (numberOfRaces < config.firstDiscardAt) return 0;
-  if (numberOfRaces < config.secondDiscardAt) return 1;
-  return (
-    2 +
-    Math.floor(
-      (numberOfRaces - config.secondDiscardAt) / config.additionalEvery,
-    )
-  );
-}
 
 export function getEventDiscardConfig(
   event_id: any,
@@ -155,4 +35,45 @@ export function getEventDiscardConfig(
     .get(event_id) as { discard_profile?: string } | undefined;
 
   return normalizeDiscardConfig(row?.discard_profile ?? 'standard');
+}
+
+/**
+ * SHRS 5.4 keys the discard count off the number of races COMPLETED IN THE
+ * SERIES — a series-wide constant for qualifying, and a fleet-wide constant for
+ * each final fleet (5.1 scores fleets separately; 4.5 lets fleets sail
+ * different numbers of races). It is NOT each boat's own race count.
+ *
+ * This returns the correct denominator for a given series/fleet so the
+ * tie-break A8.1 "kept scores" vector and the explain panel derive the same
+ * discard count the totals use (via capExcludeCountForBoat). Matches the
+ * `seriesRaceCount` in calculateBoatScores.ts and `fleetRaceCounts` in
+ * calculateFinalBoatScores.ts.
+ *
+ * `heat_name` (required for the final series) is the fleet's heat name, e.g.
+ * "Final Gold".
+ */
+export function getSeriesDiscardRaceCount(
+  event_id: any,
+  heat_type: 'Qualifying' | 'Final',
+  heat_name?: string | null,
+): number {
+  const heatNameFilter = heat_name ? 'AND h.heat_name = ?' : '';
+  const params: any[] = heat_name
+    ? [event_id, heat_type, heat_name]
+    : [event_id, heat_type];
+
+  const row = db
+    .prepare(
+      `SELECT MAX(race_count) AS max_count FROM (
+         SELECT COUNT(*) AS race_count
+         FROM Scores s
+         JOIN Races r ON s.race_id = r.race_id
+         JOIN Heats h ON r.heat_id = h.heat_id
+         WHERE h.event_id = ? AND h.heat_type = ? ${heatNameFilter}
+         GROUP BY s.boat_id
+       )`,
+    )
+    .get(...params) as { max_count: number | null } | undefined;
+
+  return row?.max_count ?? 0;
 }

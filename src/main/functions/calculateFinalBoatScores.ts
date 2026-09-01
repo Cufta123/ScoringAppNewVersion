@@ -5,6 +5,7 @@ import {
   getExcludeCountForConfig,
 } from './discardConfig';
 import {
+  capExcludeCountForBoat,
   compareScoreArrays,
   getKeptScores,
   resolveTiesSequentially,
@@ -36,7 +37,30 @@ interface ScoreEntry {
   status: string;
 }
 
-function getScoresForA81(event_id: any, boat_id: any, heat_name: any) {
+// Per-recompute memoization cache (see calculateBoatScores.ts). The final
+// scoring re-fetches a tied boat's A81/A82 rows in the tie-break loop; this
+// cache returns the rows already fetched in the per-boat loop instead of
+// re-running the same query. Scoped to one `calculateFinalBoatScores` call, it
+// can only ever return the same rows the DB would have returned again.
+interface FinalScoreCache {
+  a81: Map<string, ScoreEntry[]>;
+  a82: Map<string, number[]>;
+}
+
+function finalCacheKey(boat_id: any, heat_name: any): string {
+  return `${String(boat_id)}\u0000${String(heat_name)}`;
+}
+
+function getScoresForA81(
+  event_id: any,
+  boat_id: any,
+  heat_name: any,
+  cache?: FinalScoreCache,
+) {
+  if (cache) {
+    const cached = cache.a81.get(finalCacheKey(boat_id, heat_name));
+    if (cached) return cached;
+  }
   const scoresQuery = db.prepare(`
     SELECT s.points, COALESCE(s.status, 'FINISHED') as status, s.race_id, r.race_number
     FROM Scores s
@@ -45,10 +69,21 @@ function getScoresForA81(event_id: any, boat_id: any, heat_name: any) {
     WHERE h.event_id = ? AND s.boat_id = ? AND h.heat_type = 'Final' AND h.heat_name = ?
     ORDER BY points DESC, r.race_number ASC, s.race_id ASC
   `);
-  return scoresQuery.all(event_id, boat_id, heat_name) as ScoreEntry[];
+  const result = scoresQuery.all(event_id, boat_id, heat_name) as ScoreEntry[];
+  if (cache) cache.a81.set(finalCacheKey(boat_id, heat_name), result);
+  return result;
 }
 
-function getScoresForA82(event_id: any, boat_id: any, heat_name: any) {
+function getScoresForA82(
+  event_id: any,
+  boat_id: any,
+  heat_name: any,
+  cache?: FinalScoreCache,
+) {
+  if (cache) {
+    const cached = cache.a82.get(finalCacheKey(boat_id, heat_name));
+    if (cached) return cached;
+  }
   const scoresQuery = db.prepare(`
     SELECT s.points
     FROM Scores s
@@ -58,9 +93,11 @@ function getScoresForA82(event_id: any, boat_id: any, heat_name: any) {
     ORDER BY r.race_number DESC, s.race_id DESC
   `);
 
-  return scoresQuery
+  const result = scoresQuery
     .all(event_id, boat_id, heat_name)
     .map((row: { points: any }) => row.points);
+  if (cache) cache.a82.set(finalCacheKey(boat_id, heat_name), result);
+  return result;
 }
 
 // SHRS 5.4: after 4 races exclude 1, after 8 exclude 2, then +1 per 8 more
@@ -70,21 +107,49 @@ export default function calculateFinalBoatScores(
 ): Map<string, TemporaryTableEntry[]> {
   const discardConfig = getEventDiscardConfig(event_id, 'final');
   const groupTables = new Map<string, TemporaryTableEntry[]>();
+  const cache: FinalScoreCache = { a81: new Map(), a82: new Map() };
 
-  results.forEach((result) => {
+  // Fetch scores sorted DESC (worst first) once per boat, tagged with its fleet.
+  const boatEntries = results.map((result) => {
     const { boat_id, heat_name } = result;
     const groupNameMatch =
       typeof heat_name === 'string' ? heat_name.match(/^Final\s+(.+)$/i) : null;
-    const groupName = groupNameMatch?.[1] ?? String(heat_name);
+    return {
+      boat_id,
+      groupName: groupNameMatch?.[1] ?? String(heat_name),
+      scoreEntries: getScoresForA81(event_id, boat_id, heat_name, cache),
+    };
+  });
 
+  // RULE-M20 / SHRS 5.4 + 5.1: the discard count keys off the races completed
+  // "in that series", and each final fleet is scored separately (5.1) — fleets
+  // may sail different numbers of races (4.5). So the count is FLEET-wide (the
+  // largest race count in the fleet), not each boat's own count. Using the
+  // per-boat count let a boat that missed a final race discard as many scores
+  // as one that sailed them all, and made the final path disagree with the
+  // series-wide qualifying path (RULE-C1).
+  const fleetRaceCounts = new Map<string, number>();
+  boatEntries.forEach(({ groupName, scoreEntries }) => {
+    fleetRaceCounts.set(
+      groupName,
+      Math.max(fleetRaceCounts.get(groupName) ?? 0, scoreEntries.length),
+    );
+  });
+
+  boatEntries.forEach(({ boat_id, groupName, scoreEntries }) => {
     if (!groupTables.has(groupName)) {
       groupTables.set(groupName, []);
     }
 
-    // Fetch scores sorted DESC (worst first) and apply exclusions per SHRS 5.4
-    const scoreEntries = getScoresForA81(event_id, boat_id, heat_name);
-    const numberOfRaces = scoreEntries.length;
-    const excludeCount = getExcludeCountForConfig(numberOfRaces, discardConfig);
+    // Series-wide count for the fleet, capped per boat so a boat with fewer
+    // scores than the discard count still keeps one (LB-11).
+    const excludeCount = capExcludeCountForBoat(
+      getExcludeCountForConfig(
+        fleetRaceCounts.get(groupName) ?? 0,
+        discardConfig,
+      ),
+      scoreEntries.length,
+    );
 
     // Exclude worst excludable scores (DNE/DGM are never excluded)
     const scoresToInclude = getKeptScores(scoreEntries, excludeCount);
@@ -120,8 +185,18 @@ export default function calculateFinalBoatScores(
           const boatHeatName =
             results.find((row) => row.boat_id === boat_id)?.heat_name ??
             `Final ${groupName}`;
-          const scoreEntries = getScoresForA81(event_id, boat_id, boatHeatName);
-          const a82Scores = getScoresForA82(event_id, boat_id, boatHeatName);
+          const scoreEntries = getScoresForA81(
+            event_id,
+            boat_id,
+            boatHeatName,
+            cache,
+          );
+          const a82Scores = getScoresForA82(
+            event_id,
+            boat_id,
+            boatHeatName,
+            cache,
+          );
           const allScoresForA81 = scoreEntries
             .map((entry) => entry.points)
             .sort((a: number, b: number) => a - b);
@@ -145,7 +220,10 @@ export default function calculateFinalBoatScores(
           const a82Comparison = compareScoreArrays(a.a82Scores, b.a82Scores);
           if (a82Comparison !== 0) return a82Comparison;
 
-          return String(a.boat_id).localeCompare(String(b.boat_id));
+          // SHRS 5.7(ii)(4) / A8: if neither A8.1 nor A8.2 separates the boats
+          // they remain tied. Do not invent an order from the internal boat_id
+          // (mirrors the qualifying/overall paths fixed under RULE-M8).
+          return 0;
         };
 
         // SHRS 2026 5.7(ii)(3): resolve higher-place tie before lower ties.

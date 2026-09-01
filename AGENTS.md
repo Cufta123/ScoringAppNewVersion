@@ -92,7 +92,11 @@ into focused modules under `src/main/functions/`. Map of that directory:
 - `calculateFinalBoatScores.ts` — final-fleet scoring (A8.1/A8.2 per group).
 - `creatingNewHeatsUtls.ts` — progressive/zig-zag heat assignment + movement
   tables (filename typo `Utls` is intentional, see §10).
-- `discardConfig.ts` — per-event discard profile + `getExcludeCountForConfig`.
+- `discardConfig.ts` — per-event discard profile lookup. The pure parsing/count
+  logic lives in `src/shared/discardProfile.ts` and is re-exported here, so the
+  renderer preview and the backend compute discards from one implementation.
+- `finalLeaderboardOrder.ts` — final-leaderboard ordering: SHRS 5.5 fleet
+  precedence + the SHRS 1.5 qualifying-score fallback.
 - `scoringUtils.ts` — `getKeptScores`, `compareScoreArrays`, sequential tie
   resolution.
 - `scoreStatus.ts` — status vocabulary, `normalizeScoreStatus`,
@@ -109,8 +113,17 @@ into focused modules under `src/main/functions/`. Map of that directory:
 - `raceAssignmentSnapshot.ts` — SHRS 3.1.5 pre-protest assignment cache +
   persistence.
 
-Shared (renderer + main): `src/shared/fleetAssignment.js`
-(`computeAdjustedFleetTotals`, used for rule 4.3) and `src/shared/subgroups.js`.
+Shared (renderer + main) — one definition per rule, imported by both processes:
+
+- `fleetAssignment.ts` — `computeAdjustedFleetTotals` (rule 4.3).
+- `subgroups.ts`.
+- `scoringPenalty.ts` — RRS 44.3(c)/T1 points, `scoringPenaltyStatuses`, and
+  `mandatoryDisplaceStatuses` (the RRS A6.1 promotion trigger).
+- `discardProfile.ts` — SHRS 5.4 profile parsing + exclusion count.
+- `fleetNames.ts` — SHRS 4.1 fleet naming and 5.5 precedence (`fleetRank`
+  orders "Fleet 5"+ too, not just Gold/Silver/Bronze/Copper).
+- `sailOrder.ts` — SHRS 5.3 / 3.1(iv) tie order: national letter then numeric
+  sail number.
 
 When extending the handler, keep this pattern: pure logic goes in a
 `functions/` module (so it is unit-testable), the handler only wires IPC.
@@ -139,8 +152,9 @@ General / series structure
   like a Qualifying Series, and sections 2–4 do not apply. (Final-series start is
   gated by `getFinalSeriesEligibility`; `SINGLE_FLEET` when `< 2` heat groups.)
 - 1.5 — If **no Final Series races are completed**, boats are ranked by their
-  Qualifying Series score. (`recomputeFinalLeaderboard` produces no rows; the
-  qualifying `Leaderboard` stands.)
+  Qualifying Series score. Enforced in `finalLeaderboardOrder.ts`: with no final
+  race sailed every `total_points_final` is 0, so the sort key switches to the
+  qualifying score.
 - 1.6 — RRS T1 (post-race penalties) applies; modelled by the `T1` status.
 
 Number/size of heats
@@ -154,13 +168,18 @@ Qualifying assignment (`creatingNewHeatsUtls.ts`)
 - 3.1 — **Progressive**: Race 1 seeds top-down `1,2,3,4,5,5,4,3,2,1`; later
   races use the Heat Movement Table (`getNextHeatIndexByMovementTable`).
   Non-finishers ordered `DNF, RET, NSC, OCS, DNS, DNC, UFD, BFD, (DSQ)`; ties by
-  alphanumeric national-letter + sail number; protest decisions do **not** move
-  boats.
+  alphanumeric national-letter + sail number (`shared/sailOrder.ts`).
+- 3.1.5 — **Only protest-committee decisions** are shielded from changing heat
+  assignments (`protestCommitteeStatuses` in `scoreStatus.ts`). An ordinary
+  race-office correction may change them, and a boat transfer invalidates the
+  affected heats' snapshots (`clearAssignmentSnapshotsForHeat`).
 - 3.2 — **Pre-assignment**: equal size/ability, published before racing.
   (`shrs_qualifying_assignment_mode` = `progressive` | `pre-assigned`.)
 
 Final Series (`calculateFinalBoatScores.ts`, `shared/fleetAssignment.ts`)
 
+- 4.1 — Fleet naming and precedence live in `shared/fleetNames.ts`; fleets past
+  Copper are named "Fleet 5"… and rank 5th… (never a shared catch-all rank).
 - 4.1 — Same number of fleets as qualifying heats (may shrink if withdrawals
   allow). Fleets `Gold, Silver, Bronze, Copper`; sizes as equal as possible with
   `Gold >= Silver >= Bronze >= Copper`.
@@ -176,7 +195,13 @@ Final Series (`calculateFinalBoatScores.ts`, `shared/fleetAssignment.ts`)
 Scoring (`calculateBoatScores.ts`, `scoreStatus.ts`)
 
 - RRS A4 — Low Point: finishing place = points (1st⇒1, …).
-- RRS A7 — **Race ties**: tied places share the summed points equally.
+- RRS A6.1 — A boat disqualified or retiring **after finishing** is removed from
+  the finishing order and every boat behind her **moves up one place**. This is
+  mandatory, so it is NOT gated on the leaderboard's "Shift other boats" toggle
+  (`mandatoryDisplaceStatuses`; mirrored in the renderer's edit preview).
+- RRS A7 — **Race ties**: tied places share the summed points equally. Enterable
+  from the scoring screen via the per-row tie ("=") control, which submits a
+  shared place for `applyRaceTieScoring` to average.
 - 5.2 (changes RRS A5.2) — A boat scored DNS/DNF/DSQ/etc. gets **(boats in the
   largest heat) + 1** points — NOT boats entered in the series.
 - 5.3 — Recording order: finishers by place, then
@@ -186,11 +211,16 @@ Scoring (`calculateBoatScores.ts`, `scoreStatus.ts`)
 - 5.4 — **Discards** (per series, Qualifying and Final counted independently):
   0 below 4 completed races, 1 at 4–7, 2 at 8–15, then +1 per additional 8.
   Non-excludable: `DNE`, `DGM` (RRS 90.3(b)). Configurable per event before the
-  first warning signal (`discardConfig.ts`).
+  first warning signal (`shared/discardProfile.ts`); an explicitly **empty**
+  threshold list means **never discard**. The count is series-wide — fleet-wide
+  in the Final Series, since 5.1 scores each fleet separately — and is capped
+  per boat by `capExcludeCountForBoat` so a boat always keeps one score. Use the
+  same capped count for a boat's total AND her A8.1 tie-break vector.
 - 5.5 — Overall event score = Qualifying + Final series scores. Lowest in Gold
-  wins; fleets rank in order `Gold > Silver > Bronze > Copper` regardless of raw
-  points.
-- 5.6 — Redress averages computed separately per series.
+  wins; fleets rank `Gold > Silver > Bronze > Copper > Fleet 5 > …` regardless
+  of raw points (`fleetRank`).
+- 5.6 — Redress averages computed separately per series: an RDG2 average covers
+  ONLY races in the same series as the redressed cell — never a Q+F pool.
 - 5.7 — **Event ties**:
   - (i) Single-heat events: RRS A8.1 then A8.2.
   - (ii) Multi-heat events: A8.1/A8.2 except — (1) only races where the tied
@@ -238,9 +268,11 @@ Tooling notes:
   JS/TS and `prettier --write` on staged json/css/md. It blocks commits on lint
   **errors** but not on the existing `no-console` warnings. Installed via the
   `prepare` script on `npm install`; hook lives in `.husky/pre-commit`.
-- `Scores.uniqueIndex.migration.test.ts` shells out to `python`; it fails in
-  environments where `python` is not on PATH (e.g. a bare `pyenv`). This is an
-  environment gap, not a code regression — confirm any failure is this one.
+- DB-migration safety tests (`Scores.uniqueIndex.migration.test.ts`,
+  `Heat_Boat.uniqueIndex.migration.test.ts`) run the migration SQL against a
+  real in-memory SQLite via the built-in `node:sqlite` module — no `python` and
+  no native `better-sqlite3` build. (The Scores test previously shelled out to
+  `python` and failed without it on PATH; that dependency has been removed.)
 
 ## 8. Test Map
 

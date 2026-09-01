@@ -184,7 +184,7 @@ describe('getFinalSeriesEligibility', () => {
     expect(res.latestRoundNumber).toBe(7);
   });
 
-  it('reports noRacesCompleted only when truly nothing has been scored', async () => {
+  it('rejects the Final Series when nothing has been scored (RULE-m3 / SHRS 4.2)', async () => {
     scenario = {
       heats: [
         { heat_name: 'Heat A1', heat_id: 11 },
@@ -194,7 +194,10 @@ describe('getFinalSeriesEligibility', () => {
       maxScores: 0,
     };
     const res = await run();
-    expect(res.ok).toBe(true);
+    // SHRS 4.2 needs a Qualifying ranking, which needs a completed race, so a
+    // 0-race event is NOT eligible for a Final Series.
+    expect(res.ok).toBe(false);
+    expect(res.reason).toBe('NO_RACES_COMPLETED');
     expect(res.completedQualifyingRaces).toBe(0);
     expect(res.rule43Applies).toBe(false);
     expect(res.noRacesCompleted).toBe(true);
@@ -306,16 +309,12 @@ describe('getFinalSeriesEligibility', () => {
     expect(res.latestRoundNumber).toBeNull();
   });
 
-  // m3 (docs/SCORING_AUDIT.md): getFinalSeriesEligibility can report ok:true
-  // with 0 completed qualifying races (only empty heats exist, nothing has
-  // been scored anywhere yet), but HeatRaceHandler's startFinalSeriesAtomic
-  // then throws because the qualifying Leaderboard has no rows. This test
-  // locks in the CURRENT (inconsistent) behavior of both functions side by
-  // side — see docs/SCORING_AUDIT.md m3 and HeatRaceHandler.ts around the
-  // `leaderboard.length === 0` check (~line 1335). Source bug, not fixed
-  // here: eligibility should not report "ok" for a state the start handler
-  // immediately rejects.
-  it('m3: eligibility says ok:true at 0 completed races, but startFinalSeriesAtomic throws — inconsistent', async () => {
+  // RULE-m3 (FIXED): getFinalSeriesEligibility used to report ok:true with 0
+  // completed qualifying races while startFinalSeriesAtomic threw — an
+  // inconsistency. Per SHRS 4.2 (fleet assignment needs a Qualifying ranking)
+  // eligibility now rejects the 0-race case up front, so BOTH functions agree
+  // the Final Series cannot start.
+  it('m3: eligibility rejects 0 completed races, consistent with startFinalSeriesAtomic (SHRS 4.2)', async () => {
     scenario = {
       heats: [
         { heat_name: 'Heat A1', heat_id: 11 },
@@ -326,11 +325,13 @@ describe('getFinalSeriesEligibility', () => {
     };
 
     const eligibility = await run();
-    expect(eligibility.ok).toBe(true);
-    expect(eligibility.reason).toBe('OK');
+    // Eligibility now says NO (was ok:true) — consistent with the start handler.
+    expect(eligibility.ok).toBe(false);
+    expect(eligibility.reason).toBe('NO_RACES_COMPLETED');
     expect(eligibility.completedQualifyingRaces).toBe(0);
     expect(eligibility.noRacesCompleted).toBe(true);
 
+    // The start handler still rejects the same state, so the two agree.
     await expect(handlerRegistry.startFinalSeriesAtomic({}, 1)).rejects.toThrow(
       'Cannot start final series without qualifying leaderboard data.',
     );

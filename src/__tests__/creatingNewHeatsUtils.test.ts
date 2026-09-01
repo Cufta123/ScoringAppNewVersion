@@ -8,6 +8,7 @@ import {
   generateNextHeatNames,
   getNextHeatIndexByMovementTable,
 } from '../main/functions/creatingNewHeatsUtls';
+import { compareNationalSail } from '../shared/sailOrder';
 
 // ─── compareByCountryThenSail ─────────────────────────────────────────────────
 
@@ -34,6 +35,20 @@ describe('compareByCountryThenSail', () => {
         { country: 'CRO', sail_number: 1 },
       ),
     ).toBeLessThan(0);
+  });
+
+  it('is case-insensitive on the national letter, matching compareNationalSail', () => {
+    const rows = [
+      { country: 'cro', sail_number: 1 },
+      { country: 'CRO', sail_number: 2 },
+      { country: 'GER', sail_number: 1 },
+    ];
+    const byCountryThenSail = [...rows].sort(compareByCountryThenSail);
+    const byNationalSail = [...rows].sort(compareNationalSail);
+    // 'cro' and 'CRO' are the same nation, so they sort as a tie — not apart.
+    expect(byCountryThenSail).toEqual(byNationalSail);
+    expect(byCountryThenSail[0].country).toBe('cro');
+    expect(byCountryThenSail[1].country).toBe('CRO');
   });
 });
 

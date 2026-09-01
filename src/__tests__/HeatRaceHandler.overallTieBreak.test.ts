@@ -124,6 +124,28 @@ const dbMock = {
       };
     }
 
+    if (sqlContains(sql, 'SELECT MAX(race_count) AS max_count')) {
+      return {
+        get: jest.fn(
+          (_eventId: number, heatType: string, heatName?: string) => {
+            const isFinal = heatType === 'Final';
+            let maxCount = 0;
+            Object.values(currentScenario.tieScoresByBoatId).forEach((rows) => {
+              const relevant = isFinal
+                ? rows.filter(
+                    (r) =>
+                      r.heat_type === 'Final' &&
+                      (heatName == null || r.heat_name === heatName),
+                  )
+                : rows.filter((r) => r.heat_type === 'Qualifying');
+              maxCount = Math.max(maxCount, relevant.length);
+            });
+            return { max_count: maxCount };
+          },
+        ),
+      };
+    }
+
     throw new Error(`Unhandled SQL in test mock: ${sql}`);
   }),
 };
@@ -815,5 +837,51 @@ describe('HeatRaceHandler readOverallLeaderboard tie-break stress tests', () => 
     // Gold finishes ahead of Silver even with far more points.
     expect(rows.map((r: any) => r.boat_id)).toEqual(['G1', 'S1']);
     expect(rows.map((r: any) => r.overall_rank)).toEqual([1, 2]);
+  });
+});
+
+describe('readOverallLeaderboard SHRS 1.5 "no completed final races" detection', () => {
+  beforeAll(() => {
+    require('../main/ipcHandlers/HeatRaceHandler');
+  });
+
+  beforeEach(() => {
+    currentScenario = baseScenario();
+    dbMock.prepare.mockClear();
+  });
+
+  it('decides "no completed final races" by the presence of any final score, not full heat coverage', async () => {
+    // Pin the SHRS 1.5 predicate SQL: it must count final SCORE rows (a final
+    // race is completed once sailed), not races where every Heat_Boat row has a
+    // score. The old NOT EXISTS-over-Heat_Boat subquery made the Overall table
+    // disagree with the Final table (finalLeaderboardOrder.hasNoCompletedFinalRaces)
+    // on a partially-scored final race.
+    const handler = handlerRegistry.readOverallLeaderboard;
+    await handler({}, 3);
+
+    const countSql = dbMock.prepare.mock.calls
+      .map((call) => String(call[0]))
+      .find(
+        (sql) =>
+          sqlContains(sql, 'SELECT COUNT(*) as cnt') &&
+          sqlContains(sql, "h.heat_type = 'Final'"),
+      );
+
+    expect(countSql).toBeDefined();
+    expect(sqlContains(countSql as string, 'FROM Scores sc')).toBe(true);
+    expect(countSql).not.toMatch(/NOT EXISTS/);
+  });
+
+  it('falls back to the qualifying ranking when no final score exists (cnt = 0)', async () => {
+    currentScenario.completedFinalRaceCount = 0;
+    currentScenario.qualifyingFallbackRows = [
+      { boat_id: 'Q1', overall_points: 7, place: 1 },
+      { boat_id: 'Q2', overall_points: 9, place: 2 },
+    ];
+
+    const handler = handlerRegistry.readOverallLeaderboard;
+    const rows = await handler({}, 3);
+
+    expect(rows.map((r: any) => r.boat_id)).toEqual(['Q1', 'Q2']);
   });
 });

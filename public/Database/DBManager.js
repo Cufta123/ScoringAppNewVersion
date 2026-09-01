@@ -227,6 +227,59 @@ const initializeSchema = () => {
     console.log('Scores uniqueness migration completed.');
   };
 
+  // BK-1: Heat_Boat originally had no UNIQUE(heat_id, boat_id) constraint, so a
+  // boat could be recorded in the same heat twice (e.g. transferBoatBetweenHeats
+  // DELETE-then-INSERT when the boat was already present). Duplicates inflate
+  // getMaxHeatSize, double-seed DNS rows, and multiply SUM(points) in the
+  // Heat_Boat LEFT JOIN Scores recompute. Mirror the Scores uniqueness migration.
+  const hasUniqueHeatBoatConstraint = () => {
+    const indexList = db.prepare("PRAGMA index_list('Heat_Boat')").all();
+    return indexList.some((indexRow) => {
+      if (!indexRow.unique) return false;
+      const quotedIndexName = `"${String(indexRow.name).replace(/"/g, '""')}"`;
+      const indexInfo = db
+        .prepare(`PRAGMA index_info(${quotedIndexName})`)
+        .all();
+      const indexedColumns = indexInfo.map((columnRow) => columnRow.name);
+      return (
+        indexedColumns.length === 2 &&
+        indexedColumns[0] === 'heat_id' &&
+        indexedColumns[1] === 'boat_id'
+      );
+    });
+  };
+
+  const ensureUniqueHeatBoat = () => {
+    if (hasUniqueHeatBoatConstraint()) {
+      return;
+    }
+
+    console.log(
+      'Migrating Heat_Boat table: enforcing unique (heat_id, boat_id)...',
+    );
+
+    const migration = db.transaction(() => {
+      // Collapse any historical duplicates, keeping one row per (heat, boat).
+      // Heat_Boat has no explicit PK, so dedup on the implicit rowid.
+      db.exec(`
+        DELETE FROM Heat_Boat
+        WHERE rowid NOT IN (
+          SELECT MIN(rowid)
+          FROM Heat_Boat
+          GROUP BY heat_id, boat_id
+        );
+      `);
+
+      db.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_heat_boat_unique
+        ON Heat_Boat (heat_id, boat_id);
+      `);
+    });
+
+    migration();
+    console.log('Heat_Boat uniqueness migration completed.');
+  };
+
   const createClubsTable = `
     CREATE TABLE IF NOT EXISTS Clubs (
       club_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -343,11 +396,45 @@ const initializeSchema = () => {
   race_id INTEGER NOT NULL,
   rank INTEGER NOT NULL,
   boat_id INTEGER NOT NULL,
+  frozen_position INTEGER,
+  frozen_status TEXT,
   PRIMARY KEY (race_id, rank),
   FOREIGN KEY (race_id) REFERENCES Races(race_id),
   FOREIGN KEY (boat_id) REFERENCES Boats(boat_id)
 );
 `;
+
+  // RULE-M21: the snapshot records each shielded boat's frozen finishing place
+  // (position + status) rather than only its rank, so a later ordinary
+  // race-office correction can un-shield one boat without dropping the
+  // 3.1.5 shield on the others. Add the columns to pre-existing tables.
+  const ensureRaceAssignmentSnapshotsColumns = () => {
+    const existingColumns = new Set(
+      db
+        .prepare("PRAGMA table_info('RaceAssignmentSnapshots')")
+        .all()
+        .map((columnRow) => columnRow.name),
+    );
+
+    const requiredColumns = [
+      {
+        name: 'frozen_position',
+        sql: 'ALTER TABLE RaceAssignmentSnapshots ADD COLUMN frozen_position INTEGER;',
+      },
+      {
+        name: 'frozen_status',
+        sql: 'ALTER TABLE RaceAssignmentSnapshots ADD COLUMN frozen_status TEXT;',
+      },
+    ];
+
+    requiredColumns.forEach(({ name, sql }) => {
+      if (existingColumns.has(name)) {
+        return;
+      }
+      console.log(`Migrating RaceAssignmentSnapshots table: adding ${name}...`);
+      db.exec(sql);
+    });
+  };
 
   try {
     console.log('Creating Events table...');
@@ -392,6 +479,7 @@ const initializeSchema = () => {
     console.log('Creating Heat_Boat table...');
     db.exec(createHeatBoatTable);
     console.log('Heat_Boat table created or already exists.');
+    ensureUniqueHeatBoat();
 
     console.log('Creating Leaderboard table...');
     db.exec(createLiderboardTable);
@@ -407,6 +495,7 @@ const initializeSchema = () => {
 
     console.log('Creating RaceAssignmentSnapshots table...');
     db.exec(createRaceAssignmentSnapshotsTable);
+    ensureRaceAssignmentSnapshotsColumns();
     console.log('RaceAssignmentSnapshots table created or already exists.');
 
     console.log('Database schema initialized successfully.');

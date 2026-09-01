@@ -118,6 +118,7 @@ function QualifyingTable({
               {/* Identity headers */}
               {identityHeaders.map((h) => (
                 <th
+                  scope="col"
                   key={h}
                   style={{
                     textAlign: 'left',
@@ -134,6 +135,7 @@ function QualifyingTable({
 
               {/* Gross column */}
               <th
+                scope="col"
                 title="Gross: total points before discards (the sum of every race score)."
                 style={{
                   textAlign: 'center',
@@ -153,6 +155,7 @@ function QualifyingTable({
 
               {/* Overall column */}
               <th
+                scope="col"
                 title="Overall: net series score after discards — this is what decides the ranking."
                 style={{
                   textAlign: 'center',
@@ -181,6 +184,7 @@ function QualifyingTable({
                     false);
                 return (
                   <th
+                    scope="col"
                     key={`qh-r${i + 1}`}
                     aria-label={
                       colIsShared ? `Q${i + 1} shared race` : `Q${i + 1}`
@@ -327,7 +331,12 @@ function QualifyingTable({
                         false);
                     return (
                       <ScoreCell
-                        key={`ev-${entry.boat_id}-${raceId}`}
+                        // LB-4: DNS placeholder cells have a null race_id, so
+                        // keying on raceId alone collapses every such cell in a
+                        // row to `ev-<boat>-undefined` (duplicate keys → DOM
+                        // misreconciliation). Fall back to the race index, prefixed
+                        // so a real race_id can't collide with a fallback index.
+                        key={`ev-${entry.boat_id}-${raceId ?? `i${ri}`}`}
                         race={race}
                         raceStatus={raceStatus}
                         raceIndex={ri}
@@ -345,7 +354,6 @@ function QualifyingTable({
                         rdg2Picker={rdg2Picker}
                         setRdg2Picker={setRdg2Picker}
                         confirmRdg2={confirmRdg2}
-                        qualifyingEntry={null}
                       />
                     );
                   })}

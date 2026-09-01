@@ -179,6 +179,83 @@ describe('Score exclusion thresholds', () => {
     expect(result.B.totalPoints).toBe(2); // 1+1 (10 excluded, not kept)
   });
 
+  // LB-11: a boat with fewer scores than the series-wide discard count must
+  // never have ALL of its scores discarded (→ total 0 → wrongly ranked first).
+  // The discard count is capped so at least one score always survives.
+  it('caps discards so a boat with fewer races than the discard count keeps a score (LB-11)', () => {
+    // Series-wide race count is 8 (boatFull sailed 8) → SHRS 5.4 gives 2
+    // discards. boatLate sailed a single race (20th place) and its missing
+    // races are not seeded. Without the cap it would discard its only score →
+    // total 0 → ranked ahead of a boat that finished 1st in every race.
+    setupMockDb({
+      boatFull: [1, 1, 1, 1, 1, 1, 1, 1], // 2 discards → keeps six 1s → total 6
+      boatLate: [20], // one race only
+    });
+    const result = run([makeResult('boatFull', 8), makeResult('boatLate', 1)]);
+    expect(result.boatLate.totalPoints).toBe(20); // score kept, not zeroed
+    expect(result.boatFull.place).toBe(1); // all-firsts boat correctly on top
+    expect(result.boatLate.place).toBe(2);
+  });
+
+  // LB-11 (tie-break site): the SAME cap must apply when building the A8.1
+  // kept-score vector, otherwise a boat whose total was computed with a capped
+  // discard count enters the tie-break with an EMPTY vector — which
+  // compareScoreArrays treats as the worst possible score — and always loses a
+  // tie it should win on SHRS 5.7 / RRS A8.2.
+  it('applies the discard cap to the A8.1 tie-break vector too (LB-11)', () => {
+    // Series is 8 races (boatSeries) → SHRS 5.4 gives 2 discards.
+    //   boatFull  has 3 scores → discards 2 → keeps [6] → total 6
+    //   boatShort has 2 scores → cap to 1 discard → keeps [6] → total 6
+    // They tie at 6 and never shared a race, so the fallback A8.1 compares
+    // kept scores: [6] vs [6] → still tied → A8.2 (last race backward) decides.
+    // Uncapped, boatShort's vector would be [] and it would lose outright.
+    setupMockDb(
+      {
+        boatSeries: [2, 2, 2, 2, 2, 2, 2, 2], // keeps six 2s → 12, no tie
+        boatFull: [50, 40, 6],
+        boatShort: [30, 6],
+      },
+      {
+        // A8.2: most recent race first. Equal last race (6), then boatShort's
+        // 30 beats boatFull's 40 → boatShort wins the tie.
+        boatSeries: [2, 2, 2, 2, 2, 2, 2, 2],
+        boatFull: [6, 40, 50],
+        boatShort: [6, 30],
+      },
+      {
+        // Disjoint race_ids → the boats never shared a heat (SHRS 5.7(ii)(4)).
+        boatSeries: Array.from({ length: 8 }, (_, i) => ({
+          race_id: 100 + i,
+          race_number: 8 - i,
+          points: 2,
+        })),
+        boatFull: [
+          { race_id: 1, race_number: 3, points: 6 },
+          { race_id: 2, race_number: 2, points: 40 },
+          { race_id: 3, race_number: 1, points: 50 },
+        ],
+        boatShort: [
+          { race_id: 4, race_number: 2, points: 6 },
+          { race_id: 5, race_number: 1, points: 30 },
+        ],
+      },
+    );
+
+    const result = run([
+      makeResult('boatSeries', 8),
+      makeResult('boatFull', 3),
+      makeResult('boatShort', 2),
+    ]);
+
+    expect(result.boatFull.totalPoints).toBe(6);
+    expect(result.boatShort.totalPoints).toBe(6);
+    // A8.2 resolves the tie in boatShort's favour; without the cap boatShort
+    // would be pushed below boatFull by an empty A8.1 vector.
+    expect(result.boatShort.place).toBe(1);
+    expect(result.boatFull.place).toBe(2);
+    expect(result.boatSeries.place).toBe(3);
+  });
+
   it('each threshold [4,8,16,24,32] adds one more exclusion', () => {
     const thresholds = [4, 8, 16, 24, 32];
     thresholds.forEach((numRaces, idx) => {
@@ -827,14 +904,12 @@ describe('Fractional scores (RRS A7 shared points) flow through totals and tie-b
   });
 });
 
-describe('m6: empty custom threshold list integration (see docs/SCORING_AUDIT.md m6)', () => {
-  it('falls back to the standard 4/8/8 profile when thresholds is an empty array', () => {
-    // Documents CURRENT behavior end-to-end through calculateBoatScores:
-    // normalizeDiscardConfig keeps thresholds:[] but getExcludeCountForConfig
-    // only honours thresholds when length > 0, so an event configured for
-    // "never discard" via an empty threshold list silently reverts to
-    // standard discards. Flagged as m6 — needs a product decision; this test
-    // pins the current (not necessarily desired) behavior.
+describe('RULE-m6: empty custom threshold list means never discard (SHRS 5.4)', () => {
+  it('keeps every score when the event is configured with no thresholds', () => {
+    // SHRS 5.4 lets the Race Committee change the discard rule before the
+    // first warning signal; an empty threshold list is "no discards at all".
+    // This used to fall through to the standard 4/8/8 profile end-to-end, so a
+    // never-discard event still dropped its two worst races.
     setupMockDb(
       { boatA: [9, 8, 7, 6, 5, 4, 3, 2] },
       {},
@@ -842,8 +917,7 @@ describe('m6: empty custom threshold list integration (see docs/SCORING_AUDIT.md
       { thresholds: [] },
     );
     const result = run([makeResult('boatA', 8)]);
-    // Standard profile at 8 races -> 2 discards (9,8 dropped), NOT 0.
-    expect(result.boatA.totalPoints).toBe(7 + 6 + 5 + 4 + 3 + 2);
+    expect(result.boatA.totalPoints).toBe(9 + 8 + 7 + 6 + 5 + 4 + 3 + 2);
   });
 });
 

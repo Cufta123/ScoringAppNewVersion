@@ -155,10 +155,10 @@ function SailorImport({ eventId, onImportComplete = null }: SailorImportProps) {
             <table>
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Surname</th>
-                  <th>Sail №</th>
-                  <th>Country</th>
+                  <th scope="col">Name</th>
+                  <th scope="col">Surname</th>
+                  <th scope="col">Sail №</th>
+                  <th scope="col">Country</th>
                 </tr>
               </thead>
               <tbody>

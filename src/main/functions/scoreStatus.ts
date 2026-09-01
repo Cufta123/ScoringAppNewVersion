@@ -10,11 +10,20 @@
 // to keep this module the single import surface for the scoring vocabulary.
 import {
   scoringPenaltyStatuses,
+  mandatoryDisplaceStatuses,
   roundHalfUp,
   getScoringPenaltyPoints,
+  promotesBoatsBehind,
 } from '../../shared/scoringPenalty';
+import { compareNationalSail } from '../../shared/sailOrder';
 
-export { scoringPenaltyStatuses, roundHalfUp, getScoringPenaltyPoints };
+export {
+  scoringPenaltyStatuses,
+  mandatoryDisplaceStatuses,
+  roundHalfUp,
+  getScoringPenaltyPoints,
+  promotesBoatsBehind,
+};
 
 // SHRS 2026-1 (5.3) is source-of-truth for displacement order.
 // Appendix-only statuses are appended as fallback when SHRS text is silent.
@@ -42,7 +51,33 @@ export const statusRankMap = new Map<string, number>(
 );
 
 export const rdgStatuses = ['RDG1', 'RDG2', 'RDG3'];
-export const mandatoryDisplaceStatuses = new Set(['DSQ', 'RET', 'DNE', 'DGM']);
+
+/**
+ * RULE-M14 / SHRS 3.1.5: "Protest committee decisions shall not change heat
+ * assignments." Only a PROTEST-COMMITTEE decision freezes the heat assignment;
+ * an ordinary race-office scoring correction (a mistyped finishing place, a
+ * DNF the RO recorded late) must be free to change it, because the assignment
+ * is supposed to follow the corrected result.
+ *
+ * These are the statuses a protest committee awards:
+ *   DSQ  — disqualification from a hearing (RRS 64.1)
+ *   DNE  — disqualification not excludable (RRS 90.3(b))
+ *   DGM  — gross misconduct (RRS 69)
+ *   DPI  — discretionary penalty imposed (RRS A10)
+ *   RDG* — redress (RRS 62/64.2)
+ *
+ * Caveat: the app does not record WHO awarded a status, and a DSQ can also come
+ * from the race committee (e.g. scoring an OCS boat) or an umpire (SHRS 3.1.3).
+ * Those are treated as protest decisions here, which errs toward preserving a
+ * published assignment — the conservative side of 3.1.5.
+ */
+export const protestCommitteeStatuses = new Set([
+  'DSQ',
+  'DNE',
+  'DGM',
+  'DPI',
+  ...rdgStatuses,
+]);
 export const penaltyStatuses = [
   'DNF',
   'DNS',
@@ -94,6 +129,25 @@ export function deriveNonFinisherPoints(
     return getScoringPenaltyPoints(position, maxBoats, status);
   }
   return maxBoats + 1;
+}
+
+/**
+ * SHRS 5.2 / write-path classification: is `status` a non-scoring penalty
+ * (DNF, DNS, DSQ, OCS, RET, BFD, UFD, DNC, NSC, WTH, DNE, DGM) whose finishing
+ * place is discarded and whose score is fixed at (largest heat + 1)?
+ *
+ * Mirrors the classification in the IPC handler's `applyRaceResultUpdate` so
+ * the write path and any re-derivation agree. RDG and DPI keep their
+ * protest-committee-provided value and are NOT non-scoring; ZFP/SCP/T1 are
+ * position-keeping scoring penalties and are also NOT non-scoring.
+ */
+export function isNonScoringPenalty(status: string): boolean {
+  const keepsProvidedPoints = rdgStatuses.includes(status) || status === 'DPI';
+  return (
+    !keepsProvidedPoints &&
+    penaltyStatuses.includes(status) &&
+    !scoringPenaltyStatuses.has(status)
+  );
 }
 
 export function normalizeScoreStatus(status: unknown): string {
@@ -162,19 +216,9 @@ export function compareSeededRows(left: SeededRow, right: SeededRow): number {
   }
 
   // SHRS 5.3 / 3.1(iv): break ties on national letter, then by NUMERICAL order
-  // of sail number (SHRS rule 3 preamble). A plain string compare would sort
-  // "10" before "9"; the numeric collator keeps them in sailing order.
-  const leftCountry = String(left.country ?? '').toUpperCase();
-  const rightCountry = String(right.country ?? '').toUpperCase();
-  const byCountry = leftCountry.localeCompare(rightCountry);
-  if (byCountry !== 0) {
-    return byCountry;
-  }
-  return String(left.sail_number ?? '').localeCompare(
-    String(right.sail_number ?? ''),
-    undefined,
-    { numeric: true, sensitivity: 'base' },
-  );
+  // of sail number (SHRS rule 3 preamble). Shared with the renderer's
+  // data-entry ordering so both sides break a tie the same way.
+  return compareNationalSail(left, right);
 }
 
 export function getHeatBaseFromName(heat_name: string): string {

@@ -34,7 +34,13 @@ function normalize(races: RaceInput[]): Required<RaceInput>[] {
   }));
 }
 
+// Boats whose Heat_Boat row for the final heat is missing, so
+// getBoatFinalHeatName returns null even though they have final Scores rows
+// (a repaired/imported event). Cleared by each setupDb call.
+const boatsWithoutFinalHeatRow = new Set<string>();
+
 function setupDb(dataset: Dataset, discardProfile = 'standard') {
+  boatsWithoutFinalHeatRow.clear();
   const data: Record<string, Required<RaceInput>[]> = {};
   Object.entries(dataset).forEach(([boatId, races]) => {
     data[boatId] = normalize(races);
@@ -43,9 +49,41 @@ function setupDb(dataset: Dataset, discardProfile = 'standard') {
   mockPrepare.mockImplementation((sql: string) => {
     const flat = sql.replace(/\s+/g, ' ');
     return {
-      get: () => {
+      get: (arg0: unknown, arg1?: string, arg2?: string) => {
         if (flat.includes('discard_profile')) {
           return { discard_profile: discardProfile };
+        }
+        // getSeriesDiscardRaceCount: series-wide (qualifying) / fleet-wide
+        // (final) completed-race count — the max per-boat score count.
+        if (flat.includes('MAX(race_count)')) {
+          const heatType = arg1;
+          const fleet = arg2;
+          let maxCount = 0;
+          Object.values(data).forEach((races) => {
+            const relevant =
+              heatType === 'Final'
+                ? races.filter(
+                    (r) =>
+                      r.heat_type === 'Final' &&
+                      (fleet == null || r.heat_name === fleet),
+                  )
+                : races.filter((r) => r.heat_type === 'Qualifying');
+            maxCount = Math.max(maxCount, relevant.length);
+          });
+          return { max_count: maxCount };
+        }
+        // getBoatFinalHeatName: a boat's final fleet heat_name.
+        if (
+          flat.includes('h.heat_name FROM Heats h') &&
+          flat.includes('Heat_Boat')
+        ) {
+          const boatId = arg1;
+          if (boatsWithoutFinalHeatRow.has(String(boatId))) {
+            return undefined;
+          }
+          const races = data[boatId as string] ?? [];
+          const finalRace = races.find((r) => r.heat_type === 'Final');
+          return finalRace ? { heat_name: finalRace.heat_name } : undefined;
         }
         return undefined;
       },
@@ -134,6 +172,45 @@ describe('explainTieBreak — qualifying series', () => {
     expect(res.totalB).toBe(10);
   });
 
+  it('uses the series-wide discard count (not the boat own) for a late entrant (SHRS 5.4)', () => {
+    // The series has 8 completed qualifying races (boat C sailed them all);
+    // boats A and B are late entrants with only 5 scores. Their totals must
+    // discard TWO scores (series-wide 8-race count), not one (their own 5-race
+    // count) — matching calculateBoatScores. RULE-M22 regression.
+    setupDb({
+      A: [
+        { race_id: 4, race_number: 4, points: 10 },
+        { race_id: 5, race_number: 5, points: 10 },
+        { race_id: 6, race_number: 6, points: 1 },
+        { race_id: 7, race_number: 7, points: 1 },
+        { race_id: 8, race_number: 8, points: 1 },
+      ],
+      B: [
+        { race_id: 4, race_number: 4, points: 3 },
+        { race_id: 5, race_number: 5, points: 3 },
+        { race_id: 6, race_number: 6, points: 3 },
+        { race_id: 7, race_number: 7, points: 3 },
+        { race_id: 8, race_number: 8, points: 3 },
+      ],
+      C: [
+        { race_id: 1, race_number: 1, points: 1 },
+        { race_id: 2, race_number: 2, points: 1 },
+        { race_id: 3, race_number: 3, points: 1 },
+        { race_id: 4, race_number: 4, points: 1 },
+        { race_id: 5, race_number: 5, points: 1 },
+        { race_id: 6, race_number: 6, points: 1 },
+        { race_id: 7, race_number: 7, points: 1 },
+        { race_id: 8, race_number: 8, points: 1 },
+      ],
+    });
+    const res = explainTieBreak(1, 'A', 'B', false);
+    // A: worst two (10,10) discarded -> kept [1,1,1] = 3.
+    // B: worst two (3,3) discarded -> kept [3,3,3] = 9.
+    expect(res.totalA).toBe(3);
+    expect(res.totalB).toBe(9);
+    expect(res.tied).toBe(false);
+  });
+
   it('single-heat event: A8.1 without excluded scores (SHRS 5.7(i))', () => {
     // Both boats raced the same 2 races (single-heat event), tied at 5.
     // A8.1 best-to-worst: A [1,4] vs B [2,3] -> 1 < 2, A wins.
@@ -208,17 +285,11 @@ describe('explainTieBreak — qualifying series', () => {
     expect(res.winnerBoatId).toBe('A');
   });
 
-  // SHRS 5.7(ii)(4) / RRS A8.1+A8.2: when neither rule can separate two boats,
-  // they remain tied. The shared-heat comparator in `calculateBoatScores.ts`
-  // (used here via `compareQualifyingTieCandidates`) falls back to
-  // `localeCompare(boat_id)` at line 211 instead of reporting "still tied",
-  // so `winnerBoatId` is always non-null even when every step below it says
-  // the tie could not be broken. This test's root cause is in
-  // calculateBoatScores.ts (not owned/edited by this pass) but the
-  // wrong-but-confident `winnerBoatId` is observable through
-  // explainTieBreak.ts, which is why it's pinned here.
-  // TODO(source-bug): calculateBoatScores.ts:211 — shared-heat A8 fallback
-  // should report "still tied" (e.g. return 0) instead of localeCompare.
+  // Regression guard (fixed in 7ec1616). SHRS 5.7(ii)(4) / RRS A8.1+A8.2: when
+  // neither rule can separate two boats they remain tied. The shared-heat
+  // comparator in `calculateBoatScores.ts` (via `compareQualifyingTieCandidates`)
+  // returns "still tied" rather than a `localeCompare(boat_id)` order, so
+  // `winnerBoatId` is null when every step reports the tie could not be broken.
   it('multi-heat event, tied pair shares every race with identical points: stays tied, no winner (SHRS 5.7(ii))', () => {
     setupDb({
       A: [
@@ -327,6 +398,62 @@ describe('explainTieBreak — final/overall series', () => {
     expect(res.sharedRacePairs.length).toBe(2);
   });
 
+  it('falls back to the boat own race count when its final fleet is unknown', () => {
+    // RULE-M22 regression: a boat with final Scores rows but no Heat_Boat row
+    // for a final heat (a repaired/imported event) has no identifiable fleet.
+    // getSeriesDiscardRaceCount must not be called without a heat_name — that
+    // drops the fleet filter and returns the largest race count across ALL
+    // fleets, and SHRS 4.5 lets fleets sail different numbers of races. Here A
+    // sailed 4 final races (1 discard) while B's fleet sailed 8 (2 discards);
+    // borrowing B's count would discard a second score from A.
+    setupDb({
+      A: [
+        {
+          race_id: 11,
+          race_number: 1,
+          points: 1,
+          heat_type: 'Final',
+          heat_name: 'Final Silver',
+        },
+        {
+          race_id: 12,
+          race_number: 2,
+          points: 2,
+          heat_type: 'Final',
+          heat_name: 'Final Silver',
+        },
+        {
+          race_id: 13,
+          race_number: 3,
+          points: 3,
+          heat_type: 'Final',
+          heat_name: 'Final Silver',
+        },
+        {
+          race_id: 14,
+          race_number: 4,
+          points: 9,
+          heat_type: 'Final',
+          heat_name: 'Final Silver',
+        },
+      ],
+      B: Array.from({ length: 8 }, (_unused, idx) => ({
+        race_id: 20 + idx,
+        race_number: idx + 1,
+        points: 1,
+        heat_type: 'Final',
+        heat_name: 'Final Gold',
+      })),
+    });
+    boatsWithoutFinalHeatRow.add('A');
+
+    const res = explainTieBreak(1, 'A', 'B', true);
+
+    // 4 races -> 1 discard: the 9 goes, leaving 1 + 2 + 3 = 6. Borrowing the
+    // Gold fleet's 8-race count would discard the 3 as well and report 3.
+    expect(res.totalA).toBe(6);
+  });
+
   it('multi-heat event, no shared races anywhere: standard A8 fallback (SHRS 5.7(ii)(4))', () => {
     // A and B never sailed the same qualifying or final heat (disjoint
     // race_ids in both series) but are tied on combined total (10 each).
@@ -387,18 +514,13 @@ describe('explainTieBreak — final/overall series', () => {
     expect(res.winnerBoatId).toBe('A');
   });
 
-  // Same fixture as the M7 winner test above. The winner is correct (it comes
-  // from the already-fixed `compareOverallTiePackets`), but the narration's
-  // A8.2 "breaker race" is built independently in `explainTieBreak.ts` by
-  // sorting shared pairs on `race_number` alone, with no knowledge of
-  // heat_type (`a82PairsDesc` at explainTieBreak.ts:463). A Qualifying race
-  // numbered 4 sorts ahead of a Final race numbered 1, so the panel narrates
-  // and highlights the WRONG race as the tie-breaker even though the
-  // reported winner is right.
-  // TODO(source-bug): explainTieBreak.ts:463 — `a82PairsDesc` must rank
-  // shared Final-series pairs ahead of shared Qualifying pairs (mirror the
-  // `seriesRank` fix already applied in overallTieBreak.ts:153), not sort by
-  // race_number alone.
+  // Regression guard (fixed in 7ec1616). RRS A8.2 walks the event's last race
+  // backward, and final-series races are sailed after the qualifying series but
+  // restart their numbering at 1. The narration's `a82PairsDesc` must therefore
+  // rank shared Final-series pairs ahead of shared Qualifying pairs (mirroring
+  // the `seriesRank` order in overallTieBreak.ts), NOT sort by race_number
+  // alone — otherwise a Qualifying race numbered 4 would outrank a Final race
+  // numbered 1 and the panel would cite the wrong tie-breaker race.
   it('M7: the A8.2 narration step cites the shared FINAL race as the tie-breaker, not the higher-numbered Qualifying race', () => {
     setupDb({
       A: [
@@ -429,14 +551,12 @@ describe('explainTieBreak — final/overall series', () => {
     expect(a82Step?.comparison?.scoreB).toBe(5);
   });
 
-  // SHRS 5.7(ii)(4) / RRS A8.1+A8.2 fallback for the combined comparator
-  // (`compareOverallTiePackets`), the same root cause pinned directly in
-  // overallTieBreak.test.ts ("M8: unresolved tie must stay tied"). Included
-  // here too because it is directly observable through explainTieBreak.ts's
-  // `winnerBoatId`, which this panel promises will never disagree with the
-  // authoritative comparator.
-  // TODO(source-bug): overallTieBreak.ts:189 — shared-heat A8 fallback
-  // should report "still tied" (e.g. return 0) instead of localeCompare.
+  // Regression guard (fixed in 7ec1616). When every shared race is identical the
+  // boats stay genuinely tied: `compareOverallTiePackets` returns 0 rather than
+  // inventing an order from the internal boat_id, and this panel's `winnerBoatId`
+  // reports no winner. Directly observable here because the panel promises never
+  // to disagree with the authoritative comparator. See the companion assertion
+  // in overallTieBreak.test.ts ("M8: unresolved tie must stay tied").
   it('multi-heat overall tie, every shared race identical: stays tied, no winner (SHRS 5.7(ii))', () => {
     setupDb({
       A: [

@@ -25,8 +25,11 @@ jest.mock('electron', () => ({
 // if the callback completes without throwing.
 const state = {
   rows: [] as Array<{ heat_id: number; boat_id: number }>,
-  heats: {} as Record<number, { event_id: number }>,
+  heats: {} as Record<number, { event_id: number; heat_type: string }>,
   failInsert: false,
+  // RULE-M13: races per heat, and the snapshot rows the transfer must clear.
+  racesByHeatId: {} as Record<number, number[]>,
+  clearedSnapshotRaceIds: [] as number[],
 };
 
 const norm = (sql: string) => sql.replace(/\s+/g, ' ').trim();
@@ -46,7 +49,7 @@ const dbMock = {
   },
   prepare: (rawSql: string): PrepareStatement => {
     const sql = norm(rawSql);
-    if (sql.startsWith('SELECT event_id FROM Heats')) {
+    if (sql.startsWith('SELECT event_id, heat_type FROM Heats')) {
       return {
         get: (heatId: number) => state.heats[heatId],
       };
@@ -69,14 +72,39 @@ const dbMock = {
         },
       };
     }
-    if (sql.startsWith('INSERT INTO Heat_Boat')) {
+    // BK-1: the handler now uses `INSERT OR IGNORE INTO Heat_Boat`, so match on
+    // the table rather than the exact verb, and honour OR IGNORE's dedup no-op.
+    if (sql.startsWith('INSERT') && sql.includes('INTO Heat_Boat')) {
+      const orIgnore = sql.includes('OR IGNORE');
       return {
         run: (heatId: number, boatId: number) => {
           if (state.failInsert) {
             throw new Error('Simulated insert failure');
           }
+          const exists = state.rows.some(
+            (r) => r.heat_id === heatId && r.boat_id === boatId,
+          );
+          if (orIgnore && exists) {
+            return { changes: 0, lastInsertRowid: state.rows.length };
+          }
           state.rows.push({ heat_id: heatId, boat_id: boatId });
           return { changes: 1, lastInsertRowid: state.rows.length };
+        },
+      };
+    }
+    // RULE-M13: a membership change invalidates the heat's SHRS 3.1.5
+    // assignment snapshots.
+    if (sql.startsWith('SELECT race_id FROM Races WHERE heat_id')) {
+      return {
+        all: (heatId: number) =>
+          (state.racesByHeatId[heatId] ?? []).map((race_id) => ({ race_id })),
+      };
+    }
+    if (sql.startsWith('DELETE FROM RaceAssignmentSnapshots')) {
+      return {
+        run: (raceId: number) => {
+          state.clearedSnapshotRaceIds.push(raceId);
+          return { changes: 1 };
         },
       };
     }
@@ -93,8 +121,39 @@ describe('transferBoatBetweenHeats atomicity', () => {
 
   beforeEach(() => {
     state.rows = [{ heat_id: 1, boat_id: 42 }];
-    state.heats = { 1: { event_id: 5 }, 2: { event_id: 5 } };
+    state.heats = {
+      1: { event_id: 5, heat_type: 'Qualifying' },
+      2: { event_id: 5, heat_type: 'Qualifying' },
+    };
     state.failInsert = false;
+    state.racesByHeatId = { 1: [11, 12], 2: [21] };
+    state.clearedSnapshotRaceIds = [];
+  });
+
+  // RULE-M13 / SHRS 3.1.5: an assignment snapshot records which boats were in a
+  // heat. Once a boat moves, the snapshot still lists her in the OLD heat, so
+  // the next round is seeded from both heats and she is assigned to two
+  // next-round heats at once. Both heats' snapshots must be invalidated.
+  it('invalidates the assignment snapshots of both heats after a transfer', async () => {
+    await handlerRegistry.transferBoatBetweenHeats({}, 1, 2, 42);
+
+    expect(state.clearedSnapshotRaceIds.sort()).toEqual([11, 12, 21]);
+  });
+
+  it('does not invalidate snapshots when the transfer is a no-op', async () => {
+    await handlerRegistry.transferBoatBetweenHeats({}, 1, 1, 42);
+
+    expect(state.clearedSnapshotRaceIds).toEqual([]);
+  });
+
+  it('does not invalidate snapshots when the transfer fails', async () => {
+    state.failInsert = true;
+
+    await expect(
+      handlerRegistry.transferBoatBetweenHeats({}, 1, 2, 42),
+    ).rejects.toThrow(/insert failure/i);
+
+    expect(state.clearedSnapshotRaceIds).toEqual([]);
   });
 
   it('moves the boat from the source heat to the target heat', async () => {
@@ -140,11 +199,29 @@ describe('transferBoatBetweenHeats atomicity', () => {
   });
 
   it('refuses to transfer between heats of different events', async () => {
-    state.heats = { 1: { event_id: 5 }, 2: { event_id: 6 } };
+    state.heats = {
+      1: { event_id: 5, heat_type: 'Qualifying' },
+      2: { event_id: 6, heat_type: 'Qualifying' },
+    };
 
     await expect(
       handlerRegistry.transferBoatBetweenHeats({}, 1, 2, 42),
     ).rejects.toThrow(/different events/i);
+    expect(state.rows).toEqual([{ heat_id: 1, boat_id: 42 }]);
+  });
+
+  // SHRS 4.1: boats stay in the same fleet throughout the Final Series — a
+  // direct IPC transfer must not move a boat into/out of/between final fleets
+  // (RULE-M25).
+  it('refuses to transfer a boat into or out of a Final Series fleet', async () => {
+    state.heats = {
+      1: { event_id: 5, heat_type: 'Final' },
+      2: { event_id: 5, heat_type: 'Final' },
+    };
+
+    await expect(
+      handlerRegistry.transferBoatBetweenHeats({}, 1, 2, 42),
+    ).rejects.toThrow(/Final Series fleet/i);
     expect(state.rows).toEqual([{ heat_id: 1, boat_id: 42 }]);
   });
 });

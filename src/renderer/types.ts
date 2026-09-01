@@ -274,6 +274,8 @@ export interface OverallLeaderboardEntry {
 
 export interface TieBreakRacePair {
   raceId: number | string;
+  raceNumber?: number;
+  heatType?: string;
   displayA?: string | number;
   displayB?: string | number;
   [key: string]: unknown;
@@ -345,12 +347,15 @@ export type RaceChangeHandler = (
   newStatus?: string,
 ) => void;
 
-/** Open state of the RDG2 multi-race selector for one cell. */
+/** Open state of the RDG2 multi-race selector for one cell.
+ *
+ * SHRS 5.6 requires redress averages to be calculated separately for the
+ * Qualifying and Final Series, so the selection only ever covers races in the
+ * SAME series as the cell being scored — there is no cross-series index set. */
 export interface Rdg2PickerState {
   boatId: number;
   raceIndex: number;
   selectedIndices?: Set<number>;
-  selectedQualIndices?: Set<number>;
   // Anchor rect of the triggering <select>, used to position the popover.
   anchorRect?: DOMRect;
 }
