@@ -10,6 +10,7 @@ import {
   NAMED_FLEETS,
 } from '../shared/fleetNames';
 import {
+  fleetsWithCompletedFinalRace,
   hasAnyCompletedFinalRace,
   hasNoCompletedFinalRaces,
   orderFinalLeaderboardRows,
@@ -149,6 +150,52 @@ describe('SHRS 1.5: no completed final races → rank by qualifying score (RULE-
       row('goldWorst', 'Gold', { qualifying_points: 88 }),
     ]);
     expect(idsOf(ordered)).toEqual(['goldWorst', 'silverBest']);
+  });
+
+  it('decides the fallback PER FLEET, not once for the whole event', () => {
+    // Fleets need not start their finals together (postponement, staggered
+    // starts, the SHRS 4.5 time limit). Deciding this event-wide meant Gold
+    // sailing flipped Silver onto total_points_final too — which is 0 for
+    // every Silver boat, tying them all and leaving Silver in raw DB order.
+    const ordered = orderFinalLeaderboardRows([
+      row('silverWorstQual', 'Silver', { qualifying_points: 99 }),
+      row('silverBestQual', 'Silver', { qualifying_points: 5 }),
+      row('goldA', 'Gold', { total_points_final: 3, race_ids: '501' }),
+      row('goldB', 'Gold', { total_points_final: 1, race_ids: '501' }),
+    ]);
+    // Gold sailed, so Gold ranks on its final score; Silver has not, so it
+    // still ranks on the qualifying series.
+    expect(idsOf(ordered)).toEqual([
+      'goldB',
+      'goldA',
+      'silverBestQual',
+      'silverWorstQual',
+    ]);
+  });
+
+  it('reports exactly which fleets have sailed a final race', () => {
+    expect(
+      fleetsWithCompletedFinalRace([
+        row('g', 'Gold', { race_ids: '501' }),
+        row('s', 'Silver'),
+        row('b', 'Bronze', { race_ids: '502' }),
+      ]),
+    ).toEqual(new Set([fleetRank('Gold'), fleetRank('Bronze')]));
+  });
+
+  it('keeps a partially-scored fleet on its final score', () => {
+    // One Silver boat scored is enough: the race was sailed, so the whole
+    // fleet ranks on the final series (the unscored boats sit at 0 = ahead,
+    // which is the same behaviour a fully-scored fleet has mid-race).
+    const ordered = orderFinalLeaderboardRows([
+      row('silverScored', 'Silver', {
+        total_points_final: 4,
+        qualifying_points: 1,
+        race_ids: '502',
+      }),
+      row('silverUnscored', 'Silver', { qualifying_points: 99 }),
+    ]);
+    expect(idsOf(ordered)).toEqual(['silverUnscored', 'silverScored']);
   });
 
   it('switches back to the final score once any final race is completed', () => {

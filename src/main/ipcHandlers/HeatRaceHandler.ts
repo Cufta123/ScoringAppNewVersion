@@ -1565,13 +1565,16 @@ ipcMain.handle('deleteScore', async (event, score_id) => {
         .run(score_id);
       if (raceId != null && runResult.changes > 0) {
         applyRaceTieScoring(raceId);
+        // Recompute inside the same transaction, exactly as updateScore does:
+        // a recompute failure must roll the delete back rather than leave the
+        // score gone, the other finishers' A7 tie points rewritten and the
+        // stored leaderboard stale — which is what the caller sees when the
+        // IPC call rejects after the delete has already committed (BK-7).
+        recomputeLeaderboardsForRace(raceId);
       }
       return runResult;
     });
     const result = applyDelete();
-    if (raceId != null && result.changes > 0) {
-      recomputeLeaderboardsForRace(raceId);
-    }
     return { changes: result.changes };
   } catch (error) {
     console.error('Error deleting score:', error);

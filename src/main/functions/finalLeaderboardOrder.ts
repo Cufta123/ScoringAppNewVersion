@@ -40,6 +40,29 @@ export const hasNoCompletedFinalRaces = (
   rows: readonly FinalLeaderboardRow[],
 ): boolean => !hasAnyCompletedFinalRace(rows);
 
+const hasFinalScore = (row: FinalLeaderboardRow): boolean =>
+  !!row.race_ids && String(row.race_ids).length > 0;
+
+/**
+ * The `fleetRank`s of the fleets that have sailed at least one final race.
+ *
+ * SHRS 1.5 is decided per FLEET, not per event: fleets do not have to start
+ * their Final Series together (postponement, staggered starts, the SHRS 4.5
+ * time limit), so one fleet racing must not change how another fleet — which
+ * has not sailed yet — is ranked. Deciding this event-wide made every boat in
+ * an unraced fleet fall back on `total_points_final = 0`, which ties them all
+ * and leaves the fleet in raw database order instead of qualifying order.
+ */
+export const fleetsWithCompletedFinalRace = (
+  rows: readonly FinalLeaderboardRow[],
+): Set<number> => {
+  const sailed = new Set<number>();
+  rows.forEach((row) => {
+    if (hasFinalScore(row)) sailed.add(fleetRank(row.placement_group));
+  });
+  return sailed;
+};
+
 const numeric = (value: unknown): number => Number(value) || 0;
 
 /**
@@ -47,23 +70,24 @@ const numeric = (value: unknown): number => Number(value) || 0;
  *
  * SHRS 5.5 fleet precedence always wins (Gold, Silver, Bronze, Copper "and so
  * on" — `fleetRank` also orders the 5th and later fleets, which used to share a
- * single catch-all rank, RULE-m2). Within a fleet the sort key is the final
- * series score, or the qualifying series score while the Final Series has no
- * completed races (SHRS 1.5).
+ * single catch-all rank, RULE-m2). Within a fleet the sort key is that fleet's
+ * final series score, or its qualifying series score while THAT fleet has no
+ * completed final races (SHRS 1.5).
  */
 export function orderFinalLeaderboardRows<T extends FinalLeaderboardRow>(
   rows: T[],
 ): T[] {
-  const rankByQualifying = hasNoCompletedFinalRaces(rows);
+  const sailedFleets = fleetsWithCompletedFinalRace(rows);
 
   return rows.sort((left, right) => {
-    const fleetDelta =
-      fleetRank(left.placement_group) - fleetRank(right.placement_group);
+    const leftFleet = fleetRank(left.placement_group);
+    const fleetDelta = leftFleet - fleetRank(right.placement_group);
     if (fleetDelta !== 0) return fleetDelta;
 
-    return rankByQualifying
-      ? numeric(left.qualifying_points) - numeric(right.qualifying_points)
-      : numeric(left.total_points_final) - numeric(right.total_points_final);
+    // Same fleet, so one lookup decides the key for both rows.
+    return sailedFleets.has(leftFleet)
+      ? numeric(left.total_points_final) - numeric(right.total_points_final)
+      : numeric(left.qualifying_points) - numeric(right.qualifying_points);
   });
 }
 
