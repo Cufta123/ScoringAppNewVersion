@@ -327,6 +327,16 @@ const dbMock = {
       return { all: jest.fn(() => []) };
     }
 
+    // RRS A6.1 promotion also moves position-keeping penalty boats up. This
+    // runs on every DSQ edit now, not just shift-on ones (RULE-M16); no such
+    // boats exist in these fixtures.
+    if (
+      sqlContains(sql, 'SELECT score_id, position, status FROM Scores') &&
+      sqlContains(sql, "status IN ('ZFP', 'SCP', 'T1')")
+    ) {
+      return { all: jest.fn(() => []) };
+    }
+
     throw new Error(`Unhandled SQL in test mock: ${sql}`);
   }),
   transaction: jest.fn(
@@ -651,6 +661,95 @@ describe('HeatRaceHandler createNewHeatsBasedOnLeaderboard', () => {
     ]);
   });
 
+  // RULE-M14 / SHRS 3.1.5: only PROTEST-COMMITTEE decisions are shielded from
+  // changing heat assignments. A race-office scoring correction (here: fixing a
+  // mistyped finishing place) must be allowed to change them — the assignment
+  // is supposed to follow the corrected result. Previously ANY score edit
+  // snapshotted the pre-edit order and froze the assignment for good.
+  it('lets an ordinary race-office correction change the next-heat assignment', async () => {
+    currentScenario.currentPosition = 1;
+    currentScenario.currentStatus = 'FINISHED';
+    currentScenario.rankedRowsByHeatId[20] = [
+      {
+        boat_id: 'B1',
+        position: 1,
+        status: 'FINISHED',
+        country: 'CRO',
+        sail_number: 1,
+      },
+      {
+        boat_id: 'B2',
+        position: 2,
+        status: 'FINISHED',
+        country: 'CRO',
+        sail_number: 2,
+      },
+      {
+        boat_id: 'B3',
+        position: 3,
+        status: 'FINISHED',
+        country: 'CRO',
+        sail_number: 3,
+      },
+    ];
+
+    // The RO had B1 and B2 the wrong way round; correct B1 to 2nd.
+    const { updateRaceResult } = handlerRegistry;
+    await updateRaceResult(
+      {},
+      555,
+      currentScenario.latestRaceByHeatId[20].race_id,
+      'B1',
+      2,
+      false,
+      'FINISHED',
+    );
+
+    // The stored race order now reflects the correction.
+    currentScenario.rankedRowsByHeatId[20] = [
+      {
+        boat_id: 'B2',
+        position: 1,
+        status: 'FINISHED',
+        country: 'CRO',
+        sail_number: 2,
+      },
+      {
+        boat_id: 'B1',
+        position: 2,
+        status: 'FINISHED',
+        country: 'CRO',
+        sail_number: 1,
+      },
+      {
+        boat_id: 'B3',
+        position: 3,
+        status: 'FINISHED',
+        country: 'CRO',
+        sail_number: 3,
+      },
+    ];
+
+    insertedHeats.length = 0;
+    insertedHeatBoats.length = 0;
+
+    const createNewHeats = handlerRegistry.createNewHeatsBasedOnLeaderboard;
+    await createNewHeats({}, 555);
+
+    const bHeatAssignments = insertedHeatBoats.filter((entry) =>
+      ['B1', 'B2', 'B3'].includes(entry.boat_id),
+    );
+
+    // Movement table for source B in 3 heats: rank1->B, rank2->A, rank3->C.
+    // The CORRECTED order drives it, so B2 (now 1st) goes to heat 201 and B1
+    // to heat 200 — the reverse of the frozen-snapshot behaviour.
+    expect(bHeatAssignments).toEqual([
+      { heat_id: 201, boat_id: 'B2' },
+      { heat_id: 200, boat_id: 'B1' },
+      { heat_id: 202, boat_id: 'B3' },
+    ]);
+  });
+
   it('returns odd/even advisory for 2-heat fleets with N mod 4 = 2', async () => {
     currentScenario.latestHeats = [
       { heat_name: 'Heat A1', heat_id: 10 },
@@ -690,6 +789,52 @@ describe('HeatRaceHandler createNewHeatsBasedOnLeaderboard', () => {
       expect.objectContaining({
         success: true,
         advisory: expect.stringContaining('temporary 2-boat imbalance'),
+      }),
+    );
+  });
+
+  // RULE-m1 / SHRS Heat Movement Tables end-note: the advisory applies to
+  // "entries of 10, 14, 18, 22, 26, 30, 34 and 38". The 10-boat case was
+  // silently skipped because the check started at 14.
+  it('returns the odd/even advisory for the 10-boat case too', async () => {
+    currentScenario.latestHeats = [
+      { heat_name: 'Heat A1', heat_id: 10 },
+      { heat_name: 'Heat B1', heat_id: 20 },
+    ];
+    currentScenario.raceCountByHeatId = { 10: 2, 20: 2 };
+    currentScenario.latestRaceByHeatId = {
+      10: { race_id: raceIdOffset + 10, race_number: 2 },
+      20: { race_id: raceIdOffset + 20, race_number: 2 },
+    };
+
+    currentScenario.rankedRowsByHeatId[10] = Array.from(
+      { length: 5 },
+      (_v, i) => ({
+        boat_id: `A${i + 1}`,
+        position: i + 1,
+        status: 'FINISHED',
+        country: 'CRO',
+        sail_number: i + 1,
+      }),
+    );
+    currentScenario.rankedRowsByHeatId[20] = Array.from(
+      { length: 5 },
+      (_v, i) => ({
+        boat_id: `B${i + 1}`,
+        position: i + 1,
+        status: 'FINISHED',
+        country: 'CRO',
+        sail_number: 100 + i + 1,
+      }),
+    );
+
+    const handler = handlerRegistry.createNewHeatsBasedOnLeaderboard;
+    const result = await handler({}, 555);
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: true,
+        advisory: expect.stringContaining('10 boats in 2 heats'),
       }),
     );
   });

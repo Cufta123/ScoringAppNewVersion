@@ -27,7 +27,7 @@ function SortTh({
   onSort,
 }: SortThProps) {
   return (
-    <th className="sortable" onClick={() => onSort(col)}>
+    <th scope="col" className="sortable" onClick={() => onSort(col)}>
       {label}{' '}
       {sortCriteria === col ? (
         <i
@@ -308,7 +308,7 @@ function SailorList({
                 sortDirection={sortDirection}
                 onSort={handleSort}
               />
-              <th>Actions</th>
+              <th scope="col">Actions</th>
             </tr>
           </thead>
           <tbody>

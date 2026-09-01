@@ -150,6 +150,7 @@ function FinalFleetTable({
               {/* Identity headers */}
               {['Rank', 'Name', 'Country', 'Sail #', 'Type'].map((h) => (
                 <th
+                  scope="col"
                   key={h}
                   style={{
                     textAlign: 'left',
@@ -166,6 +167,7 @@ function FinalFleetTable({
 
               {/* Gross column */}
               <th
+                scope="col"
                 title="Gross: total points before discards (the sum of every race score)."
                 style={{
                   textAlign: 'center',
@@ -185,6 +187,7 @@ function FinalFleetTable({
 
               {/* Overall column */}
               <th
+                scope="col"
                 title="Overall: net combined score after discards — this is what decides the ranking."
                 style={{
                   textAlign: 'center',
@@ -211,6 +214,7 @@ function FinalFleetTable({
                   (compareInfo?.sharedQualIds?.has(colQRaceId) ?? false);
                 return (
                   <th
+                    scope="col"
                     key={`qh-r${i + 1}`}
                     aria-label={
                       colQIsShared ? `Q${i + 1} shared race` : `Q${i + 1}`
@@ -240,6 +244,7 @@ function FinalFleetTable({
               {/* Qualifying total */}
               {qualRaceCount > 0 && showTotals && (
                 <th
+                  scope="col"
                   style={{
                     textAlign: 'center',
                     padding: '7px 10px',
@@ -265,6 +270,7 @@ function FinalFleetTable({
                   (compareInfo?.sharedIds?.has(colFRaceId) ?? false);
                 return (
                   <th
+                    scope="col"
                     key={`fh-r${i + 1}`}
                     aria-label={
                       colFIsShared ? `F${i + 1} shared race` : `F${i + 1}`
@@ -294,6 +300,7 @@ function FinalFleetTable({
               {/* Final total */}
               {finalRaceCount > 0 && showTotals && (
                 <th
+                  scope="col"
                   style={{
                     textAlign: 'center',
                     padding: '7px 10px',
@@ -519,7 +526,7 @@ function FinalFleetTable({
                         rdg2Picker={rdg2Picker}
                         setRdg2Picker={setRdg2Picker}
                         confirmRdg2={confirmRdg2}
-                        qualifyingEntry={qualifyingEntry}
+                        seriesPrefix="F"
                       />
                     );
                   })}

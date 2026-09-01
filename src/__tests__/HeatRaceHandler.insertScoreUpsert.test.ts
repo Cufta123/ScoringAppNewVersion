@@ -73,6 +73,7 @@ const dbMock = {
 
     throw new Error(`Unhandled SQL in test mock: ${sql}`);
   }),
+  transaction: jest.fn((fn: (...args: any[]) => any) => fn),
 };
 
 jest.mock('../../public/Database/DBManager', () => ({
@@ -120,5 +121,29 @@ describe('HeatRaceHandler insertScore upsert behavior', () => {
 
     expect(insertCalls).toHaveLength(1);
     expect(insertCalls[0].args).toEqual([500, 42, 3, 7, 'DNS']);
+  });
+
+  it('accepts a fractional RDG/DPI position (protest-committee-set, CMP C-23)', async () => {
+    const handler = handlerRegistry.insertScore;
+
+    await handler({}, 500, 42, 4.5, 4.5, 'RDG2');
+    await handler({}, 500, 42, 2.5, 2.5, 'DPI');
+
+    const updateCalls = runCalls.filter((call) =>
+      sqlContains(
+        call.sql,
+        'UPDATE Scores SET position = ?, points = ?, status = ? WHERE race_id = ? AND boat_id = ?',
+      ),
+    );
+    expect(updateCalls).toHaveLength(2);
+    expect(updateCalls[0].args.slice(0, 3)).toEqual([4.5, 4.5, 'RDG2']);
+    expect(updateCalls[1].args.slice(0, 3)).toEqual([2.5, 2.5, 'DPI']);
+  });
+
+  it('rejects a fractional FINISHED position (must be a positive integer, BK-6)', async () => {
+    const handler = handlerRegistry.insertScore;
+    await expect(handler({}, 500, 42, 4.5, 4.5, 'FINISHED')).rejects.toThrow(
+      /must be a positive integer/,
+    );
   });
 });

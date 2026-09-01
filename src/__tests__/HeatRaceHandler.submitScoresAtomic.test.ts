@@ -468,4 +468,111 @@ describe('submitHeatRaceScoresAtomic handler', () => {
     expect(state.races).toHaveLength(0);
     expect(state.scores.size).toBe(0);
   });
+
+  it('rejects a heat whose boats share a sail number instead of silently overwriting (BK-4)', async () => {
+    const original = state.boatsByHeat[10];
+    state.boatsByHeat[10] = [
+      { boat_id: 1, sail_number: '101' },
+      { boat_id: 2, sail_number: '101' }, // duplicate of boat 1
+      { boat_id: 3, sail_number: '102' },
+    ];
+    try {
+      await expect(
+        handlerRegistry.submitHeatRaceScoresAtomic(
+          {},
+          {
+            event_id: 1,
+            heat_id: HEAT_ID,
+            placeNumbers: [{ boatNumber: 101, place: 1, status: 'FINISHED' }],
+            isFinalSeries: false,
+          },
+        ),
+      ).rejects.toThrow(/duplicate sail number/i);
+    } finally {
+      state.boatsByHeat[10] = original;
+    }
+    // Nothing may be written once the duplicate is detected.
+    expect(state.races).toHaveLength(0);
+    expect(state.scores.size).toBe(0);
+  });
+
+  it('rejects two boats with an empty sail number (BK-4)', async () => {
+    const original = state.boatsByHeat[10];
+    state.boatsByHeat[10] = [
+      { boat_id: 1, sail_number: '' },
+      { boat_id: 2, sail_number: '' },
+    ];
+    try {
+      await expect(
+        handlerRegistry.submitHeatRaceScoresAtomic(
+          {},
+          {
+            event_id: 1,
+            heat_id: HEAT_ID,
+            placeNumbers: [{ boatNumber: 101, place: 1, status: 'FINISHED' }],
+            isFinalSeries: false,
+          },
+        ),
+      ).rejects.toThrow(/duplicate sail number/i);
+    } finally {
+      state.boatsByHeat[10] = original;
+    }
+    expect(state.races).toHaveLength(0);
+    expect(state.scores.size).toBe(0);
+  });
+
+  it('rejects a FINISHED boat submitted with place 0 instead of writing 0/0 (BK-6)', async () => {
+    await expect(
+      handlerRegistry.submitHeatRaceScoresAtomic(
+        {},
+        {
+          event_id: 1,
+          heat_id: HEAT_ID,
+          placeNumbers: [{ boatNumber: 101, place: 0, status: 'FINISHED' }],
+          isFinalSeries: false,
+        },
+      ),
+    ).rejects.toThrow(/must be a positive integer/);
+    // The invalid place must never be persisted as a 0/0 score.
+    const written = [...state.scores.values()];
+    expect(written.some((s) => s.position === 0 || s.points === 0)).toBe(false);
+  });
+
+  it('tolerates a falsy place for a non-scoring penalty and scores it at penaltyPlace (BK-6)', async () => {
+    // A non-scoring penalty (DNF) discards its place entirely (SHRS 5.2), so a
+    // legacy 0/'' place that the old `place || penaltyPlace` tolerated must not
+    // be sanitized and must not abort the whole submit.
+    const result = await handlerRegistry.submitHeatRaceScoresAtomic(
+      {},
+      {
+        event_id: 1,
+        heat_id: HEAT_ID,
+        placeNumbers: [
+          { boatNumber: 101, place: 1, status: 'FINISHED' },
+          { boatNumber: 102, place: 0, status: 'DNF' },
+          { boatNumber: 103, place: '' as unknown as number, status: 'DSQ' },
+        ],
+        isFinalSeries: false,
+      },
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    const { raceId } = result;
+
+    expect(scoreForBoat(raceId, 1)).toMatchObject({
+      position: 1,
+      points: 1,
+      status: 'FINISHED',
+    });
+    expect(scoreForBoat(raceId, 2)).toMatchObject({
+      position: 11,
+      points: 11,
+      status: 'DNF',
+    });
+    expect(scoreForBoat(raceId, 3)).toMatchObject({
+      position: 11,
+      points: 11,
+      status: 'DSQ',
+    });
+  });
 });

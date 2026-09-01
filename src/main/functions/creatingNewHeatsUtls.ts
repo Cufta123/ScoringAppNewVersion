@@ -1,23 +1,21 @@
+import { compareNationalSail } from '../../shared/sailOrder';
+
 /**
  * SHRS 3 seeding order without a seeding list: national letters alphabetically,
  * then sail number. Sail numbers are TEXT and can be alphanumeric, so compare
  * numeric-aware ("9" < "10") — plain SQL ORDER BY would sort "10" before "9".
  * Single source of truth for both initial heat creation and pre-assigned
  * redistribution so every round seeds boats in the same order.
+ *
+ * Delegates to the shared `compareNationalSail` (SHRS 5.3 / 3.1(iv)) so heat
+ * seeding breaks a tie identically to recording order, including the
+ * case-insensitive national-letter comparison.
  */
 export function compareByCountryThenSail(
   left: { country?: string | null; sail_number?: string | number | null },
   right: { country?: string | null; sail_number?: string | number | null },
 ): number {
-  const byCountry = String(left.country ?? '').localeCompare(
-    String(right.country ?? ''),
-  );
-  if (byCountry !== 0) return byCountry;
-  return String(left.sail_number ?? '').localeCompare(
-    String(right.sail_number ?? ''),
-    undefined,
-    { numeric: true, sensitivity: 'base' },
-  );
+  return compareNationalSail(left, right);
 }
 
 /**

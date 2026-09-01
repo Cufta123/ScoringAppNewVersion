@@ -351,6 +351,210 @@ describe('useLeaderboard scoring/edit flow', () => {
     });
   });
 
+  describe('final-series discards are fleet-wide, not series-wide (SHRS 5.1/5.4)', () => {
+    // Gold sailed 8 final races -> 2 discards under SHRS 5.4. Silver sailed only
+    // 5 -> 1 discard. A series-wide max across all fleets (8) would wrongly
+    // discard 2 of Silver's 5 scores.
+    const makeFinalRow = (boatId, sailNo, group, positions, raceIdBase) => ({
+      boat_id: boatId,
+      name: `Sailor ${boatId}`,
+      surname: boatId,
+      country: 'CRO',
+      boat_number: sailNo,
+      boat_type: 'IOM',
+      placement_group: group,
+      total_points_final: positions.reduce((s, v) => s + v, 0),
+      race_positions: positions.join(','),
+      race_points: positions.join(','),
+      race_ids: positions.map((_v, i) => String(raceIdBase + i)).join(','),
+      race_statuses: positions.map(() => 'FINISHED').join(','),
+    });
+
+    const finalRows = [
+      makeFinalRow('g1', '101', 'Gold', [8, 7, 6, 5, 4, 3, 2, 1], 800),
+      makeFinalRow('s1', '201', 'Silver', [5, 4, 3, 2, 1], 900),
+    ];
+
+    beforeEach(() => {
+      window.electron.sqlite.heatRaceDB.readAllHeats.mockResolvedValue([
+        { heat_type: 'Final' },
+      ]);
+      window.electron.sqlite.heatRaceDB.readFinalLeaderboard.mockResolvedValue(
+        JSON.parse(JSON.stringify(finalRows)),
+      );
+    });
+
+    it('scores each final fleet with its own race count on load (F-Tot)', async () => {
+      const { result } = renderHook(() => useLeaderboard(5));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      await waitFor(() => expect(result.current.finalSeriesStarted).toBe(true));
+
+      const gold = result.current.leaderboard.find((e) => e.boat_id === 'g1');
+      const silver = result.current.leaderboard.find((e) => e.boat_id === 's1');
+
+      // Gold: 8 races -> 2 discards (drop 8 and 7) -> total 21.
+      expect(gold.computed_total).toBe(21);
+      expect(gold.races).toEqual(['(8)', '(7)', '6', '5', '4', '3', '2', '1']);
+
+      // Silver: 5 races -> 1 discard (drop 5) -> total 10, NOT the 6 a
+      // series-wide max of 8 would produce.
+      expect(silver.computed_total).toBe(10);
+      expect(silver.races).toEqual(['(5)', '4', '3', '2', '1']);
+    });
+
+    it('keeps the fleet-wide discard count in the edit preview', async () => {
+      const { result } = renderHook(() => useLeaderboard(5));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      await waitFor(() => expect(result.current.finalSeriesStarted).toBe(true));
+
+      await act(async () => {
+        await result.current.toggleEditMode();
+      });
+      // Shift OFF: change only the Silver boat's first race (5 -> 1).
+      act(() => {
+        result.current.handleRaceChange('s1', 0, 1, 'FINISHED');
+      });
+
+      const silver = result.current.editableLeaderboard.find(
+        (e) => e.boat_id === 's1',
+      );
+      // [1,4,3,2,1] with 1 fleet-wide discard (drop 4) -> 7. A series-wide
+      // count (2 discards) would give 4.
+      expect(silver.computed_total).toBe(7);
+      expect(silver.races).toEqual(['1', '(4)', '3', '2', '1']);
+    });
+  });
+
+  // RULE-M16 / RRS A6.1: "If a boat is disqualified from a race or retires
+  // after finishing, each boat with a worse finishing place shall be moved up
+  // one place." Mandatory — so the edit preview must promote even with the
+  // "Shift other boats" toggle OFF, or the saved result (which the backend
+  // promotes regardless) would differ from what the scorer saw.
+  describe('RULE-M16: A6.1 promotion applies with shifting OFF', () => {
+    it('moves boats behind a DSQ up one place without the shift toggle', async () => {
+      const { result } = renderHook(() => useLeaderboard(5));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      await act(async () => {
+        await result.current.toggleEditMode();
+      });
+      // Shift stays OFF (its default after toggleEditMode).
+      act(() => {
+        result.current.handleRaceChange('b1', 0, null, 'DSQ');
+      });
+
+      const after = result.current.editableLeaderboard;
+      const get = (id) => after.find((e) => e.boat_id === id);
+
+      // b1 finished 1st and is disqualified; b2 (2nd) and b3 (3rd) move up.
+      expect(get('b1').race_statuses[0]).toBe('DSQ');
+      expect(get('b2').races[0]).toBe('1');
+      expect(get('b3').races[0]).toBe('2');
+    });
+
+    it('still leaves other boats alone for a plain place edit with shifting OFF', async () => {
+      const { result } = renderHook(() => useLeaderboard(5));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      await act(async () => {
+        await result.current.toggleEditMode();
+      });
+      act(() => {
+        result.current.handleRaceChange('b1', 0, 3, 'FINISHED');
+      });
+
+      const after = result.current.editableLeaderboard;
+      const get = (id) => after.find((e) => e.boat_id === id);
+
+      expect(get('b1').races[0]).toBe('3');
+      // Manual override: the others keep their places even though that ties b3.
+      expect(get('b2').races[0]).toBe('2');
+      expect(get('b3').races[0]).toBe('3');
+    });
+  });
+
+  // SHRS 5.6: "If the protest committee decides to give redress based on
+  // average points, averages shall be calculated separately for each of the
+  // Qualifying and Final Series." A final-series RDG2 must therefore average
+  // ONLY final races — the qualifying scores of the same boat are irrelevant,
+  // however different they are.
+  describe('RULE-M10: RDG2 averages are per-series (SHRS 5.6)', () => {
+    const makeFinalRow = (boatId, sailNo, finalPoints) => ({
+      boat_id: boatId,
+      name: `Sailor ${boatId}`,
+      surname: boatId,
+      country: 'CRO',
+      boat_number: sailNo,
+      boat_type: 'IOM',
+      placement_group: 'Gold',
+      total_points_final: finalPoints.reduce((s, v) => s + v, 0),
+      race_positions: finalPoints.join(','),
+      race_points: finalPoints.join(','),
+      race_ids: finalPoints.map((_v, i) => String(300 + i)).join(','),
+      race_statuses: finalPoints.map(() => 'FINISHED').join(','),
+    });
+
+    beforeEach(() => {
+      window.electron.sqlite.heatRaceDB.readAllHeats.mockResolvedValue([
+        { heat_type: 'Final' },
+      ]);
+      // Qualifying scores are deliberately huge so that pooling them into the
+      // average would be unmistakable in the result.
+      window.electron.sqlite.heatRaceDB.readLeaderboard.mockResolvedValue([
+        {
+          boat_id: 'b1',
+          name: 'Ana',
+          surname: 'A',
+          country: 'CRO',
+          boat_number: '101',
+          boat_type: 'IOM',
+          place: 1,
+          total_points_event: 180,
+          race_positions: '90,90',
+          race_points: '90,90',
+          race_ids: '101,102',
+          race_statuses: 'FINISHED,FINISHED',
+        },
+      ]);
+      window.electron.sqlite.heatRaceDB.readFinalLeaderboard.mockResolvedValue([
+        makeFinalRow('b1', '101', [2, 4, 7]),
+      ]);
+    });
+
+    it('averages only the final-series races, ignoring qualifying points', async () => {
+      const { result } = renderHook(() => useLeaderboard(5));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      await waitFor(() => expect(result.current.finalSeriesStarted).toBe(true));
+
+      await act(async () => {
+        await result.current.toggleEditMode();
+      });
+
+      // Redress in final race 1 (index 0), averaged over final races 2 and 3.
+      // `selectedQualIndices` is the removed cross-series field: passing it
+      // here proves a stale caller can no longer drag qualifying races into a
+      // final-series average (the old code pooled exactly this set).
+      act(() => {
+        result.current.setRdg2Picker({
+          boatId: 'b1',
+          raceIndex: 0,
+          selectedIndices: new Set([1, 2]),
+          selectedQualIndices: new Set([0, 1]),
+        });
+      });
+      act(() => {
+        result.current.confirmRdg2();
+      });
+
+      const entry = result.current.editableLeaderboard.find(
+        (e) => e.boat_id === 'b1',
+      );
+      expect(entry.race_statuses[0]).toBe('RDG2');
+      // (4 + 7) / 2 = 5.5. Pooling the two qualifying 90s would give 47.75.
+      expect(
+        parseFloat(String(entry.race_points[0]).replace(/[()]/g, '')),
+      ).toBe(5.5);
+    });
+  });
+
   describe('duplicate finishing-place guard on save', () => {
     const { confirmChoice } = require('../renderer/utils/userFeedback');
 
@@ -868,5 +1072,419 @@ describe('useLeaderboard scoring/edit flow', () => {
     expect(sharedIds.has('102')).toBe(true);
     expect(sharedIds.has(101)).toBe(false); // not numbers
     expect(sharedQualIds.has('101')).toBe(true);
+  });
+
+  // ─── LB-1 / LB-2 / LB-3 / LB-5 / LB-7 / LB-8 regressions ───────────────────
+
+  describe('LB-2: ref-based double-submit guard in handleSave', () => {
+    const { confirmChoice } = require('../renderer/utils/userFeedback');
+
+    it('starts only one save chain when handleSave is called twice rapidly', async () => {
+      // Hold the confirm dialog open so both clicks land while `saving` state is
+      // still false — only the synchronous ref guard can block the second click.
+      let resolveChoice;
+      confirmChoice.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveChoice = resolve;
+          }),
+      );
+
+      const { result } = renderHook(() => useLeaderboard(1));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      await act(async () => {
+        await result.current.toggleEditMode();
+      });
+      // Create a duplicate place (b1 -> 2 collides with b2) so a dialog opens.
+      act(() => {
+        result.current.handleRaceChange('b1', 0, 2, 'FINISHED');
+      });
+
+      const first = result.current.handleSave();
+      const second = result.current.handleSave();
+      await act(async () => {
+        resolveChoice('extra');
+        await Promise.all([first, second]);
+      });
+
+      expect(
+        window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic,
+      ).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('LB-3: RDG2 picker does not override a later status change', () => {
+    it('closes the picker on a non-RDG2 status change so confirmRdg2 is a no-op', async () => {
+      const { result } = renderHook(() => useLeaderboard(1));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      await act(async () => {
+        await result.current.toggleEditMode();
+      });
+
+      act(() => {
+        result.current.setRdg2Picker({
+          boatId: 'b1',
+          raceIndex: 0,
+          selectedIndices: new Set([0]),
+        });
+      });
+
+      // User changes the status to DNS while the picker is open.
+      act(() => {
+        result.current.handleRaceChange('b1', 0, null, 'DNS');
+      });
+
+      // handleRaceChange cleared the picker, so confirmRdg2 must not re-apply
+      // RDG2 over the user's DNS choice.
+      act(() => {
+        result.current.confirmRdg2();
+      });
+
+      const entry = result.current.editableLeaderboard.find(
+        (e) => e.boat_id === 'b1',
+      );
+      expect(result.current.rdg2Picker).toBeNull();
+      expect(entry.race_statuses[0]).toBe('DNS');
+    });
+  });
+
+  describe('LB-5: edits cleared before refetch after a successful save', () => {
+    it('leaves edit mode and clears edits even when the post-save refetch fails', async () => {
+      // First readLeaderboard call is the mount fetch; the second is the
+      // post-save refetch, which we make fail to prove the clears happen first.
+      window.electron.sqlite.heatRaceDB.readLeaderboard
+        .mockResolvedValueOnce(JSON.parse(JSON.stringify(baseLeaderboardRows)))
+        .mockRejectedValueOnce(new Error('Simulated refetch failure'));
+
+      const { result } = renderHook(() => useLeaderboard(1));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      await act(async () => {
+        await result.current.toggleEditMode();
+      });
+      act(() => {
+        result.current.handleRaceChange('b2', 0, null, 'DSQ');
+      });
+
+      await act(async () => {
+        await result.current.handleSave();
+      });
+
+      // The atomic save succeeded; the refetch failed, but edit mode was already
+      // exited and the edits cleared before the refetch began.
+      expect(
+        window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic,
+      ).toHaveBeenCalledTimes(1);
+      expect(result.current.editMode).toBe(false);
+
+      // A retry must not resend the stale pre-save DSQ edit.
+      await act(async () => {
+        await result.current.handleSave();
+      });
+      const [, retryOps] =
+        window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic.mock
+          .calls[1];
+      expect(retryOps).toEqual([]);
+    });
+  });
+
+  describe('LB-1: fetch cancellation and stale-edit clearing', () => {
+    it('exits edit mode and clears queued edits when the series flips to final and re-fetches', async () => {
+      let resolveHeats;
+      window.electron.sqlite.heatRaceDB.readAllHeats.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveHeats = resolve;
+          }),
+      );
+      window.electron.sqlite.heatRaceDB.readFinalLeaderboard.mockResolvedValue([
+        {
+          boat_id: 'f1',
+          name: 'Final',
+          surname: 'One',
+          country: 'CRO',
+          boat_number: '901',
+          boat_type: 'IOM',
+          place: 1,
+          total_points_final: 1,
+          race_positions: '1',
+          race_points: '1',
+          race_ids: '201',
+          race_statuses: 'FINISHED',
+        },
+      ]);
+
+      const { result } = renderHook(() => useLeaderboard(1));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      await act(async () => {
+        await result.current.toggleEditMode();
+      });
+      act(() => {
+        result.current.handleRaceChange('b2', 0, null, 'DSQ');
+      });
+      expect(result.current.editMode).toBe(true);
+
+      // Final heats arrive -> fetchLeaderboard re-runs in final mode, which must
+      // clear the queued edit and leave edit mode.
+      await act(async () => {
+        resolveHeats([{ heat_type: 'Final' }]);
+      });
+
+      await waitFor(() => expect(result.current.finalSeriesStarted).toBe(true));
+      await waitFor(() => expect(result.current.editMode).toBe(false));
+
+      // The queued DSQ edit was cleared by the re-fetch: a save sends nothing.
+      await act(async () => {
+        await result.current.handleSave();
+      });
+      const [, ops] =
+        window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic.mock
+          .calls[0];
+      expect(ops).toEqual([]);
+    });
+
+    it('ignores a late qualifying fetch once the final series has started', async () => {
+      let releaseQualifyingRead;
+      window.electron.sqlite.heatRaceDB.readLeaderboard.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseQualifyingRead = resolve;
+          }),
+      );
+
+      window.electron.sqlite.heatRaceDB.readAllHeats.mockResolvedValue([
+        { heat_type: 'Final' },
+      ]);
+      const finalRows = [
+        {
+          boat_id: 'f1',
+          name: 'Final',
+          surname: 'One',
+          country: 'CRO',
+          boat_number: '901',
+          boat_type: 'IOM',
+          placement_group: 'Gold',
+          place: 1,
+          total_points_final: 1,
+          race_positions: '1',
+          race_points: '1',
+          race_ids: '201',
+          race_statuses: 'FINISHED',
+        },
+      ];
+      window.electron.sqlite.heatRaceDB.readFinalLeaderboard.mockResolvedValue(
+        JSON.parse(JSON.stringify(finalRows)),
+      );
+      window.electron.sqlite.heatRaceDB.readOverallLeaderboard.mockResolvedValue(
+        [],
+      );
+
+      const { result } = renderHook(() => useLeaderboard(1));
+      await waitFor(() => expect(result.current.finalSeriesStarted).toBe(true));
+      await waitFor(() =>
+        expect(result.current.leaderboard.some((e) => e.boat_id === 'f1')).toBe(
+          true,
+        ),
+      );
+
+      // Release the stale qualifying fetch after the final data is in place.
+      await act(async () => {
+        releaseQualifyingRead(JSON.parse(JSON.stringify(baseLeaderboardRows)));
+      });
+
+      // The stale qualifying fetch must not have overwritten the final standings.
+      expect(result.current.leaderboard.some((e) => e.boat_id === 'f1')).toBe(
+        true,
+      );
+      expect(result.current.leaderboard.some((e) => e.boat_id === 'b1')).toBe(
+        false,
+      );
+    });
+  });
+
+  describe('LB-7: shift-mode cascade moves position-keeping penalties', () => {
+    it('shifts a ZFP boat with the finishers and keeps every place unique', async () => {
+      window.electron.sqlite.heatRaceDB.readLeaderboard.mockResolvedValueOnce([
+        {
+          boat_id: 'b1',
+          name: 'Ana',
+          surname: 'A',
+          country: 'CRO',
+          boat_number: '101',
+          boat_type: 'IOM',
+          place: 1,
+          total_points_event: 1,
+          race_positions: '1',
+          race_points: '1',
+          race_ids: '101',
+          race_statuses: 'FINISHED',
+        },
+        {
+          boat_id: 'b2',
+          name: 'Bruno',
+          surname: 'B',
+          country: 'CRO',
+          boat_number: '102',
+          boat_type: 'IOM',
+          place: 2,
+          total_points_event: 3,
+          race_positions: '2',
+          race_points: '3',
+          race_ids: '101',
+          race_statuses: 'ZFP',
+        },
+        {
+          boat_id: 'b3',
+          name: 'Cedo',
+          surname: 'C',
+          country: 'CRO',
+          boat_number: '103',
+          boat_type: 'IOM',
+          place: 3,
+          total_points_event: 3,
+          race_positions: '3',
+          race_points: '3',
+          race_ids: '101',
+          race_statuses: 'FINISHED',
+        },
+        {
+          boat_id: 'b4',
+          name: 'Dora',
+          surname: 'D',
+          country: 'CRO',
+          boat_number: '104',
+          boat_type: 'IOM',
+          place: 4,
+          total_points_event: 4,
+          race_positions: '4',
+          race_points: '4',
+          race_ids: '101',
+          race_statuses: 'FINISHED',
+        },
+      ]);
+
+      const { result } = renderHook(() => useLeaderboard(1));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      await act(async () => {
+        await result.current.toggleEditMode();
+      });
+      act(() => {
+        result.current.setShiftPositions(true);
+      });
+      // Move b4 (place 4) up to place 1; everyone between must shift down.
+      act(() => {
+        result.current.handleRaceChange('b4', 0, 1, 'FINISHED');
+      });
+
+      const get = (id) =>
+        result.current.editableLeaderboard.find((e) => e.boat_id === id);
+      const places = ['b1', 'b2', 'b3', 'b4'].map((id) => get(id).races[0]);
+
+      // Every place must stay unique — the ZFP boat shifts from 2 to 3.
+      expect(new Set(places).size).toBe(4);
+      expect(get('b4').races[0]).toBe('1');
+      expect(get('b1').races[0]).toBe('2');
+      expect(get('b2').races[0]).toBe('3');
+      expect(get('b3').races[0]).toBe('4');
+      expect(get('b2').race_statuses[0]).toBe('ZFP');
+    });
+  });
+
+  describe('LB-8: N-boat swap chain in computeSwapEdits', () => {
+    const { confirmChoice } = require('../renderer/utils/userFeedback');
+
+    it('does not collapse multiple displaced boats onto one place', async () => {
+      confirmChoice.mockResolvedValueOnce('confirm');
+      window.electron.sqlite.heatRaceDB.readLeaderboard.mockResolvedValueOnce([
+        {
+          boat_id: 'b1',
+          name: 'Ana',
+          surname: 'A',
+          country: 'CRO',
+          boat_number: '101',
+          boat_type: 'IOM',
+          place: 1,
+          total_points_event: 1,
+          race_positions: '1',
+          race_points: '1',
+          race_ids: '101',
+          race_statuses: 'FINISHED',
+        },
+        {
+          boat_id: 'b2',
+          name: 'Bruno',
+          surname: 'B',
+          country: 'CRO',
+          boat_number: '102',
+          boat_type: 'IOM',
+          place: 2,
+          total_points_event: 2,
+          race_positions: '2',
+          race_points: '2',
+          race_ids: '101',
+          race_statuses: 'FINISHED',
+        },
+        {
+          boat_id: 'b3',
+          name: 'Cedo',
+          surname: 'C',
+          country: 'CRO',
+          boat_number: '103',
+          boat_type: 'IOM',
+          place: 3,
+          total_points_event: 3,
+          race_positions: '3',
+          race_points: '3',
+          race_ids: '101',
+          race_statuses: 'FINISHED',
+        },
+      ]);
+
+      const { result } = renderHook(() => useLeaderboard(1));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      await act(async () => {
+        await result.current.toggleEditMode();
+      });
+      // Shift OFF: move b1 and b3 both onto place 2 (b2's place) — a 3-way tie.
+      act(() => {
+        result.current.handleRaceChange('b1', 0, 2, 'FINISHED');
+      });
+      act(() => {
+        result.current.handleRaceChange('b3', 0, 2, 'FINISHED');
+      });
+
+      await act(async () => {
+        await result.current.handleSave();
+      });
+
+      const [, ops] =
+        window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic.mock
+          .calls[0];
+      // b1 keeps place 2; b2 is rotated into the vacated place 1. b3 reverts to
+      // its saved place 3, so it is a no-op and must not be sent. Crucially, the
+      // old bug sent b3 to place 1 too — collapsing it onto b2's target.
+      expect(ops).toHaveLength(2);
+      expect(ops).toContainEqual({
+        raceId: '101',
+        boatId: 'b1',
+        newPosition: 2,
+        entryStatus: 'FINISHED',
+        shiftPositions: false,
+      });
+      expect(ops).toContainEqual({
+        raceId: '101',
+        boatId: 'b2',
+        newPosition: 1,
+        entryStatus: 'FINISHED',
+        shiftPositions: false,
+      });
+      expect(ops).not.toContainEqual({
+        raceId: '101',
+        boatId: 'b3',
+        newPosition: 1,
+        entryStatus: 'FINISHED',
+        shiftPositions: false,
+      });
+    });
   });
 });

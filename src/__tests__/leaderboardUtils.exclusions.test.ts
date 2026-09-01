@@ -1,5 +1,6 @@
 import {
   applyExclusions,
+  averageRacePoints,
   getExcludeCount,
   processLeaderboardEntry,
 } from '../renderer/utils/leaderboardUtils';
@@ -78,19 +79,29 @@ describe('getExcludeCount — SHRS 5.4 boundaries and custom-profile edge cases'
     expect(getExcludeCount(10, profile)).toBe(2);
   });
 
-  // Renderer-side analog of discardConfig.ts's documented m6 finding
-  // (src/__tests__/discardConfig.test.ts): an explicit empty thresholds list
-  // ({thresholds: []}) is meant to read as "never discard" but
-  // parseDiscardThresholdsFromProfile (leaderboardUtils.ts) returns [] (not
-  // null), and getExcludeCount only honours thresholds when length > 0, so it
-  // silently falls through to the standard 4/8/8 profile instead. Same
-  // misreading, same needs-a-product-decision status — pinned here so the
-  // renderer preview and the persisted discardConfig.ts logic don't silently
-  // diverge if only one side gets fixed.
-  it('CURRENT (surfaces m6-analog): an empty custom thresholds list silently reverts to standard 4/8/8 instead of never discarding', () => {
+  // RULE-m6, renderer side. The preview now shares one implementation with the
+  // main process (src/shared/discardProfile.ts), so this can no longer diverge
+  // from the persisted scores.
+  it('treats an empty custom thresholds list as "never discard" (SHRS 5.4)', () => {
     const emptyProfile = JSON.stringify({ thresholds: [] });
-    expect(getExcludeCount(4, emptyProfile)).toBe(1); // standard fallback, not 0
-    expect(getExcludeCount(8, emptyProfile)).toBe(2); // standard fallback, not 0
+    expect(getExcludeCount(4, emptyProfile)).toBe(0);
+    expect(getExcludeCount(8, emptyProfile)).toBe(0);
+    expect(getExcludeCount(50, emptyProfile)).toBe(0);
+  });
+
+  // The renderer used to honour ONLY `thresholds` and silently applied the
+  // standard 4/8/8 to any other custom profile, so the edit-mode preview
+  // disagreed with the stored scores for every RC-altered discard rule.
+  it('honours a custom first/second/every profile like the backend does', () => {
+    const profile = JSON.stringify({
+      firstDiscardAt: 3,
+      secondDiscardAt: 6,
+      additionalEvery: 6,
+    });
+    expect(getExcludeCount(2, profile)).toBe(0);
+    expect(getExcludeCount(3, profile)).toBe(1); // standard 4/8/8 would say 0
+    expect(getExcludeCount(6, profile)).toBe(2); // standard 4/8/8 would say 1
+    expect(getExcludeCount(12, profile)).toBe(3);
   });
 });
 
@@ -128,5 +139,34 @@ describe('processLeaderboardEntry race_points handling', () => {
     const processed = processLeaderboardEntry(entry, 'standard', 5);
     expect(processed.computed_total).toBe(10);
     expect(processed.races).toEqual(['(5)', '4', '3', '2', '1']);
+  });
+});
+
+describe('averageRacePoints — shared RRS A9 average (RDG1/RDG2)', () => {
+  it('averages all races except the excluded one (RDG1) and rounds to a tenth', () => {
+    // Excluding index 2 (value 3): (1 + 2 + 4) / 3 = 2.333… -> 2.3.
+    expect(averageRacePoints(['1', '2', '3', '4'], null, 2, 99)).toBe(2.3);
+  });
+
+  it('averages only the selected race indices (RDG2)', () => {
+    // Selected {1, 3} -> values 2 and 4 -> 3.
+    expect(
+      averageRacePoints(['1', '2', '3', '4'], new Set([1, 3]), 0, 99),
+    ).toBe(3);
+  });
+
+  it('strips exclusion parentheses from averaged values', () => {
+    // "(3)" is a discarded score; its numeric points still count.
+    expect(averageRacePoints(['(3)', '4', '5'], null, 0, 99)).toBe(4.5);
+  });
+
+  it('skips non-numeric values instead of averaging them as NaN', () => {
+    // Exclude index 0; "abc" parses to NaN and is skipped -> (3) / 1 = 3.
+    expect(averageRacePoints(['1', 'abc', '3'], null, 0, 99)).toBe(3);
+  });
+
+  it('falls back to penaltyPos when every candidate is excluded or non-numeric', () => {
+    expect(averageRacePoints(['x'], null, 0, 7)).toBe(7);
+    expect(averageRacePoints(['1', '2'], new Set([0]), 0, 7)).toBe(7);
   });
 });

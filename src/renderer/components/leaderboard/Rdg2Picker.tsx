@@ -7,7 +7,10 @@ interface Rdg2PickerProps {
   rdg2Picker: Rdg2PickerState | null;
   setRdg2Picker: React.Dispatch<React.SetStateAction<Rdg2PickerState | null>>;
   confirmRdg2: () => void;
-  qualifyingEntry?: LeaderboardEntry | null;
+  /** Label prefix for the listed races: 'F' in the Final Series, 'Q' while the
+   * event is still qualifying-only. Cosmetic — the races themselves are always
+   * `entry.races`, i.e. the cell's own series (SHRS 5.6). */
+  seriesPrefix?: 'Q' | 'F';
   /** The cell control the popover is anchored to. When provided, the popover
    * re-tracks it on scroll/resize instead of closing (which would discard the
    * user's in-progress selection). */
@@ -16,7 +19,11 @@ interface Rdg2PickerProps {
 
 /**
  * Floating popover for selecting races to average for an RDG2 redress.
- * Supports qualifying races (qualifyingEntry) and/or final-series races (entry).
+ *
+ * SHRS 5.6: "averages shall be calculated separately for each of the Qualifying
+ * and Final Series." The selectable races are therefore only the races of the
+ * series the edited cell belongs to (`entry.races`) — a final-series redress is
+ * never averaged over qualifying races, or vice versa.
  */
 // Estimated max popover height: header + capped race list (300px) + buttons.
 // Used to flip the popover above the anchor when it would overflow the
@@ -24,16 +31,20 @@ interface Rdg2PickerProps {
 const PICKER_EST_HEIGHT = 420;
 const PICKER_MIN_WIDTH = 240;
 
+const FOCUSABLE_SELECTOR =
+  'button:not(:disabled), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
 function Rdg2Picker({
   entry,
   raceIndex,
   rdg2Picker,
   setRdg2Picker,
   confirmRdg2,
-  qualifyingEntry = null,
+  seriesPrefix = 'Q',
   anchorEl = null,
 }: Rdg2PickerProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const lastFocusedRef = React.useRef<HTMLElement | null>(null);
   // Live anchor position. Seeded from the rect captured when the popover opened,
   // then refreshed from the anchor element on scroll/resize so the popover stays
   // glued to its cell instead of drifting or closing.
@@ -52,7 +63,10 @@ function Rdg2Picker({
       }
     };
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setRdg2Picker(null);
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setRdg2Picker(null);
+      }
     };
     const reposition = () => {
       if (anchorEl) setAnchorRect(anchorEl.getBoundingClientRect());
@@ -82,13 +96,64 @@ function Rdg2Picker({
     };
   }, [setRdg2Picker, anchorEl]);
 
+  // Focus trap + focus restore (mirrors the shared <AppModal />). The picker is
+  // only mounted while open, so mount/unmount maps to open/close: focus the first
+  // focusable control on open, keep Tab cycling inside the dialog, and hand focus
+  // back to the triggering cell control on close.
+  React.useEffect(() => {
+    const dialog = containerRef.current;
+    if (!dialog) return undefined;
+
+    lastFocusedRef.current = document.activeElement as HTMLElement | null;
+    const focusables = [
+      ...dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+    ];
+    if (focusables.length > 0) {
+      focusables[0].focus();
+    } else {
+      dialog.focus();
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return;
+
+      const currentFocusable = [
+        ...dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+      ];
+      if (currentFocusable.length === 0) {
+        event.preventDefault();
+        return;
+      }
+
+      const first = currentFocusable[0];
+      const last = currentFocusable[currentFocusable.length - 1];
+      const active = document.activeElement;
+
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      if (
+        lastFocusedRef.current &&
+        typeof lastFocusedRef.current.focus === 'function'
+      ) {
+        lastFocusedRef.current.focus();
+      }
+    };
+  }, []);
+
   if (!rdg2Picker || !anchorRect) return null;
 
-  const totalSelected =
-    (rdg2Picker.selectedIndices?.size ?? 0) +
-    (rdg2Picker.selectedQualIndices?.size ?? 0);
-
-  const hasQual = (qualifyingEntry?.races?.length ?? 0) > 0;
+  const totalSelected = rdg2Picker.selectedIndices?.size ?? 0;
 
   // Open upward when there's no room below but there is above; clamp the left
   // edge so the popover never hangs off the right side of the window.
@@ -106,6 +171,10 @@ function Rdg2Picker({
   return (
     <div
       ref={containerRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Select races for RDG2"
+      tabIndex={-1}
       style={{
         position: 'fixed',
         ...verticalPlacement,
@@ -135,84 +204,12 @@ function Rdg2Picker({
       <div
         style={{ maxHeight: '300px', overflowY: 'auto', marginBottom: '8px' }}
       >
-        {/* Qualifying races (if final series context) */}
-        {hasQual && qualifyingEntry && (
-          <>
-            <div
-              style={{
-                fontSize: '0.85rem',
-                fontWeight: 700,
-                color: 'var(--text-muted)',
-                marginBottom: '4px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-              }}
-            >
-              Qualifying
-            </div>
-            {qualifyingEntry.races.map((_, qIdx) => {
-              const checked =
-                rdg2Picker.selectedQualIndices?.has(qIdx) ?? false;
-              return (
-                // The checkbox control is nested directly inside this label,
-                // which is a valid implicit association the rule misses here.
-                // eslint-disable-next-line jsx-a11y/label-has-associated-control
-                <label
-                  // eslint-disable-next-line react/no-array-index-key
-                  key={`q-${qIdx}`}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontSize: '0.85rem',
-                    cursor: 'pointer',
-                    marginBottom: '5px',
-                    padding: '3px 4px',
-                    borderRadius: '4px',
-                    background: checked
-                      ? 'rgba(42,157,143,0.08)'
-                      : 'transparent',
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => {
-                      const newSet = new Set(
-                        rdg2Picker.selectedQualIndices || [],
-                      );
-                      if (checked) newSet.delete(qIdx);
-                      else newSet.add(qIdx);
-                      setRdg2Picker({
-                        ...rdg2Picker,
-                        selectedQualIndices: newSet,
-                      });
-                    }}
-                  />
-                  Q{qIdx + 1}
-                </label>
-              );
-            })}
-            <div
-              style={{
-                fontSize: '0.85rem',
-                fontWeight: 700,
-                color: 'var(--text-muted)',
-                margin: '6px 0 4px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-              }}
-            >
-              Final
-            </div>
-          </>
-        )}
-
-        {/* Final (or qualifying-only) races */}
+        {/* SHRS 5.6: only this cell's own series is offered — see the file
+            header. `entry.races` is the active series' race list. */}
         {entry.races.map((_, rIdx) => {
           if (rIdx === raceIndex) return null;
           const checked = rdg2Picker.selectedIndices?.has(rIdx) ?? false;
-          const label = hasQual ? `F${rIdx + 1}` : `Q${rIdx + 1}`;
+          const label = `${seriesPrefix}${rIdx + 1}`;
           return (
             // The checkbox control is nested directly inside this label,
             // which is a valid implicit association the rule misses here.

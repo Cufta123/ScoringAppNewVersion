@@ -179,13 +179,13 @@ function GlobalLeaderboardComponent() {
       <table>
         <thead>
           <tr>
-            <th>Rank</th>
-            <th>Name</th>
-            <th>Surname</th>
-            <th>Boat Number</th>
-            <th>Boat Type</th>
-            <th>Country</th>
-            <th>Total Points</th>
+            <th scope="col">Rank</th>
+            <th scope="col">Name</th>
+            <th scope="col">Surname</th>
+            <th scope="col">Boat Number</th>
+            <th scope="col">Boat Type</th>
+            <th scope="col">Country</th>
+            <th scope="col">Total Points</th>
           </tr>
         </thead>
         <tbody>

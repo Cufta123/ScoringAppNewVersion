@@ -78,4 +78,21 @@ describe('ScoreCell editing at the max place', () => {
 
     expect(onRaceChange).toHaveBeenLastCalledWith(1, 0, '12.5', 'RDG3');
   });
+
+  // LB-3: selecting any non-RDG2 status must close this cell's open RDG2 picker,
+  // otherwise clicking Apply (confirmRdg2) would silently revert the choice.
+  it('closes an open RDG2 picker when a non-RDG2 status is chosen', () => {
+    const setRdg2Picker = jest.fn();
+    const { onRaceChange } = renderCell({
+      raceStatus: 'FINISHED',
+      rdg2Picker: { boatId: 1, raceIndex: 0, selectedIndices: new Set([0]) },
+      setRdg2Picker,
+    });
+
+    const select = screen.getByLabelText('Race 1 status');
+    fireEvent.change(select, { target: { value: 'DNS' } });
+
+    expect(setRdg2Picker).toHaveBeenCalledWith(null);
+    expect(onRaceChange).toHaveBeenCalledWith(1, 0, null, 'DNS');
+  });
 });

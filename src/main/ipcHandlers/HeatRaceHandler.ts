@@ -23,6 +23,8 @@ import {
   resolveOverallTieGroupSequentially,
 } from '../functions/overallTieBreak';
 import { computeAdjustedFleetTotals } from '../../shared/fleetAssignment';
+import { fleetNameForIndex, fleetRank } from '../../shared/fleetNames';
+import { orderFinalLeaderboardRows } from '../functions/finalLeaderboardOrder';
 import explainTieBreak from '../functions/explainTieBreak';
 import {
   buildEventSnapshot,
@@ -30,6 +32,7 @@ import {
 } from '../functions/eventSnapshot';
 import {
   clearAssignmentSnapshot,
+  clearAssignmentSnapshotsForHeat,
   loadPersistedAssignmentSnapshot,
   persistAssignmentSnapshot,
   raceAssignmentSnapshots,
@@ -47,13 +50,20 @@ import {
   compareSeededRows,
   getHeatBaseFromName,
   getScoringPenaltyPoints,
-  mandatoryDisplaceStatuses,
+  isNonScoringPenalty,
   normalizeScoreStatus,
   normalizeStatus,
-  penaltyStatuses,
+  promotesBoatsBehind,
+  protestCommitteeStatuses,
   rdgStatuses,
   scoringPenaltyStatuses,
 } from '../functions/scoreStatus';
+import {
+  detectDuplicateSailNumbers,
+  normalizeSailNumber,
+  sanitizePositiveFinite,
+  sanitizePositiveInteger,
+} from '../functions/validation';
 
 console.log('HeatRaceHandler.ts loaded');
 
@@ -189,22 +199,50 @@ function applyRaceResultUpdate(
   const heatType = heatRow?.heat_type ?? 'Qualifying';
   const maxBoats = getMaxHeatSize(event_id, heatType);
 
+  // RULE-M14 / SHRS 3.1.5: only a PROTEST-COMMITTEE decision is shielded from
+  // changing heat assignments, so only such an edit snapshots the pre-decision
+  // order. This used to fire on every score correction, which meant a single
+  // mistyped finishing place permanently froze the heat assignment for the rest
+  // of the event even though the rule says nothing about race-office fixes.
   if (heatRow?.heat_id != null) {
-    captureRaceAssignmentSnapshotIfMissing(heatRow.heat_id, Number(race_id));
+    if (protestCommitteeStatuses.has(status)) {
+      captureRaceAssignmentSnapshotIfMissing(heatRow.heat_id, Number(race_id));
+    } else {
+      // An ordinary race-office correction is NOT shielded by 3.1.5, so any
+      // cached assignment snapshot for this race is stale: forget it (memory +
+      // persisted) so the next assignment recomputes from the corrected result
+      // instead of seeding the next round from the pre-correction order.
+      clearAssignmentSnapshot(Number(race_id));
+    }
   }
 
   // For RDG and DPI statuses keep the frontend-provided value (PC-set);
   // for ZFP/SCP apply scoring penalty on finishing place;
   // for other penalties use largest-heat size + 1 per SHRS 5.2.
-  let finalPosition = Number(new_position);
-  let points = finalPosition;
-  if (!keepsProvidedPoints && penaltyStatuses.includes(status)) {
-    if (isScoringPenalty) {
-      points = getScoringPenaltyPoints(finalPosition, maxBoats, status);
-    } else {
-      finalPosition = maxBoats + 1;
-      points = finalPosition;
-    }
+  // BK-6: guard against NaN/0/negative before writing. RDG/DPI are PC-set and
+  // may be fractional or < 1 (CMP C-23/C-24), so they only need to be finite and
+  // positive; every other status writes a finishing place (positive whole number).
+  const positionContext = `Position for ${status}`;
+  // BK-6: non-scoring penalties (DNF/DNS/DSQ/...) are always scored at
+  // maxBoats + 1 (SHRS 5.2), so their provided position is discarded and must
+  // NOT be validated — a legacy caller may send 0/'' for "no place". Only
+  // values that are actually written (FINISHED, ZFP/SCP/T1, RDG/DPI) are
+  // sanitized. The classification lives in scoreStatus.isNonScoringPenalty so
+  // the write path and re-derivation share one definition.
+  const isNonScoringPenaltyStatus = isNonScoringPenalty(status);
+  let finalPosition: number;
+  let points: number;
+  if (isNonScoringPenaltyStatus) {
+    finalPosition = maxBoats + 1;
+    points = finalPosition;
+  } else if (keepsProvidedPoints) {
+    finalPosition = sanitizePositiveFinite(new_position, positionContext);
+    points = finalPosition;
+  } else {
+    finalPosition = sanitizePositiveInteger(new_position, positionContext);
+    points = isScoringPenalty
+      ? getScoringPenaltyPoints(finalPosition, maxBoats, status)
+      : finalPosition;
   }
 
   const currentResult = db
@@ -229,73 +267,124 @@ function applyRaceResultUpdate(
     'UPDATE Scores SET position = ?, points = ?, status = ? WHERE race_id = ? AND boat_id = ?',
   ).run(finalPosition, points, status, race_id, boat_id);
 
-  // With "shift other boats" OFF the edit is a manual override: only the edited
-  // boat changes. Every other boat keeps its place and points exactly as they
-  // are — no displacement, no ripple, no re-rank — even if that leaves a tie or
-  // a gap. The renderer preview behaves identically so Save never diverges from
-  // what the user saw. With the toggle ON we mirror the full race re-scoring.
   // RRS A6.2: giving redress by adjusting one boat's score must NOT change any
-  // other boat's score. So an RDG edit never triggers displacement or a re-rank,
-  // even with "shift other boats" on — only the redressed boat's own row (set
-  // above) changes. DPI is treated the same way: a discretionary points penalty
-  // does not vacate a finishing place, so it never displaces other boats.
-  if (shift_positions && !keepsProvidedPoints) {
-    if (
-      previousStatus === 'FINISHED' &&
-      mandatoryDisplaceStatuses.has(status)
-    ) {
-      db.prepare(
-        `UPDATE Scores SET position = position - 1, points = position - 1
+  // other boat's score. So an RDG edit never triggers displacement or a re-rank
+  // — only the redressed boat's own row (set above) changes. DPI is treated the
+  // same way: a discretionary points penalty does not vacate a finishing place,
+  // so it never displaces other boats.
+  //
+  // RULE-M16 / RRS A6.1: "each boat with a worse finishing place SHALL be moved
+  // up one place" when a boat that finished is disqualified or retires after
+  // finishing. That is mandatory, not a scorer preference, so the promotion is
+  // NOT gated on the "shift other boats" toggle — it used to be, which meant
+  // the default (shift-off) path silently left every boat behind a DSQ one
+  // place too low. The toggle governs only the manual place-move ripple below,
+  // which is a data-entry convenience rather than a rule. The predicate lives
+  // in scoreStatus.promotesBoatsBehind so the write path and the renderer
+  // preview share one definition.
+  const promotesBoats = promotesBoatsBehind(previousStatus, status);
+
+  if (promotesBoats) {
+    db.prepare(
+      `UPDATE Scores SET position = position - 1, points = position - 1
          WHERE race_id = ? AND status = 'FINISHED' AND position > ?`,
-      ).run(race_id, currentPosition);
+    ).run(race_id, currentPosition);
 
-      // RRS A6.1 applies to position-keeping penalty boats (ZFP/SCP/T1) too:
-      // they hold a finishing place, so a boat placed worse than the removed
-      // boat moves up one. Their points are a percentage of the DNF score, not
-      // the place, so recompute each instead of the flat position=points shift
-      // above. Doing this here also prevents a stale penalty position from
-      // colliding with a shifted finisher and being mis-read as an RRS A7 tie
-      // by applyRaceTieScoring.
-      const penaltyStatusList = [...scoringPenaltyStatuses]
-        .map((penaltyStatus) => `'${penaltyStatus}'`)
-        .join(', ');
-      const penaltyRowsBehind = db
-        .prepare(
-          `SELECT score_id, position, status FROM Scores
+    // RRS A6.1 applies to position-keeping penalty boats (ZFP/SCP/T1) too:
+    // they hold a finishing place, so a boat placed worse than the removed
+    // boat moves up one. Their points are a percentage of the DNF score, not
+    // the place, so recompute each instead of the flat position=points shift
+    // above. Doing this here also prevents a stale penalty position from
+    // colliding with a shifted finisher and being mis-read as an RRS A7 tie
+    // by applyRaceTieScoring.
+    const penaltyStatusList = [...scoringPenaltyStatuses]
+      .map((penaltyStatus) => `'${penaltyStatus}'`)
+      .join(', ');
+    const penaltyRowsBehind = db
+      .prepare(
+        `SELECT score_id, position, status FROM Scores
            WHERE race_id = ? AND status IN (${penaltyStatusList}) AND position > ?`,
-        )
-        .all(race_id, currentPosition) as {
-        score_id: number;
-        position: number;
-        status: string;
-      }[];
-      const shiftPenaltyRow = db.prepare(
-        'UPDATE Scores SET position = ?, points = ? WHERE score_id = ?',
+      )
+      .all(race_id, currentPosition) as {
+      score_id: number;
+      position: number;
+      status: string;
+    }[];
+    const shiftPenaltyRow = db.prepare(
+      'UPDATE Scores SET position = ?, points = ? WHERE score_id = ?',
+    );
+    penaltyRowsBehind.forEach((row) => {
+      const newPosition = row.position - 1;
+      shiftPenaltyRow.run(
+        newPosition,
+        getScoringPenaltyPoints(newPosition, maxBoats, row.status),
+        row.score_id,
       );
-      penaltyRowsBehind.forEach((row) => {
-        const newPosition = row.position - 1;
-        shiftPenaltyRow.run(
-          newPosition,
-          getScoringPenaltyPoints(newPosition, maxBoats, row.status),
-          row.score_id,
-        );
-      });
-    }
+    });
+  }
 
+  // With "shift other boats" OFF a manual place change is an override: only the
+  // edited boat moves, even if that leaves a tie or a gap. The renderer preview
+  // behaves identically so Save never diverges from what the user saw.
+  if (shift_positions && !keepsProvidedPoints) {
     if (status === 'FINISHED') {
+      // LB-7: the manual ripple must move position-keeping penalty boats
+      // (ZFP/SCP/T1) together with finishers, or the persisted leaderboard
+      // diverges from the renderer preview (which does shift them). Their points
+      // are a percentage of the DNF score (not the place), so recompute each
+      // rather than the flat `position = points` shift used for FINISHED boats.
+      const shiftPositionKeepingRows = (
+        minPos: number,
+        maxPos: number,
+        delta: number,
+      ) => {
+        const penaltyStatusList = [...scoringPenaltyStatuses]
+          .map((penaltyStatus) => `'${penaltyStatus}'`)
+          .join(', ');
+        const rows = db
+          .prepare(
+            `SELECT score_id, position, status FROM Scores
+             WHERE race_id = ? AND status IN (${penaltyStatusList})
+               AND position BETWEEN ? AND ? AND boat_id != ?`,
+          )
+          .all(race_id, minPos, maxPos, boat_id) as {
+          score_id: number;
+          position: number;
+          status: string;
+        }[];
+        const shift = db.prepare(
+          'UPDATE Scores SET position = ?, points = ? WHERE score_id = ?',
+        );
+        rows.forEach((row) => {
+          const newPosition = row.position + delta;
+          shift.run(
+            newPosition,
+            getScoringPenaltyPoints(newPosition, maxBoats, row.status),
+            row.score_id,
+          );
+        });
+      };
+
       if (currentPosition > finalPosition) {
         db.prepare(
           `UPDATE Scores SET position = position + 1, points = position + 1
            WHERE race_id = ? AND status = 'FINISHED' AND position >= ? AND position < ? AND boat_id != ?`,
         ).run(race_id, finalPosition, currentPosition, boat_id);
+        shiftPositionKeepingRows(finalPosition, currentPosition - 1, 1);
       } else if (currentPosition < finalPosition) {
         db.prepare(
           `UPDATE Scores SET position = position - 1, points = position - 1
            WHERE race_id = ? AND status = 'FINISHED' AND position <= ? AND position > ? AND boat_id != ?`,
         ).run(race_id, finalPosition, currentPosition, boat_id);
+        shiftPositionKeepingRows(currentPosition + 1, finalPosition, -1);
       }
     }
+  }
 
+  // RRS A7: re-average any places that are now shared. Needed after either kind
+  // of position change — the mandatory A6.1 promotion (which runs regardless of
+  // the toggle) or the manual ripple above.
+  if (promotesBoats || (shift_positions && !keepsProvidedPoints)) {
     applyRaceTieScoring(race_id);
   }
 }
@@ -526,9 +615,12 @@ function getOddEvenMovementAdvisory(
   numberOfHeats: number,
   totalBoats: number,
 ): string | null {
-  // SHRS 2026 end-note advisory: with 2 heats and odd/even movement,
-  // fleet totals where N mod 4 = 2 can temporarily produce a 2-boat imbalance.
-  if (numberOfHeats === 2 && totalBoats >= 14 && totalBoats % 4 === 2) {
+  // SHRS 2026 Heat Movement Tables end-note: "with entries of 10, 14, 18, 22,
+  // 26, 30, 34 and 38 every second race will result in Heat 1 having 2 more
+  // boats than Heat 2" — i.e. every N where N mod 4 = 2, starting at 10.
+  // RULE-m1: the floor used to be 14, which silently skipped the 10-boat case
+  // the rule names explicitly.
+  if (numberOfHeats === 2 && totalBoats >= 10 && totalBoats % 4 === 2) {
     return (
       `SHRS advisory: with odd/even movement tables and ${totalBoats} boats in 2 heats, ` +
       'a temporary 2-boat imbalance between heats can occur and is expected.'
@@ -799,6 +891,24 @@ ipcMain.handle(
           'No boats are registered for this event yet — add entries before creating heats.',
         );
       }
+
+      // BK-4: two boats sharing a sail number (or an empty sail number) collide
+      // when keying a boat-by-sail map, which would silently drop one boat from
+      // the heat assignment. Fail loudly instead of assigning the wrong boats.
+      const duplicateSailNumbers = detectDuplicateSailNumbers(boats);
+      if (duplicateSailNumbers.length > 0) {
+        const details = duplicateSailNumbers
+          .map(({ sail, boatIds }) =>
+            sail === ''
+              ? `empty sail number (boats ${boatIds.join(', ')})`
+              : `sail number "${sail}" (boats ${boatIds.join(', ')})`,
+          )
+          .join('; ');
+        throw new Error(
+          `Cannot create heats: duplicate sail numbers — ${details}.`,
+        );
+      }
+
       if (Math.ceil(boats.length / numHeats) > SHRS_MAX_BOATS_PER_HEAT) {
         const minHeats = Math.ceil(boats.length / SHRS_MAX_BOATS_PER_HEAT);
         throw new Error(
@@ -964,11 +1074,16 @@ ipcMain.handle('insertRace', async (event, heat_id, race_number) => {
       throw new Error('Heat not found.');
     }
 
-    const result = db
-      .prepare('INSERT INTO Races (heat_id, race_number) VALUES (?, ?)')
-      .run(heat_id, race_number);
-    seedRaceWithDefaultDnsScores(Number(result.lastInsertRowid), heat_id);
-    return { lastInsertRowid: result.lastInsertRowid };
+    // BK-5: the race INSERT and the default DNS seed must commit together — a
+    // failure between them would leave an orphan race with zero scores.
+    const insertRaceTx = db.transaction(() => {
+      const result = db
+        .prepare('INSERT INTO Races (heat_id, race_number) VALUES (?, ?)')
+        .run(heat_id, race_number);
+      seedRaceWithDefaultDnsScores(Number(result.lastInsertRowid), heat_id);
+      return { lastInsertRowid: result.lastInsertRowid };
+    });
+    return insertRaceTx();
   } catch (error) {
     console.error('Error inserting race:', error);
     throw error;
@@ -1005,26 +1120,47 @@ ipcMain.handle(
       }
 
       const normalizedStatus = normalizeScoreStatus(status);
-      const updated = db
-        .prepare(
-          'UPDATE Scores SET position = ?, points = ?, status = ? WHERE race_id = ? AND boat_id = ?',
-        )
-        .run(position, points, normalizedStatus, race_id, boat_id);
 
-      let result = updated;
-      if (updated.changes === 0) {
-        result = db
+      // BK-6: guard position/points against NaN/0/negative before binding so a
+      // bad payload surfaces a clear error instead of an opaque
+      // SQLITE_CONSTRAINT (better-sqlite3 stores NaN as NULL, violating NOT NULL).
+      // RDG*/DPI positions are protest-committee-set and may be fractional or
+      // < 1 (CMP C-23/C-24), so they only need to be finite and positive; every
+      // other status writes a finishing place (a positive whole number).
+      const keepsProvidedPoints =
+        rdgStatuses.includes(normalizedStatus) || normalizedStatus === 'DPI';
+      const safePosition = keepsProvidedPoints
+        ? sanitizePositiveFinite(position, 'Position')
+        : sanitizePositiveInteger(position, 'Position');
+      const safePoints = sanitizePositiveFinite(points, 'Points');
+
+      // BK-5: the UPDATE-or-INSERT, A7 tie re-scoring and discard-profile lock
+      // must commit together — an unwrapped UPDATE-then-INSERT lets two
+      // concurrent calls both see `changes === 0` and double-INSERT.
+      const insertScoreTx = db.transaction(() => {
+        const updated = db
           .prepare(
-            'INSERT INTO Scores (race_id, boat_id, position, points, status) VALUES (?, ?, ?, ?, ?)',
+            'UPDATE Scores SET position = ?, points = ?, status = ? WHERE race_id = ? AND boat_id = ?',
           )
-          .run(race_id, boat_id, position, points, normalizedStatus);
-      }
+          .run(safePosition, safePoints, normalizedStatus, race_id, boat_id);
 
-      if (normalizedStatus === 'FINISHED') {
-        applyRaceTieScoring(race_id);
-      }
-      lockDiscardProfileForRace(Number(race_id));
-      return { lastInsertRowid: result.lastInsertRowid };
+        let result = updated;
+        if (updated.changes === 0) {
+          result = db
+            .prepare(
+              'INSERT INTO Scores (race_id, boat_id, position, points, status) VALUES (?, ?, ?, ?, ?)',
+            )
+            .run(race_id, boat_id, safePosition, safePoints, normalizedStatus);
+        }
+
+        if (normalizedStatus === 'FINISHED') {
+          applyRaceTieScoring(race_id);
+        }
+        lockDiscardProfileForRace(Number(race_id));
+        return { lastInsertRowid: result.lastInsertRowid };
+      });
+
+      return insertScoreTx();
     } catch (error) {
       console.error('Error inserting score:', error);
       throw error;
@@ -1127,7 +1263,25 @@ ipcMain.handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
       )
       .all(heat_id) as Array<{ boat_id: number; sail_number: string | number }>;
 
-    const normalizeSail = (value: unknown) => String(value).trim();
+    const normalizeSail = normalizeSailNumber;
+
+    // BK-4: two boats sharing a sail number (or an empty sail number) collide in
+    // boatsBySail and silently drop one boat's score. Detect it up front and fail
+    // loudly instead of scoring the wrong boat.
+    const duplicateSailNumbers = detectDuplicateSailNumbers(boats);
+    if (duplicateSailNumbers.length > 0) {
+      const details = duplicateSailNumbers
+        .map(({ sail, boatIds }) =>
+          sail === ''
+            ? `empty sail number (boats ${boatIds.join(', ')})`
+            : `sail number "${sail}" (boats ${boatIds.join(', ')})`,
+        )
+        .join('; ');
+      throw new Error(
+        `Cannot score heat ${heat_id}: duplicate sail numbers — ${details}.`,
+      );
+    }
+
     const boatsBySail = new Map(
       boats.map((boat) => [normalizeSail(boat.sail_number), boat]),
     );
@@ -1167,29 +1321,42 @@ ipcMain.handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
         const boat = boatsBySail.get(normalizeSail(boatNumber))!;
         const normalizedStatus = normalizeScoreStatus(status);
 
-        let position = place;
-        let points = place;
-        if (normalizedStatus !== 'FINISHED') {
-          if (scoringPenaltyStatuses.has(normalizedStatus)) {
-            // ZFP/SCP/T1: keep finishing place, add the scoring-penalty places.
-            position = place;
-            points = getScoringPenaltyPoints(
-              place,
-              heatSizeForPenalty,
-              normalizedStatus,
-            );
-          } else {
-            // Non-scoring penalties (DNF/DNS/...) take the penalty score AND the
-            // shared penalty position (largest-heat size + 1) per SHRS 5.2.
-            // BK-3: the frontend always sends a sequential `place` (>=1), so the
-            // old `place || penaltyPlace` never fell through to penaltyPlace and
-            // these boats were stored with sequential positions (5, 6, …)
-            // instead of the shared penaltyPlace. Points were already correct.
-            position = penaltyPlace;
-            points = penaltyPlace;
-          }
-        } else {
+        let position: number;
+        let points: number;
+        if (normalizedStatus === 'FINISHED') {
+          // BK-6: a FINISHED place must be a positive integer; a 0 / NaN place
+          // would otherwise be written straight to Scores.position/points.
+          const finishingPlace = sanitizePositiveInteger(
+            place,
+            `Place for sail ${String(boatNumber)}`,
+          );
+          position = finishingPlace;
+          points = finishingPlace;
           hasFinisher = true;
+        } else if (scoringPenaltyStatuses.has(normalizedStatus)) {
+          // ZFP/SCP/T1: keep finishing place, add the scoring-penalty places.
+          const finishingPlace = sanitizePositiveInteger(
+            place,
+            `Place for sail ${String(boatNumber)}`,
+          );
+          position = finishingPlace;
+          points = getScoringPenaltyPoints(
+            finishingPlace,
+            heatSizeForPenalty,
+            normalizedStatus,
+          );
+        } else {
+          // Non-scoring penalties (DNF/DNS/...) take the penalty score AND the
+          // shared penalty position (largest-heat size + 1) per SHRS 5.2, so
+          // their `place` is discarded and must NOT be sanitized — the old
+          // `place || penaltyPlace` tolerated a falsy place, and a legacy caller
+          // may send 0/'' for "no place".
+          // BK-3: the frontend always sends a sequential `place` (>=1), so the
+          // old `place || penaltyPlace` never fell through to penaltyPlace and
+          // these boats were stored with sequential positions (5, 6, …)
+          // instead of the shared penaltyPlace. Points were already correct.
+          position = penaltyPlace;
+          points = penaltyPlace;
         }
 
         const updated = db
@@ -1250,31 +1417,44 @@ ipcMain.handle(
   async (event, score_id, position, points, status) => {
     try {
       const normalizedStatus = normalizeScoreStatus(status);
+      // BK-6: guard position/points against NaN/0/negative before binding so a
+      // bad payload surfaces a clear error instead of an opaque
+      // SQLITE_CONSTRAINT. RDG*/DPI positions are protest-committee-set and may
+      // be fractional or < 1, so they only need to be finite and positive;
+      // every other status writes a finishing place (a positive whole number).
+      const keepsProvidedPoints =
+        rdgStatuses.includes(normalizedStatus) || normalizedStatus === 'DPI';
+      const safePosition = keepsProvidedPoints
+        ? sanitizePositiveFinite(position, 'Position')
+        : sanitizePositiveInteger(position, 'Position');
+      const safePoints = sanitizePositiveFinite(points, 'Points');
       const row = db
         .prepare('SELECT race_id FROM Scores WHERE score_id = ?')
         .get(score_id) as { race_id?: number } | undefined;
       const raceId = row?.race_id != null ? Number(row.race_id) : null;
       // BK-7: wrap the write, tie re-scoring and recompute in one transaction so
       // an edit that changes a finisher can't leave stale A7 tie points on the
-      // other finishers or a stale leaderboard behind.
+      // other finishers or a stale leaderboard behind. (recomputeEventLeaderboard
+      // has its own inner transaction; better-sqlite3 nests it as a savepoint.)
       const applyUpdate = db.transaction(() => {
         const runResult = db
           .prepare(
             'UPDATE Scores SET position = ?, points = ?, status = ? WHERE score_id = ?',
           )
-          .run(position, points, normalizedStatus, score_id);
+          .run(safePosition, safePoints, normalizedStatus, score_id);
         if (raceId != null) {
           lockDiscardProfileForRace(raceId);
           // Re-run RRS A7 tie scoring for the race so the remaining finishers
           // get correct shared/averaged points after this edit.
           applyRaceTieScoring(raceId);
+          // Recompute the leaderboards inside the same transaction so a
+          // recompute failure rolls back the edit instead of leaving it
+          // persisted with a stale leaderboard (BK-7).
+          recomputeLeaderboardsForRace(raceId);
         }
         return runResult;
       });
       const result = applyUpdate();
-      if (raceId != null) {
-        recomputeLeaderboardsForRace(raceId);
-      }
       return { changes: result.changes };
     } catch (error) {
       console.error('Error updating score:', error);
@@ -1483,12 +1663,12 @@ ipcMain.handle(
         adjustedLeaderboard.length / finalHeatCount,
       );
       const extraBoats = adjustedLeaderboard.length % finalHeatCount;
-      const fleetNames = ['Gold', 'Silver', 'Bronze', 'Copper'];
-
       const transaction = db.transaction(() => {
         const insertedFinalHeatIds: number[] = [];
         for (let i = 0; i < finalHeatCount; i += 1) {
-          const fleetName = fleetNames[i] || `Fleet ${i + 1}`;
+          // SHRS 4.1 fleet naming, shared with the ranking precedence used by
+          // the leaderboard reads so "Fleet 5" is always ranked 5th (RULE-m2).
+          const fleetName = fleetNameForIndex(i);
           const insertResult = db
             .prepare(
               'INSERT INTO Heats (event_id, heat_name, heat_type) VALUES (?, ?, ?)',
@@ -1941,6 +2121,13 @@ ipcMain.handle(
         `Transferred boat ${boat_id}: removed ${removed} row(s) from heat ${from_heat_id}, inserted ${inserted} row(s) into heat ${to_heat_id}.`,
       );
 
+      // RULE-M13: both heats' membership just changed, so any SHRS 3.1.5
+      // assignment snapshot naming this boat in her old heat is stale. Left in
+      // place it would seed the next round from the pre-transfer order and put
+      // the boat into two next-round heats at once.
+      clearAssignmentSnapshotsForHeat(Number(from_heat_id));
+      clearAssignmentSnapshotsForHeat(Number(to_heat_id));
+
       return { success: true };
     } catch (error) {
       console.error('Error transferring boat between heats:', error);
@@ -1961,16 +2148,39 @@ ipcMain.handle(
     new_status,
   ) => {
     try {
-      applyRaceResultUpdate(
-        event_id,
-        race_id,
-        boat_id,
-        new_position,
-        Boolean(shift_positions),
-        new_status,
-      );
-      lockDiscardProfileForRace(Number(race_id));
-      recomputeEventLeaderboard(event_id);
+      // BK-5: the sequential position/points UPDATEs, discard-profile lock and
+      // leaderboard recompute must share one transaction so a mid-write failure
+      // rolls back instead of leaving a half-updated race and a stale
+      // leaderboard. (recomputeEventLeaderboard has its own inner transaction;
+      // better-sqlite3 nests it as a savepoint.)
+      const raceId = Number(race_id);
+      // `captureRaceAssignmentSnapshotIfMissing` (inside `applyRaceResultUpdate`)
+      // writes the module-level cache Map directly, which a DB rollback does not
+      // undo. It only ever ADDS an entry, so a rollback just needs to forget the
+      // race ids that were absent before the transaction.
+      const snapshotExisted = raceAssignmentSnapshots.has(raceId);
+
+      const applyUpdate = db.transaction(() => {
+        applyRaceResultUpdate(
+          event_id,
+          race_id,
+          boat_id,
+          new_position,
+          Boolean(shift_positions),
+          new_status,
+        );
+        lockDiscardProfileForRace(raceId);
+        recomputeEventLeaderboard(event_id);
+      });
+
+      try {
+        applyUpdate();
+      } catch (err) {
+        if (!snapshotExisted) {
+          raceAssignmentSnapshots.delete(raceId);
+        }
+        throw err;
+      }
 
       return { success: true };
     } catch (err) {
@@ -1991,6 +2201,16 @@ ipcMain.handle(
   ) => {
     try {
       const safeOperations = Array.isArray(operations) ? operations : [];
+      // Rollback guard for the in-memory assignment-snapshot cache (see
+      // updateRaceResult): the cache Map survives a DB rollback, so forget any
+      // snapshot race id that was absent before this transaction.
+      const snapshotRaceIds = [
+        ...new Set(safeOperations.map((operation) => Number(operation.raceId))),
+      ];
+      const previouslyAbsent = snapshotRaceIds.filter(
+        (raceId) => !raceAssignmentSnapshots.has(raceId),
+      );
+
       const tx = db.transaction(() => {
         safeOperations.forEach((operation) => {
           // Each operation carries the shift-toggle state from when the user
@@ -2018,7 +2238,14 @@ ipcMain.handle(
         }
       });
 
-      tx();
+      try {
+        tx();
+      } catch (error) {
+        previouslyAbsent.forEach((raceId) =>
+          raceAssignmentSnapshots.delete(raceId),
+        );
+        throw error;
+      }
       return { success: true, updatedCount: safeOperations.length };
     } catch (error) {
       console.error(
@@ -2134,6 +2361,9 @@ ipcMain.handle('readFinalLeaderboard', async (event, event_id) => {
       'fl.total_points_final, ' +
       'fl.event_id, ' +
       'fl.placement_group, ' +
+      // SHRS 1.5 needs the qualifying series score to rank by when the Final
+      // Series has no completed races.
+      'COALESCE(lb.total_points_event, 0) AS qualifying_points, ' +
       'b.sail_number AS boat_number, ' +
       'b.model AS boat_type, ' +
       's.name, ' +
@@ -2146,6 +2376,7 @@ ipcMain.handle('readFinalLeaderboard', async (event, event_id) => {
       'FROM FinalLeaderboard fl ' +
       'LEFT JOIN Boats b ON fl.boat_id = b.boat_id ' +
       'LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id ' +
+      'LEFT JOIN Leaderboard lb ON lb.boat_id = fl.boat_id AND lb.event_id = fl.event_id ' +
       'LEFT JOIN (' +
       'SELECT sc.boat_id, sc.position, sc.points, sc.status, sc.race_id, r.race_number ' +
       'FROM Scores sc ' +
@@ -2154,16 +2385,18 @@ ipcMain.handle('readFinalLeaderboard', async (event, event_id) => {
       "WHERE h.event_id = ? AND h.heat_type = 'Final'" +
       ') fs ON fs.boat_id = fl.boat_id ' +
       'WHERE fl.event_id = ? ' +
-      'GROUP BY fl.boat_id ' +
-      'ORDER BY CASE fl.placement_group ' +
-      "WHEN 'Gold' THEN 1 " +
-      "WHEN 'Silver' THEN 2 " +
-      "WHEN 'Bronze' THEN 3 " +
-      "WHEN 'Copper' THEN 4 " +
-      'ELSE 5 END, ' +
-      'fl.total_points_final ASC';
+      'GROUP BY fl.boat_id';
+    // Ordering is done in JS below: SHRS 5.5 fleet precedence has to cover the
+    // "Fleet 5"+ overflow names (RULE-m2), and SHRS 1.5 switches the sort key
+    // entirely when no final race has been completed. Encoding either in SQL
+    // would need interpolated CASE arms, so the query stays unordered and one
+    // comparator owns the rule.
     const readQuery = db.prepare(query);
-    const results = readQuery.all(event_id, event_id);
+    // SHRS 5.5 fleet precedence + SHRS 1.5 qualifying-score fallback — see
+    // functions/finalLeaderboardOrder.ts.
+    const results = orderFinalLeaderboardRows(
+      readQuery.all(event_id, event_id) as any[],
+    );
     const entrySuffix = results.length === 1 ? 'y' : 'ies';
     console.log(
       `[IPC -> Renderer] readFinalLeaderboard (event_id=${event_id}): sending ${
@@ -2186,28 +2419,25 @@ ipcMain.handle('readFinalLeaderboard', async (event, event_id) => {
  */
 ipcMain.handle('readOverallLeaderboard', async (event, event_id) => {
   try {
-    const completedFinalRaceCount = db
+    // SHRS 1.5: "If no races are completed in the Final Series boats will be
+    // ranked according to their series score in the Qualifying Series." A final
+    // race is "completed" once it has been SAILED — i.e. once ANY boat has a
+    // final-series score — not once every boat in the heat is scored. Counting
+    // final score rows (rather than fully-scored races) keeps this in step with
+    // finalLeaderboardOrder.hasNoCompletedFinalRaces, so the Final and Overall
+    // tables never disagree on a partially-scored final race.
+    const finalScoreCount = db
       .prepare(
         `SELECT COUNT(*) as cnt
-       FROM Races r
+       FROM Scores sc
+       JOIN Races r ON sc.race_id = r.race_id
        JOIN Heats h ON r.heat_id = h.heat_id
-       WHERE h.event_id = ?
-         AND h.heat_type = 'Final'
-         AND NOT EXISTS (
-           SELECT 1
-           FROM Heat_Boat hb
-           WHERE hb.heat_id = h.heat_id
-             AND NOT EXISTS (
-               SELECT 1
-               FROM Scores s
-               WHERE s.race_id = r.race_id AND s.boat_id = hb.boat_id
-             )
-         )`,
+       WHERE h.event_id = ? AND h.heat_type = 'Final'`,
       )
       .get(event_id) as { cnt: number };
 
     // SHRS 1.5: If no completed final races, rank by qualifying only.
-    if (!completedFinalRaceCount || completedFinalRaceCount.cnt === 0) {
+    if (!finalScoreCount || finalScoreCount.cnt === 0) {
       const qualifyingResults = db
         .prepare(
           `SELECT
@@ -2230,15 +2460,10 @@ ipcMain.handle('readOverallLeaderboard', async (event, event_id) => {
       return qualifyingResults;
     }
 
-    // Combined overall series: qualifying score + final score
-    const fleetOrder = `CASE fl.placement_group
-      WHEN 'Gold' THEN 1
-      WHEN 'Silver' THEN 2
-      WHEN 'Bronze' THEN 3
-      WHEN 'Copper' THEN 4
-      ELSE 5
-    END`;
-
+    // Combined overall series: qualifying score + final score.
+    // The SQL orders only by points; SHRS 5.5 fleet precedence is applied by
+    // the JS comparator below, which understands the "Fleet 5"+ overflow names
+    // a fixed CASE cannot (RULE-m2).
     const overallQuery = db.prepare(
       `SELECT
         fl.boat_id,
@@ -2257,7 +2482,7 @@ ipcMain.handle('readOverallLeaderboard', async (event, event_id) => {
       LEFT JOIN Boats b ON fl.boat_id = b.boat_id
       LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id
       WHERE fl.event_id = ?
-      ORDER BY ${fleetOrder}, overall_points ASC, fl.place ASC`,
+      ORDER BY overall_points ASC, fl.place ASC`,
     );
 
     const results = overallQuery.all(event_id);
@@ -2270,15 +2495,11 @@ ipcMain.handle('readOverallLeaderboard', async (event, event_id) => {
       return tiePacketCache.get(boatId) as OverallTiePacket;
     };
 
-    const fleetRanks: Record<string, number> = {
-      Gold: 1,
-      Silver: 2,
-      Bronze: 3,
-      Copper: 4,
-    };
     results.sort((left: any, right: any) => {
-      const leftFleetRank = fleetRanks[left.placement_group] ?? 999;
-      const rightFleetRank = fleetRanks[right.placement_group] ?? 999;
+      // SHRS 5.5: Gold before Silver before Bronze "and so on" — including the
+      // 5th and later fleets, which used to share one catch-all rank (RULE-m2).
+      const leftFleetRank = fleetRank(left.placement_group);
+      const rightFleetRank = fleetRank(right.placement_group);
       if (leftFleetRank !== rightFleetRank) {
         return leftFleetRank - rightFleetRank;
       }

@@ -25,11 +25,19 @@ jest.mock('electron', () => ({
 // Spy on the recompute functions so we can assert they run after an edit.
 const recomputeEventLeaderboard = jest.fn();
 const recomputeFinalLeaderboard = jest.fn();
+// Track whether the recompute functions ran while a db.transaction callback was
+// on the stack, to pin that updateScore recomputes INSIDE its transaction (BK-7).
+let mockInTransaction = false;
+const mockRecomputeWasInTransaction = { event: false, final: false };
 jest.mock('../main/functions/leaderboardRecompute', () => ({
-  recomputeEventLeaderboard: (...args: any[]) =>
-    recomputeEventLeaderboard(...args),
-  recomputeFinalLeaderboard: (...args: any[]) =>
-    recomputeFinalLeaderboard(...args),
+  recomputeEventLeaderboard: (...args: any[]) => {
+    mockRecomputeWasInTransaction.event = mockInTransaction;
+    return recomputeEventLeaderboard(...args);
+  },
+  recomputeFinalLeaderboard: (...args: any[]) => {
+    mockRecomputeWasInTransaction.final = mockInTransaction;
+    return recomputeFinalLeaderboard(...args);
+  },
 }));
 
 const norm = (sql: string) => sql.replace(/\s+/g, ' ').trim();
@@ -52,7 +60,16 @@ const state = {
 const tieScoringUpdates: Array<any[]> = [];
 
 const dbMock = {
-  transaction: (fn: (...args: any[]) => any) => fn,
+  transaction:
+    (fn: (...args: any[]) => any) =>
+    (...args: any[]) => {
+      mockInTransaction = true;
+      try {
+        return fn(...args);
+      } finally {
+        mockInTransaction = false;
+      }
+    },
   prepare: jest.fn((sql: string): PrepareStatement => {
     if (contains(sql, 'SELECT race_id FROM Scores WHERE score_id = ?')) {
       return {
@@ -129,6 +146,9 @@ describe('BK-7 — single-score edit/delete re-scores ties and recomputes', () =
     tieScoringUpdates.length = 0;
     recomputeEventLeaderboard.mockClear();
     recomputeFinalLeaderboard.mockClear();
+    mockInTransaction = false;
+    mockRecomputeWasInTransaction.event = false;
+    mockRecomputeWasInTransaction.final = false;
   });
 
   it('updateScore re-runs A7 tie scoring and recomputes the event leaderboard', async () => {
@@ -162,5 +182,33 @@ describe('BK-7 — single-score edit/delete re-scores ties and recomputes', () =
 
     expect(tieScoringUpdates.length).toBe(0);
     expect(recomputeEventLeaderboard).not.toHaveBeenCalled();
+  });
+
+  it('updateScore recomputes the leaderboard INSIDE its transaction (BK-7)', async () => {
+    await handlerRegistry.updateScore({}, 1, 1, 1, 'FINISHED');
+
+    expect(recomputeEventLeaderboard).toHaveBeenCalledWith(42);
+    // The recompute must run while the transaction callback is on the stack, so
+    // a recompute failure rolls back the edit instead of leaving it persisted.
+    expect(mockRecomputeWasInTransaction.event).toBe(true);
+  });
+
+  it('updateScore rejects a 0 / NaN position with a descriptive error (BK-6)', async () => {
+    await expect(
+      handlerRegistry.updateScore({}, 1, 0, 1, 'FINISHED'),
+    ).rejects.toThrow(/must be a positive integer/);
+    await expect(
+      handlerRegistry.updateScore({}, 1, Number.NaN, 1, 'FINISHED'),
+    ).rejects.toThrow(/must be a positive integer/);
+    await expect(
+      handlerRegistry.updateScore({}, 1, 1, 0, 'FINISHED'),
+    ).rejects.toThrow(/must be a positive number/);
+  });
+
+  it('updateScore accepts a fractional RDG/DPI position and points (protest-committee-set)', async () => {
+    await expect(
+      handlerRegistry.updateScore({}, 1, 2.5, 2.5, 'RDG2'),
+    ).resolves.toMatchObject({ changes: 1 });
+    expect(recomputeEventLeaderboard).toHaveBeenCalledWith(42);
   });
 });

@@ -23,6 +23,7 @@ const config: Config = {
   // Run only unit tests (scoring logic + utilities)
   testMatch: [
     '**/src/__tests__/App.routing.test.tsx',
+    '**/src/__tests__/ErrorBoundary.test.tsx',
     '**/src/__tests__/LandingPage.test.jsx',
     '**/src/__tests__/EventPage.test.jsx',
     '**/src/__tests__/HeatRacePage.test.jsx',
@@ -32,6 +33,7 @@ const config: Config = {
     '**/src/__tests__/ConfirmDialogHost.test.jsx',
     '**/src/__tests__/useLeaderboard.scoring.test.jsx',
     '**/src/__tests__/useLeaderboard.rdg.property.test.jsx',
+    '**/src/__tests__/ScoreCell.editAtMax.test.jsx',
     '**/src/__tests__/leaderboard.property.test.jsx',
     '**/src/__tests__/backendUiTieBreak.property.test.jsx',
     '**/src/__tests__/ScoringInputComponent.test.jsx',
@@ -39,6 +41,8 @@ const config: Config = {
     '**/src/__tests__/GlobalLeaderboard.test.jsx',
     '**/src/__tests__/calculateBoatScores.test.ts',
     '**/src/__tests__/calculateFinalBoatScores.test.ts',
+    '**/src/__tests__/finalLeaderboardOrder.test.ts',
+    '**/src/__tests__/sailOrder.test.ts',
     '**/src/__tests__/creatingNewHeatsUtils.test.ts',
     '**/src/__tests__/HeatRaceHandler.createNewHeats.test.ts',
     '**/src/__tests__/HeatRaceHandler.undoRedistribution.test.ts',
@@ -70,9 +74,13 @@ const config: Config = {
     '**/src/__tests__/fleetAssignment.test.ts',
     '**/src/__tests__/SHRS.finalFleetAssignmentReport.test.ts',
     '**/src/__tests__/leaderboardUtils.exclusions.test.ts',
+    '**/src/__tests__/leaderboardUtils.csv.test.ts',
     '**/src/__tests__/overallTieBreak.test.ts',
     '**/src/__tests__/discardConfig.test.ts',
     '**/src/__tests__/scoringPenalty.test.ts',
+    '**/src/__tests__/validation.test.ts',
+    '**/src/__tests__/HeatRaceHandler.createInitialHeatsAtomic.test.ts',
+    '**/src/__tests__/HeatRaceHandler.transactionBoundaries.test.ts',
   ],
 };
 

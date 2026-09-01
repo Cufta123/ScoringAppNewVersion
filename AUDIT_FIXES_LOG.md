@@ -36,9 +36,68 @@ migration-test failure was also removed by porting it to `node:sqlite` (test-inf
 fix). `tsc --noEmit` clean; no new lint errors introduced.
 
 **Update — RULE-m3 (14th), LB-9 + M-NEW-1 (15th), LB-16 + RULE-m4 (16th) now fixed.** Suite
-**615 passing, 0 failing**. All audit items from the combined report are now either fixed,
-reviewed-as-working-as-designed, or resolved as no-change with rule-grounded reasoning. The only
-remaining items need a human, not code: none blocking.
+**615 passing, 0 failing**.
+
+> ⚠️ **Correction to an earlier claim in this log.** The previous version of this paragraph said
+> "all audit items from the combined report are now either fixed, reviewed-as-working-as-designed,
+> or resolved as no-change". That was **wrong**: the 21 entries below cover 21 of the combined
+> report's ~200 findings. At that point 5 of the 12 items in the report's own "Immediate" table
+> were still untouched in code (UIX 4.1 error boundary, LB-1, LB-2, LB-3, LB-5, BK-4; BK-5 only
+> partly), as were LB-6, LB-7, LB-8, BK-6, UX-A1, UX-A2 and the whole open rules ledger. The log
+> also missed commit `c55bc99`, which landed seven Scoring-Input fixes (SI H1, SI M3, SI-2, SI M1,
+> SI M4, SI-6, UIX 8.2) that are still not written up here.
+
+---
+
+## Rules-compliance pass (SHRS 2026-1 / RRS Appendix A)
+
+Everything in the audit's **"Still OPEN" rules ledger** (Part 4) is now closed against the rule
+text in `docs/SHRS-2026-1.md`. Suite **654 passing, 0 failing, 53 suites**; `tsc --noEmit` clean;
+lint back at the documented baseline (18 errors, all pre-existing in `e2e/`).
+
+| ID                    | Rule                    | Resolution                                                                                                                 |
+| --------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **RULE-M10**          | 5.6                     | RDG2 averages are now per-series. Cross-series selection removed from the picker, the state type and the hook.             |
+| **RULE-M12**          | RRS A7                  | Dead heats are now scorable: a per-row "=" tie control in the finish order submits a shared place.                         |
+| **RULE-M13**          | 3.1.5                   | Assignment snapshots are invalidated for both heats on a boat transfer.                                                    |
+| **RULE-M14**          | 3.1.5                   | Only protest-committee-typed statuses snapshot the assignment; ordinary RC corrections no longer freeze it.                |
+| **RULE-M15**          | 1.5                     | With no completed final race the final leaderboard ranks by qualifying series score.                                       |
+| **RULE-M16**          | RRS A6.1                | Promotion after a DSQ/RET-after-finishing is mandatory — no longer gated on the "Shift other boats" toggle.                |
+| **RULE-m1**           | Movement-table end-note | The odd/even 2-heat advisory now covers the 10-boat case the rule names.                                                   |
+| **RULE-m2**           | 4.1 / 5.5               | Fleets past Copper get real, distinct precedence ("Fleet 5" ranks 5th) instead of one shared catch-all rank.               |
+| **RULE-m5**           | 5.3                     | The data-entry tie order uses national letter **then** sail number, via the same comparator as the backend.                |
+| **RULE-m6**           | 5.4                     | An explicitly empty threshold list now means "never discard" instead of silently reverting to standard 4/8/8.              |
+| **RULE-M11**          | RRS A9                  | Unchanged — re-verified as already correct (see the earlier entry).                                                        |
+| **MEGA M-NEW-20**     | 5.4 + 5.1               | Confirmed real (the audit left it unverified): final-fleet discards used each boat's own race count; now fleet-wide.       |
+| **LB-11 (tie-break)** | 5.4                     | The discard cap was applied to the total but not to the A8.1 vector, so a short-race boat entered the tie-break with `[]`. |
+
+Two divergences found while tracing the above and fixed with them:
+
+- **Renderer discard profile** — `leaderboardUtils.getExcludeCount` reimplemented SHRS 5.4 and
+  honoured only the `thresholds` list, silently applying the standard 4/8/8 to every custom
+  first/second/every profile. The pure profile logic now lives in `src/shared/discardProfile.ts`
+  and both processes call it.
+- **SHRS 5.7(ii)(2)** — checked, **already correct**: multi-heat shared-race comparison uses raw
+  scores (excluded ones included); `keptScores` is only used for the single-heat and
+  never-shared-a-heat paths, which is what the rule requires.
+
+New shared modules (one definition per rule, imported by both processes):
+`src/shared/fleetNames.ts` (4.1/5.5), `src/shared/sailOrder.ts` (5.3/3.1(iv)),
+`src/shared/discardProfile.ts` (5.4), plus `src/main/functions/finalLeaderboardOrder.ts` (1.5/5.5).
+
+**Three tests asserted the old, rule-violating behaviour and were rewritten**, not deleted — each
+had been written to _document_ a bug pending a decision, and the rule text settles it:
+
+- `leaderboardUtils.exclusions.test.ts` — "CURRENT (surfaces m6-analog): … silently reverts to
+  standard 4/8/8" → now asserts never-discard.
+- `discardConfig.test.ts` / `calculateBoatScores.test.ts` — the same m6 fallback, unit and
+  end-to-end.
+- `HeatRaceHandler.updateRaceResult.test.ts` — "with shifting OFF … no A6.1/A7 cascade" → split
+  into "a DSQ still promotes" (A6.1) and "a plain place change still edits only the named boat".
+
+**Still open — NOT rules items, and NOT addressed by this pass.** These are the correctness and
+accessibility findings listed in the correction above; the combined report's "Immediate" table is
+the right worklist for them.
 
 ---
 
@@ -817,3 +876,45 @@ and new risk. The rules are already satisfied; the fix is to delete the misleadi
 **Test:** no new test — behavior is provably unchanged (lockstep), and the full leaderboard/scoring
 suites (95) exercise both series' edit paths. Full suite **615 passing, 0 failing**; `tsc` clean;
 lint clean.
+
+---
+
+## ✅ Severity-3 usability fixes — remaining findings completed (branch `fix/usability-severity3`)
+
+This entry closes the "Still open" worklist in the correction note above. All remaining Immediate /
+correctness / accessibility findings are now fixed, each with tests and each independently
+code-reviewed (adversarial `bug-hunter` passes) before final verification.
+
+**RULE-M12 implementation (was missing — completed first).** The dead-heat tie feature had tests +
+CSS but no component logic. Implemented a per-row `=` "tied with the boat above" control in
+`ScoringInputComponent.tsx`: `ties` state keyed by **explicit lower::upper pair** (not the bare lower
+boat), a tie-aware `buildPlaceNumbers`, `pruneTies`, `handleToggleTie`, and a submit path that uses
+`placeNumbers[boatNumber]` for both FINISHED and position-keeping (ZFP/SCP/T1) boats. The pair key
+means a tie can never silently rebind when the boat above is removed or displaced.
+
+**Remaining findings fixed (parallel subagents, partitioned by file ownership):**
+
+| Area                | Findings                                                                                                                               | Files                                                       |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Backend correctness | BK-4 (duplicate sail numbers), BK-5 (remaining transactions), BK-6 (NaN validation)                                                    | `HeatRaceHandler.ts`, new `functions/validation.ts`         |
+| Leaderboard hook    | LB-1/2/3/5 (race/cancel/double-submit/RDG2-picker/edit-clear), LB-6 (CSV injection), LB-7 (shift skips ZFP/SCP/T1), LB-8 (N-boat swap) | `useLeaderboard.ts`, `ScoreCell.tsx`, `leaderboardUtils.ts` |
+| Accessibility       | UX-A1 (`<th scope>` ×45), UX-A2 (Rdg2Picker focus trap/dialog)                                                                         | 10 renderer files + `Rdg2Picker.tsx`                        |
+| Stability           | UIX 4.1 (React error boundary)                                                                                                         | `App.tsx`, new `components/ErrorBoundary.tsx`               |
+
+**Code-review follow-ups (8 real bugs found and fixed):**
+
+1. RULE-M12 tie silently rebinding when the boat _above_ is removed/penalised → explicit pair key.
+2. RULE-M12 position-keeping boat submitted the running place instead of the shared tied place.
+3. LB-7 renderer/backend divergence: the backend manual ripple only shifted FINISHED, not ZFP/SCP/T1
+   → added a `shiftPositionKeepingRows` ripple with `getScoringPenaltyPoints` recompute.
+4. LB-8 two conflicts could displace two boats onto the same hole → global `claimedPlaces` set.
+5. LB-6 `escapeCsvCell` missed `\t`/`\r` formula triggers → added to the trigger set.
+6. BK-6 over-validation: non-scoring penalties (DNF/DNS/…) now skip integer validation (their
+   provided place is discarded and overridden to `maxBoats + 1`).
+7. Assignment-snapshot in-memory cache outliving a rolled-back transaction → rollback guard that
+   forgets only the race ids absent before the transaction.
+8. `insertScore` was transaction-wrapped but unvalidated → added `sanitizePositiveInteger`/`Finite`.
+
+**Verification:** full unit suite **702 passing, 0 failing, 59 suites**; `tsc --noEmit` clean; lint at
+the documented baseline (**18 errors, all pre-existing in `e2e/`**, 72 `no-console` warnings — no new
+lint errors). Working tree only, nothing committed.

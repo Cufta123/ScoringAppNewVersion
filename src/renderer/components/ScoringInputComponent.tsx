@@ -126,6 +126,9 @@ function ScoringInputComponent({
   const [validBoats, setValidBoats] = useState<SailNumber[]>([]);
   const [placeNumbers, setPlaceNumbers] = useState<Record<string, number>>({});
   const [penalties, setPenalties] = useState<Record<string, string>>({});
+  // RRS A7 dead heats: boats tied with the boat above share a finishing place.
+  // Keys are normalized sail numbers; presence means "tied with the boat above".
+  const [ties, setTies] = useState<Set<string>>(new Set());
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
   const [invalidBoatNumbers, setInvalidBoatNumbers] = useState<SailNumber[]>(
@@ -155,6 +158,11 @@ function ScoringInputComponent({
 
   const normalizeBoatNumber = (value: SailNumber): string =>
     value != null ? String(value).trim() : '';
+  // Identity key for an RRS A7 tie between two ADJACENT boats. Encoding both
+  // boats (not just the lower one) means a tie can never silently rebind to a
+  // different boat when the boat above is removed or displaced.
+  const tieKey = (lower: SailNumber, upper: SailNumber): string =>
+    `${normalizeBoatNumber(lower)}::${normalizeBoatNumber(upper)}`;
   const compareBoatNumbers = (a: SailNumber, b: SailNumber): number =>
     normalizeBoatNumber(a).localeCompare(normalizeBoatNumber(b), undefined, {
       numeric: true,
@@ -162,12 +170,63 @@ function ScoringInputComponent({
     });
   const buildPlaceNumbers = (
     orderedBoats: SailNumber[],
+    tiesSet: Set<string> = new Set(),
   ): Record<string, number> => {
     const newPlaceNumbers: Record<string, number> = {};
+    let nextPlace = 1;
     orderedBoats.forEach((boat, index) => {
-      newPlaceNumbers[boat] = index + 1;
+      // RRS A7: a boat tied with the one above shares its place. The skipped
+      // place is recovered because `nextPlace` advances past every boat, tied
+      // or not, so the next distinct finisher gets the correct place (e.g. two
+      // boats tied for 1st → the next boat is 3rd).
+      if (index > 0 && tiesSet.has(tieKey(boat, orderedBoats[index - 1]))) {
+        newPlaceNumbers[boat] = newPlaceNumbers[orderedBoats[index - 1]];
+      } else {
+        newPlaceNumbers[boat] = nextPlace;
+      }
+      nextPlace += 1;
     });
     return newPlaceNumbers;
+  };
+
+  // Drop tie markers that are no longer valid: boats removed from the finish
+  // order, or boats that now carry a displacing penalty (they are no longer
+  // "tied at the finishing line" — SHRS 5.3 sends them to the end).
+  const pruneTies = (
+    boats: SailNumber[],
+    penaltiesByBoat: Record<string, string>,
+    tiesSet: Set<string>,
+  ): Set<string> => {
+    const remaining = new Set(boats.map(normalizeBoatNumber));
+    // Position of each boat in the (ordered) list. Tie keys are directional
+    // adjacency pairs (`lower::upper`), so a tie is only valid while `upper`
+    // sits directly above `lower` in the finish order.
+    const indexOf = new Map<string, number>();
+    boats.forEach((boat, index) => {
+      indexOf.set(normalizeBoatNumber(boat), index);
+    });
+    const pruned = new Set<string>();
+    tiesSet.forEach((key) => {
+      const [lower, upper] = key.split('::');
+      if (!remaining.has(lower) || !remaining.has(upper)) return;
+      const lowerPenalty = penaltiesByBoat[lower];
+      const upperPenalty = penaltiesByBoat[upper];
+      if (
+        (lowerPenalty && !POSITION_KEEPING_PENALTIES.has(lowerPenalty)) ||
+        (upperPenalty && !POSITION_KEEPING_PENALTIES.has(upperPenalty))
+      ) {
+        return;
+      }
+      // A reorder can separate a tied pair; once they are no longer directly
+      // adjacent the tie must be dropped, otherwise it silently re-activates if
+      // adjacency is restored later.
+      const lowerIndex = indexOf.get(lower);
+      const upperIndex = indexOf.get(upper);
+      if (lowerIndex === undefined || upperIndex === undefined) return;
+      if (lowerIndex !== upperIndex + 1) return;
+      pruned.add(key);
+    });
+    return pruned;
   };
   const getOrderedBoatNumbers = (
     boats: SailNumber[],
@@ -187,6 +246,7 @@ function ScoringInputComponent({
     setValidBoats([]);
     setPlaceNumbers({});
     setPenalties({});
+    setTies(new Set());
     setDraggingIndex(null);
     setDropIndex(null);
     setInvalidBoatNumbers([]);
@@ -242,7 +302,7 @@ function ScoringInputComponent({
     const merged = [...boatNumbers, ...validNew];
     const ordered = getOrderedBoatNumbers(merged, penalties);
     setBoatNumbers(ordered);
-    setPlaceNumbers(buildPlaceNumbers(ordered));
+    setPlaceNumbers(buildPlaceNumbers(ordered, ties));
   };
 
   // Clicking a row immediately adds the boat — no separate button press needed
@@ -301,10 +361,6 @@ function ScoringInputComponent({
     }
   };
 
-  const updatePlaces = (boats: SailNumber[]) => {
-    setPlaceNumbers(buildPlaceNumbers(boats));
-  };
-
   const handleRemoveBoat = (index: number) => {
     const updatedBoatNumbers = [...boatNumbers];
     const removedBoat = updatedBoatNumbers.splice(index, 1)[0];
@@ -313,8 +369,10 @@ function ScoringInputComponent({
     delete updatedPenalties[removedBoat];
 
     const ordered = getOrderedBoatNumbers(updatedBoatNumbers, updatedPenalties);
+    const prunedTies = pruneTies(ordered, updatedPenalties, ties);
     setBoatNumbers(ordered);
-    setPlaceNumbers(buildPlaceNumbers(ordered));
+    setPlaceNumbers(buildPlaceNumbers(ordered, prunedTies));
+    setTies(prunedTies);
     setPenalties(updatedPenalties);
   };
 
@@ -326,8 +384,12 @@ function ScoringInputComponent({
     const [movedBoat] = updatedBoatNumbers.splice(fromIndex, 1);
     updatedBoatNumbers.splice(toIndex, 0, movedBoat);
     const ordered = getOrderedBoatNumbers(updatedBoatNumbers, penalties);
+    // A reorder can break an RRS A7 tie's adjacency, so prune stale ties (as
+    // remove/penalty already do) before recomputing places.
+    const prunedTies = pruneTies(ordered, penalties, ties);
     setBoatNumbers(ordered);
-    updatePlaces(ordered);
+    setPlaceNumbers(buildPlaceNumbers(ordered, prunedTies));
+    setTies(prunedTies);
   };
 
   const handleDragStart = (index: number) => {
@@ -337,6 +399,11 @@ function ScoringInputComponent({
   const handleDragOver =
     (index: number) => (e: React.DragEvent<HTMLLIElement>) => {
       e.preventDefault();
+      // The <ul> also has an onDragOver for the tail zone (drop after the last
+      // item). Without stopping propagation, that handler fires after this one
+      // and overwrites dropIndex with boatNumbers.length, so every drop lands at
+      // the end and the per-item indicator never shows.
+      e.stopPropagation();
       setDropIndex(index);
     };
 
@@ -383,9 +450,26 @@ function ScoringInputComponent({
     if (!penalty) delete newPenalties[boatNumber];
 
     const ordered = getOrderedBoatNumbers(nextBoatNumbers, newPenalties);
+    const prunedTies = pruneTies(ordered, newPenalties, ties);
     setBoatNumbers(ordered);
-    setPlaceNumbers(buildPlaceNumbers(ordered));
+    setPlaceNumbers(buildPlaceNumbers(ordered, prunedTies));
+    setTies(prunedTies);
     setPenalties(newPenalties);
+  };
+
+  // Toggle an RRS A7 dead heat: mark/unmark this boat as tied with the boat
+  // directly above it in the finish order, then recompute the shared places.
+  const handleToggleTie = (boatNumber: SailNumber, index: number) => {
+    if (index < 1) return;
+    const key = tieKey(boatNumber, boatNumbers[index - 1]);
+    const next = new Set(ties);
+    if (next.has(key)) {
+      next.delete(key);
+    } else {
+      next.add(key);
+    }
+    setTies(next);
+    setPlaceNumbers(buildPlaceNumbers(boatNumbers, next));
   };
 
   // Synchronous guard so rapid clicks that all hit the warning path (before
@@ -440,7 +524,9 @@ function ScoringInputComponent({
       if (!penalty) {
         boatPlaces.push({
           boatNumber,
-          place: finishingPlace,
+          // RRS A7: use the tie-aware place so boats dead-heated at the line
+          // submit the same place (the next boat skips to place + 1).
+          place: placeNumbers[boatNumber],
           status: 'FINISHED',
         });
         finishingPlace += 1;
@@ -448,7 +534,14 @@ function ScoringInputComponent({
       }
 
       if (POSITION_KEEPING_PENALTIES.has(penalty)) {
-        boatPlaces.push({ boatNumber, place: finishingPlace, status: penalty });
+        // A position-keeping penalty (ZFP/SCP/T1) keeps its finishing place —
+        // which, when the boat is tied, is the shared place, not the running
+        // counter (RRS A7).
+        boatPlaces.push({
+          boatNumber,
+          place: placeNumbers[boatNumber],
+          status: penalty,
+        });
         finishingPlace += 1;
         return;
       }
@@ -586,11 +679,13 @@ function ScoringInputComponent({
               <table className="scoring-table">
                 <thead>
                   <tr>
-                    <th>Sailor</th>
-                    <th>Country</th>
-                    <th>Sail #</th>
-                    <th className="scoring-place-cell">Place</th>
-                    <th>Penalty</th>
+                    <th scope="col">Sailor</th>
+                    <th scope="col">Country</th>
+                    <th scope="col">Sail #</th>
+                    <th scope="col" className="scoring-place-cell">
+                      Place
+                    </th>
+                    <th scope="col">Penalty</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -777,6 +872,9 @@ function ScoringInputComponent({
                   const isDisplacing = Boolean(
                     p && !POSITION_KEEPING_PENALTIES.has(p),
                   );
+                  const isTied =
+                    index > 0 &&
+                    ties.has(tieKey(number, boatNumbers[index - 1]));
                   return (
                     <>
                       <button
@@ -808,6 +906,25 @@ function ScoringInputComponent({
                         }
                       >
                         ↓
+                      </button>
+                      <button
+                        type="button"
+                        className={`finish-tie-btn${isTied ? ' is-tied' : ''}`}
+                        aria-label={`Sail ${number} tied with the boat above`}
+                        aria-pressed={isTied}
+                        onClick={() => handleToggleTie(number, index)}
+                        disabled={index === 0 || isDisplacing}
+                        title={
+                          index === 0
+                            ? 'The first boat cannot be tied with a boat above'
+                            : isDisplacing
+                              ? 'Penalised boats are not tied at the finishing line'
+                              : isTied
+                                ? 'Untie from the boat above (RRS A7 dead heat)'
+                                : 'Tie with the boat above (RRS A7 dead heat)'
+                        }
+                      >
+                        =
                       </button>
                     </>
                   );

@@ -27,6 +27,9 @@ const state = {
   rows: [] as Array<{ heat_id: number; boat_id: number }>,
   heats: {} as Record<number, { event_id: number }>,
   failInsert: false,
+  // RULE-M13: races per heat, and the snapshot rows the transfer must clear.
+  racesByHeatId: {} as Record<number, number[]>,
+  clearedSnapshotRaceIds: [] as number[],
 };
 
 const norm = (sql: string) => sql.replace(/\s+/g, ' ').trim();
@@ -89,6 +92,22 @@ const dbMock = {
         },
       };
     }
+    // RULE-M13: a membership change invalidates the heat's SHRS 3.1.5
+    // assignment snapshots.
+    if (sql.startsWith('SELECT race_id FROM Races WHERE heat_id')) {
+      return {
+        all: (heatId: number) =>
+          (state.racesByHeatId[heatId] ?? []).map((race_id) => ({ race_id })),
+      };
+    }
+    if (sql.startsWith('DELETE FROM RaceAssignmentSnapshots')) {
+      return {
+        run: (raceId: number) => {
+          state.clearedSnapshotRaceIds.push(raceId);
+          return { changes: 1 };
+        },
+      };
+    }
     throw new Error(`Unhandled SQL in test mock: ${sql}`);
   },
 };
@@ -104,6 +123,34 @@ describe('transferBoatBetweenHeats atomicity', () => {
     state.rows = [{ heat_id: 1, boat_id: 42 }];
     state.heats = { 1: { event_id: 5 }, 2: { event_id: 5 } };
     state.failInsert = false;
+    state.racesByHeatId = { 1: [11, 12], 2: [21] };
+    state.clearedSnapshotRaceIds = [];
+  });
+
+  // RULE-M13 / SHRS 3.1.5: an assignment snapshot records which boats were in a
+  // heat. Once a boat moves, the snapshot still lists her in the OLD heat, so
+  // the next round is seeded from both heats and she is assigned to two
+  // next-round heats at once. Both heats' snapshots must be invalidated.
+  it('invalidates the assignment snapshots of both heats after a transfer', async () => {
+    await handlerRegistry.transferBoatBetweenHeats({}, 1, 2, 42);
+
+    expect(state.clearedSnapshotRaceIds.sort()).toEqual([11, 12, 21]);
+  });
+
+  it('does not invalidate snapshots when the transfer is a no-op', async () => {
+    await handlerRegistry.transferBoatBetweenHeats({}, 1, 1, 42);
+
+    expect(state.clearedSnapshotRaceIds).toEqual([]);
+  });
+
+  it('does not invalidate snapshots when the transfer fails', async () => {
+    state.failInsert = true;
+
+    await expect(
+      handlerRegistry.transferBoatBetweenHeats({}, 1, 2, 42),
+    ).rejects.toThrow(/insert failure/i);
+
+    expect(state.clearedSnapshotRaceIds).toEqual([]);
   });
 
   it('moves the boat from the source heat to the target heat', async () => {

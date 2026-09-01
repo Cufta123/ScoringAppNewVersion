@@ -5,6 +5,7 @@ import {
   getExcludeCountForConfig,
 } from './discardConfig';
 import {
+  capExcludeCountForBoat,
   compareScoreArrays,
   getKeptScores,
   resolveTiesSequentially,
@@ -40,7 +41,35 @@ export interface TieCandidate {
   keptScores: number[];
 }
 
-export function getScoresForA81(event_id: any, boat_id: any) {
+// Per-recompute memoization cache. `calculateBoatScores` fetches the same
+// boat's scores more than once (the per-boat total loop, the single-heat
+// detection, and the tie-break comparator). A cache scoped to a single
+// recompute returns the identical rows the DB would have returned on a
+// re-query, so it cannot change scoring — it only avoids re-running the same
+// SQLite query for the same boat.
+interface ScoreCache {
+  a81: Map<string, ScoreEntry[]>;
+  a82: Map<string, number[]>;
+  raceScores: Map<string, RaceScoreEntry[]>;
+}
+
+function createScoreCache(): ScoreCache {
+  return {
+    a81: new Map(),
+    a82: new Map(),
+    raceScores: new Map(),
+  };
+}
+
+export function getScoresForA81(
+  event_id: any,
+  boat_id: any,
+  cache?: ScoreCache,
+) {
+  if (cache) {
+    const cached = cache.a81.get(String(boat_id));
+    if (cached) return cached;
+  }
   const scoresQuery = db.prepare(`
     SELECT s.points, COALESCE(s.status, 'FINISHED') as status, s.race_id, r.race_number
     FROM Scores s
@@ -49,10 +78,20 @@ export function getScoresForA81(event_id: any, boat_id: any) {
     WHERE h.event_id = ? AND s.boat_id = ? AND h.heat_type = 'Qualifying'
     ORDER BY points DESC, r.race_number ASC, s.race_id ASC
   `);
-  return scoresQuery.all(event_id, boat_id) as ScoreEntry[];
+  const result = scoresQuery.all(event_id, boat_id) as ScoreEntry[];
+  if (cache) cache.a81.set(String(boat_id), result);
+  return result;
 }
 
-export function getScoresForA82(event_id: any, boat_id: any) {
+export function getScoresForA82(
+  event_id: any,
+  boat_id: any,
+  cache?: ScoreCache,
+) {
+  if (cache) {
+    const cached = cache.a82.get(String(boat_id));
+    if (cached) return cached;
+  }
   const scoresQuery = db.prepare(`
     SELECT s.points
     FROM Scores s
@@ -62,15 +101,22 @@ export function getScoresForA82(event_id: any, boat_id: any) {
     ORDER BY r.race_number DESC, s.race_id DESC
   `);
 
-  return scoresQuery
+  const result = scoresQuery
     .all(event_id, boat_id)
     .map((row: { points: any }) => row.points);
+  if (cache) cache.a82.set(String(boat_id), result);
+  return result;
 }
 
 export function getRaceScoresForTieBreak(
   event_id: any,
   boat_id: any,
+  cache?: ScoreCache,
 ): RaceScoreEntry[] {
+  if (cache) {
+    const cached = cache.raceScores.get(String(boat_id));
+    if (cached) return cached;
+  }
   const scoresQuery = db.prepare(`
     SELECT s.race_id, r.race_number, s.points
     FROM Scores s
@@ -80,22 +126,25 @@ export function getRaceScoresForTieBreak(
     ORDER BY r.race_number DESC, s.race_id DESC
   `);
 
-  return scoresQuery
+  const result = scoresQuery
     .all(event_id, boat_id)
     .map((row: { race_id: number; race_number: number; points: number }) => ({
       race_id: row.race_id,
       race_number: row.race_number,
       points: row.points,
     }));
+  if (cache) cache.raceScores.set(String(boat_id), result);
+  return result;
 }
 
 export function getSharedRaceScoresForTieBreak(
   event_id: any,
   boatAId: string,
   boatBId: string,
+  cache?: ScoreCache,
 ) {
-  const scoresA = getRaceScoresForTieBreak(event_id, boatAId);
-  const scoresB = getRaceScoresForTieBreak(event_id, boatBId);
+  const scoresA = getRaceScoresForTieBreak(event_id, boatAId, cache);
+  const scoresB = getRaceScoresForTieBreak(event_id, boatBId, cache);
   const scoresByRaceB = new Map<number, RaceScoreEntry>();
   scoresB.forEach((entry) => {
     scoresByRaceB.set(entry.race_id, entry);
@@ -137,11 +186,12 @@ export function getSharedRaceScoresForTieBreak(
 export function detectSingleHeatEvent(
   event_id: any,
   boatIds: string[],
+  cache?: ScoreCache,
 ): boolean {
   let reference: Set<number> | null = null;
   for (let i = 0; i < boatIds.length; i += 1) {
     const raceIds = new Set(
-      getRaceScoresForTieBreak(event_id, boatIds[i]).map(
+      getRaceScoresForTieBreak(event_id, boatIds[i], cache).map(
         (entry) => entry.race_id,
       ),
     );
@@ -170,11 +220,13 @@ export function compareQualifyingTieCandidates(
   a: TieCandidate,
   b: TieCandidate,
   isSingleHeatEvent: boolean,
+  cache?: ScoreCache,
 ): number {
   const sharedScores = getSharedRaceScoresForTieBreak(
     event_id,
     a.boat_id,
     b.boat_id,
+    cache,
   );
 
   if (sharedScores) {
@@ -224,8 +276,8 @@ export function compareQualifyingTieCandidates(
   );
 
   // A8.2: compare original scores from the last race backward.
-  const scoresA = getScoresForA82(event_id, a.boat_id);
-  const scoresB = getScoresForA82(event_id, b.boat_id);
+  const scoresA = getScoresForA82(event_id, a.boat_id, cache);
+  const scoresB = getScoresForA82(event_id, b.boat_id, cache);
   const a82Comparison = compareScoreArrays(scoresA, scoresB);
   if (a82Comparison !== 0) {
     return a82Comparison;
@@ -242,9 +294,11 @@ export default function calculateBoatScores(
   pointsMap: Map<number, string[]>,
 ): TemporaryTableEntry[] {
   const discardConfig = getEventDiscardConfig(event_id, 'qualifying');
+  const cache = createScoreCache();
   const isSingleHeatEvent = detectSingleHeatEvent(
     event_id,
     results.map((row) => String(row.boat_id)),
+    cache,
   );
 
   // SHRS 5.4 keys the discard count off the number of races COMPLETED IN THE
@@ -261,7 +315,7 @@ export default function calculateBoatScores(
     const { boat_id, number_of_races } = result;
 
     // Fetch all scores for the boat
-    const scoreEntries = getScoresForA81(event_id, boat_id);
+    const scoreEntries = getScoresForA81(event_id, boat_id, cache);
 
     // Determine the number of scores to exclude per SHRS 5.4 (series-wide count)
     const seriesExcludeCount = getExcludeCountForConfig(
@@ -273,11 +327,10 @@ export default function calculateBoatScores(
     // than the series (e.g. a late entrant whose missing races are not seeded)
     // must never have *all* of its scores discarded — low-point scoring can
     // never drop a boat below its single best race. Without this cap such a
-    // boat's total collapses to 0 and it is wrongly ranked first. Keep at least
-    // one score by capping to (scores available − 1).
-    const excludeCount = Math.min(
+    // boat's total collapses to 0 and it is wrongly ranked first.
+    const excludeCount = capExcludeCountForBoat(
       seriesExcludeCount,
-      Math.max(0, scoreEntries.length - 1),
+      scoreEntries.length,
     );
     const excludeCapNote =
       excludeCount !== seriesExcludeCount
@@ -353,11 +406,15 @@ export default function calculateBoatScores(
     if (boatIds.length > 1) {
       console.log(`Boats with total points ${totalPoints}:`, boatIds);
       const sortedScores: TieCandidate[] = boatIds.map((boat_id) => {
-        const scoreEntries = getScoresForA81(event_id, boat_id);
-        // SHRS 5.4: same series-wide discard count for every tied boat.
-        const excludeCount = getExcludeCountForConfig(
-          seriesRaceCount,
-          discardConfig,
+        const scoreEntries = getScoresForA81(event_id, boat_id, cache);
+        // SHRS 5.4: same series-wide discard count for every tied boat, capped
+        // per boat exactly as the total above (LB-11). Without the cap a boat
+        // with fewer scores than the discard count enters A8.1 with an EMPTY
+        // kept-score vector and always loses the tie-break — contradicting the
+        // capped total that put her in the tie in the first place.
+        const excludeCount = capExcludeCountForBoat(
+          getExcludeCountForConfig(seriesRaceCount, discardConfig),
+          scoreEntries.length,
         );
         const keptScores = getKeptScores(scoreEntries, excludeCount).sort(
           (a: number, b: number) => a - b,
@@ -370,7 +427,13 @@ export default function calculateBoatScores(
 
       // SHRS 2026 5.7(ii)(3): resolve higher-place tie before lower ties.
       const resolvedOrder = resolveTiesSequentially(sortedScores, (a, b) =>
-        compareQualifyingTieCandidates(event_id, a, b, isSingleHeatEvent),
+        compareQualifyingTieCandidates(
+          event_id,
+          a,
+          b,
+          isSingleHeatEvent,
+          cache,
+        ),
       );
 
       resolvedOrder.forEach((boat, index) => {

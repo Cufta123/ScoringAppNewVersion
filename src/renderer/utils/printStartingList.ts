@@ -167,13 +167,13 @@ export default async function printStartingList(
     </head><body>`;
     html += '<h1>Starting List</h1>';
     html += `<table><thead><tr>
-      <th>Name</th>
-      <th>Surname</th>
-      <th>Country</th>
-      <th>Boat Number</th>
-      <th>Subgroup</th>
-      <th>Boat Model</th>
-      <th>Club</th>
+      <th scope="col">Name</th>
+      <th scope="col">Surname</th>
+      <th scope="col">Country</th>
+      <th scope="col">Boat Number</th>
+      <th scope="col">Subgroup</th>
+      <th scope="col">Boat Model</th>
+      <th scope="col">Club</th>
       </tr></thead><tbody>`;
     sortedSailors.forEach((sailor) => {
       html += `<tr>

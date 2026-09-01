@@ -60,3 +60,32 @@ export function clearAssignmentSnapshot(race_id: number): void {
     // Table unavailable (legacy DB or test double); nothing to clean up.
   }
 }
+
+/**
+ * RULE-M13: drop every snapshot belonging to a heat.
+ *
+ * A snapshot records which boats were in a heat and in what order, so it is
+ * only valid while the heat's membership is unchanged. When a boat is moved
+ * between heats the stale snapshot still lists her in the old heat, so the next
+ * round is built from it and she is assigned from BOTH heats — entering two
+ * next-round heats at once. Invalidating on membership change makes the next
+ * assignment recompute from the heat's actual boats.
+ *
+ * SHRS 3.1.5 ("Protest committee decisions shall not change heat assignments")
+ * is not in play here: a race-office transfer is not a protest decision.
+ */
+export function clearAssignmentSnapshotsForHeat(heat_id: number): void {
+  let raceIds: number[] = [];
+  try {
+    raceIds = (
+      db
+        .prepare('SELECT race_id FROM Races WHERE heat_id = ?')
+        .all(heat_id) as { race_id: number }[]
+    ).map((row) => Number(row.race_id));
+  } catch {
+    // Table unavailable (legacy DB or test double).
+    return;
+  }
+
+  raceIds.forEach((raceId) => clearAssignmentSnapshot(raceId));
+}

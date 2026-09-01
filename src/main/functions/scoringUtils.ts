@@ -64,6 +64,23 @@ export function getExcludedIndexes(
 }
 
 /**
+ * SHRS 5.4 discard counts are series-wide, but low-point scoring can never drop
+ * a boat below her single best race. A boat with fewer scores than the series
+ * discard count (e.g. a late entrant whose missing races are not seeded) must
+ * still keep one score, so cap the count at (scores available − 1).
+ *
+ * Every site that turns a series-wide discard count into a per-boat one must
+ * use this, so a boat's total and her tie-break vector are derived from the
+ * same number of discards.
+ */
+export function capExcludeCountForBoat(
+  seriesExcludeCount: number,
+  availableScoreCount: number,
+): number {
+  return Math.min(seriesExcludeCount, Math.max(0, availableScoreCount - 1));
+}
+
+/**
  * Apply SHRS 5.4 exclusions: drop the worst `excludeCount` excludable scores
  * (DNE/DGM are never excluded) and return the remaining points in the
  * original entry order. Worst-score ties are broken by earliest race.

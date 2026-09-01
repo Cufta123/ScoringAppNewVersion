@@ -801,9 +801,13 @@ function HeatComponent({
               <table>
                 <thead>
                   <tr>
-                    <th style={sailorNameColumnStyle}>Sailor Name</th>
-                    <th>Country</th>
-                    <th style={boatNumberColumnStyle}>Boat Number</th>
+                    <th scope="col" style={sailorNameColumnStyle}>
+                      Sailor Name
+                    </th>
+                    <th scope="col">Country</th>
+                    <th scope="col" style={boatNumberColumnStyle}>
+                      Boat Number
+                    </th>
                   </tr>
                 </thead>
                 <tbody>

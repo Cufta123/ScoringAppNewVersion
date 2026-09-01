@@ -5,6 +5,17 @@
 
 export const scoringPenaltyStatuses = new Set(['ZFP', 'SCP', 'T1']);
 
+/**
+ * RRS A6.1: "If a boat is disqualified from a race or retires after finishing,
+ * each boat with a worse finishing place shall be moved up one place."
+ *
+ * These are the statuses that remove a boat that HAD finished from the
+ * finishing order, so the boats behind her must be promoted. Shared with the
+ * renderer's edit preview so the promotion the scorer sees matches the one the
+ * main process persists (RULE-M16).
+ */
+export const mandatoryDisplaceStatuses = new Set(['DSQ', 'RET', 'DNE', 'DGM']);
+
 export function roundHalfUp(value: number): number {
   return Math.floor(value + 0.5 + Number.EPSILON);
 }

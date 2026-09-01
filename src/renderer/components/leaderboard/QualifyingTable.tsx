@@ -118,6 +118,7 @@ function QualifyingTable({
               {/* Identity headers */}
               {identityHeaders.map((h) => (
                 <th
+                  scope="col"
                   key={h}
                   style={{
                     textAlign: 'left',
@@ -134,6 +135,7 @@ function QualifyingTable({
 
               {/* Gross column */}
               <th
+                scope="col"
                 title="Gross: total points before discards (the sum of every race score)."
                 style={{
                   textAlign: 'center',
@@ -153,6 +155,7 @@ function QualifyingTable({
 
               {/* Overall column */}
               <th
+                scope="col"
                 title="Overall: net series score after discards — this is what decides the ranking."
                 style={{
                   textAlign: 'center',
@@ -181,6 +184,7 @@ function QualifyingTable({
                     false);
                 return (
                   <th
+                    scope="col"
                     key={`qh-r${i + 1}`}
                     aria-label={
                       colIsShared ? `Q${i + 1} shared race` : `Q${i + 1}`
@@ -350,7 +354,6 @@ function QualifyingTable({
                         rdg2Picker={rdg2Picker}
                         setRdg2Picker={setRdg2Picker}
                         confirmRdg2={confirmRdg2}
-                        qualifyingEntry={null}
                       />
                     );
                   })}

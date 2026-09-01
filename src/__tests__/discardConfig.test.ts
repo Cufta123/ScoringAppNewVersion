@@ -115,6 +115,64 @@ describe('normalizeDiscardConfigString', () => {
   });
 });
 
+describe('normalizeDiscardConfig — round-trip (self-inverse)', () => {
+  const roundTrip = (value: unknown) =>
+    normalizeDiscardConfig(JSON.parse(normalizeDiscardConfigString(value)));
+
+  it('round-trips an arithmetic custom profile back to itself, not never-discard', () => {
+    const original = normalizeDiscardConfig({
+      firstDiscardAt: 6,
+      secondDiscardAt: 14,
+      additionalEvery: 8,
+    });
+    const reparsed = roundTrip(original);
+
+    expect(reparsed).toEqual(original);
+    expect(reparsed.neverDiscard).toBeUndefined();
+    // The 6/14/8 schedule is preserved through the round-trip.
+    expect(getExcludeCountForConfig(5, reparsed)).toBe(0);
+    expect(getExcludeCountForConfig(6, reparsed)).toBe(1);
+    expect(getExcludeCountForConfig(14, reparsed)).toBe(2);
+    expect(getExcludeCountForConfig(22, reparsed)).toBe(3);
+  });
+
+  it('does not serialize an arithmetic profile with an empty thresholds list', () => {
+    const serialized = normalizeDiscardConfigString({
+      firstDiscardAt: 6,
+      secondDiscardAt: 14,
+      additionalEvery: 8,
+    });
+    expect(serialized).not.toContain('"thresholds":[]');
+    expect(JSON.parse(serialized)).not.toHaveProperty('thresholds');
+  });
+
+  it('round-trips a never-discard profile back to never-discard', () => {
+    const original = normalizeDiscardConfig({ thresholds: [] });
+    const reparsed = roundTrip(original);
+
+    expect(reparsed).toEqual(original);
+    expect(reparsed.neverDiscard).toBe(true);
+    expect(getExcludeCountForConfig(50, reparsed)).toBe(0);
+  });
+
+  it('round-trips the standard profile back to the standard defaults', () => {
+    const original = normalizeDiscardConfig('standard');
+    const reparsed = roundTrip(original);
+
+    expect(reparsed).toEqual(original);
+    expect(reparsed.neverDiscard).toBeUndefined();
+    expect(getExcludeCountForConfig(8, reparsed)).toBe(2);
+  });
+
+  it('round-trips a threshold-list profile back to the same thresholds', () => {
+    const original = normalizeDiscardConfig({ thresholds: [4, 8, 16] });
+    const reparsed = roundTrip(original);
+
+    expect(reparsed).toEqual(original);
+    expect(getExcludeCountForConfig(16, reparsed)).toBe(3);
+  });
+});
+
 describe('getExcludeCountForConfig — SHRS 5.4 boundaries', () => {
   it('follows 0 / 1 / 2 (+1 per 8) for the standard profile', () => {
     const c = normalizeDiscardConfig('standard');
@@ -143,14 +201,33 @@ describe('getExcludeCountForConfig — SHRS 5.4 boundaries', () => {
     expect(getExcludeCountForConfig(99, c)).toBe(1);
   });
 
-  it('an EMPTY threshold list falls back to the standard 4/8/8 profile, not "never discard"', () => {
-    // NOTE (potential issue): normalizeDiscardConfig keeps thresholds:[] but
-    // getExcludeCountForConfig only honours thresholds when length > 0, so an
-    // empty list silently reverts to the default profile. A user who sets an
-    // empty threshold list expecting "no discards" would still get standard
-    // discards. Documented here; flagged for a product decision.
+  // RULE-m6 / SHRS 5.4: "The Race Committee may change this rule before the
+  // warning signal for the first race in a series." An explicitly empty
+  // threshold list is such a change and means NEVER discard. It used to fall
+  // through to the standard 4/8/8, so an event configured for no discards
+  // discarded anyway.
+  it('an EMPTY threshold list means "never discard" (SHRS 5.4 RC change)', () => {
     const c = normalizeDiscardConfig({ thresholds: [] });
-    expect(getExcludeCountForConfig(50, c)).toBe(7); // 2 + floor((50-8)/8)
+    expect(c.neverDiscard).toBe(true);
+    expect(getExcludeCountForConfig(0, c)).toBe(0);
+    expect(getExcludeCountForConfig(4, c)).toBe(0);
+    expect(getExcludeCountForConfig(8, c)).toBe(0);
+    expect(getExcludeCountForConfig(50, c)).toBe(0);
+  });
+
+  it('does NOT treat a custom first/second/every profile as never-discard', () => {
+    // The arithmetic branch also emits `thresholds: []`, so the never-discard
+    // sentinel must be the explicit flag — otherwise every stored custom
+    // profile would silently stop discarding.
+    const c = normalizeDiscardConfig({
+      firstDiscardAt: 5,
+      secondDiscardAt: 10,
+      additionalEvery: 10,
+    });
+    expect(c.neverDiscard).toBeUndefined();
+    expect(getExcludeCountForConfig(4, c)).toBe(0);
+    expect(getExcludeCountForConfig(5, c)).toBe(1);
+    expect(getExcludeCountForConfig(10, c)).toBe(2);
   });
 
   it('follows a custom per-field profile boundary, not just the standard defaults', () => {

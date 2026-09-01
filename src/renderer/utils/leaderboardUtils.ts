@@ -1,5 +1,7 @@
 /* eslint-disable camelcase */
 import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
+import { fleetRank } from '../../shared/fleetNames';
+import { getExcludeCountForProfile } from '../../shared/discardProfile';
 import type { LeaderboardEntry, RawLeaderboardEntry } from '../types';
 
 export const PENALTY_CODES = [
@@ -31,31 +33,6 @@ const NON_EXCLUDABLE_STATUSES = new Set(['DNE', 'DGM']);
 
 export type { RawLeaderboardEntry };
 
-const parseDiscardThresholdsFromProfile = (
-  discardProfile?: string | null,
-): number[] | null => {
-  if (!discardProfile || discardProfile === 'standard') return null;
-  try {
-    const parsed: unknown = JSON.parse(discardProfile);
-    const rawThresholds =
-      parsed && typeof parsed === 'object'
-        ? (parsed as { thresholds?: unknown }).thresholds
-        : undefined;
-    if (!Array.isArray(rawThresholds)) return null;
-    const thresholds = rawThresholds
-      .map((entry) => Number(entry))
-      .filter((entry) => Number.isInteger(entry) && entry > 0);
-
-    if (thresholds.length !== rawThresholds.length) return null;
-    for (let index = 1; index < thresholds.length; index += 1) {
-      if (thresholds[index] <= thresholds[index - 1]) return null;
-    }
-    return thresholds;
-  } catch (_error) {
-    return null;
-  }
-};
-
 /**
  * Strip exclusion parentheses and return 0 for any non-numeric value.
  * Uses parseFloat so RDG average scores (e.g. 3.4) are preserved.
@@ -66,21 +43,50 @@ export const parseRaceNum = (val: unknown): number => {
 };
 
 /**
- * SHRS 5.4: after 4 races exclude 1, after 8 exclude 2, then +1 per 8 more.
+ * RRS A9 average of a boat's points over a chosen set of race indices, excluding
+ * one race (the redressed cell). Shared by the RDG1 (all series races) and RDG2
+ * (selected races) paths in useLeaderboard so a parse/filter/rounding fix can't
+ * drift between them.
+ *
+ * `selectedIndices` of `null` averages every index; a non-null set averages only
+ * the given indices. Non-numeric values are skipped, and an empty average falls
+ * back to `penaltyPos` (the score a non-finisher would receive).
+ */
+export const averageRacePoints = (
+  raceValues: string[],
+  selectedIndices: Set<number> | null,
+  excludeIdx: number,
+  penaltyPos: number,
+): number => {
+  const values = raceValues
+    .map((value, idx) => ({
+      val: parseFloat(String(value).replace(/[()]/g, '')),
+      idx,
+    }))
+    .filter(({ idx, val }) => {
+      if (idx === excludeIdx) return false;
+      if (selectedIndices !== null && !selectedIndices.has(idx)) return false;
+      return !Number.isNaN(val);
+    });
+  if (values.length === 0) return penaltyPos;
+  const sum = values.reduce((acc, { val }) => acc + val, 0);
+  return Math.round((sum / values.length + Number.EPSILON) * 10) / 10;
+};
+
+/**
+ * SHRS 5.4: after 4 races exclude 1, after 8 exclude 2, then +1 per 8 more —
+ * unless the Race Committee changed the rule for this event.
+ *
+ * Delegates to the shared implementation the main process also uses, so a
+ * custom profile (thresholds, altered first/second/every, or "never discard")
+ * produces the same count in the edit-mode preview as in the stored scores.
+ * The renderer used to reimplement this and honoured only `thresholds`,
+ * silently applying the standard 4/8/8 to every other custom profile.
  */
 export const getExcludeCount = (
   numberOfRaces: number,
   discardProfile: string | null = 'standard',
-): number => {
-  const thresholds = parseDiscardThresholdsFromProfile(discardProfile);
-  if (thresholds && thresholds.length > 0) {
-    return thresholds.filter((threshold) => numberOfRaces >= threshold).length;
-  }
-
-  if (numberOfRaces < 4) return 0;
-  if (numberOfRaces < 8) return 1;
-  return 2 + Math.floor((numberOfRaces - 8) / 8);
-};
+): number => getExcludeCountForProfile(numberOfRaces, discardProfile);
 
 /**
  * Apply score exclusions per SHRS 5.4: mark worst scores with parentheses,
@@ -190,6 +196,29 @@ export const processLeaderboardEntry = (
 export const getFlagCode = (iocCode: string): string =>
   iocToFlagCodeMap[iocCode] || iocCode;
 
+/**
+ * LB-6 (security): escape one CSV cell. Neutralises CSV formula injection — a
+ * value whose first character is `=`, `+`, `-` or `@` is interpreted as a
+ * formula by Excel/Sheets and can execute (e.g. `=HYPERLINK(...)`) — by
+ * prefixing a single quote, which forces it to be read as literal text. Also
+ * quotes cells containing a comma, double quote, or newline (LF/CR) so embedded
+ * delimiters/newlines can't break the row/column grid.
+ */
+export const escapeCsvCell = (value: unknown): string => {
+  let s = String(value ?? '');
+  // OWASP CSV-injection trigger set: = + - @ plus the tab and carriage-return
+  // control characters (a leading \t or \r before a formula is also a trigger).
+  if (/^[=+\-@\t\r]/.test(s)) {
+    s = `'${s}`;
+  }
+  return s.includes(',') ||
+    s.includes('"') ||
+    s.includes('\n') ||
+    s.includes('\r')
+    ? `"${s.replace(/"/g, '""')}"`
+    : s;
+};
+
 interface RaceCellDisplay {
   displayText: string;
   displayColor: string;
@@ -261,4 +290,16 @@ export const FLEET_COLORS: Record<string, { border: string; thead: string }> = {
   General: { border: '#6b7c93', thead: '#566575' },
 };
 
-export const GROUP_ORDER = ['Gold', 'Silver', 'Bronze', 'Copper', 'General'];
+/**
+ * SHRS 5.5 fleet precedence for display grouping: Gold, Silver, Bronze, Copper
+ * "and so on", then the single-fleet "General" bucket, then anything we cannot
+ * order. Uses the shared `fleetRank` so the 5th and later fleets ("Fleet 5", …)
+ * get real, distinct precedence instead of all colliding on one rank (RULE-m2).
+ */
+const GENERAL_GROUP_RANK = Number.MAX_SAFE_INTEGER - 1;
+
+export const fleetGroupRank = (group: string): number =>
+  group === 'General' ? GENERAL_GROUP_RANK : fleetRank(group);
+
+export const compareFleetGroups = (a: string, b: string): number =>
+  fleetGroupRank(a) - fleetGroupRank(b);
