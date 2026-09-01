@@ -50,7 +50,8 @@ Use this document first. Only search the repo when this file does not answer the
 
 - `src/main/preload.ts` exposes grouped sqlite APIs under `window.electron.sqlite.*`.
 - Wrapper throws on `false` return values, so renderer callers should expect exceptions.
-- Channel names are strongly listed in `type Channels`.
+- Channel names live once in `SQLITE_CHANNELS`, grouped as the renderer consumes
+  them; `type Channels` and the invoker map are derived from that list.
 
 ## 4. Database Model (SQLite)
 
@@ -350,9 +351,12 @@ For most feature/fix requests, do this in order:
 - `functions/` modules import `db` directly from `DBManager` (not passed in),
   and only call `db.prepare` inside functions — never at module top level, so
   importing a module never touches the database.
-- When adding a preload channel, update all four: `type Channels`, the
-  `electronHandler` map in `preload.ts`, the handler's `handle()` registration,
-  and the renderer `api/db` wrapper.
+- When adding a preload channel, update three places: the `SQLITE_CHANNELS`
+  list in `preload.ts` (the `Channels` union and the invoker map are both
+  derived from it, so they cannot disagree), the handler's `handle()`
+  registration, and the renderer `api/db` wrapper. The wrapper is not
+  duplication — preload types every method as `Promise<any>`, and `api/db.ts`
+  is where the real return types live.
 - The global leaderboard feature is removed from the UI (Sept 2026). The route,
   both nav entry points, the page, the component and the
   `readGlobalLeaderboard` / `updateGlobalLeaderboard` channels are gone; users

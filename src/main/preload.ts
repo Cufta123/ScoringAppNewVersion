@@ -3,59 +3,79 @@
 /* eslint no-unused-vars: off */
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
-// Keep this union in sync with the channels registered via `ipcMain.handle`/
-// `ipcMain.on` in `src/main` and `src/main/ipcHandlers`. It is enforced on
-// every `invokeChannel`/`makeInvoker` call below, so an out-of-sync entry fails
-// the build.
-export type Channels =
-  | 'dialog:openFile'
-  | 'readAllSailors'
-  | 'updateSailor'
-  | 'readBoatsByHeat'
-  | 'insertSailor'
-  | 'readAllCategories'
-  | 'readAllClubs'
-  | 'insertClub'
-  | 'insertBoat'
-  | 'readAllBoats'
-  | 'readAllEvents'
-  | 'insertEvent'
-  | 'associateBoatWithEvent'
-  | 'readBoatsByEvent'
-  | 'removeBoatFromEvent'
-  | 'readAllHeats'
-  | 'insertHeat'
-  | 'insertHeatBoat'
-  | 'createInitialHeatsAtomic'
-  | 'readAllRaces'
-  | 'insertRace'
-  | 'readAllScores'
-  | 'insertScore'
-  | 'updateScore'
-  | 'deleteScore'
-  | 'deleteHeatsByEvent'
-  | 'updateEventLeaderboard'
-  | 'createNewHeatsBasedOnLeaderboard'
-  | 'undoLastScoredRaceForHeat'
-  | 'undoLastScoredRace'
-  | 'undoLatestHeatRedistribution'
-  | 'transferBoatBetweenHeats'
-  | 'readLeaderboard'
-  | 'updateFinalLeaderboard'
-  | 'readFinalLeaderboard'
-  | 'readOverallLeaderboard'
-  | 'startFinalSeriesAtomic'
-  | 'updateEvent'
-  | 'deleteEvent'
-  | 'updateRaceResult'
-  | 'saveLeaderboardRaceResultsAtomic'
-  | 'submitHeatRaceScoresAtomic'
-  | 'getMaxHeatSize'
-  | 'explainTieBreak'
-  | 'getFinalSeriesEligibility'
-  | 'exportEventSnapshotToFile'
-  | 'restoreEventSnapshotFromFile'
-  | 'importSailors';
+/**
+ * Every sqlite channel, grouped exactly as the renderer consumes them
+ * (`window.electron.sqlite.<group>.<channel>`).
+ *
+ * This list is the single source: the `Channels` union and the invoker map
+ * below are both derived from it, so they cannot disagree. Adding a channel
+ * means adding one string here, plus its `handle()` registration in
+ * `src/main/ipcHandlers` and its typed signature in `src/renderer/api/db.ts`.
+ */
+const SQLITE_CHANNELS = {
+  sailorDB: [
+    'readAllSailors',
+    'updateSailor',
+    'insertSailor',
+    'insertClub',
+    'insertBoat',
+    'readAllCategories',
+    'readAllClubs',
+    'readAllBoats',
+    'importSailors',
+  ],
+  eventDB: [
+    'readAllEvents',
+    'insertEvent',
+    'associateBoatWithEvent',
+    'readBoatsByEvent',
+    'removeBoatFromEvent',
+    'updateEvent',
+    'deleteEvent',
+  ],
+  heatRaceDB: [
+    'readAllHeats',
+    'insertHeat',
+    'deleteHeatsByEvent',
+    'insertHeatBoat',
+    'createInitialHeatsAtomic',
+    'readBoatsByHeat',
+    'readAllRaces',
+    'insertRace',
+    'readAllScores',
+    'insertScore',
+    'updateScore',
+    'deleteScore',
+    'updateEventLeaderboard',
+    'createNewHeatsBasedOnLeaderboard',
+    'undoLastScoredRaceForHeat',
+    'undoLastScoredRace',
+    'undoLatestHeatRedistribution',
+    'transferBoatBetweenHeats',
+    'readLeaderboard',
+    'updateFinalLeaderboard',
+    'updateRaceResult',
+    'saveLeaderboardRaceResultsAtomic',
+    'submitHeatRaceScoresAtomic',
+    'readFinalLeaderboard',
+    'readOverallLeaderboard',
+    'startFinalSeriesAtomic',
+    'getMaxHeatSize',
+    'explainTieBreak',
+    'getFinalSeriesEligibility',
+    'exportEventSnapshotToFile',
+    'restoreEventSnapshotFromFile',
+  ],
+} as const;
+
+type SqliteChannelGroups = typeof SQLITE_CHANNELS;
+type SqliteChannel = SqliteChannelGroups[keyof SqliteChannelGroups][number];
+
+/**
+ * Channels the renderer may invoke. `dialog:openFile` is registered in
+ * `main.ts` rather than a sqlite handler, so it is listed separately.
+ */
+export type Channels = 'dialog:openFile' | SqliteChannel;
 
 const toErrorMessage = (error: unknown): string => {
   if (error instanceof Error && error.message) {
@@ -129,6 +149,37 @@ const wrapSqliteApi = <T extends Record<string, any>>(api: T): T => {
   return wrapped;
 };
 
+type Invoker = (...args: unknown[]) => Promise<any>;
+
+type SqliteApi = {
+  [Group in keyof SqliteChannelGroups]: {
+    [Channel in SqliteChannelGroups[Group][number]]: Invoker;
+  };
+};
+
+const sqlite = Object.fromEntries(
+  Object.entries(SQLITE_CHANNELS).map(([group, channels]) => [
+    group,
+    Object.fromEntries(
+      (channels as readonly Channels[]).map((channel) => [
+        channel,
+        makeInvoker(channel),
+      ]),
+    ),
+  ]),
+) as SqliteApi;
+
+// Special-cased: callers render the returned summary object even on failure,
+// so this resolves a zero-result shape instead of throwing.
+sqlite.sailorDB.importSailors = async (...args: unknown[]) => {
+  try {
+    return await invokeChannel('importSailors', ...args);
+  } catch (error) {
+    console.error('Error invoking importSailors IPC:', error);
+    return { imported: 0, skipped: 0, errors: [toErrorMessage(error)] };
+  }
+};
+
 const electronHandler = {
   ipcRenderer: {
     sendMessage(channel: Channels, ...args: unknown[]) {
@@ -147,74 +198,7 @@ const electronHandler = {
       ipcRenderer.once(channel, (_event, ...args) => func(...args));
     },
   },
-  sqlite: {
-    sailorDB: {
-      readAllSailors: makeInvoker('readAllSailors'),
-      updateSailor: makeInvoker('updateSailor'),
-      insertSailor: makeInvoker('insertSailor'),
-      insertClub: makeInvoker('insertClub'),
-      insertBoat: makeInvoker('insertBoat'),
-      readAllCategories: makeInvoker('readAllCategories'),
-      readAllClubs: makeInvoker('readAllClubs'),
-      readAllBoats: makeInvoker('readAllBoats'),
-      // Special-cased: callers render the returned summary object even on
-      // failure, so resolve a zero-result shape instead of throwing.
-      async importSailors(rows: unknown[]) {
-        try {
-          return await invokeChannel('importSailors', rows);
-        } catch (error) {
-          console.error('Error invoking importSailors IPC:', error);
-          return { imported: 0, skipped: 0, errors: [toErrorMessage(error)] };
-        }
-      },
-    },
-    eventDB: {
-      readAllEvents: makeInvoker('readAllEvents'),
-      insertEvent: makeInvoker('insertEvent'),
-      associateBoatWithEvent: makeInvoker('associateBoatWithEvent'),
-      readBoatsByEvent: makeInvoker('readBoatsByEvent'),
-      removeBoatFromEvent: makeInvoker('removeBoatFromEvent'),
-      updateEvent: makeInvoker('updateEvent'),
-      deleteEvent: makeInvoker('deleteEvent'),
-    },
-    heatRaceDB: {
-      readAllHeats: makeInvoker('readAllHeats'),
-      insertHeat: makeInvoker('insertHeat'),
-      deleteHeatsByEvent: makeInvoker('deleteHeatsByEvent'),
-      insertHeatBoat: makeInvoker('insertHeatBoat'),
-      createInitialHeatsAtomic: makeInvoker('createInitialHeatsAtomic'),
-      readBoatsByHeat: makeInvoker('readBoatsByHeat'),
-      readAllRaces: makeInvoker('readAllRaces'),
-      insertRace: makeInvoker('insertRace'),
-      readAllScores: makeInvoker('readAllScores'),
-      insertScore: makeInvoker('insertScore'),
-      updateScore: makeInvoker('updateScore'),
-      deleteScore: makeInvoker('deleteScore'),
-      updateEventLeaderboard: makeInvoker('updateEventLeaderboard'),
-      createNewHeatsBasedOnLeaderboard: makeInvoker(
-        'createNewHeatsBasedOnLeaderboard',
-      ),
-      undoLastScoredRaceForHeat: makeInvoker('undoLastScoredRaceForHeat'),
-      undoLastScoredRace: makeInvoker('undoLastScoredRace'),
-      undoLatestHeatRedistribution: makeInvoker('undoLatestHeatRedistribution'),
-      transferBoatBetweenHeats: makeInvoker('transferBoatBetweenHeats'),
-      readLeaderboard: makeInvoker('readLeaderboard'),
-      updateFinalLeaderboard: makeInvoker('updateFinalLeaderboard'),
-      updateRaceResult: makeInvoker('updateRaceResult'),
-      saveLeaderboardRaceResultsAtomic: makeInvoker(
-        'saveLeaderboardRaceResultsAtomic',
-      ),
-      submitHeatRaceScoresAtomic: makeInvoker('submitHeatRaceScoresAtomic'),
-      readFinalLeaderboard: makeInvoker('readFinalLeaderboard'),
-      readOverallLeaderboard: makeInvoker('readOverallLeaderboard'),
-      startFinalSeriesAtomic: makeInvoker('startFinalSeriesAtomic'),
-      getMaxHeatSize: makeInvoker('getMaxHeatSize'),
-      explainTieBreak: makeInvoker('explainTieBreak'),
-      getFinalSeriesEligibility: makeInvoker('getFinalSeriesEligibility'),
-      exportEventSnapshotToFile: makeInvoker('exportEventSnapshotToFile'),
-      restoreEventSnapshotFromFile: makeInvoker('restoreEventSnapshotFromFile'),
-    },
-  },
+  sqlite,
 };
 
 const wrappedElectronHandler = {
