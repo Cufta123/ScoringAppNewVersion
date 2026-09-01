@@ -70,6 +70,7 @@ const config: Config = {
     '**/src/__tests__/raceTieScoring.test.ts',
     '**/src/__tests__/finishOrder.test.ts',
     '**/src/__tests__/finalSeriesMessages.test.ts',
+    '**/src/__tests__/applyRaceResultUpdate.integration.test.ts',
     '**/src/__tests__/escapeHtml.test.js',
     '**/src/__tests__/scoreStatus.test.ts',
     '**/src/__tests__/leaderboardRecompute.test.ts',
