@@ -715,7 +715,10 @@ function HeatComponent({
                   onChange={(e) => setNumHeats(Number(e.target.value))}
                   disabled={raceHappened || finalSeriesStarted}
                 >
-                  {[...Array(10).keys()].map((i) => (
+                  {/* Match the backend's 1–26 heat limit (createInitialHeatsAtomic)
+                      so an event of up to 26×20=520 boats can be split without
+                      hitting a UI dead-end (RULE-M24). */}
+                  {[...Array(26).keys()].map((i) => (
                     <option key={i + 1} value={i + 1}>
                       {i + 1}
                     </option>

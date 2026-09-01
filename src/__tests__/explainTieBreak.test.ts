@@ -34,7 +34,13 @@ function normalize(races: RaceInput[]): Required<RaceInput>[] {
   }));
 }
 
+// Boats whose Heat_Boat row for the final heat is missing, so
+// getBoatFinalHeatName returns null even though they have final Scores rows
+// (a repaired/imported event). Cleared by each setupDb call.
+const boatsWithoutFinalHeatRow = new Set<string>();
+
 function setupDb(dataset: Dataset, discardProfile = 'standard') {
+  boatsWithoutFinalHeatRow.clear();
   const data: Record<string, Required<RaceInput>[]> = {};
   Object.entries(dataset).forEach(([boatId, races]) => {
     data[boatId] = normalize(races);
@@ -43,9 +49,41 @@ function setupDb(dataset: Dataset, discardProfile = 'standard') {
   mockPrepare.mockImplementation((sql: string) => {
     const flat = sql.replace(/\s+/g, ' ');
     return {
-      get: () => {
+      get: (arg0: unknown, arg1?: string, arg2?: string) => {
         if (flat.includes('discard_profile')) {
           return { discard_profile: discardProfile };
+        }
+        // getSeriesDiscardRaceCount: series-wide (qualifying) / fleet-wide
+        // (final) completed-race count — the max per-boat score count.
+        if (flat.includes('MAX(race_count)')) {
+          const heatType = arg1;
+          const fleet = arg2;
+          let maxCount = 0;
+          Object.values(data).forEach((races) => {
+            const relevant =
+              heatType === 'Final'
+                ? races.filter(
+                    (r) =>
+                      r.heat_type === 'Final' &&
+                      (fleet == null || r.heat_name === fleet),
+                  )
+                : races.filter((r) => r.heat_type === 'Qualifying');
+            maxCount = Math.max(maxCount, relevant.length);
+          });
+          return { max_count: maxCount };
+        }
+        // getBoatFinalHeatName: a boat's final fleet heat_name.
+        if (
+          flat.includes('h.heat_name FROM Heats h') &&
+          flat.includes('Heat_Boat')
+        ) {
+          const boatId = arg1;
+          if (boatsWithoutFinalHeatRow.has(String(boatId))) {
+            return undefined;
+          }
+          const races = data[boatId as string] ?? [];
+          const finalRace = races.find((r) => r.heat_type === 'Final');
+          return finalRace ? { heat_name: finalRace.heat_name } : undefined;
         }
         return undefined;
       },
@@ -132,6 +170,45 @@ describe('explainTieBreak — qualifying series', () => {
     expect(res.winnerBoatId).toBeNull();
     expect(res.totalA).toBe(2);
     expect(res.totalB).toBe(10);
+  });
+
+  it('uses the series-wide discard count (not the boat own) for a late entrant (SHRS 5.4)', () => {
+    // The series has 8 completed qualifying races (boat C sailed them all);
+    // boats A and B are late entrants with only 5 scores. Their totals must
+    // discard TWO scores (series-wide 8-race count), not one (their own 5-race
+    // count) — matching calculateBoatScores. RULE-M22 regression.
+    setupDb({
+      A: [
+        { race_id: 4, race_number: 4, points: 10 },
+        { race_id: 5, race_number: 5, points: 10 },
+        { race_id: 6, race_number: 6, points: 1 },
+        { race_id: 7, race_number: 7, points: 1 },
+        { race_id: 8, race_number: 8, points: 1 },
+      ],
+      B: [
+        { race_id: 4, race_number: 4, points: 3 },
+        { race_id: 5, race_number: 5, points: 3 },
+        { race_id: 6, race_number: 6, points: 3 },
+        { race_id: 7, race_number: 7, points: 3 },
+        { race_id: 8, race_number: 8, points: 3 },
+      ],
+      C: [
+        { race_id: 1, race_number: 1, points: 1 },
+        { race_id: 2, race_number: 2, points: 1 },
+        { race_id: 3, race_number: 3, points: 1 },
+        { race_id: 4, race_number: 4, points: 1 },
+        { race_id: 5, race_number: 5, points: 1 },
+        { race_id: 6, race_number: 6, points: 1 },
+        { race_id: 7, race_number: 7, points: 1 },
+        { race_id: 8, race_number: 8, points: 1 },
+      ],
+    });
+    const res = explainTieBreak(1, 'A', 'B', false);
+    // A: worst two (10,10) discarded -> kept [1,1,1] = 3.
+    // B: worst two (3,3) discarded -> kept [3,3,3] = 9.
+    expect(res.totalA).toBe(3);
+    expect(res.totalB).toBe(9);
+    expect(res.tied).toBe(false);
   });
 
   it('single-heat event: A8.1 without excluded scores (SHRS 5.7(i))', () => {
@@ -319,6 +396,62 @@ describe('explainTieBreak — final/overall series', () => {
     // Shared pairs split across both series.
     expect(res.sharedQualRacePairs.length).toBe(2);
     expect(res.sharedRacePairs.length).toBe(2);
+  });
+
+  it('falls back to the boat own race count when its final fleet is unknown', () => {
+    // RULE-M22 regression: a boat with final Scores rows but no Heat_Boat row
+    // for a final heat (a repaired/imported event) has no identifiable fleet.
+    // getSeriesDiscardRaceCount must not be called without a heat_name — that
+    // drops the fleet filter and returns the largest race count across ALL
+    // fleets, and SHRS 4.5 lets fleets sail different numbers of races. Here A
+    // sailed 4 final races (1 discard) while B's fleet sailed 8 (2 discards);
+    // borrowing B's count would discard a second score from A.
+    setupDb({
+      A: [
+        {
+          race_id: 11,
+          race_number: 1,
+          points: 1,
+          heat_type: 'Final',
+          heat_name: 'Final Silver',
+        },
+        {
+          race_id: 12,
+          race_number: 2,
+          points: 2,
+          heat_type: 'Final',
+          heat_name: 'Final Silver',
+        },
+        {
+          race_id: 13,
+          race_number: 3,
+          points: 3,
+          heat_type: 'Final',
+          heat_name: 'Final Silver',
+        },
+        {
+          race_id: 14,
+          race_number: 4,
+          points: 9,
+          heat_type: 'Final',
+          heat_name: 'Final Silver',
+        },
+      ],
+      B: Array.from({ length: 8 }, (_unused, idx) => ({
+        race_id: 20 + idx,
+        race_number: idx + 1,
+        points: 1,
+        heat_type: 'Final',
+        heat_name: 'Final Gold',
+      })),
+    });
+    boatsWithoutFinalHeatRow.add('A');
+
+    const res = explainTieBreak(1, 'A', 'B', true);
+
+    // 4 races -> 1 discard: the 9 goes, leaving 1 + 2 + 3 = 6. Borrowing the
+    // Gold fleet's 8-race count would discard the 3 as well and report 3.
+    expect(res.totalA).toBe(6);
   });
 
   it('multi-heat event, no shared races anywhere: standard A8 fallback (SHRS 5.7(ii)(4))', () => {

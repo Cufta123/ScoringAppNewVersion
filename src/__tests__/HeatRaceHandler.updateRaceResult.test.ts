@@ -2,7 +2,10 @@ export {};
 
 // Loaded via require in beforeAll (after dbMock is defined) so the module's
 // `import { db } from DBManager` resolves the mock, not a TDZ `const`.
-let raceAssignmentSnapshots: Map<number, string[]>;
+let raceAssignmentSnapshots: Map<
+  number,
+  Map<string, { position: number | null; status: string }>
+>;
 
 type PrepareStatement = {
   get?: (...args: any[]) => any;
@@ -36,6 +39,15 @@ type Scenario = {
     score_id: number;
     position: number;
     status: string;
+  }>;
+  // Live ranked rows for the heat/race, as getRankedBoatsInHeatForRace returns
+  // them. Used by the SHRS 3.1.5 per-boat freeze tests.
+  rankedBoats: Array<{
+    boat_id: string;
+    position: number | null;
+    status: string;
+    country?: string;
+    sail_number?: string;
   }>;
 };
 
@@ -133,7 +145,7 @@ const dbMock = {
       )
     ) {
       return {
-        all: jest.fn(() => []),
+        all: jest.fn(() => currentScenario.rankedBoats),
       };
     }
 
@@ -224,6 +236,7 @@ function baseScenario(): Scenario {
     finishedRows: [],
     penaltyRowsBehind: [],
     ripplePenaltyRows: [],
+    rankedBoats: [],
   };
 }
 
@@ -611,8 +624,14 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
         ),
       );
 
+      // RRS A6.1: a boat that HAD finished — including a position-keeping
+      // penalty (ZFP/SCP/T1), which holds a real finishing place — promotes the
+      // boats behind it when later DSQ'd/RET/DNE/DGM.
+      const hadFinished =
+        currentScenario.currentStatus === 'FINISHED' ||
+        ['SCP', 'ZFP', 'T1'].includes(currentScenario.currentStatus);
       const expectedShift =
-        currentScenario.currentStatus === 'FINISHED' &&
+        hadFinished &&
         displacementStatuses.has(normalizeStatusForTest(newStatus));
 
       expect(hasMandatoryShift).toBe(expectedShift);
@@ -689,8 +708,11 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
         ),
       );
 
+      const hadFinished =
+        previousStatus === 'FINISHED' ||
+        ['SCP', 'ZFP', 'T1'].includes(previousStatus);
       const expectedShift =
-        previousStatus === 'FINISHED' &&
+        hadFinished &&
         displacementStatuses.has(normalizeStatusForTest(newStatus));
 
       if (expectedShift) {
@@ -879,24 +901,108 @@ describe('SHRS 3.1.5 assignment-snapshot invalidation (RULE-M14)', () => {
     expect(raceAssignmentSnapshots.has(500)).toBe(true);
   });
 
-  it('an ordinary correction (FINISHED) forgets a previously cached snapshot', async () => {
-    raceAssignmentSnapshots.set(500, ['B1', 'B2']);
+  it('an ordinary correction (FINISHED) unshields only the corrected boat', async () => {
+    raceAssignmentSnapshots.set(
+      500,
+      new Map([
+        ['B1', { position: 1, status: 'FINISHED' }],
+        ['B2', { position: 2, status: 'FINISHED' }],
+      ]),
+    );
     const handler = handlerRegistry.updateRaceResult;
 
     await handler({}, 99, 500, 'B1', 2, false, 'FINISHED');
 
-    // A race-office correction is NOT shielded by 3.1.5, so the stale snapshot
-    // must be forgotten so the next assignment recomputes from the corrected
-    // result instead of seeding from the pre-correction order.
-    expect(raceAssignmentSnapshots.has(500)).toBe(false);
+    // RULE-M21: the corrected boat B1 is un-shielded (its corrected result now
+    // drives the next assignment), but B2's protest shield stays intact.
+    expect(raceAssignmentSnapshots.has(500)).toBe(true);
+    expect(raceAssignmentSnapshots.get(500)?.has('B1')).toBe(false);
+    expect(raceAssignmentSnapshots.get(500)?.has('B2')).toBe(true);
   });
 
-  it('an ordinary correction (DNF) also forgets the cached snapshot', async () => {
-    raceAssignmentSnapshots.set(500, ['B1', 'B2']);
+  it('an ordinary correction (DNF) also unshields only the corrected boat', async () => {
+    raceAssignmentSnapshots.set(
+      500,
+      new Map([
+        ['B1', { position: 1, status: 'FINISHED' }],
+        ['B2', { position: 2, status: 'FINISHED' }],
+      ]),
+    );
     const handler = handlerRegistry.updateRaceResult;
 
     await handler({}, 99, 500, 'B1', 2, false, 'DNF');
 
+    expect(raceAssignmentSnapshots.has(500)).toBe(true);
+    expect(raceAssignmentSnapshots.get(500)?.has('B1')).toBe(false);
+    expect(raceAssignmentSnapshots.get(500)?.has('B2')).toBe(true);
+  });
+
+  it('clears the snapshot once the last shielded boat is unshielded', async () => {
+    raceAssignmentSnapshots.set(
+      500,
+      new Map([['B1', { position: 1, status: 'FINISHED' }]]),
+    );
+    const handler = handlerRegistry.updateRaceResult;
+
+    await handler({}, 99, 500, 'B1', 2, false, 'FINISHED');
+
     expect(raceAssignmentSnapshots.has(500)).toBe(false);
+  });
+
+  it('re-freezes a boat that a previous ordinary correction had unshielded', async () => {
+    // RULE-M21 regression: the capture guard is per BOAT, not per race. B2 was
+    // un-shielded by an earlier race-office correction, so when the protest
+    // committee later disqualifies B2 its pre-decision place must be frozen —
+    // otherwise the DSQ reorders B2's next-round assignment, which SHRS 3.1.5
+    // forbids. A per-race "snapshot already exists" guard skips this.
+    raceAssignmentSnapshots.set(
+      500,
+      new Map([['B1', { position: 1, status: 'FINISHED' }]]),
+    );
+    currentScenario.rankedBoats = [
+      { boat_id: 'B1', position: 1, status: 'FINISHED' },
+      { boat_id: 'B2', position: 2, status: 'FINISHED' },
+    ];
+
+    const handler = handlerRegistry.updateRaceResult;
+    await handler({}, 99, 500, 'B2', 2, false, 'DSQ');
+
+    const frozen = raceAssignmentSnapshots.get(500);
+    expect(frozen?.has('B1')).toBe(true);
+    // B2's PRE-decision place, not its post-DSQ result.
+    expect(frozen?.get('B2')).toEqual({ position: 2, status: 'FINISHED' });
+  });
+
+  it('restores the frozen rows of an existing snapshot when the transaction fails', async () => {
+    // RULE-M21 regression: the in-memory cache survives a DB rollback, and an
+    // unshield MUTATES an existing entry rather than adding one. A guard that
+    // only remembers whether the race id was present leaves the un-shielded
+    // boat missing from memory while the DB still holds its frozen row.
+    raceAssignmentSnapshots.set(
+      500,
+      new Map([
+        ['B1', { position: 1, status: 'FINISHED' }],
+        ['B2', { position: 2, status: 'FINISHED' }],
+      ]),
+    );
+
+    // Run the transaction body (so B1 is actually un-shielded in memory) and
+    // only then fail, mirroring a mid-write error that rolls the DB back.
+    const failing = jest
+      .spyOn(dbMock, 'transaction')
+      .mockImplementationOnce((cb: any) => (...args: any[]) => {
+        cb(...args);
+        throw new Error('forced rollback');
+      });
+
+    const handler = handlerRegistry.updateRaceResult;
+    await expect(
+      handler({}, 99, 500, 'B1', 2, false, 'FINISHED'),
+    ).rejects.toThrow(/forced rollback/);
+    failing.mockRestore();
+
+    const frozen = raceAssignmentSnapshots.get(500);
+    expect(frozen?.has('B1')).toBe(true);
+    expect(frozen?.has('B2')).toBe(true);
   });
 });

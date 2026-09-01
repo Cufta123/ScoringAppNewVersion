@@ -396,11 +396,45 @@ const initializeSchema = () => {
   race_id INTEGER NOT NULL,
   rank INTEGER NOT NULL,
   boat_id INTEGER NOT NULL,
+  frozen_position INTEGER,
+  frozen_status TEXT,
   PRIMARY KEY (race_id, rank),
   FOREIGN KEY (race_id) REFERENCES Races(race_id),
   FOREIGN KEY (boat_id) REFERENCES Boats(boat_id)
 );
 `;
+
+  // RULE-M21: the snapshot records each shielded boat's frozen finishing place
+  // (position + status) rather than only its rank, so a later ordinary
+  // race-office correction can un-shield one boat without dropping the
+  // 3.1.5 shield on the others. Add the columns to pre-existing tables.
+  const ensureRaceAssignmentSnapshotsColumns = () => {
+    const existingColumns = new Set(
+      db
+        .prepare("PRAGMA table_info('RaceAssignmentSnapshots')")
+        .all()
+        .map((columnRow) => columnRow.name),
+    );
+
+    const requiredColumns = [
+      {
+        name: 'frozen_position',
+        sql: 'ALTER TABLE RaceAssignmentSnapshots ADD COLUMN frozen_position INTEGER;',
+      },
+      {
+        name: 'frozen_status',
+        sql: 'ALTER TABLE RaceAssignmentSnapshots ADD COLUMN frozen_status TEXT;',
+      },
+    ];
+
+    requiredColumns.forEach(({ name, sql }) => {
+      if (existingColumns.has(name)) {
+        return;
+      }
+      console.log(`Migrating RaceAssignmentSnapshots table: adding ${name}...`);
+      db.exec(sql);
+    });
+  };
 
   try {
     console.log('Creating Events table...');
@@ -461,6 +495,7 @@ const initializeSchema = () => {
 
     console.log('Creating RaceAssignmentSnapshots table...');
     db.exec(createRaceAssignmentSnapshotsTable);
+    ensureRaceAssignmentSnapshotsColumns();
     console.log('RaceAssignmentSnapshots table created or already exists.');
 
     console.log('Database schema initialized successfully.');

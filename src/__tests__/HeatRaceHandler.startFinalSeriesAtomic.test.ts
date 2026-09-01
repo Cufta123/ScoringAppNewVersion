@@ -221,6 +221,53 @@ describe('HeatRaceHandler startFinalSeriesAtomic', () => {
     ]);
   });
 
+  it('reduces the fleet count when there are fewer boats than qualifying groups (SHRS 4.1)', async () => {
+    // 4 qualifying groups but only 3 boats: the Final Series must not create an
+    // empty 4th fleet. 4.1 permits reducing the fleet count when withdrawals
+    // allow (RULE-M23).
+    qualifyingHeats = [
+      { heat_id: 11, heat_name: 'Heat A1', heat_type: 'Qualifying' },
+      { heat_id: 12, heat_name: 'Heat B1', heat_type: 'Qualifying' },
+      { heat_id: 13, heat_name: 'Heat C1', heat_type: 'Qualifying' },
+      { heat_id: 14, heat_name: 'Heat D1', heat_type: 'Qualifying' },
+    ];
+    leaderboardRows = [
+      {
+        boat_id: 1,
+        race_points: '1,2,3',
+        race_statuses: 'FINISHED,FINISHED,FINISHED',
+      },
+      {
+        boat_id: 2,
+        race_points: '2,3,4',
+        race_statuses: 'FINISHED,FINISHED,FINISHED',
+      },
+      {
+        boat_id: 3,
+        race_points: '3,4,5',
+        race_statuses: 'FINISHED,FINISHED,FINISHED',
+      },
+    ];
+
+    const result = await handlerRegistry.startFinalSeriesAtomic({}, 77);
+
+    expect(result).toEqual({
+      success: true,
+      createdHeats: 3,
+      assignedBoats: 3,
+      overflowPolicy: 'auto-increase',
+    });
+    expect(insertedHeats).toEqual([
+      { eventId: 77, name: 'Final Gold', type: 'Final', newId: 901 },
+      { eventId: 77, name: 'Final Silver', type: 'Final', newId: 902 },
+      { eventId: 77, name: 'Final Bronze', type: 'Final', newId: 903 },
+    ]);
+    // No empty fleet: each of the 3 fleets holds exactly one boat.
+    expect(insertedHeatBoats.map((row) => row.heatId).sort()).toEqual([
+      901, 902, 903,
+    ]);
+  });
+
   it('splits the provided 77-boat leaderboard exactly into Gold/Silver/Bronze/Copper by rank', async () => {
     qualifyingHeats = [
       { heat_id: 11, heat_name: 'Heat A1', heat_type: 'Qualifying' },

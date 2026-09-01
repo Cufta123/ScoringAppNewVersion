@@ -136,7 +136,7 @@ export function normalizeDiscardConfig(value: unknown): DiscardConfig {
   const normalizedSecondDiscardAt =
     secondDiscardAt > firstDiscardAt
       ? secondDiscardAt
-      : firstDiscardAt + DEFAULT_DISCARD_CONFIG.additionalEvery;
+      : firstDiscardAt + additionalEvery;
 
   // NB: omit `thresholds` here. An arithmetic profile must round-trip back to
   // itself; emitting `thresholds: []` would make the next parse treat it as an

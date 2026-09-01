@@ -3,9 +3,10 @@ import { db } from '../../../public/Database/DBManager';
 import {
   getEventDiscardConfig,
   getExcludeCountForConfig,
+  getSeriesDiscardRaceCount,
   DiscardConfig,
 } from './discardConfig';
-import { getExcludedIndexes } from './scoringUtils';
+import { capExcludeCountForBoat, getExcludedIndexes } from './scoringUtils';
 import {
   compareQualifyingTieCandidates,
   detectSingleHeatEvent,
@@ -95,6 +96,18 @@ export type TieBreakExplanation = {
   sharedQualRacePairs: RacePair[];
 };
 
+function getBoatFinalHeatName(event_id: any, boat_id: any): string | null {
+  const row = db
+    .prepare(
+      `SELECT h.heat_name FROM Heats h
+       JOIN Heat_Boat hb ON hb.heat_id = h.heat_id
+       WHERE h.event_id = ? AND h.heat_type = 'Final' AND hb.boat_id = ?
+       LIMIT 1`,
+    )
+    .get(event_id, boat_id) as { heat_name?: string } | undefined;
+  return row?.heat_name ?? null;
+}
+
 function getSeriesRaceDisplay(
   event_id: any,
   boat_id: any,
@@ -113,7 +126,27 @@ function getSeriesRaceDisplay(
     )
     .all(event_id, boat_id, heat_type) as RaceRow[];
 
-  const excludeCount = getExcludeCountForConfig(rows.length, discardConfig);
+  // SHRS 5.4: discard count is series-wide (qualifying) / fleet-wide (final),
+  // capped per boat — same denominator the stored totals use. Using rows.length
+  // here diverged for late entrants and made the explain panel's totals and
+  // A8.1 vector disagree with the leaderboard (RULE-M22).
+  const heatName =
+    heat_type === 'Final' ? getBoatFinalHeatName(event_id, boat_id) : null;
+
+  // A final-series boat with no identifiable fleet (final Scores rows but no
+  // Heat_Boat row, e.g. a repaired/imported event) must NOT fall through to an
+  // unfiltered query: that returns the largest race count across ALL fleets,
+  // and SHRS 4.5 lets fleets sail different numbers of races, so a boat in a
+  // short fleet would over-discard. Her own race count is the safe denominator.
+  const seriesRaceCount =
+    heat_type === 'Final' && !heatName
+      ? rows.length
+      : getSeriesDiscardRaceCount(event_id, heat_type, heatName);
+  const seriesExcludeCount = getExcludeCountForConfig(
+    seriesRaceCount,
+    discardConfig,
+  );
+  const excludeCount = capExcludeCountForBoat(seriesExcludeCount, rows.length);
   const excludedIdx = getExcludedIndexes(rows, excludeCount);
   return rows.map((row, idx) => ({ ...row, excluded: excludedIdx.has(idx) }));
 }

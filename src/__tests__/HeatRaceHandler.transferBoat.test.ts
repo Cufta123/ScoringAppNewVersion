@@ -25,7 +25,7 @@ jest.mock('electron', () => ({
 // if the callback completes without throwing.
 const state = {
   rows: [] as Array<{ heat_id: number; boat_id: number }>,
-  heats: {} as Record<number, { event_id: number }>,
+  heats: {} as Record<number, { event_id: number; heat_type: string }>,
   failInsert: false,
   // RULE-M13: races per heat, and the snapshot rows the transfer must clear.
   racesByHeatId: {} as Record<number, number[]>,
@@ -49,7 +49,7 @@ const dbMock = {
   },
   prepare: (rawSql: string): PrepareStatement => {
     const sql = norm(rawSql);
-    if (sql.startsWith('SELECT event_id FROM Heats')) {
+    if (sql.startsWith('SELECT event_id, heat_type FROM Heats')) {
       return {
         get: (heatId: number) => state.heats[heatId],
       };
@@ -121,7 +121,10 @@ describe('transferBoatBetweenHeats atomicity', () => {
 
   beforeEach(() => {
     state.rows = [{ heat_id: 1, boat_id: 42 }];
-    state.heats = { 1: { event_id: 5 }, 2: { event_id: 5 } };
+    state.heats = {
+      1: { event_id: 5, heat_type: 'Qualifying' },
+      2: { event_id: 5, heat_type: 'Qualifying' },
+    };
     state.failInsert = false;
     state.racesByHeatId = { 1: [11, 12], 2: [21] };
     state.clearedSnapshotRaceIds = [];
@@ -196,11 +199,29 @@ describe('transferBoatBetweenHeats atomicity', () => {
   });
 
   it('refuses to transfer between heats of different events', async () => {
-    state.heats = { 1: { event_id: 5 }, 2: { event_id: 6 } };
+    state.heats = {
+      1: { event_id: 5, heat_type: 'Qualifying' },
+      2: { event_id: 6, heat_type: 'Qualifying' },
+    };
 
     await expect(
       handlerRegistry.transferBoatBetweenHeats({}, 1, 2, 42),
     ).rejects.toThrow(/different events/i);
+    expect(state.rows).toEqual([{ heat_id: 1, boat_id: 42 }]);
+  });
+
+  // SHRS 4.1: boats stay in the same fleet throughout the Final Series — a
+  // direct IPC transfer must not move a boat into/out of/between final fleets
+  // (RULE-M25).
+  it('refuses to transfer a boat into or out of a Final Series fleet', async () => {
+    state.heats = {
+      1: { event_id: 5, heat_type: 'Final' },
+      2: { event_id: 5, heat_type: 'Final' },
+    };
+
+    await expect(
+      handlerRegistry.transferBoatBetweenHeats({}, 1, 2, 42),
+    ).rejects.toThrow(/Final Series fleet/i);
     expect(state.rows).toEqual([{ heat_id: 1, boat_id: 42 }]);
   });
 });

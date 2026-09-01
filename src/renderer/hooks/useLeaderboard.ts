@@ -31,7 +31,7 @@ import {
 import escapeHtml from '../utils/escapeHtml';
 import {
   getScoringPenaltyPoints,
-  mandatoryDisplaceStatuses,
+  promotesBoatsBehind,
   scoringPenaltyStatuses,
 } from '../../shared/scoringPenalty';
 import { eventDB, heatRaceDB } from '../api/db';
@@ -1068,11 +1068,7 @@ export default function useLeaderboard(eventId: number) {
     // main process. RDG/DPI never displace anyone (RRS A6.2 / A10).
     const previousCellStatus =
       targetEntry.race_statuses?.[raceIndex] || 'FINISHED';
-    const promotesBoatsBehind =
-      !RDG_TYPES.includes(newStatus) &&
-      newStatus !== 'DPI' &&
-      previousCellStatus === 'FINISHED' &&
-      mandatoryDisplaceStatuses.has(newStatus);
+    const promotesBoats = promotesBoatsBehind(previousCellStatus, newStatus);
 
     // Group the boats that share THIS physical race (same race_id at this
     // column). Those are the only boats whose finishing places interact: a
@@ -1238,7 +1234,7 @@ export default function useLeaderboard(eventId: number) {
           rankedCell.status,
         );
       });
-    } else if (promotesBoatsBehind) {
+    } else if (promotesBoats) {
       // RULE-M16 / RRS A6.1: "each boat with a worse finishing place shall be
       // moved up one place." Mandatory, so it happens even with shift OFF —
       // mirroring the backend, which applies the promotion regardless of the

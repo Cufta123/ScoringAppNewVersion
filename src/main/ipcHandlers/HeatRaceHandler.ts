@@ -33,9 +33,11 @@ import {
 import {
   clearAssignmentSnapshot,
   clearAssignmentSnapshotsForHeat,
+  FrozenAssignmentRow,
   loadPersistedAssignmentSnapshot,
   persistAssignmentSnapshot,
   raceAssignmentSnapshots,
+  unshieldBoatFromAssignmentSnapshot,
 } from '../functions/raceAssignmentSnapshot';
 import {
   getLatestQualifyingHeats,
@@ -206,13 +208,18 @@ function applyRaceResultUpdate(
   // of the event even though the rule says nothing about race-office fixes.
   if (heatRow?.heat_id != null) {
     if (protestCommitteeStatuses.has(status)) {
-      captureRaceAssignmentSnapshotIfMissing(heatRow.heat_id, Number(race_id));
+      captureRaceAssignmentSnapshotIfMissing(
+        heatRow.heat_id,
+        Number(race_id),
+        boat_id,
+      );
     } else {
-      // An ordinary race-office correction is NOT shielded by 3.1.5, so any
-      // cached assignment snapshot for this race is stale: forget it (memory +
-      // persisted) so the next assignment recomputes from the corrected result
-      // instead of seeding the next round from the pre-correction order.
-      clearAssignmentSnapshot(Number(race_id));
+      // An ordinary race-office correction is NOT shielded by 3.1.5, so this
+      // boat's frozen slot must be dropped so its corrected result drives the
+      // next assignment. Only THIS boat is un-shielded (RULE-M21): other boats'
+      // protest decisions keep their shields — clearing the whole race here
+      // would erase them.
+      unshieldBoatFromAssignmentSnapshot(Number(race_id), boat_id);
     }
   }
 
@@ -676,37 +683,93 @@ function getRankedBoatsInHeatForRace(heat_id: number, race_id: number) {
 function captureRaceAssignmentSnapshotIfMissing(
   heat_id: number,
   race_id: number,
+  boat_id: any,
 ) {
-  if (raceAssignmentSnapshots.has(race_id)) {
-    return;
-  }
+  const existing =
+    raceAssignmentSnapshots.get(race_id) ??
+    loadPersistedAssignmentSnapshot(race_id);
 
-  const persisted = loadPersistedAssignmentSnapshot(race_id);
-  if (persisted) {
-    raceAssignmentSnapshots.set(race_id, persisted);
+  if (existing && existing.size > 0) {
+    raceAssignmentSnapshots.set(race_id, existing);
+
+    // RULE-M21: the freeze is per BOAT, so "a snapshot exists for this race" is
+    // not enough — this boat may have been un-shielded by an earlier ordinary
+    // correction. Freeze its current (pre-decision) place now, otherwise the
+    // protest decision below would reorder its next-round assignment, which is
+    // exactly what SHRS 3.1.5 forbids.
+    const key = String(boat_id);
+    if (!existing.has(key)) {
+      const liveRow = getRankedBoatsInHeatForRace(heat_id, race_id).find(
+        (row) => String(row.boat_id) === key,
+      );
+      if (liveRow) {
+        existing.set(key, {
+          position: liveRow.position,
+          status: liveRow.status,
+        });
+        persistAssignmentSnapshot(race_id, existing);
+      }
+    }
     return;
   }
 
   const rankedRows = getRankedBoatsInHeatForRace(heat_id, race_id);
-  const boatIds = rankedRows.map((row) => row.boat_id);
-  raceAssignmentSnapshots.set(race_id, boatIds);
-  persistAssignmentSnapshot(race_id, boatIds);
+  const frozen = new Map<string, FrozenAssignmentRow>();
+  rankedRows.forEach((row) => {
+    frozen.set(String(row.boat_id), {
+      position: row.position,
+      status: row.status,
+    });
+  });
+  raceAssignmentSnapshots.set(race_id, frozen);
+  persistAssignmentSnapshot(race_id, frozen);
 }
 
 function getAssignmentRowsForHeatRace(heat_id: number, race_id: number) {
-  const snapshotBoatIds =
+  const frozen =
     raceAssignmentSnapshots.get(race_id) ??
     loadPersistedAssignmentSnapshot(race_id);
-  if (snapshotBoatIds && snapshotBoatIds.length > 0) {
-    raceAssignmentSnapshots.set(race_id, snapshotBoatIds);
-    return snapshotBoatIds.map((boat_id) => ({ boat_id }));
+  const liveRanked = getRankedBoatsInHeatForRace(heat_id, race_id);
+
+  // No protest shield: the assignment is just the live order.
+  if (!frozen || frozen.size === 0) {
+    return liveRanked.map((row) => ({ boat_id: row.boat_id }));
   }
 
-  const rankedRows = getRankedBoatsInHeatForRace(heat_id, race_id);
-  const boatIds = rankedRows.map((row) => row.boat_id);
-  raceAssignmentSnapshots.set(race_id, boatIds);
-  persistAssignmentSnapshot(race_id, boatIds);
-  return rankedRows.map((row) => ({ boat_id: row.boat_id }));
+  // RULE-M21: shield per boat. A boat with a frozen row keeps its pre-protest
+  // finishing place/status; a boat without one (corrected after the freeze, or
+  // added later) uses its live result. compareSeededRows orders the mix (frozen
+  // finishers vs live finishers, then penalties, ties by national letter+sail).
+  const effectiveRows = liveRanked.map((row) => {
+    const frozenRow = frozen.get(String(row.boat_id));
+    if (!frozenRow) {
+      return { ...row, isFrozen: false };
+    }
+    return {
+      ...row,
+      position: frozenRow.position,
+      status: frozenRow.status,
+      isFrozen: true,
+    };
+  });
+
+  effectiveRows.sort((left, right) => {
+    // Mixing frozen and live places can put two boats on the SAME position: a
+    // boat DSQ'd from 1st keeps frozen position 1, while the RRS A6.1 promotion
+    // moves the boat behind her to live position 1, and un-shielding that boat
+    // makes both claim the slot. compareSeededRows would settle it on national
+    // letter + sail number, i.e. arbitrarily. The shielded boat holds the slot:
+    // SHRS 3.1.5 says the protest decision must not move her.
+    if (
+      left.position === right.position &&
+      left.status === right.status &&
+      left.isFrozen !== right.isFrozen
+    ) {
+      return left.isFrozen ? -1 : 1;
+    }
+    return compareSeededRows(left, right);
+  });
+  return effectiveRows.map((row) => ({ boat_id: row.boat_id }));
 }
 
 function buildAdjustedFleetLeaderboard(
@@ -1659,6 +1722,14 @@ ipcMain.handle(
         }
       }
 
+      // RULE-M23 / SHRS 4.1: never create more final fleets than there are
+      // boats, and reduce the fleet count when withdrawals allow ("the number
+      // of Final Series Fleets may be reduced"). Without this, `boatsPerFleet`
+      // floors to 0 and the trailing fleets are created empty (0 boats), which
+      // violates 4.1's "as equal as possible" and leaves stray empty final
+      // heats.
+      finalHeatCount = Math.min(finalHeatCount, adjustedLeaderboard.length);
+
       const boatsPerFleet = Math.floor(
         adjustedLeaderboard.length / finalHeatCount,
       );
@@ -2069,19 +2140,28 @@ ipcMain.handle(
       }
 
       const heatQuery = db.prepare(
-        'SELECT event_id FROM Heats WHERE heat_id = ?',
+        'SELECT event_id, heat_type FROM Heats WHERE heat_id = ?',
       );
       const fromHeat = heatQuery.get(from_heat_id) as
-        | { event_id: number }
+        | { event_id: number; heat_type: string }
         | undefined;
       const toHeat = heatQuery.get(to_heat_id) as
-        | { event_id: number }
+        | { event_id: number; heat_type: string }
         | undefined;
       if (!fromHeat || !toHeat) {
         throw new Error('Heat not found.');
       }
       if (fromHeat.event_id !== toHeat.event_id) {
         throw new Error('Cannot transfer a boat between different events.');
+      }
+
+      // SHRS 4.1: "Boats shall compete in the same Fleet throughout the Final
+      // Series." The UI blocks this, but a direct IPC call must not move a boat
+      // into, out of, or between final fleets (RULE-M25).
+      if (fromHeat.heat_type === 'Final' || toHeat.heat_type === 'Final') {
+        throw new Error(
+          'Cannot transfer a boat to or from a Final Series fleet.',
+        );
       }
 
       // Same SHRS cap the insertHeatBoat handler enforces — a drag-and-drop
@@ -2154,11 +2234,14 @@ ipcMain.handle(
       // leaderboard. (recomputeEventLeaderboard has its own inner transaction;
       // better-sqlite3 nests it as a savepoint.)
       const raceId = Number(race_id);
-      // `captureRaceAssignmentSnapshotIfMissing` (inside `applyRaceResultUpdate`)
-      // writes the module-level cache Map directly, which a DB rollback does not
-      // undo. It only ever ADDS an entry, so a rollback just needs to forget the
-      // race ids that were absent before the transaction.
-      const snapshotExisted = raceAssignmentSnapshots.has(raceId);
+      // `applyRaceResultUpdate` writes the module-level cache Map directly,
+      // which a DB rollback does not undo. It both ADDS entries (capture) and
+      // REMOVES boats from an existing entry (unshield), so remembering whether
+      // the race id was present is not enough — the entry's CONTENTS must be
+      // restored, otherwise a failed save leaves a boat permanently un-shielded
+      // in memory while the DB still holds its frozen row (RULE-M21).
+      const snapshotBefore = raceAssignmentSnapshots.get(raceId);
+      const snapshotBackup = snapshotBefore ? new Map(snapshotBefore) : null;
 
       const applyUpdate = db.transaction(() => {
         applyRaceResultUpdate(
@@ -2176,7 +2259,9 @@ ipcMain.handle(
       try {
         applyUpdate();
       } catch (err) {
-        if (!snapshotExisted) {
+        if (snapshotBackup) {
+          raceAssignmentSnapshots.set(raceId, snapshotBackup);
+        } else {
           raceAssignmentSnapshots.delete(raceId);
         }
         throw err;
@@ -2202,14 +2287,21 @@ ipcMain.handle(
     try {
       const safeOperations = Array.isArray(operations) ? operations : [];
       // Rollback guard for the in-memory assignment-snapshot cache (see
-      // updateRaceResult): the cache Map survives a DB rollback, so forget any
-      // snapshot race id that was absent before this transaction.
+      // updateRaceResult): the cache Map survives a DB rollback, so back up each
+      // touched race's frozen rows and restore them wholesale on failure. A
+      // presence-only guard is not enough because an unshield mutates an
+      // existing entry rather than adding one (RULE-M21).
       const snapshotRaceIds = [
         ...new Set(safeOperations.map((operation) => Number(operation.raceId))),
       ];
-      const previouslyAbsent = snapshotRaceIds.filter(
-        (raceId) => !raceAssignmentSnapshots.has(raceId),
-      );
+      const snapshotBackups = new Map<
+        number,
+        Map<string, FrozenAssignmentRow> | null
+      >();
+      snapshotRaceIds.forEach((raceId) => {
+        const existing = raceAssignmentSnapshots.get(raceId);
+        snapshotBackups.set(raceId, existing ? new Map(existing) : null);
+      });
 
       const tx = db.transaction(() => {
         safeOperations.forEach((operation) => {
@@ -2241,9 +2333,13 @@ ipcMain.handle(
       try {
         tx();
       } catch (error) {
-        previouslyAbsent.forEach((raceId) =>
-          raceAssignmentSnapshots.delete(raceId),
-        );
+        snapshotBackups.forEach((backup, raceId) => {
+          if (backup) {
+            raceAssignmentSnapshots.set(raceId, backup);
+          } else {
+            raceAssignmentSnapshots.delete(raceId);
+          }
+        });
         throw error;
       }
       return { success: true, updatedCount: safeOperations.length };

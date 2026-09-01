@@ -13,6 +13,7 @@ import {
   mandatoryDisplaceStatuses,
   roundHalfUp,
   getScoringPenaltyPoints,
+  promotesBoatsBehind,
 } from '../../shared/scoringPenalty';
 import { compareNationalSail } from '../../shared/sailOrder';
 
@@ -21,6 +22,7 @@ export {
   mandatoryDisplaceStatuses,
   roundHalfUp,
   getScoringPenaltyPoints,
+  promotesBoatsBehind,
 };
 
 // SHRS 2026-1 (5.3) is source-of-truth for displacement order.
@@ -145,25 +147,6 @@ export function isNonScoringPenalty(status: string): boolean {
     !keepsProvidedPoints &&
     penaltyStatuses.includes(status) &&
     !scoringPenaltyStatuses.has(status)
-  );
-}
-
-/**
- * RRS A6.1 / RULE-M16: a boat that finished and is then disqualified or retires
- * after finishing is removed from the finishing order and every boat behind her
- * moves up one place. True only when the PREVIOUS status was FINISHED and the
- * NEW status is a mandatory-displacement status (DSQ/RET/DNE/DGM).
- */
-export function promotesBoatsBehind(
-  previousStatus: string,
-  newStatus: string,
-): boolean {
-  const keepsProvidedPoints =
-    rdgStatuses.includes(newStatus) || newStatus === 'DPI';
-  return (
-    !keepsProvidedPoints &&
-    previousStatus === 'FINISHED' &&
-    mandatoryDisplaceStatuses.has(newStatus)
   );
 }
 

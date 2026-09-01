@@ -230,6 +230,16 @@ describe('promotesBoatsBehind (RRS A6.1 / RULE-M16)', () => {
     expect(promotesBoatsBehind('DNF', 'DSQ')).toBe(false);
   });
 
+  it.each(['ZFP', 'SCP', 'T1'])(
+    'promotes when a position-keeping penalty boat (previous %s) is displaced',
+    (previousStatus) => {
+      expect(promotesBoatsBehind(previousStatus, 'DSQ')).toBe(true);
+      expect(promotesBoatsBehind(previousStatus, 'RET')).toBe(true);
+      expect(promotesBoatsBehind(previousStatus, 'DNE')).toBe(true);
+      expect(promotesBoatsBehind(previousStatus, 'DGM')).toBe(true);
+    },
+  );
+
   it.each(['FINISHED', 'DNF', 'DNS', 'OCS', 'ZFP', 'SCP', 'T1', 'DPI', 'RDG1'])(
     'does not promote for a new status of %s',
     (status) => {

@@ -65,6 +65,7 @@ const config: Config = {
     '**/src/__tests__/leaderboardStatusCodes.test.ts',
     '**/src/__tests__/HeatRaceHandler.overallTieBreak.test.ts',
     '**/src/__tests__/explainTieBreak.test.ts',
+    '**/src/__tests__/raceAssignmentSnapshot.test.ts',
     '**/src/__tests__/HeatRaceHandler.finalSeriesEligibility.test.ts',
     '**/src/__tests__/penaltyOrder.test.js',
     '**/src/__tests__/escapeHtml.test.js',

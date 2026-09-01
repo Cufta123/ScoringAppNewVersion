@@ -124,6 +124,28 @@ const dbMock = {
       };
     }
 
+    if (sqlContains(sql, 'SELECT MAX(race_count) AS max_count')) {
+      return {
+        get: jest.fn(
+          (_eventId: number, heatType: string, heatName?: string) => {
+            const isFinal = heatType === 'Final';
+            let maxCount = 0;
+            Object.values(currentScenario.tieScoresByBoatId).forEach((rows) => {
+              const relevant = isFinal
+                ? rows.filter(
+                    (r) =>
+                      r.heat_type === 'Final' &&
+                      (heatName == null || r.heat_name === heatName),
+                  )
+                : rows.filter((r) => r.heat_type === 'Qualifying');
+              maxCount = Math.max(maxCount, relevant.length);
+            });
+            return { max_count: maxCount };
+          },
+        ),
+      };
+    }
+
     throw new Error(`Unhandled SQL in test mock: ${sql}`);
   }),
 };
