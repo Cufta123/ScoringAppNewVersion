@@ -9,6 +9,12 @@ import {
   reportWarning,
 } from '../utils/userFeedback';
 import { getExcludeCount, getFlagCode } from '../utils/leaderboardUtils';
+import useSnapshotHistory from '../hooks/useSnapshotHistory';
+import {
+  finalSeriesBlockedMessage,
+  unsailedLatestRoundMessage,
+} from '../utils/finalSeriesMessages';
+import type { FinalSeriesEligibility } from '../utils/finalSeriesMessages';
 import { computeAdjustedFleetTotals } from '../../shared/fleetAssignment';
 import { heatRaceDB } from '../api/db';
 import type { EventRow, HeatBoatRow, LeaderboardEntry } from '../types';
@@ -21,23 +27,6 @@ export interface HeatWithBoats {
   heat_type: string;
   boats: HeatBoatRow[];
   raceNumber: number;
-}
-
-interface SnapshotEntry {
-  fileName: string;
-  savedAt: string;
-}
-
-interface FinalSeriesEligibility {
-  ok?: boolean;
-  reason?: string;
-  raceCountBreakdown?: Array<{ name: string; count: number }>;
-  numFinalHeats?: number;
-  completedQualifyingRaces?: number;
-  rule43Applies?: boolean;
-  noRacesCompleted?: boolean;
-  latestRoundUnsailed?: boolean;
-  latestRoundNumber?: number | null;
 }
 
 interface HeatComponentProps {
@@ -99,7 +88,6 @@ function HeatComponent({
   const [newHeatsFormat, setNewHeatsFormat] = useState<
     'excel' | 'pdf' | 'html'
   >('excel');
-  const [snapshotHistory, setSnapshotHistory] = useState<SnapshotEntry[]>([]);
 
   // Every heat-mutating action here (create/recreate/transfer/start-final/
   // restore) chains one or more DB round-trips, and Start Final Series chains
@@ -123,50 +111,11 @@ function HeatComponent({
     }
   }, []);
 
-  const snapshotStorageKey = `eventSnapshotHistory:${event.event_id}`;
-
-  const loadSnapshotHistory = useCallback(() => {
-    try {
-      const raw = window.localStorage.getItem(snapshotStorageKey);
-      if (!raw) {
-        setSnapshotHistory([]);
-        return;
-      }
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) {
-        setSnapshotHistory([]);
-        return;
-      }
-      setSnapshotHistory(
-        parsed.filter(
-          (entry) =>
-            entry &&
-            typeof entry.fileName === 'string' &&
-            typeof entry.savedAt === 'string',
-        ),
-      );
-    } catch (_error) {
-      setSnapshotHistory([]);
-    }
-  }, [snapshotStorageKey]);
-
-  const rememberSnapshot = useCallback(
-    (filePath: string | null | undefined) => {
-      const fileName =
-        String(filePath || '')
-          .split(/[\\/]/)
-          .pop() || 'snapshot.json';
-      const entry = {
-        fileName,
-        savedAt: new Date().toISOString(),
-      };
-
-      const next = [entry, ...snapshotHistory].slice(0, 5);
-      setSnapshotHistory(next);
-      window.localStorage.setItem(snapshotStorageKey, JSON.stringify(next));
-    },
-    [snapshotHistory, snapshotStorageKey],
-  );
+  const {
+    history: snapshotHistory,
+    load: loadSnapshotHistory,
+    remember: rememberSnapshot,
+  } = useSnapshotHistory(event.event_id);
 
   const handleDisplayHeats = useCallback(async () => {
     try {
@@ -260,19 +209,11 @@ function HeatComponent({
         : shrs43ApplyChoice;
 
     try {
-      if (allowOversize) {
-        await heatRaceDB.startFinalSeriesAtomic(
-          event.event_id,
-          true,
-          applyShs43TemporarySecondDiscard,
-        );
-      } else {
-        await heatRaceDB.startFinalSeriesAtomic(
-          event.event_id,
-          false,
-          applyShs43TemporarySecondDiscard,
-        );
-      }
+      await heatRaceDB.startFinalSeriesAtomic(
+        event.event_id,
+        allowOversize,
+        applyShs43TemporarySecondDiscard,
+      );
       setFinalSeriesStarted(true);
       reportInfo('Final Series started successfully!', 'Success');
       handleDisplayHeats();
@@ -309,23 +250,10 @@ function HeatComponent({
       )) as FinalSeriesEligibility;
 
       if (!eligibility.ok) {
-        let message;
-        if (eligibility.reason === 'NO_HEATS') {
-          message =
-            'No qualifying heats found. Please create heats before starting the Final Series.';
-        } else if (eligibility.reason === 'SINGLE_FLEET') {
-          message =
-            'With only one heat the event is a single-fleet event (SHRS 1.1) — no Final Series applies.';
-        } else if (eligibility.reason === 'NO_RACES_COMPLETED') {
-          message =
-            'No qualifying races have been completed yet. Final-fleet assignment is based on the Qualifying Series ranking (SHRS 4.2), so complete at least one qualifying race before starting the Final Series.';
-        } else {
-          const breakdown = (eligibility.raceCountBreakdown || [])
-            .map((r) => `${r.name}: ${r.count} race(s)`)
-            .join('\n');
-          message = `Cannot start the Final Series — not all heats have the same number of races:\n\n${breakdown}\n\nFinish the current round first.`;
-        }
-        reportInfo(message, 'Cannot start final series');
+        reportInfo(
+          finalSeriesBlockedMessage(eligibility),
+          'Cannot start final series',
+        );
         return;
       }
 
@@ -340,14 +268,8 @@ function HeatComponent({
         // A new round of heats exists but has 0 races. It is NOT "no races
         // completed" — earlier rounds were sailed. Tell the user the empty
         // latest round is ignored and the last completed round is used.
-        const latestLabel = eligibility.latestRoundNumber
-          ? ` (round ${eligibility.latestRoundNumber})`
-          : '';
-        const completed = eligibility.completedQualifyingRaces ?? 0;
         const proceed = await confirmAction(
-          `The latest round of heats${latestLabel} has no completed races yet.\n\n` +
-            `The Final Series will be based on the last completed round — ${completed} qualifying race(s). ` +
-            `The empty latest round will be ignored.\n\nContinue?`,
+          unsailedLatestRoundMessage(eligibility),
           'Latest round not sailed',
         );
         if (!proceed) return;
