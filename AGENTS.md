@@ -141,6 +141,16 @@ Shared (renderer + main) — one definition per rule, imported by both processes
   orders "Fleet 5"+ too, not just Gold/Silver/Bronze/Copper).
 - `sailOrder.ts` — SHRS 5.3 / 3.1(iv) tie order: national letter then numeric
   sail number.
+- `raceTieScoring.ts` — the RRS A7 place walk: tied boats share the averaged
+  points of the places they occupy, position-keeping penalties consume a slot
+  without being re-scored.
+- `raceColumnEdit.ts` — what one result edit does to a whole race: the RRS A6.1
+  promotion, the optional manual ripple, and the A7 re-average. The main
+  process (`applyRaceResultUpdate`) and the renderer's edit preview
+  (`handleRaceChange`) BOTH call this, so the preview cannot disagree with what
+  Save persists. Each used to implement it separately — SQL on one side, array
+  arithmetic on the other, kept aligned by hand and by comment. Do not
+  reintroduce a local copy.
 
 When extending the handler, keep this pattern: pure logic goes in a
 `functions/` module (so it is unit-testable), the handler only wires IPC.

@@ -23,10 +23,9 @@ import {
 import { exportLeaderboard } from '../utils/leaderboardExport';
 import {
   getScoringPenaltyPoints,
-  promotesBoatsBehind,
   scoringPenaltyStatuses,
 } from '../../shared/scoringPenalty';
-import computeTiePlacements from '../../shared/raceTieScoring';
+import applyRaceColumnEdit from '../../shared/raceColumnEdit';
 import {
   buildConflictMessage,
   computeSwapEdits,
@@ -70,26 +69,6 @@ interface RaceCellState {
   position: number;
   points: number;
   status: string;
-}
-
-/**
- * Renderer mirror of HeatRaceHandler.applyRaceTieScoring for a single race
- * column, so the edit-mode preview shows exactly what the backend persists on
- * save. Finishers — and position-keeping penalties (ZFP/SCP/T1), which occupy a
- * place slot — are walked in position order and given contiguous places; tied
- * positions share averaged points (RRS A7). Hard penalties (DNS/DSQ/…) and RDG
- * cells are not finishers, so they keep the position/points already assigned to
- * them and do not consume a finishing slot.
- */
-function rerankRaceColumn(cells: RaceCellState[]): RaceCellState[] {
-  const next = cells.map((cell) => ({ ...cell }));
-  // The RRS A7 place walk lives in shared/raceTieScoring, so this preview and
-  // the main process's applyRaceTieScoring cannot drift apart.
-  computeTiePlacements(next).forEach((placement) => {
-    next[placement.index].position = placement.position;
-    next[placement.index].points = placement.points;
-  });
-  return next;
 }
 
 export default function useLeaderboard(eventId: number) {
@@ -698,8 +677,8 @@ export default function useLeaderboard(eventId: number) {
 
   // Position-keeping penalties (ZFP/SCP/T1) display their finishing place, but
   // score more points (RRS 44.3c/T1). The race cells store the place, so the
-  // edit-mode preview total must convert those cells to their penalty points —
-  // matching getScoringPenaltyPoints in the main process — before summing.
+  // edit-mode preview total must convert those cells to their penalty points
+  // via the shared getScoringPenaltyPoints before summing.
   // Other statuses already store their points as the cell value.
   const toScoreValuesForTotal = (
     rawRaces: string[],
@@ -954,14 +933,10 @@ export default function useLeaderboard(eventId: number) {
 
     const oldPosition = parseRaceNum(targetEntry.races[raceIndex]);
 
-    // RULE-M16 / RRS A6.1: a boat that HAD finished and is now disqualified or
-    // retired-after-finishing is removed from the finishing order, so every
-    // boat behind her moves up one place. Mandatory, so it applies whatever the
-    // "Shift other boats" toggle says — matching applyRaceResultUpdate in the
-    // main process. RDG/DPI never displace anyone (RRS A6.2 / A10).
+    // RULE-M16 / RRS A6.1 and the manual ripple are both decided inside
+    // shared/raceColumnEdit; the hook only supplies the before/after facts.
     const previousCellStatus =
       targetEntry.race_statuses?.[raceIndex] || 'FINISHED';
-    const promotesBoats = promotesBoatsBehind(previousCellStatus, newStatus);
 
     // Group the boats that share THIS physical race (same race_id at this
     // column). Those are the only boats whose finishing places interact: a
@@ -1051,154 +1026,47 @@ export default function useLeaderboard(eventId: number) {
       };
     };
 
-    let updated: LeaderboardEntry[];
-
-    if (shiftPositions) {
-      // Shift ON: mirror the backend — insert the edited boat at its new place
-      // and ripple the surrounding finishers, then re-rank the race to
-      // contiguous places (ties share averaged points, RRS A7).
-      const column: RaceCellState[] = groupIdx.map((idx) => {
-        const entry = cloned[idx];
-        if (entry.boat_id === boatId) {
-          return {
-            position: newPosition,
-            points: newPoints,
-            status: newStatus,
-          };
-        }
-        const pos = parseRaceNum(entry.races[raceIndex]);
-        const rawPts = parseFloat(
-          String(
-            entry.race_points?.[raceIndex] ?? entry.races[raceIndex],
-          ).replace(/[()]/g, ''),
-        );
-        return {
-          position: pos,
-          points: Number.isNaN(rawPts) ? pos : rawPts,
-          status: entry.race_statuses?.[raceIndex] || 'FINISHED',
-        };
-      });
-
-      if (!isPenalty) {
-        column.forEach((cell, i) => {
-          if (cloned[groupIdx[i]].boat_id === boatId) return;
-          // LB-7: only hard (displacing) penalties and RDG cells are left alone
-          // — they hold no finishing slot. Position-keeping penalties (ZFP/SCP/
-          // T1) occupy a real place and must shift with the finishers; otherwise
-          // rerankRaceColumn re-ranks the FINISHED boats around the frozen
-          // penalty and produces duplicate places.
-          const keepsPlace = scoringPenaltyStatuses.has(cell.status);
-          if (cell.status !== 'FINISHED' && !keepsPlace) return;
-          const otherPos = cell.position;
-          if (
-            oldPosition > newPosition &&
-            otherPos >= newPosition &&
-            otherPos < oldPosition
-          ) {
-            cell.position += 1;
-            cell.points = keepsPlace
-              ? getScoringPenaltyPoints(cell.position, maxBoats, cell.status)
-              : cell.position;
-          } else if (
-            oldPosition < newPosition &&
-            otherPos <= newPosition &&
-            otherPos > oldPosition
-          ) {
-            cell.position -= 1;
-            cell.points = keepsPlace
-              ? getScoringPenaltyPoints(cell.position, maxBoats, cell.status)
-              : cell.position;
-          }
-        });
-      }
-
-      const ranked = rerankRaceColumn(column);
-      const rankedByIdx = new Map<number, RaceCellState>();
-      groupIdx.forEach((idx, i) => rankedByIdx.set(idx, ranked[i]));
-
-      updated = cloned.map((entry, idx) => {
-        const rankedCell = rankedByIdx.get(idx);
-        // Boats in other races are never touched by an edit in this race.
-        if (!rankedCell) return entry;
-        return recomputeEntry(
-          entry,
-          rankedCell.position,
-          rankedCell.points,
-          rankedCell.status,
-        );
-      });
-    } else if (promotesBoats) {
-      // RULE-M16 / RRS A6.1: "each boat with a worse finishing place shall be
-      // moved up one place." Mandatory, so it happens even with shift OFF —
-      // mirroring the backend, which applies the promotion regardless of the
-      // toggle. Without this the preview would show the boats behind a DSQ
-      // unchanged while the save moved them up.
-      const column: RaceCellState[] = groupIdx.map((idx) => {
-        const entry = cloned[idx];
-        if (entry.boat_id === boatId) {
-          return {
-            position: newPosition,
-            points: newPoints,
-            status: newStatus,
-          };
-        }
-        const pos = parseRaceNum(entry.races[raceIndex]);
-        const rawPts = parseFloat(
-          String(
-            entry.race_points?.[raceIndex] ?? entry.races[raceIndex],
-          ).replace(/[()]/g, ''),
-        );
-        const status = entry.race_statuses?.[raceIndex] || 'FINISHED';
-        // Boats behind the removed boat move up one place. Position-keeping
-        // penalties (ZFP/SCP/T1) hold a real finishing place, so they move too,
-        // and their points are recomputed from the new place (RRS 44.3c).
-        const keepsPlace = scoringPenaltyStatuses.has(status);
-        const movesUp =
-          (status === 'FINISHED' || keepsPlace) && pos > oldPosition;
-        if (!movesUp) {
-          return {
-            position: pos,
-            points: Number.isNaN(rawPts) ? pos : rawPts,
-            status,
-          };
-        }
-        const promoted = pos - 1;
-        return {
-          position: promoted,
-          points: keepsPlace
-            ? getScoringPenaltyPoints(promoted, maxBoats, status)
-            : promoted,
-          status,
-        };
-      });
-
-      // RRS A7: re-average any places now shared, exactly as the backend's
-      // applyRaceTieScoring does after the same promotion.
-      const ranked = rerankRaceColumn(column);
-      const rankedByIdx = new Map<number, RaceCellState>();
-      groupIdx.forEach((idx, i) => rankedByIdx.set(idx, ranked[i]));
-
-      updated = cloned.map((entry, idx) => {
-        const rankedCell = rankedByIdx.get(idx);
-        if (!rankedCell) return entry;
-        return recomputeEntry(
-          entry,
-          rankedCell.position,
-          rankedCell.points,
-          rankedCell.status,
-        );
-      });
-    } else {
-      // Shift OFF: change ONLY the edited boat. Every other boat keeps its
-      // place and points exactly as they are — no cascade. This can leave a
-      // tie or a gap in the race until the user resolves it manually, which is
-      // the intended manual-override behaviour.
-      updated = cloned.map((entry) =>
-        entry.boat_id === boatId
-          ? recomputeEntry(entry, newPosition, newPoints, newStatus)
-          : entry,
+    // The RRS A6.1 promotion, the manual ripple and the RRS A7 re-average all
+    // live in shared/raceColumnEdit, which the main process runs too — so this
+    // preview cannot show something other than what Save persists.
+    const editedPosition = groupIdx.indexOf(
+      cloned.findIndex((entry) => entry.boat_id === boatId),
+    );
+    const column: RaceCellState[] = groupIdx.map((idx) => {
+      const entry = cloned[idx];
+      const pos = parseRaceNum(entry.races[raceIndex]);
+      const rawPts = parseFloat(
+        String(
+          entry.race_points?.[raceIndex] ?? entry.races[raceIndex],
+        ).replace(/[()]/g, ''),
       );
-    }
+      return {
+        position: pos,
+        points: Number.isNaN(rawPts) ? pos : rawPts,
+        status: entry.race_statuses?.[raceIndex] || 'FINISHED',
+      };
+    });
+
+    const ranked = applyRaceColumnEdit(column, {
+      index: editedPosition,
+      previousPosition: oldPosition,
+      previousStatus: previousCellStatus,
+      newPosition,
+      newPoints,
+      newStatus,
+      shiftPositions,
+      maxBoats,
+    });
+
+    const rankedByIdx = new Map<number, RaceCellState>();
+    groupIdx.forEach((idx, i) => rankedByIdx.set(idx, ranked[i]));
+
+    const updated = cloned.map((entry, idx) => {
+      const cell = rankedByIdx.get(idx);
+      // Boats in other races are never touched by an edit in this race.
+      if (!cell) return entry;
+      return recomputeEntry(entry, cell.position, cell.points, cell.status);
+    });
 
     setEditableLeaderboard(refreshSessionRdgAverages(updated));
   };
