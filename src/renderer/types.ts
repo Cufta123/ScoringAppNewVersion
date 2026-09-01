@@ -4,8 +4,6 @@
 // typed as `Promise<any>`, so this module is the renderer's typed view of that
 // contract — keep it in sync with the schema and the handler return shapes.
 
-/* eslint-disable camelcase */
-
 // --- Scoring vocabulary -----------------------------------------------------
 
 /** Penalty / redress status codes a score can carry (SHRS + RRS Appendix A). */

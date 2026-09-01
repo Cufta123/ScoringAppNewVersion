@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 /**
  * Tests for explainTieBreak.ts — the backend tie-break explanation that backs
  * the leaderboard compare panel. The winner it reports must always match the

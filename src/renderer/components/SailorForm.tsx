@@ -1,5 +1,4 @@
 /* eslint-disable jsx-a11y/label-has-associated-control */
-/* eslint-disable camelcase */
 import React, { useState, useEffect, useCallback } from 'react';
 import Autosuggest from 'react-autosuggest';
 import {

@@ -1,5 +1,3 @@
-/* eslint-disable camelcase */
-
 import { scoringPenaltyStatuses } from '../../shared/scoringPenalty';
 
 // SHRS 5.3 recording order for a heat: boats are recorded by finishing place,

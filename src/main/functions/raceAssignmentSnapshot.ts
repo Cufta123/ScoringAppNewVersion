@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 import { db } from '../../../public/Database/DBManager';
 
 // SHRS 3.1.5: "Protest committee decisions shall not change heat assignments."

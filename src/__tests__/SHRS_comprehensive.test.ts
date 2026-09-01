@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
  * COMPREHENSIVE SHRS (Simple Heat Racing System) & RRS Appendix A TESTS

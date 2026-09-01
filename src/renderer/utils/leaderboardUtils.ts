@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
 import { fleetRank } from '../../shared/fleetNames';
 import { getExcludeCountForProfile } from '../../shared/discardProfile';

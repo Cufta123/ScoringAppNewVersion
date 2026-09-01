@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 import { db } from '../../../public/Database/DBManager';
 import {
   DiscardConfig,

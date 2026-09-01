@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 /**
  * Direct unit tests for compareOverallTiePackets (overallTieBreak.ts).
  *

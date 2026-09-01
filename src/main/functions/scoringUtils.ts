@@ -1,5 +1,3 @@
-/* eslint-disable camelcase */
-
 // SHRS 5.4 / RRS A8 helpers shared by qualifying, final and overall scoring.
 
 export const nonExcludableStatuses = new Set(['DNE', 'DGM']);

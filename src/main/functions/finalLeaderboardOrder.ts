@@ -1,5 +1,3 @@
-/* eslint-disable camelcase */
-
 /**
  * Ordering of the Final Series leaderboard (SHRS 1.5 + 5.5).
  *

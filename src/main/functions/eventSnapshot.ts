@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 import { db } from '../../../public/Database/DBManager';
 
 // Full export/restore of a single event's rows across every event-scoped table.

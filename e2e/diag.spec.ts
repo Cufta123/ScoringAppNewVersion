@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 import {
   launchApp,
-  createEvent,
   openEvent,
   addSailor,
   createHeats,

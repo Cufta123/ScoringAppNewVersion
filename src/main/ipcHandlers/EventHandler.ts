@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 import { ipcMain } from 'electron';
 import { db } from '../../../public/Database/DBManager';
 import { normalizeDiscardConfigString } from '../functions/discardConfig';

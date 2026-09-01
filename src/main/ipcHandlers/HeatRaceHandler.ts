@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 import { ipcMain, dialog } from 'electron';
 import fs from 'fs';
 import { db } from '../../../public/Database/DBManager';

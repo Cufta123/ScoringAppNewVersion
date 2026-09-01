@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 import { db } from '../../../public/Database/DBManager';
 import calculateBoatScores from './calculateBoatScores';
 import calculateFinalBoatScores from './calculateFinalBoatScores';

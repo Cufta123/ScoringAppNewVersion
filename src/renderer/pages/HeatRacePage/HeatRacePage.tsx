@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import HeatComponent from '../../components/HeatComponent';

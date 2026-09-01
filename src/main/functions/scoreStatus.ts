@@ -1,5 +1,3 @@
-/* eslint-disable camelcase */
-
 // Score-status vocabulary and the pure helpers that normalise statuses, rank
 // them for SHRS 5.3 seeding order, and compute scoring-penalty points. Kept in
 // its own module so the scoring rules have one home and can be unit-tested

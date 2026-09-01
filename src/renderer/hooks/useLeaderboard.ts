@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
