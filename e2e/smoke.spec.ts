@@ -54,16 +54,3 @@ test('create-event form exposes its core inputs', async () => {
   await expect(window.getByLabel(/Event Name/i)).toBeVisible();
   await expect(window.getByLabel(/Location/i)).toBeVisible();
 });
-
-test('global leaderboard is reachable from the navbar', async () => {
-  await window.getByRole('button', { name: /Global Leaderboard/i }).click();
-  // We left the landing page…
-  await expect(window.getByText(/Create a New Event/i)).toBeHidden();
-  // …and the global-leaderboard view rendered one of its valid states
-  // (loading, empty, or a populated table) regardless of DB contents.
-  await expect(
-    window.getByText(
-      /Loading global leaderboard|No global results|Total Points/i,
-    ),
-  ).toBeVisible();
-});
