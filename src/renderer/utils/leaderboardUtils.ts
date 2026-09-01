@@ -1,4 +1,4 @@
-import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
+import IOC_NATIONS from '../constants/iocNations';
 import { fleetRank } from '../../shared/fleetNames';
 import { getExcludeCountForProfile } from '../../shared/discardProfile';
 import type { LeaderboardEntry, RawLeaderboardEntry } from '../types';
@@ -193,7 +193,7 @@ export const processLeaderboardEntry = (
  * Map an IOC country code to a react-world-flags code.
  */
 export const getFlagCode = (iocCode: string): string =>
-  iocToFlagCodeMap[iocCode] || iocCode;
+  IOC_NATIONS[iocCode]?.flag || iocCode;
 
 /**
  * LB-6 (security): escape one CSV cell. Neutralises CSV formula injection — a
