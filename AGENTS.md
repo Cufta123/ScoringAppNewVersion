@@ -109,6 +109,22 @@ into focused modules under `src/main/functions/`. Map of that directory:
   raw `Scores`.
 - `heatQueries.ts` — shared reads (`getLatestQualifyingHeats`,
   `getRaceCountForHeat`).
+- `eventSettings.ts` — per-event SHRS configuration on the Events row:
+  qualifying assignment mode (3.1/3.2), heat overflow policy and
+  `SHRS_MAX_BOATS_PER_HEAT` (2.3), and the discard-profile lock (5.4).
+- `raceScoring.ts` — every write to `Scores` for a single race:
+  `applyRaceResultUpdate` (RRS A6.1/A6.2, SHRS 5.2), `applyRaceTieScoring`
+  (RRS A7), `getMaxHeatSize`, `seedRaceWithDefaultDnsScores`,
+  `ensureCompleteRaceScoresForEvent`, `recomputeLeaderboardsForRace`.
+- `raceSeeding.ts` — reading a race's results back in SHRS 5.3 recording order
+  for the next round's heat movement (`getSeedingResultsFromLastRace`,
+  `getRankedBoatsInHeatForRace`, `getOddEvenMovementAdvisory`).
+- `assignmentShield.ts` — SHRS 3.1.5 per-boat freeze of the pre-protest
+  finishing order (`captureRaceAssignmentSnapshotIfMissing`,
+  `getAssignmentRowsForHeatRace`); persistence lives in
+  `raceAssignmentSnapshot.ts`.
+- `fleetTotals.ts` — `buildAdjustedFleetLeaderboard`, the SHRS 4.3
+  fleet-assignment ranking adapter over `shared/fleetAssignment.ts`.
 - `eventSnapshot.ts` — full per-event export/restore.
 - `raceAssignmentSnapshot.ts` — SHRS 3.1.5 pre-protest assignment cache +
   persistence.
@@ -326,8 +342,11 @@ For most feature/fix requests, do this in order:
   rollback, per-row error collection).
 - Returning `false` from preload methods is converted to thrown errors by wrapper.
 - App uses hash routing, so route handling assumptions must match `HashRouter`.
-- `HeatRaceHandler.ts` is intentionally thin wiring: most logic now lives in
+- `HeatRaceHandler.ts` is intentionally thin wiring: the logic lives in
   `src/main/functions/`. Add new pure logic there, not inline in the handler.
+  This had drifted — 718 lines of domain helpers had accumulated back in the
+  handler and were moved out in Sept 2026. If you find yourself writing a
+  non-handler function in this file, it belongs in `functions/`.
 - `functions/` modules import `db` directly from `DBManager` (not passed in),
   and only call `db.prepare` inside functions — never at module top level, so
   importing a module never touches the database.
