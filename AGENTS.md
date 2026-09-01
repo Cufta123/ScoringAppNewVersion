@@ -354,5 +354,5 @@ A change is complete when all are true:
 
 ## 13. Claude Compatibility
 
-This repo also includes `CLAUDE.md` as a mirror pointer for Claude workflows.
-If both files diverge, treat this `AGENTS.md` as source of truth and sync `CLAUDE.md`.
+This file is the single source of truth for all coding agents (Claude and GPT).
+There is no separate `CLAUDE.md`; Claude reads `AGENTS.md` directly.
