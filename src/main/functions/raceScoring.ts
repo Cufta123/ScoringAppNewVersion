@@ -5,6 +5,7 @@
  * here so the rules are applied in one place.
  */
 import { db } from '../../../public/Database/DBManager';
+import computeTiePlacements from '../../shared/raceTieScoring';
 import { captureRaceAssignmentSnapshotIfMissing } from './assignmentShield';
 import {
   recomputeEventLeaderboard,
@@ -161,37 +162,15 @@ export function applyRaceTieScoring(race_id: number): void {
     'UPDATE Scores SET position = ?, points = ? WHERE score_id = ?',
   );
 
-  let cursorPlace = 1;
-  let index = 0;
-
-  while (index < rankedRows.length) {
-    const tieValue = rankedRows[index].position;
-    const tieGroup: { score_id: number; position: number; status: string }[] =
-      [];
-
-    while (
-      index < rankedRows.length &&
-      rankedRows[index].position === tieValue
-    ) {
-      tieGroup.push(rankedRows[index]);
-      index += 1;
-    }
-
-    const groupSize = tieGroup.length;
-    const startPlace = cursorPlace;
-    const endPlace = cursorPlace + groupSize - 1;
-    const tiePoints = (startPlace + endPlace) / 2;
-
-    tieGroup.forEach((row) => {
-      // Only finishers are (re)scored here. Penalty boats keep the place and
-      // points assigned at submit time but still consume a place slot above.
-      if (row.status === 'FINISHED') {
-        updateScore.run(startPlace, tiePoints, row.score_id);
-      }
-    });
-
-    cursorPlace += groupSize;
-  }
+  // The place walk itself lives in shared/raceTieScoring so the renderer's
+  // edit preview cannot drift from what is persisted here.
+  computeTiePlacements(rankedRows).forEach((placement) => {
+    updateScore.run(
+      placement.position,
+      placement.points,
+      rankedRows[placement.index].score_id,
+    );
+  });
 }
 
 export function applyRaceResultUpdate(

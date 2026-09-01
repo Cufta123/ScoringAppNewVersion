@@ -26,6 +26,7 @@ import {
   promotesBoatsBehind,
   scoringPenaltyStatuses,
 } from '../../shared/scoringPenalty';
+import computeTiePlacements from '../../shared/raceTieScoring';
 import { eventDB, heatRaceDB } from '../api/db';
 import type {
   CompareInfo,
@@ -76,36 +77,12 @@ interface RaceCellState {
  */
 function rerankRaceColumn(cells: RaceCellState[]): RaceCellState[] {
   const next = cells.map((cell) => ({ ...cell }));
-  const participants = next
-    .map((cell, idx) => ({ idx, position: cell.position, status: cell.status }))
-    .filter(
-      (cell) =>
-        cell.status === 'FINISHED' || scoringPenaltyStatuses.has(cell.status),
-    )
-    .sort((a, b) => a.position - b.position || a.idx - b.idx);
-
-  let cursor = 1;
-  let i = 0;
-  while (i < participants.length) {
-    const tieValue = participants[i].position;
-    const group: { idx: number }[] = [];
-    while (i < participants.length && participants[i].position === tieValue) {
-      group.push({ idx: participants[i].idx });
-      i += 1;
-    }
-    const startPlace = cursor;
-    const endPlace = cursor + group.length - 1;
-    const tiePoints = (startPlace + endPlace) / 2;
-    group.forEach(({ idx }) => {
-      // Only finishers are (re)scored; penalty boats keep their own place +
-      // points but still consume the slot above.
-      if (next[idx].status === 'FINISHED') {
-        next[idx].position = startPlace;
-        next[idx].points = tiePoints;
-      }
-    });
-    cursor += group.length;
-  }
+  // The RRS A7 place walk lives in shared/raceTieScoring, so this preview and
+  // the main process's applyRaceTieScoring cannot drift apart.
+  computeTiePlacements(next).forEach((placement) => {
+    next[placement.index].position = placement.position;
+    next[placement.index].points = placement.points;
+  });
   return next;
 }
 
