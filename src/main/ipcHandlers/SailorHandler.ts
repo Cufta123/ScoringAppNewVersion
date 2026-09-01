@@ -1,6 +1,6 @@
-import { ipcMain } from 'electron';
 import { db } from '../../../public/Database/DBManager';
 import { subgroupToCategoryName } from '../../shared/subgroups';
+import handle from './handle';
 
 interface SqliteError extends Error {
   code: string;
@@ -10,100 +10,72 @@ const log = (message: string) => {
   console.log(message);
 };
 
-ipcMain.handle('readAllSailors', () => {
-  try {
-    const rows = db
-      .prepare(
-        `
+handle('readAllSailors', () => {
+  const rows = db
+    .prepare(
+      `
 SELECT
-  s.sailor_id, s.name, s.surname, s.birthday, s.category_id, s.club_id,
-  b.sail_number, b.model,
-  c.club_name, cat.category_name
+s.sailor_id, s.name, s.surname, s.birthday, s.category_id, s.club_id,
+b.sail_number, b.model,
+c.club_name, cat.category_name
 FROM Sailors s
 LEFT JOIN Clubs c ON s.club_id = c.club_id
 LEFT JOIN Categories cat ON s.category_id = cat.category_id
 LEFT JOIN Boats b ON s.sailor_id = b.sailor_id
-    `,
-      )
-      .all();
-    return rows;
-  } catch (error) {
-    log(`Error reading sailors: ${error}`);
-    throw error;
-  }
+  `,
+    )
+    .all();
+  return rows;
 });
 
-ipcMain.handle('insertClub', async (event, club_name, country) => {
+handle('insertClub', async (event, club_name, country) => {
+  const result = db
+    .prepare('INSERT INTO Clubs (club_name, country) VALUES (?, ?)')
+    .run(club_name, country);
+  return { lastInsertRowid: result.lastInsertRowid };
+});
+
+handle('insertBoat', async (event, sail_number, country, model, sailor_id) => {
   try {
     const result = db
-      .prepare('INSERT INTO Clubs (club_name, country) VALUES (?, ?)')
-      .run(club_name, country);
+      .prepare(
+        'INSERT INTO Boats (sail_number, country, model, sailor_id) VALUES (?, ?, ?, ?)',
+      )
+      .run(sail_number, country, model, sailor_id);
     return { lastInsertRowid: result.lastInsertRowid };
   } catch (error) {
-    log(`Error inserting club: ${error}`);
+    console.error(`Error inserting boat: ${error}`);
     throw error;
   }
 });
 
-ipcMain.handle(
-  'insertBoat',
-  async (event, sail_number, country, model, sailor_id) => {
-    try {
-      const result = db
-        .prepare(
-          'INSERT INTO Boats (sail_number, country, model, sailor_id) VALUES (?, ?, ?, ?)',
-        )
-        .run(sail_number, country, model, sailor_id);
-      return { lastInsertRowid: result.lastInsertRowid };
-    } catch (error) {
-      console.error(`Error inserting boat: ${error}`);
-      throw error;
-    }
-  },
-);
-
-ipcMain.handle('readAllCategories', () => {
-  try {
-    const rows = db.prepare('SELECT * FROM Categories').all();
-    return rows;
-  } catch (error) {
-    log(`Error reading categories: ${error}`);
-    throw error;
-  }
+handle('readAllCategories', () => {
+  const rows = db.prepare('SELECT * FROM Categories').all();
+  return rows;
 });
 
-ipcMain.handle('readAllClubs', () => {
-  try {
-    const rows = db.prepare('SELECT * FROM Clubs').all();
-    return rows;
-  } catch (error) {
-    log(`Error reading clubs: ${error}`);
-    throw error;
-  }
+handle('readAllClubs', () => {
+  const rows = db.prepare('SELECT * FROM Clubs').all();
+  return rows;
 });
 
-ipcMain.handle('readAllBoats', () => {
-  try {
-    const rows = db
-      .prepare(
-        `SELECT
-      b.boat_id, b.sail_number, b.country AS boat_country, b.model,
-      s.name, s.surname,
-      c.club_name, c.country AS club_country,
-      cat.category_name
-    FROM Boats b
-    JOIN Sailors s ON b.sailor_id = s.sailor_id
-    JOIN Clubs c ON s.club_id = c.club_id
-    JOIN Categories cat ON s.category_id = cat.category_id`,
-      )
-      .all();
-    return rows;
-  } catch (error) {
-    log(`Error reading boats: ${error}`);
-    throw error;
-  }
+handle('readAllBoats', () => {
+  const rows = db
+    .prepare(
+      `SELECT
+    b.boat_id, b.sail_number, b.country AS boat_country, b.model,
+    s.name, s.surname,
+    c.club_name, c.country AS club_country,
+    cat.category_name
+  FROM Boats b
+  JOIN Sailors s ON b.sailor_id = s.sailor_id
+  JOIN Clubs c ON s.club_id = c.club_id
+  JOIN Categories cat ON s.category_id = cat.category_id`,
+    )
+    .all();
+  return rows;
 });
-ipcMain.handle('updateSailor', async (event, sailorData) => {
+handle('updateSailor', async (event, sailorData) => {
   const {
     name,
     surname,
@@ -182,7 +154,7 @@ ipcMain.handle('updateSailor', async (event, sailorData) => {
   }
 });
 
-ipcMain.handle(
+handle(
   'insertSailor',
   async (event, name, surname, birthday, category_id, club_id) => {
     const maxRetries = 5;
@@ -234,7 +206,7 @@ interface ImportRow {
   eventId?: number | string;
 }
 
-ipcMain.handle('importSailors', (_event, rows: ImportRow[]) => {
+handle('importSailors', (_event, rows: ImportRow[]) => {
   let created = 0; // new boats added to DB
   let associated = 0; // existing boats newly added to this event
   let alreadyInEvent = 0; // boats that were already in this event

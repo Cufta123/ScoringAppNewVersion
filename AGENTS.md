@@ -13,7 +13,7 @@ Use this document first. Only search the repo when this file does not answer the
 
 - Main process bootstrap: `src/main/main.ts`
 - IPC registration side effects: `src/main/ipcHandlers/index.ts`
-- IPC handlers:
+- IPC handlers (registered via `handle()` in `src/main/ipcHandlers/handle.ts`):
   - `src/main/ipcHandlers/SailorHandler.ts`
   - `src/main/ipcHandlers/EventHandler.ts`
   - `src/main/ipcHandlers/HeatRaceHandler.ts`
@@ -319,6 +319,11 @@ For most feature/fix requests, do this in order:
 - File name typo is intentional in codebase: `creatingNewHeatsUtls.ts` (not
   `Utils`). Its test file IS spelled `creatingNewHeatsUtils.test.ts`.
 - Handlers are registered by import side effects; deleting imports can silently break IPC.
+- Register IPC handlers with `handle()` from `ipcHandlers/handle.ts`, not
+  `ipcMain.handle` directly. It logs the channel name and rethrows, so a
+  handler body needs no try/catch just to report a failure. Keep an inner
+  try/catch only when the catch does real work (SQLITE_BUSY retry, snapshot
+  rollback, per-row error collection).
 - Returning `false` from preload methods is converted to thrown errors by wrapper.
 - App uses hash routing, so route handling assumptions must match `HashRouter`.
 - `HeatRaceHandler.ts` is intentionally thin wiring: most logic now lives in
@@ -327,8 +332,8 @@ For most feature/fix requests, do this in order:
   and only call `db.prepare` inside functions — never at module top level, so
   importing a module never touches the database.
 - When adding a preload channel, update all four: `type Channels`, the
-  `electronHandler` map in `preload.ts`, the handler's `ipcMain.handle`, and the
-  renderer `api/db` wrapper.
+  `electronHandler` map in `preload.ts`, the handler's `handle()` registration,
+  and the renderer `api/db` wrapper.
 - `updateGlobalLeaderboard` is a deprecated no-op (July 2026): the global
   leaderboard feature is on hold, the channel stays registered but writes
   nothing, and the app never populates `GlobalLeaderboard`. Do not "fix" it

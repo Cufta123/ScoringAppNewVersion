@@ -1,10 +1,11 @@
 import path from 'path';
-import { app, BrowserWindow, shell, ipcMain, dialog, session } from 'electron';
+import { app, BrowserWindow, shell, dialog, session } from 'electron';
 import MenuBuilder from './menu';
 import { resolveHtmlPath, resolvePreloadPath } from './util';
 import './ipcHandlers/SailorHandler';
 import './ipcHandlers/EventHandler';
 import './ipcHandlers/HeatRaceHandler';
+import handle from './ipcHandlers/handle';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -125,7 +126,7 @@ const createWindow = async () => {
 };
 
 // Register the IPC handler for the file dialog
-ipcMain.handle('dialog:openFile', async (event, options) => {
+handle('dialog:openFile', async (event, options) => {
   return dialog.showOpenDialog(mainWindow!, options);
 });
 

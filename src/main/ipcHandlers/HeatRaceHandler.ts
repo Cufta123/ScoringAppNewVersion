@@ -1,4 +1,4 @@
-import { ipcMain, dialog } from 'electron';
+import { dialog } from 'electron';
 import fs from 'fs';
 import { db } from '../../../public/Database/DBManager';
 
@@ -59,6 +59,7 @@ import {
   rdgStatuses,
   scoringPenaltyStatuses,
 } from '../functions/scoreStatus';
+import handle from './handle';
 import {
   detectDuplicateSailNumbers,
   normalizeSailNumber,
@@ -787,131 +788,104 @@ function buildAdjustedFleetLeaderboard(
   });
 }
 
-ipcMain.handle('readAllHeats', async (event, event_id) => {
-  try {
-    const heats = db
-      .prepare('SELECT * FROM Heats WHERE event_id = ?')
-      .all(event_id);
-    return heats;
-  } catch (error) {
-    console.error('Error reading all heats:', error);
-    throw error;
-  }
+handle('readAllHeats', async (event, event_id) => {
+  const heats = db
+    .prepare('SELECT * FROM Heats WHERE event_id = ?')
+    .all(event_id);
+  return heats;
 });
 
-ipcMain.handle('exportEventSnapshotToFile', async (_event, event_id) => {
-  try {
-    const snapshot = buildEventSnapshot(Number(event_id));
-    const eventNameSafe = String(
-      snapshot.tables.Events?.[0]?.event_name || 'event',
+handle('exportEventSnapshotToFile', async (_event, event_id) => {
+  const snapshot = buildEventSnapshot(Number(event_id));
+  const eventNameSafe = String(
+    snapshot.tables.Events?.[0]?.event_name || 'event',
+  )
+    .replace(/[^a-z0-9_-]/gi, '_')
+    .slice(0, 60);
+
+  const saveResult = await dialog.showSaveDialog({
+    title: 'Save Event Snapshot',
+    defaultPath: `${eventNameSafe}_snapshot.json`,
+    filters: [{ name: 'JSON files', extensions: ['json'] }],
+  });
+
+  if (saveResult.canceled || !saveResult.filePath) {
+    return { canceled: true };
+  }
+
+  fs.writeFileSync(
+    saveResult.filePath,
+    JSON.stringify(snapshot, null, 2),
+    'utf-8',
+  );
+
+  return {
+    success: true,
+    filePath: saveResult.filePath,
+  };
+});
+
+handle('restoreEventSnapshotFromFile', async (_event, event_id) => {
+  const openResult = await dialog.showOpenDialog({
+    title: 'Load Event Snapshot',
+    properties: ['openFile'],
+    filters: [{ name: 'JSON files', extensions: ['json'] }],
+  });
+
+  if (openResult.canceled || openResult.filePaths.length === 0) {
+    return { canceled: true };
+  }
+
+  const filePath = openResult.filePaths[0];
+  const snapshotRaw = fs.readFileSync(filePath, 'utf-8');
+  const parsed = JSON.parse(snapshotRaw);
+
+  restoreEventSnapshot(Number(event_id), parsed);
+
+  return {
+    success: true,
+    filePath,
+  };
+});
+
+handle('insertHeat', async (event, event_id, heat_name, heat_type) => {
+  const result = db
+    .prepare(
+      'INSERT INTO Heats (event_id, heat_name, heat_type) VALUES (?, ?, ?)',
     )
-      .replace(/[^a-z0-9_-]/gi, '_')
-      .slice(0, 60);
+    .run(event_id, heat_name, heat_type);
+  return { lastInsertRowid: result.lastInsertRowid };
+});
 
-    const saveResult = await dialog.showSaveDialog({
-      title: 'Save Event Snapshot',
-      defaultPath: `${eventNameSafe}_snapshot.json`,
-      filters: [{ name: 'JSON files', extensions: ['json'] }],
-    });
+handle('insertHeatBoat', async (event, heat_id, boat_id) => {
+  const heatRow = db
+    .prepare(
+      `SELECT h.event_id
+       FROM Heats h
+       WHERE h.heat_id = ?`,
+    )
+    .get(heat_id) as { event_id: number } | undefined;
 
-    if (saveResult.canceled || !saveResult.filePath) {
-      return { canceled: true };
-    }
+  if (!heatRow) {
+    throw new Error('Heat not found.');
+  }
 
-    fs.writeFileSync(
-      saveResult.filePath,
-      JSON.stringify(snapshot, null, 2),
-      'utf-8',
+  const boatsInHeat = db
+    .prepare('SELECT COUNT(*) as count FROM Heat_Boat WHERE heat_id = ?')
+    .get(heat_id) as { count: number };
+
+  if (boatsInHeat.count >= SHRS_MAX_BOATS_PER_HEAT) {
+    throw new Error(
+      `Cannot assign more than ${SHRS_MAX_BOATS_PER_HEAT} boats to one heat.`,
     );
-
-    return {
-      success: true,
-      filePath: saveResult.filePath,
-    };
-  } catch (error) {
-    console.error('Error exporting event snapshot:', error);
-    throw error;
   }
-});
 
-ipcMain.handle('restoreEventSnapshotFromFile', async (_event, event_id) => {
-  try {
-    const openResult = await dialog.showOpenDialog({
-      title: 'Load Event Snapshot',
-      properties: ['openFile'],
-      filters: [{ name: 'JSON files', extensions: ['json'] }],
-    });
-
-    if (openResult.canceled || openResult.filePaths.length === 0) {
-      return { canceled: true };
-    }
-
-    const filePath = openResult.filePaths[0];
-    const snapshotRaw = fs.readFileSync(filePath, 'utf-8');
-    const parsed = JSON.parse(snapshotRaw);
-
-    restoreEventSnapshot(Number(event_id), parsed);
-
-    return {
-      success: true,
-      filePath,
-    };
-  } catch (error) {
-    console.error('Error restoring event snapshot:', error);
-    throw error;
-  }
-});
-
-ipcMain.handle('insertHeat', async (event, event_id, heat_name, heat_type) => {
-  try {
-    const result = db
-      .prepare(
-        'INSERT INTO Heats (event_id, heat_name, heat_type) VALUES (?, ?, ?)',
-      )
-      .run(event_id, heat_name, heat_type);
-    return { lastInsertRowid: result.lastInsertRowid };
-  } catch (error) {
-    console.error('Error inserting heat:', error);
-    throw error;
-  }
-});
-
-ipcMain.handle('insertHeatBoat', async (event, heat_id, boat_id) => {
-  try {
-    const heatRow = db
-      .prepare(
-        `SELECT h.event_id
-         FROM Heats h
-         WHERE h.heat_id = ?`,
-      )
-      .get(heat_id) as { event_id: number } | undefined;
-
-    if (!heatRow) {
-      throw new Error('Heat not found.');
-    }
-
-    const boatsInHeat = db
-      .prepare('SELECT COUNT(*) as count FROM Heat_Boat WHERE heat_id = ?')
-      .get(heat_id) as { count: number };
-
-    if (boatsInHeat.count >= SHRS_MAX_BOATS_PER_HEAT) {
-      throw new Error(
-        `Cannot assign more than ${SHRS_MAX_BOATS_PER_HEAT} boats to one heat.`,
-      );
-    }
-
-    // BK-1: OR IGNORE so re-adding a boat already in this heat is a benign no-op
-    // rather than a UNIQUE-constraint throw now that (heat_id, boat_id) is unique.
-    const result = db
-      .prepare(
-        'INSERT OR IGNORE INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)',
-      )
-      .run(heat_id, boat_id);
-    return { lastInsertRowid: result.lastInsertRowid };
-  } catch (error) {
-    console.error('Error inserting heat boat:', error);
-    throw error;
-  }
+  // BK-1: OR IGNORE so re-adding a boat already in this heat is a benign no-op
+  // rather than a UNIQUE-constraint throw now that (heat_id, boat_id) is unique.
+  const result = db
+    .prepare('INSERT OR IGNORE INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)')
+    .run(heat_id, boat_id);
+  return { lastInsertRowid: result.lastInsertRowid };
 });
 
 // First-round heat creation, atomically: validates up front (boats exist, the
@@ -919,252 +893,224 @@ ipcMain.handle('insertHeatBoat', async (event, heat_id, boat_id) => {
 // the SHRS 3.1 serpentine — all in one transaction so a failure can never
 // leave half-created heats behind (the old renderer-side per-row IPC loop
 // could die at the 21st boat of a heat with no rollback).
-ipcMain.handle(
-  'createInitialHeatsAtomic',
-  async (_event, event_id, num_heats) => {
-    try {
-      const numHeats = Number(num_heats);
-      if (!Number.isInteger(numHeats) || numHeats < 1 || numHeats > 26) {
-        throw new Error('Number of heats must be between 1 and 26.');
-      }
+handle('createInitialHeatsAtomic', async (_event, event_id, num_heats) => {
+  try {
+    const numHeats = Number(num_heats);
+    if (!Number.isInteger(numHeats) || numHeats < 1 || numHeats > 26) {
+      throw new Error('Number of heats must be between 1 and 26.');
+    }
 
-      const existingHeats = db
-        .prepare('SELECT COUNT(*) AS count FROM Heats WHERE event_id = ?')
-        .get(event_id) as { count: number };
-      if (existingHeats.count > 0) {
-        throw new Error('Heats already exist for this event.');
-      }
+    const existingHeats = db
+      .prepare('SELECT COUNT(*) AS count FROM Heats WHERE event_id = ?')
+      .get(event_id) as { count: number };
+    if (existingHeats.count > 0) {
+      throw new Error('Heats already exist for this event.');
+    }
 
-      const boats = db
-        .prepare(
-          `SELECT b.boat_id, b.sail_number, b.country
+    const boats = db
+      .prepare(
+        `SELECT b.boat_id, b.sail_number, b.country
          FROM Boats b
          JOIN Boat_Event be ON b.boat_id = be.boat_id
          WHERE be.event_id = ?`,
-        )
-        .all(event_id) as Array<{
-        boat_id: number;
-        sail_number: string | number | null;
-        country: string | null;
-      }>;
-
-      if (boats.length === 0) {
-        throw new Error(
-          'No boats are registered for this event yet — add entries before creating heats.',
-        );
-      }
-
-      // BK-4: two boats sharing a sail number (or an empty sail number) collide
-      // when keying a boat-by-sail map, which would silently drop one boat from
-      // the heat assignment. Fail loudly instead of assigning the wrong boats.
-      const duplicateSailNumbers = detectDuplicateSailNumbers(boats);
-      if (duplicateSailNumbers.length > 0) {
-        const details = duplicateSailNumbers
-          .map(({ sail, boatIds }) =>
-            sail === ''
-              ? `empty sail number (boats ${boatIds.join(', ')})`
-              : `sail number "${sail}" (boats ${boatIds.join(', ')})`,
-          )
-          .join('; ');
-        throw new Error(
-          `Cannot create heats: duplicate sail numbers — ${details}.`,
-        );
-      }
-
-      if (Math.ceil(boats.length / numHeats) > SHRS_MAX_BOATS_PER_HEAT) {
-        const minHeats = Math.ceil(boats.length / SHRS_MAX_BOATS_PER_HEAT);
-        throw new Error(
-          `${boats.length} boats in ${numHeats} heat(s) would exceed ` +
-            `${SHRS_MAX_BOATS_PER_HEAT} boats per heat (SHRS). ` +
-            `Use at least ${minHeats} heats.`,
-        );
-      }
-
-      boats.sort(compareByCountryThenSail);
-      const heatIndices = assignBoatsToInitialHeatsSerpentine(
-        boats.length,
-        numHeats,
-      );
-
-      const insertHeatStmt = db.prepare(
-        'INSERT INTO Heats (event_id, heat_name, heat_type) VALUES (?, ?, ?)',
-      );
-      const insertHeatBoatStmt = db.prepare(
-        'INSERT INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)',
-      );
-
-      const createHeats = db.transaction(() => {
-        const heatIds: number[] = [];
-        for (let i = 0; i < numHeats; i += 1) {
-          const heatName = `Heat ${String.fromCharCode(65 + i)}1`;
-          const inserted = insertHeatStmt.run(event_id, heatName, 'Qualifying');
-          heatIds.push(Number(inserted.lastInsertRowid));
-        }
-        boats.forEach((boat, i) => {
-          insertHeatBoatStmt.run(heatIds[heatIndices[i]], boat.boat_id);
-        });
-        return { createdHeats: numHeats, assignedBoats: boats.length };
-      });
-
-      const result = createHeats();
-      return { success: true, ...result };
-    } catch (error) {
-      console.error('Error creating initial heats:', (error as Error).message);
-      throw error;
-    }
-  },
-);
-ipcMain.handle('deleteHeatsByEvent', async (event, event_id) => {
-  try {
-    // Server-side guard: the renderer blocks "Recreate Heats" once a race has
-    // happened, but that state can be stale — never rely on it for a delete
-    // this destructive.
-    const scoredRaces = db
-      .prepare(
-        `SELECT COUNT(*) AS count FROM Races r
-         JOIN Heats h ON r.heat_id = h.heat_id
-         WHERE h.event_id = ?`,
       )
-      .get(event_id) as { count: number };
-    if (scoredRaces.count > 0) {
+      .all(event_id) as Array<{
+      boat_id: number;
+      sail_number: string | number | null;
+      country: string | null;
+    }>;
+
+    if (boats.length === 0) {
       throw new Error(
-        'Cannot delete heats because races have already been scored for this event. Undo the races first.',
+        'No boats are registered for this event yet — add entries before creating heats.',
       );
     }
 
-    // One transaction so a failure can never leave a half-deleted event
-    // (e.g. assignments gone but heats still present).
-    const wipeHeats = db.transaction(() => {
-      try {
-        db.prepare(
-          `DELETE FROM RaceAssignmentSnapshots WHERE race_id IN (
-            SELECT r.race_id FROM Races r
-            JOIN Heats h ON r.heat_id = h.heat_id
-            WHERE h.event_id = ?
-          )`,
-        ).run(event_id);
-      } catch (_snapshotError) {
-        // Older databases may not have RaceAssignmentSnapshots yet.
-      }
+    // BK-4: two boats sharing a sail number (or an empty sail number) collide
+    // when keying a boat-by-sail map, which would silently drop one boat from
+    // the heat assignment. Fail loudly instead of assigning the wrong boats.
+    const duplicateSailNumbers = detectDuplicateSailNumbers(boats);
+    if (duplicateSailNumbers.length > 0) {
+      const details = duplicateSailNumbers
+        .map(({ sail, boatIds }) =>
+          sail === ''
+            ? `empty sail number (boats ${boatIds.join(', ')})`
+            : `sail number "${sail}" (boats ${boatIds.join(', ')})`,
+        )
+        .join('; ');
+      throw new Error(
+        `Cannot create heats: duplicate sail numbers — ${details}.`,
+      );
+    }
 
+    if (Math.ceil(boats.length / numHeats) > SHRS_MAX_BOATS_PER_HEAT) {
+      const minHeats = Math.ceil(boats.length / SHRS_MAX_BOATS_PER_HEAT);
+      throw new Error(
+        `${boats.length} boats in ${numHeats} heat(s) would exceed ` +
+          `${SHRS_MAX_BOATS_PER_HEAT} boats per heat (SHRS). ` +
+          `Use at least ${minHeats} heats.`,
+      );
+    }
+
+    boats.sort(compareByCountryThenSail);
+    const heatIndices = assignBoatsToInitialHeatsSerpentine(
+      boats.length,
+      numHeats,
+    );
+
+    const insertHeatStmt = db.prepare(
+      'INSERT INTO Heats (event_id, heat_name, heat_type) VALUES (?, ?, ?)',
+    );
+    const insertHeatBoatStmt = db.prepare(
+      'INSERT INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)',
+    );
+
+    const createHeats = db.transaction(() => {
+      const heatIds: number[] = [];
+      for (let i = 0; i < numHeats; i += 1) {
+        const heatName = `Heat ${String.fromCharCode(65 + i)}1`;
+        const inserted = insertHeatStmt.run(event_id, heatName, 'Qualifying');
+        heatIds.push(Number(inserted.lastInsertRowid));
+      }
+      boats.forEach((boat, i) => {
+        insertHeatBoatStmt.run(heatIds[heatIndices[i]], boat.boat_id);
+      });
+      return { createdHeats: numHeats, assignedBoats: boats.length };
+    });
+
+    const result = createHeats();
+    return { success: true, ...result };
+  } catch (error) {
+    console.error('Error creating initial heats:', (error as Error).message);
+    throw error;
+  }
+});
+handle('deleteHeatsByEvent', async (event, event_id) => {
+  // Server-side guard: the renderer blocks "Recreate Heats" once a race has
+  // happened, but that state can be stale — never rely on it for a delete
+  // this destructive.
+  const scoredRaces = db
+    .prepare(
+      `SELECT COUNT(*) AS count FROM Races r
+       JOIN Heats h ON r.heat_id = h.heat_id
+       WHERE h.event_id = ?`,
+    )
+    .get(event_id) as { count: number };
+  if (scoredRaces.count > 0) {
+    throw new Error(
+      'Cannot delete heats because races have already been scored for this event. Undo the races first.',
+    );
+  }
+
+  // One transaction so a failure can never leave a half-deleted event
+  // (e.g. assignments gone but heats still present).
+  const wipeHeats = db.transaction(() => {
+    try {
       db.prepare(
-        `DELETE FROM Scores WHERE race_id IN (
+        `DELETE FROM RaceAssignmentSnapshots WHERE race_id IN (
           SELECT r.race_id FROM Races r
           JOIN Heats h ON r.heat_id = h.heat_id
           WHERE h.event_id = ?
         )`,
       ).run(event_id);
-
-      db.prepare(
-        `DELETE FROM Races WHERE heat_id IN (
-          SELECT heat_id FROM Heats WHERE event_id = ?
-        )`,
-      ).run(event_id);
-
-      const heatBoats = db
-        .prepare(
-          'DELETE FROM Heat_Boat WHERE heat_id IN (SELECT heat_id FROM Heats WHERE event_id = ?)',
-        )
-        .run(event_id);
-
-      const heatRows = db
-        .prepare('DELETE FROM Heats WHERE event_id = ?')
-        .run(event_id);
-
-      return {
-        heatBoatsChanges: heatBoats.changes,
-        heatsChanges: heatRows.changes,
-      };
-    });
-
-    const result = wipeHeats();
-    console.log(
-      `Deleted ${result.heatsChanges} heat(s) and ${result.heatBoatsChanges} assignment(s) for event ID ${event_id}.`,
-    );
-    return result;
-  } catch (error) {
-    console.error('Error deleting heats by event:', error);
-    throw error;
-  }
-});
-ipcMain.handle('readBoatsByHeat', async (event, heat_id) => {
-  try {
-    const boats = db
-      .prepare(
-        `
-        SELECT
-          b.boat_id,
-          b.sail_number,
-          b.country,
-          b.model,
-          s.name,
-          s.surname,
-          cat.category_name
-        FROM Heat_Boat hb
-        JOIN Boats b ON hb.boat_id = b.boat_id
-        JOIN Sailors s ON b.sailor_id = s.sailor_id
-        LEFT JOIN Categories cat ON s.category_id = cat.category_id
-        WHERE hb.heat_id = ?
-      `,
-      )
-      .all(heat_id);
-    return boats;
-  } catch (error) {
-    console.error('Error reading boats by heat:', error);
-    throw error;
-  }
-});
-ipcMain.handle('readAllRaces', async (event, heat_id) => {
-  try {
-    const races = db
-      .prepare('SELECT * FROM Races WHERE heat_id = ?')
-      .all(heat_id);
-    return races;
-  } catch (error) {
-    console.error('Error reading all races:', error);
-    throw error;
-  }
-});
-
-ipcMain.handle('insertRace', async (event, heat_id, race_number) => {
-  try {
-    const heatRow = db
-      .prepare('SELECT event_id FROM Heats WHERE heat_id = ?')
-      .get(heat_id) as { event_id?: number } | undefined;
-
-    if (heatRow?.event_id == null) {
-      throw new Error('Heat not found.');
+    } catch (_snapshotError) {
+      // Older databases may not have RaceAssignmentSnapshots yet.
     }
 
-    // BK-5: the race INSERT and the default DNS seed must commit together — a
-    // failure between them would leave an orphan race with zero scores.
-    const insertRaceTx = db.transaction(() => {
-      const result = db
-        .prepare('INSERT INTO Races (heat_id, race_number) VALUES (?, ?)')
-        .run(heat_id, race_number);
-      seedRaceWithDefaultDnsScores(Number(result.lastInsertRowid), heat_id);
-      return { lastInsertRowid: result.lastInsertRowid };
-    });
-    return insertRaceTx();
-  } catch (error) {
-    console.error('Error inserting race:', error);
-    throw error;
-  }
+    db.prepare(
+      `DELETE FROM Scores WHERE race_id IN (
+        SELECT r.race_id FROM Races r
+        JOIN Heats h ON r.heat_id = h.heat_id
+        WHERE h.event_id = ?
+      )`,
+    ).run(event_id);
+
+    db.prepare(
+      `DELETE FROM Races WHERE heat_id IN (
+        SELECT heat_id FROM Heats WHERE event_id = ?
+      )`,
+    ).run(event_id);
+
+    const heatBoats = db
+      .prepare(
+        'DELETE FROM Heat_Boat WHERE heat_id IN (SELECT heat_id FROM Heats WHERE event_id = ?)',
+      )
+      .run(event_id);
+
+    const heatRows = db
+      .prepare('DELETE FROM Heats WHERE event_id = ?')
+      .run(event_id);
+
+    return {
+      heatBoatsChanges: heatBoats.changes,
+      heatsChanges: heatRows.changes,
+    };
+  });
+
+  const result = wipeHeats();
+  console.log(
+    `Deleted ${result.heatsChanges} heat(s) and ${result.heatBoatsChanges} assignment(s) for event ID ${event_id}.`,
+  );
+  return result;
+});
+handle('readBoatsByHeat', async (event, heat_id) => {
+  const boats = db
+    .prepare(
+      `
+      SELECT
+        b.boat_id,
+        b.sail_number,
+        b.country,
+        b.model,
+        s.name,
+        s.surname,
+        cat.category_name
+      FROM Heat_Boat hb
+      JOIN Boats b ON hb.boat_id = b.boat_id
+      JOIN Sailors s ON b.sailor_id = s.sailor_id
+      LEFT JOIN Categories cat ON s.category_id = cat.category_id
+      WHERE hb.heat_id = ?
+    `,
+    )
+    .all(heat_id);
+  return boats;
+});
+handle('readAllRaces', async (event, heat_id) => {
+  const races = db
+    .prepare('SELECT * FROM Races WHERE heat_id = ?')
+    .all(heat_id);
+  return races;
 });
 
-ipcMain.handle('readAllScores', async (event, race_id) => {
-  try {
-    const scores = db
-      .prepare('SELECT * FROM Scores WHERE race_id = ?')
-      .all(race_id);
-    return scores;
-  } catch (error) {
-    console.error('Error reading all scores:', error);
-    throw error;
+handle('insertRace', async (event, heat_id, race_number) => {
+  const heatRow = db
+    .prepare('SELECT event_id FROM Heats WHERE heat_id = ?')
+    .get(heat_id) as { event_id?: number } | undefined;
+
+  if (heatRow?.event_id == null) {
+    throw new Error('Heat not found.');
   }
+
+  // BK-5: the race INSERT and the default DNS seed must commit together — a
+  // failure between them would leave an orphan race with zero scores.
+  const insertRaceTx = db.transaction(() => {
+    const result = db
+      .prepare('INSERT INTO Races (heat_id, race_number) VALUES (?, ?)')
+      .run(heat_id, race_number);
+    seedRaceWithDefaultDnsScores(Number(result.lastInsertRowid), heat_id);
+    return { lastInsertRowid: result.lastInsertRowid };
+  });
+  return insertRaceTx();
 });
 
-ipcMain.handle(
+handle('readAllScores', async (event, race_id) => {
+  const scores = db
+    .prepare('SELECT * FROM Scores WHERE race_id = ?')
+    .all(race_id);
+  return scores;
+});
+
+handle(
   'insertScore',
   async (event, race_id, boat_id, position, points, status) => {
     try {
@@ -1230,20 +1176,15 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle('getMaxHeatSize', async (event, event_id, heat_type) => {
-  try {
-    return getMaxHeatSize(event_id, heat_type || undefined);
-  } catch (error) {
-    console.error('Error getting max heat size:', error);
-    throw error;
-  }
+handle('getMaxHeatSize', async (event, event_id, heat_type) => {
+  return getMaxHeatSize(event_id, heat_type || undefined);
 });
 
 // Explain the SHRS 5.7 tie-break between two boats for the compare panel.
 // The winner is taken from the same comparator the ranking uses, so the panel
 // can never disagree with the actual placement. Series flag selects the
 // qualifying comparator vs the combined overall (final-series) comparator.
-ipcMain.handle(
+handle(
   'explainTieBreak',
   async (_event, event_id, boatAId, boatBId, isFinalSeries) => {
     try {
@@ -1262,13 +1203,8 @@ ipcMain.handle(
 
 // SHRS validation of whether the Final Series can start. The renderer renders
 // prompts/messages from the returned reason; all the rule logic stays here.
-ipcMain.handle('getFinalSeriesEligibility', async (_event, event_id) => {
-  try {
-    return getFinalSeriesEligibility(event_id);
-  } catch (error) {
-    console.error('Error checking final series eligibility:', error);
-    throw error;
-  }
+handle('getFinalSeriesEligibility', async (_event, event_id) => {
+  return getFinalSeriesEligibility(event_id);
 });
 
 // Atomically score a whole race: create the next race for the heat, apply the
@@ -1277,7 +1213,7 @@ ipcMain.handle('getFinalSeriesEligibility', async (_event, event_id) => {
 // lived in the renderer as N sequential IPC calls, so a mid-loop failure could
 // leave a half-scored race. Keeping it here makes scoring all-or-nothing and
 // keeps the domain logic in the main process.
-ipcMain.handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
+handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
   const {
     event_id: payloadEventId,
     heat_id,
@@ -1474,114 +1410,98 @@ ipcMain.handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
   }
 });
 
-ipcMain.handle(
-  'updateScore',
-  async (event, score_id, position, points, status) => {
-    try {
-      const normalizedStatus = normalizeScoreStatus(status);
-      // BK-6: guard position/points against NaN/0/negative before binding so a
-      // bad payload surfaces a clear error instead of an opaque
-      // SQLITE_CONSTRAINT. RDG*/DPI positions are protest-committee-set and may
-      // be fractional or < 1, so they only need to be finite and positive;
-      // every other status writes a finishing place (a positive whole number).
-      const keepsProvidedPoints =
-        rdgStatuses.includes(normalizedStatus) || normalizedStatus === 'DPI';
-      const safePosition = keepsProvidedPoints
-        ? sanitizePositiveFinite(position, 'Position')
-        : sanitizePositiveInteger(position, 'Position');
-      const safePoints = sanitizePositiveFinite(points, 'Points');
-      const row = db
-        .prepare('SELECT race_id FROM Scores WHERE score_id = ?')
-        .get(score_id) as { race_id?: number } | undefined;
-      const raceId = row?.race_id != null ? Number(row.race_id) : null;
-      // BK-7: wrap the write, tie re-scoring and recompute in one transaction so
-      // an edit that changes a finisher can't leave stale A7 tie points on the
-      // other finishers or a stale leaderboard behind. (recomputeEventLeaderboard
-      // has its own inner transaction; better-sqlite3 nests it as a savepoint.)
-      const applyUpdate = db.transaction(() => {
-        const runResult = db
-          .prepare(
-            'UPDATE Scores SET position = ?, points = ?, status = ? WHERE score_id = ?',
-          )
-          .run(safePosition, safePoints, normalizedStatus, score_id);
-        if (raceId != null) {
-          lockDiscardProfileForRace(raceId);
-          // Re-run RRS A7 tie scoring for the race so the remaining finishers
-          // get correct shared/averaged points after this edit.
-          applyRaceTieScoring(raceId);
-          // Recompute the leaderboards inside the same transaction so a
-          // recompute failure rolls back the edit instead of leaving it
-          // persisted with a stale leaderboard (BK-7).
-          recomputeLeaderboardsForRace(raceId);
-        }
-        return runResult;
-      });
-      const result = applyUpdate();
-      return { changes: result.changes };
-    } catch (error) {
-      console.error('Error updating score:', error);
-      throw error;
-    }
-  },
-);
-ipcMain.handle('updateEventLeaderboard', async (event, event_id) => {
+handle('updateScore', async (event, score_id, position, points, status) => {
   try {
-    recomputeEventLeaderboard(event_id);
-    // BK-9: return the same {success:true} contract as updateFinalLeaderboard
-    // so renderer callers that inspect the result get a consistent shape
-    // instead of `undefined`.
-    return { success: true };
+    const normalizedStatus = normalizeScoreStatus(status);
+    // BK-6: guard position/points against NaN/0/negative before binding so a
+    // bad payload surfaces a clear error instead of an opaque
+    // SQLITE_CONSTRAINT. RDG*/DPI positions are protest-committee-set and may
+    // be fractional or < 1, so they only need to be finite and positive;
+    // every other status writes a finishing place (a positive whole number).
+    const keepsProvidedPoints =
+      rdgStatuses.includes(normalizedStatus) || normalizedStatus === 'DPI';
+    const safePosition = keepsProvidedPoints
+      ? sanitizePositiveFinite(position, 'Position')
+      : sanitizePositiveInteger(position, 'Position');
+    const safePoints = sanitizePositiveFinite(points, 'Points');
+    const row = db
+      .prepare('SELECT race_id FROM Scores WHERE score_id = ?')
+      .get(score_id) as { race_id?: number } | undefined;
+    const raceId = row?.race_id != null ? Number(row.race_id) : null;
+    // BK-7: wrap the write, tie re-scoring and recompute in one transaction so
+    // an edit that changes a finisher can't leave stale A7 tie points on the
+    // other finishers or a stale leaderboard behind. (recomputeEventLeaderboard
+    // has its own inner transaction; better-sqlite3 nests it as a savepoint.)
+    const applyUpdate = db.transaction(() => {
+      const runResult = db
+        .prepare(
+          'UPDATE Scores SET position = ?, points = ?, status = ? WHERE score_id = ?',
+        )
+        .run(safePosition, safePoints, normalizedStatus, score_id);
+      if (raceId != null) {
+        lockDiscardProfileForRace(raceId);
+        // Re-run RRS A7 tie scoring for the race so the remaining finishers
+        // get correct shared/averaged points after this edit.
+        applyRaceTieScoring(raceId);
+        // Recompute the leaderboards inside the same transaction so a
+        // recompute failure rolls back the edit instead of leaving it
+        // persisted with a stale leaderboard (BK-7).
+        recomputeLeaderboardsForRace(raceId);
+      }
+      return runResult;
+    });
+    const result = applyUpdate();
+    return { changes: result.changes };
   } catch (error) {
-    console.error(
-      'Error updating event leaderboard:',
-      (error as Error).message,
-    );
+    console.error('Error updating score:', error);
     throw error;
   }
+});
+handle('updateEventLeaderboard', async (event, event_id) => {
+  recomputeEventLeaderboard(event_id);
+  // BK-9: return the same {success:true} contract as updateFinalLeaderboard
+  // so renderer callers that inspect the result get a consistent shape
+  // instead of `undefined`.
+  return { success: true };
 });
 
 // Deprecated: the global-leaderboard feature is on hold. The channel is kept
 // so existing callers don't break, but it intentionally writes nothing — the
 // old implementation aggregated Leaderboard rows across ALL events and applied
 // no discards, producing wrong totals. Revisit if the feature returns.
-ipcMain.handle('updateGlobalLeaderboard', async () => {
+handle('updateGlobalLeaderboard', async () => {
   return { success: true, deprecated: true };
 });
 
-ipcMain.handle('deleteScore', async (event, score_id) => {
-  try {
-    // BK-7: capture the race BEFORE deleting so we can re-run tie scoring and
-    // recompute the leaderboard afterwards. Deleting a finisher's row otherwise
-    // leaves the remaining tied boats on stale averaged points and the stored
-    // leaderboard out of date.
-    const row = db
-      .prepare('SELECT race_id FROM Scores WHERE score_id = ?')
-      .get(score_id) as { race_id?: number } | undefined;
-    const raceId = row?.race_id != null ? Number(row.race_id) : null;
-    const applyDelete = db.transaction(() => {
-      const runResult = db
-        .prepare('DELETE FROM Scores WHERE score_id = ?')
-        .run(score_id);
-      if (raceId != null && runResult.changes > 0) {
-        applyRaceTieScoring(raceId);
-        // Recompute inside the same transaction, exactly as updateScore does:
-        // a recompute failure must roll the delete back rather than leave the
-        // score gone, the other finishers' A7 tie points rewritten and the
-        // stored leaderboard stale — which is what the caller sees when the
-        // IPC call rejects after the delete has already committed (BK-7).
-        recomputeLeaderboardsForRace(raceId);
-      }
-      return runResult;
-    });
-    const result = applyDelete();
-    return { changes: result.changes };
-  } catch (error) {
-    console.error('Error deleting score:', error);
-    throw error;
-  }
+handle('deleteScore', async (event, score_id) => {
+  // BK-7: capture the race BEFORE deleting so we can re-run tie scoring and
+  // recompute the leaderboard afterwards. Deleting a finisher's row otherwise
+  // leaves the remaining tied boats on stale averaged points and the stored
+  // leaderboard out of date.
+  const row = db
+    .prepare('SELECT race_id FROM Scores WHERE score_id = ?')
+    .get(score_id) as { race_id?: number } | undefined;
+  const raceId = row?.race_id != null ? Number(row.race_id) : null;
+  const applyDelete = db.transaction(() => {
+    const runResult = db
+      .prepare('DELETE FROM Scores WHERE score_id = ?')
+      .run(score_id);
+    if (raceId != null && runResult.changes > 0) {
+      applyRaceTieScoring(raceId);
+      // Recompute inside the same transaction, exactly as updateScore does:
+      // a recompute failure must roll the delete back rather than leave the
+      // score gone, the other finishers' A7 tie points rewritten and the
+      // stored leaderboard stale — which is what the caller sees when the
+      // IPC call rejects after the delete has already committed (BK-7).
+      recomputeLeaderboardsForRace(raceId);
+    }
+    return runResult;
+  });
+  const result = applyDelete();
+  return { changes: result.changes };
 });
 
-ipcMain.handle(
+handle(
   'startFinalSeriesAtomic',
   async (
     _event,
@@ -1782,356 +1702,325 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle('createNewHeatsBasedOnLeaderboard', async (event, event_id) => {
-  try {
-    const latestHeats = getLatestQualifyingHeats(event_id);
-    checkRaceCountForLatestHeats(latestHeats, db);
-    const raceRows = getLatestRaceRowsForHeats(latestHeats);
+handle('createNewHeatsBasedOnLeaderboard', async (event, event_id) => {
+  const latestHeats = getLatestQualifyingHeats(event_id);
+  checkRaceCountForLatestHeats(latestHeats, db);
+  const raceRows = getLatestRaceRowsForHeats(latestHeats);
 
-    const sortedLatestHeats = [...latestHeats].sort((left, right) =>
-      getHeatBaseFromName(left.heat_name).localeCompare(
-        getHeatBaseFromName(right.heat_name),
-      ),
+  const sortedLatestHeats = [...latestHeats].sort((left, right) =>
+    getHeatBaseFromName(left.heat_name).localeCompare(
+      getHeatBaseFromName(right.heat_name),
+    ),
+  );
+  const heatIndexById = new Map<number, number>();
+  sortedLatestHeats.forEach((heat, index) => {
+    heatIndexById.set(heat.heat_id, index);
+  });
+
+  const raceByHeatId = new Map<
+    number,
+    { race_id: number; race_number: number }
+  >();
+  raceRows.forEach((row) => {
+    raceByHeatId.set(row.heat_id, {
+      race_id: row.race_id,
+      race_number: row.race_number,
+    });
+  });
+
+  // Define the new race number
+  const heatNameMatch = sortedLatestHeats[0].heat_name.match(/(\d+)$/);
+  const lastRaceNumber = heatNameMatch ? parseInt(heatNameMatch[1], 10) : 0;
+  const raceNumber = lastRaceNumber + 1;
+  console.log(raceNumber);
+  // Generate names for the next round of heats
+  const nextHeatNames = generateNextHeatNames(sortedLatestHeats);
+
+  // Compute boat assignments (index-based) from current results first — these
+  // are all reads, so the heat + assignment writes below can run as a single
+  // atomic transaction.
+  const assignmentMode = getEventQualifyingAssignmentMode(event_id);
+  const assignments: { heatId: number; boatId: string }[] = [];
+  if (assignmentMode === 'pre-assigned') {
+    sortedLatestHeats.forEach((heat) => {
+      const sourceIndex = heatIndexById.get(heat.heat_id);
+      if (sourceIndex === undefined) {
+        return;
+      }
+
+      const boatsInHeat = db
+        .prepare(
+          `SELECT hb.boat_id, b.country, b.sail_number
+           FROM Heat_Boat hb
+           JOIN Boats b ON b.boat_id = hb.boat_id
+           WHERE hb.heat_id = ?`,
+        )
+        .all(heat.heat_id) as {
+        boat_id: string;
+        country: string | null;
+        sail_number: string | number | null;
+      }[];
+
+      // Sort in JS with the shared SHRS 3 comparator (numeric-aware sail
+      // numbers) so redistribution seeds boats in the same order as initial
+      // heat creation — SQL ORDER BY sorts "10" before "9".
+      boatsInHeat.sort(
+        (left, right) =>
+          compareByCountryThenSail(left, right) ||
+          String(left.boat_id).localeCompare(String(right.boat_id)),
+      );
+
+      boatsInHeat.forEach((boat) => {
+        assignments.push({ heatId: sourceIndex, boatId: boat.boat_id });
+      });
+    });
+  } else {
+    sortedLatestHeats.forEach((heat) => {
+      const sourceIndex = heatIndexById.get(heat.heat_id);
+      const raceForHeat = raceByHeatId.get(heat.heat_id);
+      if (sourceIndex === undefined || !raceForHeat) {
+        return;
+      }
+
+      const rankedBoats = getAssignmentRowsForHeatRace(
+        heat.heat_id,
+        raceForHeat.race_id,
+      );
+      rankedBoats.forEach((boat, rankIndex) => {
+        const targetHeatIndex = getNextHeatIndexByMovementTable(
+          sourceIndex,
+          rankIndex + 1,
+          sortedLatestHeats.length,
+        );
+        assignments.push({ heatId: targetHeatIndex, boatId: boat.boat_id });
+      });
+    });
+  }
+  if (assignments.length === 0) {
+    const leaderboardResults = getSeedingResultsFromLastRace(
+      event_id,
+      sortedLatestHeats,
     );
-    const heatIndexById = new Map<number, number>();
-    sortedLatestHeats.forEach((heat, index) => {
-      heatIndexById.set(heat.heat_id, index);
-    });
+    const fallbackAssignments = assignBoatsToNewHeatsZigZag(
+      leaderboardResults,
+      nextHeatNames,
+      raceNumber,
+    );
+    fallbackAssignments.forEach((assignment) => assignments.push(assignment));
+  }
 
-    const raceByHeatId = new Map<
-      number,
-      { race_id: number; race_number: number }
-    >();
-    raceRows.forEach((row) => {
-      raceByHeatId.set(row.heat_id, {
-        race_id: row.race_id,
-        race_number: row.race_number,
-      });
-    });
-
-    // Define the new race number
-    const heatNameMatch = sortedLatestHeats[0].heat_name.match(/(\d+)$/);
-    const lastRaceNumber = heatNameMatch ? parseInt(heatNameMatch[1], 10) : 0;
-    const raceNumber = lastRaceNumber + 1;
-    console.log(raceNumber);
-    // Generate names for the next round of heats
-    const nextHeatNames = generateNextHeatNames(sortedLatestHeats);
-
-    // Compute boat assignments (index-based) from current results first — these
-    // are all reads, so the heat + assignment writes below can run as a single
-    // atomic transaction.
-    const assignmentMode = getEventQualifyingAssignmentMode(event_id);
-    const assignments: { heatId: number; boatId: string }[] = [];
-    if (assignmentMode === 'pre-assigned') {
-      sortedLatestHeats.forEach((heat) => {
-        const sourceIndex = heatIndexById.get(heat.heat_id);
-        if (sourceIndex === undefined) {
-          return;
-        }
-
-        const boatsInHeat = db
-          .prepare(
-            `SELECT hb.boat_id, b.country, b.sail_number
-             FROM Heat_Boat hb
-             JOIN Boats b ON b.boat_id = hb.boat_id
-             WHERE hb.heat_id = ?`,
-          )
-          .all(heat.heat_id) as {
-          boat_id: string;
-          country: string | null;
-          sail_number: string | number | null;
-        }[];
-
-        // Sort in JS with the shared SHRS 3 comparator (numeric-aware sail
-        // numbers) so redistribution seeds boats in the same order as initial
-        // heat creation — SQL ORDER BY sorts "10" before "9".
-        boatsInHeat.sort(
-          (left, right) =>
-            compareByCountryThenSail(left, right) ||
-            String(left.boat_id).localeCompare(String(right.boat_id)),
-        );
-
-        boatsInHeat.forEach((boat) => {
-          assignments.push({ heatId: sourceIndex, boatId: boat.boat_id });
-        });
-      });
-    } else {
-      sortedLatestHeats.forEach((heat) => {
-        const sourceIndex = heatIndexById.get(heat.heat_id);
-        const raceForHeat = raceByHeatId.get(heat.heat_id);
-        if (sourceIndex === undefined || !raceForHeat) {
-          return;
-        }
-
-        const rankedBoats = getAssignmentRowsForHeatRace(
-          heat.heat_id,
-          raceForHeat.race_id,
-        );
-        rankedBoats.forEach((boat, rankIndex) => {
-          const targetHeatIndex = getNextHeatIndexByMovementTable(
-            sourceIndex,
-            rankIndex + 1,
-            sortedLatestHeats.length,
-          );
-          assignments.push({ heatId: targetHeatIndex, boatId: boat.boat_id });
-        });
-      });
-    }
-    if (assignments.length === 0) {
-      const leaderboardResults = getSeedingResultsFromLastRace(
+  // Persist the new heats and their boat assignments atomically so a failure
+  // can never leave half-created heats behind.
+  const heatIds: any[] = [];
+  const insertHeatStmt = db.prepare(
+    'INSERT INTO Heats (event_id, heat_name, heat_type) VALUES (?, ?, ?)',
+  );
+  const insertHeatBoatStmt = db.prepare(
+    'INSERT INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)',
+  );
+  const persistNewHeats = db.transaction(() => {
+    nextHeatNames.forEach((heatName) => {
+      const { lastInsertRowid: newHeatId } = insertHeatStmt.run(
         event_id,
-        sortedLatestHeats,
+        heatName,
+        'Qualifying',
       );
-      const fallbackAssignments = assignBoatsToNewHeatsZigZag(
-        leaderboardResults,
-        nextHeatNames,
-        raceNumber,
-      );
-      fallbackAssignments.forEach((assignment) => assignments.push(assignment));
-    }
-
-    // Persist the new heats and their boat assignments atomically so a failure
-    // can never leave half-created heats behind.
-    const heatIds: any[] = [];
-    const insertHeatStmt = db.prepare(
-      'INSERT INTO Heats (event_id, heat_name, heat_type) VALUES (?, ?, ?)',
-    );
-    const insertHeatBoatStmt = db.prepare(
-      'INSERT INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)',
-    );
-    const persistNewHeats = db.transaction(() => {
-      nextHeatNames.forEach((heatName) => {
-        const { lastInsertRowid: newHeatId } = insertHeatStmt.run(
-          event_id,
-          heatName,
-          'Qualifying',
-        );
-        heatIds.push(newHeatId);
-      });
-      assignments.forEach(({ heatId, boatId }) => {
-        insertHeatBoatStmt.run(heatIds[heatId], boatId);
-      });
+      heatIds.push(newHeatId);
     });
-    persistNewHeats();
+    assignments.forEach(({ heatId, boatId }) => {
+      insertHeatBoatStmt.run(heatIds[heatId], boatId);
+    });
+  });
+  persistNewHeats();
 
-    const advisory = getOddEvenMovementAdvisory(
-      sortedLatestHeats.length,
-      assignments.length,
-    );
+  const advisory = getOddEvenMovementAdvisory(
+    sortedLatestHeats.length,
+    assignments.length,
+  );
 
-    if (advisory) {
-      console.warn(advisory);
-      return { success: true, advisory };
-    }
-
-    console.log('New heats created based on leaderboard.');
-    return { success: true };
-  } catch (error) {
-    console.error(
-      'Error creating new heats based on leaderboard:',
-      (error as Error).message,
-    );
-    throw error;
+  if (advisory) {
+    console.warn(advisory);
+    return { success: true, advisory };
   }
+
+  console.log('New heats created based on leaderboard.');
+  return { success: true };
 });
 
-ipcMain.handle('undoLastScoredRaceForHeat', async (event, heat_id) => {
-  try {
-    const heatRow = db
-      .prepare(
-        'SELECT h.heat_id, h.heat_name, h.event_id, h.heat_type FROM Heats h WHERE h.heat_id = ?',
-      )
-      .get(heat_id) as
-      | {
-          heat_id: number;
-          heat_name: string;
-          event_id: number;
-          heat_type: string;
-        }
-      | undefined;
+handle('undoLastScoredRaceForHeat', async (event, heat_id) => {
+  const heatRow = db
+    .prepare(
+      'SELECT h.heat_id, h.heat_name, h.event_id, h.heat_type FROM Heats h WHERE h.heat_id = ?',
+    )
+    .get(heat_id) as
+    | {
+        heat_id: number;
+        heat_name: string;
+        event_id: number;
+        heat_type: string;
+      }
+    | undefined;
 
-    if (!heatRow) {
-      throw new Error('Heat not found.');
-    }
-
-    const lastRace = db
-      .prepare(
-        `SELECT race_id, race_number
-         FROM Races
-         WHERE heat_id = ?
-         ORDER BY race_number DESC, race_id DESC
-         LIMIT 1`,
-      )
-      .get(heat_id) as { race_id: number; race_number: number } | undefined;
-
-    if (!lastRace) {
-      throw new Error(
-        `No scored races found for heat "${heatRow.heat_name}". There is nothing to undo.`,
-      );
-    }
-
-    const deleteScores = db.prepare('DELETE FROM Scores WHERE race_id = ?');
-    const deleteRace = db.prepare('DELETE FROM Races  WHERE race_id = ?');
-
-    const transaction = db.transaction(() => {
-      const removedScores = deleteScores.run(lastRace.race_id).changes;
-      deleteRace.run(lastRace.race_id);
-      return removedScores;
-    });
-
-    const removedScores = transaction();
-    clearAssignmentSnapshot(lastRace.race_id);
-    recomputeEventLeaderboard(heatRow.event_id);
-    // Undoing a FINAL race must refresh the final standings too — the event
-    // leaderboard alone leaves FinalLeaderboard reflecting the deleted race.
-    if (heatRow.heat_type === 'Final') {
-      recomputeFinalLeaderboard(heatRow.event_id);
-    }
-
-    return {
-      success: true,
-      heatName: heatRow.heat_name,
-      raceNumber: lastRace.race_number,
-      removedScores,
-    };
-  } catch (error) {
-    console.error(
-      'Error undoing last scored race for heat:',
-      (error as Error).message,
-    );
-    throw error;
+  if (!heatRow) {
+    throw new Error('Heat not found.');
   }
-});
 
-ipcMain.handle('undoLastScoredRace', async (event, event_id) => {
-  try {
-    const latestHeats = getLatestQualifyingHeats(event_id);
-    checkRaceCountForLatestHeats(latestHeats, db);
-
-    const latestRaceByHeatQuery = db.prepare(
+  const lastRace = db
+    .prepare(
       `SELECT race_id, race_number
        FROM Races
        WHERE heat_id = ?
        ORDER BY race_number DESC, race_id DESC
        LIMIT 1`,
+    )
+    .get(heat_id) as { race_id: number; race_number: number } | undefined;
+
+  if (!lastRace) {
+    throw new Error(
+      `No scored races found for heat "${heatRow.heat_name}". There is nothing to undo.`,
     );
-
-    const raceRows = latestHeats.map((heat) => {
-      const row = latestRaceByHeatQuery.get(heat.heat_id);
-      if (!row) {
-        throw new Error('No scored race found to undo.');
-      }
-      return row;
-    });
-
-    const raceNumbers = [...new Set(raceRows.map((row) => row.race_number))];
-    if (raceNumbers.length > 1) {
-      throw new Error(
-        'Latest qualifying heats are not aligned on the same race number.',
-      );
-    }
-
-    const raceIds = raceRows.map((row) => row.race_id);
-    const deleteScoresByRace = db.prepare(
-      'DELETE FROM Scores WHERE race_id = ?',
-    );
-    const deleteRaceById = db.prepare('DELETE FROM Races WHERE race_id = ?');
-
-    const transaction = db.transaction(() => {
-      let removedScores = 0;
-      let removedRaces = 0;
-
-      raceIds.forEach((raceId) => {
-        removedScores += deleteScoresByRace.run(raceId).changes;
-        removedRaces += deleteRaceById.run(raceId).changes;
-      });
-
-      return { removedScores, removedRaces };
-    });
-
-    const result = transaction();
-    raceIds.forEach((raceId) => clearAssignmentSnapshot(raceId));
-    recomputeEventLeaderboard(event_id);
-
-    return {
-      success: true,
-      raceNumber: raceNumbers[0],
-      removedScores: result.removedScores,
-      removedRaces: result.removedRaces,
-    };
-  } catch (error) {
-    console.error('Error undoing last scored race:', (error as Error).message);
-    throw error;
   }
+
+  const deleteScores = db.prepare('DELETE FROM Scores WHERE race_id = ?');
+  const deleteRace = db.prepare('DELETE FROM Races  WHERE race_id = ?');
+
+  const transaction = db.transaction(() => {
+    const removedScores = deleteScores.run(lastRace.race_id).changes;
+    deleteRace.run(lastRace.race_id);
+    return removedScores;
+  });
+
+  const removedScores = transaction();
+  clearAssignmentSnapshot(lastRace.race_id);
+  recomputeEventLeaderboard(heatRow.event_id);
+  // Undoing a FINAL race must refresh the final standings too — the event
+  // leaderboard alone leaves FinalLeaderboard reflecting the deleted race.
+  if (heatRow.heat_type === 'Final') {
+    recomputeFinalLeaderboard(heatRow.event_id);
+  }
+
+  return {
+    success: true,
+    heatName: heatRow.heat_name,
+    raceNumber: lastRace.race_number,
+    removedScores,
+  };
 });
 
-ipcMain.handle('undoLatestHeatRedistribution', async (event, event_id) => {
-  try {
-    const latestHeats = getLatestQualifyingHeats(event_id);
+handle('undoLastScoredRace', async (event, event_id) => {
+  const latestHeats = getLatestQualifyingHeats(event_id);
+  checkRaceCountForLatestHeats(latestHeats, db);
 
-    // Guard against deleting the first round: "undo redistribution" must only
-    // remove a round that was created from a previous one. First-round heats end
-    // in suffix 1 (e.g. "Heat A1"); if nothing has a higher suffix there is no
-    // redistribution to undo and deleting would wipe the original heat setup.
-    const maxSuffix = latestHeats.reduce((max, heat) => {
-      const match = heat.heat_name.match(/(\d+)$/);
-      const suffix = match ? parseInt(match[1], 10) : 0;
-      return suffix > max ? suffix : max;
-    }, 0);
-    if (maxSuffix <= 1) {
-      throw new Error(
-        'There is no heat redistribution to undo — these are the first-round heats.',
-      );
+  const latestRaceByHeatQuery = db.prepare(
+    `SELECT race_id, race_number
+     FROM Races
+     WHERE heat_id = ?
+     ORDER BY race_number DESC, race_id DESC
+     LIMIT 1`,
+  );
+
+  const raceRows = latestHeats.map((heat) => {
+    const row = latestRaceByHeatQuery.get(heat.heat_id);
+    if (!row) {
+      throw new Error('No scored race found to undo.');
     }
+    return row;
+  });
 
-    const hasRaceQuery = db.prepare(
-      'SELECT COUNT(*) as race_count FROM Races WHERE heat_id = ?',
+  const raceNumbers = [...new Set(raceRows.map((row) => row.race_number))];
+  if (raceNumbers.length > 1) {
+    throw new Error(
+      'Latest qualifying heats are not aligned on the same race number.',
     );
+  }
 
-    const heatsWithRaces = latestHeats.filter(
-      (heat) => hasRaceQuery.get(heat.heat_id).race_count > 0,
-    );
+  const raceIds = raceRows.map((row) => row.race_id);
+  const deleteScoresByRace = db.prepare('DELETE FROM Scores WHERE race_id = ?');
+  const deleteRaceById = db.prepare('DELETE FROM Races WHERE race_id = ?');
 
-    if (heatsWithRaces.length > 0) {
-      throw new Error(
-        'Cannot undo heat redistribution because the latest heats already contain races. Undo the last race first.',
-      );
-    }
+  const transaction = db.transaction(() => {
+    let removedScores = 0;
+    let removedRaces = 0;
 
-    const deleteHeatBoatQuery = db.prepare(
-      'DELETE FROM Heat_Boat WHERE heat_id = ?',
-    );
-    const deleteHeatQuery = db.prepare('DELETE FROM Heats WHERE heat_id = ?');
-
-    const transaction = db.transaction(() => {
-      let removedAssignments = 0;
-      let removedHeats = 0;
-
-      latestHeats.forEach((heat) => {
-        removedAssignments += deleteHeatBoatQuery.run(heat.heat_id).changes;
-        removedHeats += deleteHeatQuery.run(heat.heat_id).changes;
-      });
-
-      return { removedAssignments, removedHeats };
+    raceIds.forEach((raceId) => {
+      removedScores += deleteScoresByRace.run(raceId).changes;
+      removedRaces += deleteRaceById.run(raceId).changes;
     });
 
-    const result = transaction();
-    return {
-      success: true,
-      removedAssignments: result.removedAssignments,
-      removedHeats: result.removedHeats,
-      removedHeatNames: latestHeats.map((heat) => heat.heat_name),
-    };
-  } catch (error) {
-    console.error(
-      'Error undoing latest heat redistribution:',
-      (error as Error).message,
-    );
-    throw error;
-  }
+    return { removedScores, removedRaces };
+  });
+
+  const result = transaction();
+  raceIds.forEach((raceId) => clearAssignmentSnapshot(raceId));
+  recomputeEventLeaderboard(event_id);
+
+  return {
+    success: true,
+    raceNumber: raceNumbers[0],
+    removedScores: result.removedScores,
+    removedRaces: result.removedRaces,
+  };
 });
 
-ipcMain.handle(
+handle('undoLatestHeatRedistribution', async (event, event_id) => {
+  const latestHeats = getLatestQualifyingHeats(event_id);
+
+  // Guard against deleting the first round: "undo redistribution" must only
+  // remove a round that was created from a previous one. First-round heats end
+  // in suffix 1 (e.g. "Heat A1"); if nothing has a higher suffix there is no
+  // redistribution to undo and deleting would wipe the original heat setup.
+  const maxSuffix = latestHeats.reduce((max, heat) => {
+    const match = heat.heat_name.match(/(\d+)$/);
+    const suffix = match ? parseInt(match[1], 10) : 0;
+    return suffix > max ? suffix : max;
+  }, 0);
+  if (maxSuffix <= 1) {
+    throw new Error(
+      'There is no heat redistribution to undo — these are the first-round heats.',
+    );
+  }
+
+  const hasRaceQuery = db.prepare(
+    'SELECT COUNT(*) as race_count FROM Races WHERE heat_id = ?',
+  );
+
+  const heatsWithRaces = latestHeats.filter(
+    (heat) => hasRaceQuery.get(heat.heat_id).race_count > 0,
+  );
+
+  if (heatsWithRaces.length > 0) {
+    throw new Error(
+      'Cannot undo heat redistribution because the latest heats already contain races. Undo the last race first.',
+    );
+  }
+
+  const deleteHeatBoatQuery = db.prepare(
+    'DELETE FROM Heat_Boat WHERE heat_id = ?',
+  );
+  const deleteHeatQuery = db.prepare('DELETE FROM Heats WHERE heat_id = ?');
+
+  const transaction = db.transaction(() => {
+    let removedAssignments = 0;
+    let removedHeats = 0;
+
+    latestHeats.forEach((heat) => {
+      removedAssignments += deleteHeatBoatQuery.run(heat.heat_id).changes;
+      removedHeats += deleteHeatQuery.run(heat.heat_id).changes;
+    });
+
+    return { removedAssignments, removedHeats };
+  });
+
+  const result = transaction();
+  return {
+    success: true,
+    removedAssignments: result.removedAssignments,
+    removedHeats: result.removedHeats,
+    removedHeatNames: latestHeats.map((heat) => heat.heat_name),
+  };
+});
+
+handle(
   'transferBoatBetweenHeats',
   async (event, from_heat_id, to_heat_id, boat_id) => {
     try {
@@ -2218,7 +2107,7 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle(
+handle(
   'updateRaceResult',
   async (
     event,
@@ -2277,7 +2166,7 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle(
+handle(
   'saveLeaderboardRaceResultsAtomic',
   async (
     _event,
@@ -2355,158 +2244,132 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle('readLeaderboard', async (event, event_id) => {
-  try {
-    const repairedRows = ensureCompleteRaceScoresForEvent(
-      event_id,
-      'Qualifying',
-    );
-    if (repairedRows > 0) {
-      recomputeEventLeaderboard(event_id);
-    }
+handle('readLeaderboard', async (event, event_id) => {
+  const repairedRows = ensureCompleteRaceScoresForEvent(event_id, 'Qualifying');
+  if (repairedRows > 0) {
+    recomputeEventLeaderboard(event_id);
+  }
 
-    const query =
-      'SELECT ' +
-      'lb.boat_id, ' +
-      'lb.total_points_event, ' +
-      'lb.place, ' +
-      'b.sail_number AS boat_number, ' +
-      'b.model AS boat_type, ' +
-      's.name, ' +
-      's.surname, ' +
-      'b.country, ' +
-      'GROUP_CONCAT(sc.position ORDER BY r.race_number, r.race_id) AS race_positions, ' +
-      'GROUP_CONCAT(sc.points ORDER BY r.race_number, r.race_id) AS race_points, ' +
-      'GROUP_CONCAT(r.race_id ORDER BY r.race_number, r.race_id) AS race_ids, ' +
-      "GROUP_CONCAT(COALESCE(sc.status, 'DNS') ORDER BY r.race_number, r.race_id) AS race_statuses " +
-      'FROM Leaderboard lb ' +
-      'LEFT JOIN Boats b ON lb.boat_id = b.boat_id ' +
-      'LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id ' +
-      'LEFT JOIN Scores sc ON sc.boat_id = b.boat_id ' +
-      'LEFT JOIN Races r ON sc.race_id = r.race_id ' +
-      'LEFT JOIN Heats h ON r.heat_id = h.heat_id ' +
-      "WHERE lb.event_id = ? AND h.event_id = ? AND h.heat_type = 'Qualifying' " +
-      'AND sc.race_id IS NOT NULL ' +
-      'GROUP BY lb.boat_id ' +
-      'ORDER BY lb.place ASC';
-    const readQuery = db.prepare(query);
-    const results = readQuery.all(event_id, event_id);
-    console.log(
-      `[IPC -> Renderer] readLeaderboard (event_id=${event_id}): ${
-        results.length
-      } entries`,
-    );
-    return results;
-  } catch (error) {
-    console.error('Error reading leaderboard:', error);
-    throw error;
-  }
+  const query =
+    'SELECT ' +
+    'lb.boat_id, ' +
+    'lb.total_points_event, ' +
+    'lb.place, ' +
+    'b.sail_number AS boat_number, ' +
+    'b.model AS boat_type, ' +
+    's.name, ' +
+    's.surname, ' +
+    'b.country, ' +
+    'GROUP_CONCAT(sc.position ORDER BY r.race_number, r.race_id) AS race_positions, ' +
+    'GROUP_CONCAT(sc.points ORDER BY r.race_number, r.race_id) AS race_points, ' +
+    'GROUP_CONCAT(r.race_id ORDER BY r.race_number, r.race_id) AS race_ids, ' +
+    "GROUP_CONCAT(COALESCE(sc.status, 'DNS') ORDER BY r.race_number, r.race_id) AS race_statuses " +
+    'FROM Leaderboard lb ' +
+    'LEFT JOIN Boats b ON lb.boat_id = b.boat_id ' +
+    'LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id ' +
+    'LEFT JOIN Scores sc ON sc.boat_id = b.boat_id ' +
+    'LEFT JOIN Races r ON sc.race_id = r.race_id ' +
+    'LEFT JOIN Heats h ON r.heat_id = h.heat_id ' +
+    "WHERE lb.event_id = ? AND h.event_id = ? AND h.heat_type = 'Qualifying' " +
+    'AND sc.race_id IS NOT NULL ' +
+    'GROUP BY lb.boat_id ' +
+    'ORDER BY lb.place ASC';
+  const readQuery = db.prepare(query);
+  const results = readQuery.all(event_id, event_id);
+  console.log(
+    `[IPC -> Renderer] readLeaderboard (event_id=${event_id}): ${
+      results.length
+    } entries`,
+  );
+  return results;
 });
-ipcMain.handle('readGlobalLeaderboard', async () => {
-  try {
-    const results = db
-      .prepare(
-        `
-        SELECT
-          gl.boat_id,
-          gl.total_points_global,
-          b.sail_number AS boat_number,
-          b.model AS boat_type,
-          s.name,
-          s.surname,
-          b.country
-        FROM GlobalLeaderboard gl
-        LEFT JOIN Boats b ON gl.boat_id = b.boat_id
-        LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id
-        ORDER BY gl.total_points_global ASC
-      `,
-      )
-      .all();
-    return results;
-  } catch (error) {
-    console.error('Error reading global leaderboard:', error);
-    throw error;
-  }
+handle('readGlobalLeaderboard', async () => {
+  const results = db
+    .prepare(
+      `
+      SELECT
+        gl.boat_id,
+        gl.total_points_global,
+        b.sail_number AS boat_number,
+        b.model AS boat_type,
+        s.name,
+        s.surname,
+        b.country
+      FROM GlobalLeaderboard gl
+      LEFT JOIN Boats b ON gl.boat_id = b.boat_id
+      LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id
+      ORDER BY gl.total_points_global ASC
+    `,
+    )
+    .all();
+  return results;
 });
 
-ipcMain.handle('updateFinalLeaderboard', async (event, event_id) => {
-  try {
+handle('updateFinalLeaderboard', async (event, event_id) => {
+  recomputeFinalLeaderboard(event_id);
+  console.log('Final leaderboard updated successfully.');
+  return { success: true };
+});
+
+handle('readFinalLeaderboard', async (event, event_id) => {
+  const repairedRows = ensureCompleteRaceScoresForEvent(event_id, 'Final');
+  if (repairedRows > 0) {
     recomputeFinalLeaderboard(event_id);
-    console.log('Final leaderboard updated successfully.');
-    return { success: true };
-  } catch (error) {
-    console.error(
-      'Error updating final leaderboard:',
-      (error as Error).message,
-    );
-    throw error;
   }
-});
 
-ipcMain.handle('readFinalLeaderboard', async (event, event_id) => {
-  try {
-    const repairedRows = ensureCompleteRaceScoresForEvent(event_id, 'Final');
-    if (repairedRows > 0) {
-      recomputeFinalLeaderboard(event_id);
-    }
-
-    // The final-score join is a LEFT JOIN onto a pre-filtered subquery so that
-    // boats in fleets that have not raced yet (SHRS 4.5) still return a row —
-    // with NULL race CSVs — instead of being dropped from the leaderboard.
-    const query =
-      'SELECT ' +
-      'fl.boat_id, ' +
-      'fl.total_points_final, ' +
-      'fl.event_id, ' +
-      'fl.placement_group, ' +
-      // SHRS 1.5 needs the qualifying series score to rank by when the Final
-      // Series has no completed races.
-      'COALESCE(lb.total_points_event, 0) AS qualifying_points, ' +
-      'b.sail_number AS boat_number, ' +
-      'b.model AS boat_type, ' +
-      's.name, ' +
-      's.surname, ' +
-      'b.country, ' +
-      'GROUP_CONCAT(fs.position ORDER BY fs.race_number, fs.race_id) AS race_positions, ' +
-      'GROUP_CONCAT(fs.points ORDER BY fs.race_number, fs.race_id) AS race_points, ' +
-      'GROUP_CONCAT(fs.race_id ORDER BY fs.race_number, fs.race_id) AS race_ids, ' +
-      "GROUP_CONCAT(COALESCE(fs.status, 'DNS') ORDER BY fs.race_number, fs.race_id) AS race_statuses " +
-      'FROM FinalLeaderboard fl ' +
-      'LEFT JOIN Boats b ON fl.boat_id = b.boat_id ' +
-      'LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id ' +
-      'LEFT JOIN Leaderboard lb ON lb.boat_id = fl.boat_id AND lb.event_id = fl.event_id ' +
-      'LEFT JOIN (' +
-      'SELECT sc.boat_id, sc.position, sc.points, sc.status, sc.race_id, r.race_number ' +
-      'FROM Scores sc ' +
-      'JOIN Races r ON sc.race_id = r.race_id ' +
-      'JOIN Heats h ON r.heat_id = h.heat_id ' +
-      "WHERE h.event_id = ? AND h.heat_type = 'Final'" +
-      ') fs ON fs.boat_id = fl.boat_id ' +
-      'WHERE fl.event_id = ? ' +
-      'GROUP BY fl.boat_id';
-    // Ordering is done in JS below: SHRS 5.5 fleet precedence has to cover the
-    // "Fleet 5"+ overflow names (RULE-m2), and SHRS 1.5 switches the sort key
-    // entirely when no final race has been completed. Encoding either in SQL
-    // would need interpolated CASE arms, so the query stays unordered and one
-    // comparator owns the rule.
-    const readQuery = db.prepare(query);
-    // SHRS 5.5 fleet precedence + SHRS 1.5 qualifying-score fallback — see
-    // functions/finalLeaderboardOrder.ts.
-    const results = orderFinalLeaderboardRows(
-      readQuery.all(event_id, event_id) as any[],
-    );
-    const entrySuffix = results.length === 1 ? 'y' : 'ies';
-    console.log(
-      `[IPC -> Renderer] readFinalLeaderboard (event_id=${event_id}): sending ${
-        results.length
-      } entr${entrySuffix} to frontend`,
-      results,
-    );
-    return results;
-  } catch (error) {
-    console.error('Error reading final leaderboard:', error);
-    throw error;
-  }
+  // The final-score join is a LEFT JOIN onto a pre-filtered subquery so that
+  // boats in fleets that have not raced yet (SHRS 4.5) still return a row —
+  // with NULL race CSVs — instead of being dropped from the leaderboard.
+  const query =
+    'SELECT ' +
+    'fl.boat_id, ' +
+    'fl.total_points_final, ' +
+    'fl.event_id, ' +
+    'fl.placement_group, ' +
+    // SHRS 1.5 needs the qualifying series score to rank by when the Final
+    // Series has no completed races.
+    'COALESCE(lb.total_points_event, 0) AS qualifying_points, ' +
+    'b.sail_number AS boat_number, ' +
+    'b.model AS boat_type, ' +
+    's.name, ' +
+    's.surname, ' +
+    'b.country, ' +
+    'GROUP_CONCAT(fs.position ORDER BY fs.race_number, fs.race_id) AS race_positions, ' +
+    'GROUP_CONCAT(fs.points ORDER BY fs.race_number, fs.race_id) AS race_points, ' +
+    'GROUP_CONCAT(fs.race_id ORDER BY fs.race_number, fs.race_id) AS race_ids, ' +
+    "GROUP_CONCAT(COALESCE(fs.status, 'DNS') ORDER BY fs.race_number, fs.race_id) AS race_statuses " +
+    'FROM FinalLeaderboard fl ' +
+    'LEFT JOIN Boats b ON fl.boat_id = b.boat_id ' +
+    'LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id ' +
+    'LEFT JOIN Leaderboard lb ON lb.boat_id = fl.boat_id AND lb.event_id = fl.event_id ' +
+    'LEFT JOIN (' +
+    'SELECT sc.boat_id, sc.position, sc.points, sc.status, sc.race_id, r.race_number ' +
+    'FROM Scores sc ' +
+    'JOIN Races r ON sc.race_id = r.race_id ' +
+    'JOIN Heats h ON r.heat_id = h.heat_id ' +
+    "WHERE h.event_id = ? AND h.heat_type = 'Final'" +
+    ') fs ON fs.boat_id = fl.boat_id ' +
+    'WHERE fl.event_id = ? ' +
+    'GROUP BY fl.boat_id';
+  // Ordering is done in JS below: SHRS 5.5 fleet precedence has to cover the
+  // "Fleet 5"+ overflow names (RULE-m2), and SHRS 1.5 switches the sort key
+  // entirely when no final race has been completed. Encoding either in SQL
+  // would need interpolated CASE arms, so the query stays unordered and one
+  // comparator owns the rule.
+  const readQuery = db.prepare(query);
+  // SHRS 5.5 fleet precedence + SHRS 1.5 qualifying-score fallback — see
+  // functions/finalLeaderboardOrder.ts.
+  const results = orderFinalLeaderboardRows(
+    readQuery.all(event_id, event_id) as any[],
+  );
+  const entrySuffix = results.length === 1 ? 'y' : 'ies';
+  console.log(
+    `[IPC -> Renderer] readFinalLeaderboard (event_id=${event_id}): sending ${
+      results.length
+    } entr${entrySuffix} to frontend`,
+    results,
+  );
+  return results;
 });
 
 /**
@@ -2515,144 +2378,136 @@ ipcMain.handle('readFinalLeaderboard', async (event, event_id) => {
  * SHRS 1.5: If no races are completed in the Final Series, boats are ranked
  * according to their series score in the Qualifying Series.
  */
-ipcMain.handle('readOverallLeaderboard', async (event, event_id) => {
-  try {
-    // SHRS 1.5: "If no races are completed in the Final Series boats will be
-    // ranked according to their series score in the Qualifying Series." A final
-    // race is "completed" once it has been SAILED — i.e. once ANY boat has a
-    // final-series score — not once every boat in the heat is scored. Counting
-    // final score rows (rather than fully-scored races) keeps this in step with
-    // finalLeaderboardOrder.hasNoCompletedFinalRaces, so the Final and Overall
-    // tables never disagree on a partially-scored final race.
-    const finalScoreCount = db
+handle('readOverallLeaderboard', async (event, event_id) => {
+  // SHRS 1.5: "If no races are completed in the Final Series boats will be
+  // ranked according to their series score in the Qualifying Series." A final
+  // race is "completed" once it has been SAILED — i.e. once ANY boat has a
+  // final-series score — not once every boat in the heat is scored. Counting
+  // final score rows (rather than fully-scored races) keeps this in step with
+  // finalLeaderboardOrder.hasNoCompletedFinalRaces, so the Final and Overall
+  // tables never disagree on a partially-scored final race.
+  const finalScoreCount = db
+    .prepare(
+      `SELECT COUNT(*) as cnt
+     FROM Scores sc
+     JOIN Races r ON sc.race_id = r.race_id
+     JOIN Heats h ON r.heat_id = h.heat_id
+     WHERE h.event_id = ? AND h.heat_type = 'Final'`,
+    )
+    .get(event_id) as { cnt: number };
+
+  // SHRS 1.5: If no completed final races, rank by qualifying only.
+  if (!finalScoreCount || finalScoreCount.cnt === 0) {
+    const qualifyingResults = db
       .prepare(
-        `SELECT COUNT(*) as cnt
-       FROM Scores sc
-       JOIN Races r ON sc.race_id = r.race_id
-       JOIN Heats h ON r.heat_id = h.heat_id
-       WHERE h.event_id = ? AND h.heat_type = 'Final'`,
-      )
-      .get(event_id) as { cnt: number };
-
-    // SHRS 1.5: If no completed final races, rank by qualifying only.
-    if (!finalScoreCount || finalScoreCount.cnt === 0) {
-      const qualifyingResults = db
-        .prepare(
-          `SELECT
-          lb.boat_id,
-          lb.total_points_event AS overall_points,
-          lb.place,
-          'Qualifying' AS placement_group,
-          b.sail_number AS boat_number,
-          b.model AS boat_type,
-          s.name,
-          s.surname,
-          b.country
-        FROM Leaderboard lb
-        LEFT JOIN Boats b ON lb.boat_id = b.boat_id
-        LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id
-        WHERE lb.event_id = ?
-        ORDER BY lb.place ASC`,
-        )
-        .all(event_id);
-      return qualifyingResults;
-    }
-
-    // Combined overall series: qualifying score + final score.
-    // The SQL orders only by points; SHRS 5.5 fleet precedence is applied by
-    // the JS comparator below, which understands the "Fleet 5"+ overflow names
-    // a fixed CASE cannot (RULE-m2).
-    const overallQuery = db.prepare(
-      `SELECT
-        fl.boat_id,
-        COALESCE(lb.total_points_event, 0) AS qualifying_points,
-        fl.total_points_final AS final_points,
-        COALESCE(lb.total_points_event, 0) + fl.total_points_final AS overall_points,
-        fl.placement_group,
-        fl.place AS final_place,
+        `SELECT
+        lb.boat_id,
+        lb.total_points_event AS overall_points,
+        lb.place,
+        'Qualifying' AS placement_group,
         b.sail_number AS boat_number,
         b.model AS boat_type,
         s.name,
         s.surname,
         b.country
-      FROM FinalLeaderboard fl
-      LEFT JOIN Leaderboard lb ON fl.boat_id = lb.boat_id AND lb.event_id = fl.event_id
-      LEFT JOIN Boats b ON fl.boat_id = b.boat_id
+      FROM Leaderboard lb
+      LEFT JOIN Boats b ON lb.boat_id = b.boat_id
       LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id
-      WHERE fl.event_id = ?
-      ORDER BY overall_points ASC, fl.place ASC`,
-    );
+      WHERE lb.event_id = ?
+      ORDER BY lb.place ASC`,
+      )
+      .all(event_id);
+    return qualifyingResults;
+  }
 
-    const results = overallQuery.all(event_id);
+  // Combined overall series: qualifying score + final score.
+  // The SQL orders only by points; SHRS 5.5 fleet precedence is applied by
+  // the JS comparator below, which understands the "Fleet 5"+ overflow names
+  // a fixed CASE cannot (RULE-m2).
+  const overallQuery = db.prepare(
+    `SELECT
+      fl.boat_id,
+      COALESCE(lb.total_points_event, 0) AS qualifying_points,
+      fl.total_points_final AS final_points,
+      COALESCE(lb.total_points_event, 0) + fl.total_points_final AS overall_points,
+      fl.placement_group,
+      fl.place AS final_place,
+      b.sail_number AS boat_number,
+      b.model AS boat_type,
+      s.name,
+      s.surname,
+      b.country
+    FROM FinalLeaderboard fl
+    LEFT JOIN Leaderboard lb ON fl.boat_id = lb.boat_id AND lb.event_id = fl.event_id
+    LEFT JOIN Boats b ON fl.boat_id = b.boat_id
+    LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id
+    WHERE fl.event_id = ?
+    ORDER BY overall_points ASC, fl.place ASC`,
+  );
 
-    const tiePacketCache = new Map<any, OverallTiePacket>();
-    const getTiePacket = (boatId: any) => {
-      if (!tiePacketCache.has(boatId)) {
-        tiePacketCache.set(boatId, buildOverallTiePacket(event_id, boatId));
-      }
-      return tiePacketCache.get(boatId) as OverallTiePacket;
-    };
+  const results = overallQuery.all(event_id);
 
-    results.sort((left: any, right: any) => {
-      // SHRS 5.5: Gold before Silver before Bronze "and so on" — including the
-      // 5th and later fleets, which used to share one catch-all rank (RULE-m2).
-      const leftFleetRank = fleetRank(left.placement_group);
-      const rightFleetRank = fleetRank(right.placement_group);
-      if (leftFleetRank !== rightFleetRank) {
-        return leftFleetRank - rightFleetRank;
-      }
+  const tiePacketCache = new Map<any, OverallTiePacket>();
+  const getTiePacket = (boatId: any) => {
+    if (!tiePacketCache.has(boatId)) {
+      tiePacketCache.set(boatId, buildOverallTiePacket(event_id, boatId));
+    }
+    return tiePacketCache.get(boatId) as OverallTiePacket;
+  };
 
-      if (left.overall_points !== right.overall_points) {
-        return left.overall_points - right.overall_points;
-      }
-
-      return 0;
-    });
-
-    const groupedAndResolved: any[] = [];
-    for (let i = 0; i < results.length; ) {
-      const fleet = results[i].placement_group;
-      const points = results[i].overall_points;
-      const tieGroup: any[] = [];
-
-      while (
-        i < results.length &&
-        results[i].placement_group === fleet &&
-        results[i].overall_points === points
-      ) {
-        tieGroup.push(results[i]);
-        i += 1;
-      }
-
-      if (tieGroup.length <= 1) {
-        groupedAndResolved.push(...tieGroup);
-      } else {
-        groupedAndResolved.push(
-          ...resolveOverallTieGroupSequentially(tieGroup, getTiePacket),
-        );
-      }
+  results.sort((left: any, right: any) => {
+    // SHRS 5.5: Gold before Silver before Bronze "and so on" — including the
+    // 5th and later fleets, which used to share one catch-all rank (RULE-m2).
+    const leftFleetRank = fleetRank(left.placement_group);
+    const rightFleetRank = fleetRank(right.placement_group);
+    if (leftFleetRank !== rightFleetRank) {
+      return leftFleetRank - rightFleetRank;
     }
 
-    results.splice(0, results.length, ...groupedAndResolved);
+    if (left.overall_points !== right.overall_points) {
+      return left.overall_points - right.overall_points;
+    }
 
-    // Assign overall rank: Gold before Silver before Bronze before Copper
-    let rank = 1;
-    results.forEach((row: any) => {
-      row.overall_rank = rank;
-      rank += 1;
-    });
+    return 0;
+  });
 
-    console.log(
-      `[IPC -> Renderer] readOverallLeaderboard (event_id=${event_id}): ${
-        results.length
-      } entries`,
-    );
-    return results;
-  } catch (error) {
-    console.error(
-      'Error reading overall leaderboard:',
-      (error as Error).message,
-    );
-    throw error;
+  const groupedAndResolved: any[] = [];
+  for (let i = 0; i < results.length; ) {
+    const fleet = results[i].placement_group;
+    const points = results[i].overall_points;
+    const tieGroup: any[] = [];
+
+    while (
+      i < results.length &&
+      results[i].placement_group === fleet &&
+      results[i].overall_points === points
+    ) {
+      tieGroup.push(results[i]);
+      i += 1;
+    }
+
+    if (tieGroup.length <= 1) {
+      groupedAndResolved.push(...tieGroup);
+    } else {
+      groupedAndResolved.push(
+        ...resolveOverallTieGroupSequentially(tieGroup, getTiePacket),
+      );
+    }
   }
+
+  results.splice(0, results.length, ...groupedAndResolved);
+
+  // Assign overall rank: Gold before Silver before Bronze before Copper
+  let rank = 1;
+  results.forEach((row: any) => {
+    row.overall_rank = rank;
+    rank += 1;
+  });
+
+  console.log(
+    `[IPC -> Renderer] readOverallLeaderboard (event_id=${event_id}): ${
+      results.length
+    } entries`,
+  );
+  return results;
 });

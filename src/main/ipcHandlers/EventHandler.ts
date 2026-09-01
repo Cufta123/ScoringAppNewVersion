@@ -1,6 +1,6 @@
-import { ipcMain } from 'electron';
 import { db } from '../../../public/Database/DBManager';
 import { normalizeDiscardConfigString } from '../functions/discardConfig';
+import handle from './handle';
 
 interface SqliteError extends Error {
   code: string;
@@ -37,17 +37,12 @@ const normalizeHeatOverflowPolicy = (value: unknown): string => {
 
 console.log('EventHandler.ts loaded');
 
-ipcMain.handle('readAllEvents', async () => {
-  try {
-    const events = await db.prepare('SELECT * FROM Events').all();
-    return events;
-  } catch (error) {
-    console.error('Error reading all events:', error);
-    throw error;
-  }
+handle('readAllEvents', async () => {
+  const events = await db.prepare('SELECT * FROM Events').all();
+  return events;
 });
 
-ipcMain.handle(
+handle(
   'insertEvent',
   async (
     event,
@@ -109,57 +104,42 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle('associateBoatWithEvent', async (event, boat_id, event_id) => {
-  try {
-    const result = db
-      .prepare('INSERT INTO Boat_Event (boat_id, event_id) VALUES (?, ?)')
-      .run(boat_id, event_id);
-    return { lastInsertRowid: result.lastInsertRowid };
-  } catch (error) {
-    log(`Error associating boat with event: ${error}`);
-    throw error;
-  }
+handle('associateBoatWithEvent', async (event, boat_id, event_id) => {
+  const result = db
+    .prepare('INSERT INTO Boat_Event (boat_id, event_id) VALUES (?, ?)')
+    .run(boat_id, event_id);
+  return { lastInsertRowid: result.lastInsertRowid };
 });
 
-ipcMain.handle('readBoatsByEvent', async (event, event_id) => {
-  try {
-    const rows = db
-      .prepare(
-        `
+handle('readBoatsByEvent', async (event, event_id) => {
+  const rows = db
+    .prepare(
+      `
 SELECT
-  b.boat_id, b.sail_number, b.country AS boat_country, b.model,
-  s.name, s.surname,
-  c.club_name, c.country AS club_country,
-  cat.category_name
+b.boat_id, b.sail_number, b.country AS boat_country, b.model,
+s.name, s.surname,
+c.club_name, c.country AS club_country,
+cat.category_name
 FROM Boats b
 JOIN Boat_Event be ON b.boat_id = be.boat_id
 JOIN Sailors s ON b.sailor_id = s.sailor_id
 JOIN Clubs c ON s.club_id = c.club_id
 JOIN Categories cat ON s.category_id = cat.category_id
 WHERE be.event_id = ?
-        `,
-      )
-      .all(event_id);
-    return rows;
-  } catch (error) {
-    console.error('Error reading boats by event:', error);
-    throw error;
-  }
+      `,
+    )
+    .all(event_id);
+  return rows;
 });
 
-ipcMain.handle('removeBoatFromEvent', async (event, boat_id, event_id) => {
-  try {
-    db.prepare('DELETE FROM Boat_Event WHERE boat_id = ? AND event_id = ?').run(
-      boat_id,
-      event_id,
-    );
-  } catch (error) {
-    log(`Error removing boat from event: ${error}`);
-    throw error;
-  }
+handle('removeBoatFromEvent', async (event, boat_id, event_id) => {
+  db.prepare('DELETE FROM Boat_Event WHERE boat_id = ? AND event_id = ?').run(
+    boat_id,
+    event_id,
+  );
 });
 
-ipcMain.handle(
+handle(
   'updateEvent',
   async (
     event,
@@ -260,58 +240,51 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle('deleteEvent', async (event, event_id) => {
-  try {
-    db.transaction(() => {
-      // Remove GlobalLeaderboard entries for boats in this event before Boat_Event is deleted
-      db.prepare(
-        `DELETE FROM GlobalLeaderboard WHERE boat_id IN (
-          SELECT boat_id FROM Boat_Event WHERE event_id = ?
-        )`,
-      ).run(event_id);
+handle('deleteEvent', async (event, event_id) => {
+  db.transaction(() => {
+    // Remove GlobalLeaderboard entries for boats in this event before Boat_Event is deleted
+    db.prepare(
+      `DELETE FROM GlobalLeaderboard WHERE boat_id IN (
+        SELECT boat_id FROM Boat_Event WHERE event_id = ?
+      )`,
+    ).run(event_id);
 
-      // Delete Scores for all races belonging to heats of this event
-      db.prepare(
-        `DELETE FROM Scores WHERE race_id IN (
-          SELECT race_id FROM Races WHERE heat_id IN (
-            SELECT heat_id FROM Heats WHERE event_id = ?
-          )
-        )`,
-      ).run(event_id);
-
-      // Delete Races for heats of this event
-      db.prepare(
-        `DELETE FROM Races WHERE heat_id IN (
+    // Delete Scores for all races belonging to heats of this event
+    db.prepare(
+      `DELETE FROM Scores WHERE race_id IN (
+        SELECT race_id FROM Races WHERE heat_id IN (
           SELECT heat_id FROM Heats WHERE event_id = ?
-        )`,
-      ).run(event_id);
+        )
+      )`,
+    ).run(event_id);
 
-      // Delete Heat_Boat associations for heats of this event
-      db.prepare(
-        `DELETE FROM Heat_Boat WHERE heat_id IN (
-          SELECT heat_id FROM Heats WHERE event_id = ?
-        )`,
-      ).run(event_id);
+    // Delete Races for heats of this event
+    db.prepare(
+      `DELETE FROM Races WHERE heat_id IN (
+        SELECT heat_id FROM Heats WHERE event_id = ?
+      )`,
+    ).run(event_id);
 
-      // Delete Heats for this event
-      db.prepare('DELETE FROM Heats WHERE event_id = ?').run(event_id);
+    // Delete Heat_Boat associations for heats of this event
+    db.prepare(
+      `DELETE FROM Heat_Boat WHERE heat_id IN (
+        SELECT heat_id FROM Heats WHERE event_id = ?
+      )`,
+    ).run(event_id);
 
-      // Delete Boat_Event associations
-      db.prepare('DELETE FROM Boat_Event WHERE event_id = ?').run(event_id);
+    // Delete Heats for this event
+    db.prepare('DELETE FROM Heats WHERE event_id = ?').run(event_id);
 
-      // Delete Leaderboard and FinalLeaderboard entries
-      db.prepare('DELETE FROM Leaderboard WHERE event_id = ?').run(event_id);
-      db.prepare('DELETE FROM FinalLeaderboard WHERE event_id = ?').run(
-        event_id,
-      );
+    // Delete Boat_Event associations
+    db.prepare('DELETE FROM Boat_Event WHERE event_id = ?').run(event_id);
 
-      // Finally delete the event itself
-      db.prepare('DELETE FROM Events WHERE event_id = ?').run(event_id);
-    })();
+    // Delete Leaderboard and FinalLeaderboard entries
+    db.prepare('DELETE FROM Leaderboard WHERE event_id = ?').run(event_id);
+    db.prepare('DELETE FROM FinalLeaderboard WHERE event_id = ?').run(event_id);
 
-    return { success: true };
-  } catch (error) {
-    console.error('Error deleting event:', error);
-    throw error;
-  }
+    // Finally delete the event itself
+    db.prepare('DELETE FROM Events WHERE event_id = ?').run(event_id);
+  })();
+
+  return { success: true };
 });
