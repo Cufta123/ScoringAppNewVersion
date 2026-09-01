@@ -8,7 +8,6 @@ import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 // every `invokeChannel`/`makeInvoker` call below, so an out-of-sync entry fails
 // the build.
 export type Channels =
-  | 'ipc-example'
   | 'dialog:openFile'
   | 'readAllSailors'
   | 'updateSailor'

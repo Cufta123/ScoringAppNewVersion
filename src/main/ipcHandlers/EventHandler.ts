@@ -37,12 +37,6 @@ const normalizeHeatOverflowPolicy = (value: unknown): string => {
 
 console.log('EventHandler.ts loaded');
 
-ipcMain.on('ipc-example', async (event, arg) => {
-  const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
-  log(msgTemplate(arg));
-  event.reply('ipc-example', msgTemplate('pongSailor'));
-});
-
 ipcMain.handle('readAllEvents', async () => {
   try {
     const events = await db.prepare('SELECT * FROM Events').all();
