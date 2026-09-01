@@ -918,3 +918,79 @@ means a tie can never silently rebind when the boat above is removed or displace
 **Verification:** full unit suite **702 passing, 0 failing, 59 suites**; `tsc --noEmit` clean; lint at
 the documented baseline (**18 errors, all pre-existing in `e2e/`**, 72 `no-console` warnings — no new
 lint errors). Working tree only, nothing committed.
+
+---
+
+## Post-merge review follow-ups (2026-09-01)
+
+Three defects found by an independent review of the merged
+`fix/usability-severity3` diff. All three were incompletely-applied fixes from
+that branch rather than regressions against the previous `main`.
+
+### ✅ RULE-M15b — SHRS 1.5 fallback is decided per FLEET, not per event
+
+**Finding:** `finalLeaderboardOrder.ts` computed `rankByQualifying` once over
+every row in the event. Fleets do not have to start their Final Series together
+(postponement, staggered starts, the SHRS 4.5 time limit), so as soon as _any_
+fleet sailed a final race, every other fleet switched to `total_points_final` —
+which is 0 for all of them. That tied the whole fleet and left it in raw
+database order instead of qualifying order.
+
+Reproduced before the fix, with Gold sailed and Silver not:
+
+```
+MIXED PROGRESS:   gold_b , gold_a , silver_bad_qual , silver_good_qual   <- silver wrong
+NO FINALS SAILED: silver_good_qual , silver_bad_qual                     <- correct
+```
+
+**What changed:** new exported `fleetsWithCompletedFinalRace(rows)` returns the
+`fleetRank`s that have sailed at least one final race; `orderFinalLeaderboardRows`
+consults it per fleet. `hasAnyCompletedFinalRace` / `hasNoCompletedFinalRaces`
+are unchanged and still exported.
+
+**Tests added** (`finalLeaderboardOrder.test.ts`): a mixed-fleet-progress case
+that fails on the old event-wide logic, a `fleetsWithCompletedFinalRace` unit
+test, and a partially-scored-fleet case.
+
+### ✅ BK-7b — `deleteScore` recomputed outside its transaction
+
+**Finding:** `updateScore` calls `recomputeLeaderboardsForRace` _inside_
+`applyUpdate` precisely so a recompute failure rolls the edit back (BK-7).
+`deleteScore` called it _after_ its transaction committed. A recompute throw
+therefore left the score deleted and the other finishers' A7 tie points
+rewritten, with a stale stored leaderboard — while the IPC call still rejected,
+so the renderer reported a failure over an already-mutated database.
+
+**What changed:** `recomputeLeaderboardsForRace(raceId)` moved inside
+`applyDelete`, matching `updateScore`. `lockDiscardProfileForRace` was
+deliberately _not_ added: the insert that created the score already locks the
+profile, and a delete adds no racing.
+
+**Tests added** (`HeatRaceHandler.scoreEditRecompute.test.ts`): the recompute
+runs inside the transaction, and a throwing recompute propagates from inside the
+transaction callback so better-sqlite3 can roll back. Both fail on the old code.
+
+### ✅ UX-S5 — exit guard reported an in-flight save as already saved
+
+**Finding:** `HeatRacePage.confirmDiscardEntry` checked a boolean
+`submittingRef`, which is true precisely while a submit is _in flight_ — not
+after it resolved, as its comment claimed. When set, the guard announced "Your
+scores were saved while the dialog was open" and allowed the exit. Since the
+entered finish order lives only in `ScoringInputComponent`'s local state,
+unmounting on a save that then failed lost it for good.
+
+**What changed:** the ref now holds the in-flight submit _promise_, and the
+guard awaits its real outcome — leave on success, stay (with the entry intact)
+on failure. `handleSubmitScores` was restructured so its inner `runSubmit`
+resolves `true` only when the scores are actually persisted. "Back to Heats" is
+additionally `disabled`/`aria-busy` while a submit is pending; the navbar and
+breadcrumb exits are covered by the guard itself.
+
+**Tests added** (`HeatRacePage.test.jsx`): a failing in-flight save keeps the
+scoring view and never claims success (both via the disabled Back button and via
+the navbar path, which is not disabled), plus a success-path regression guard.
+The first two fail on the old code.
+
+**Verification:** `tsc --noEmit` clean; unit suite **790 passing, 0 failing, 60
+suites** (was 782); production build green; lint back at the documented baseline
+(**18 errors, all pre-existing in `e2e/`**, no new source errors).

@@ -82,16 +82,26 @@ function HeatRacePage() {
     setIsScoring(true);
   };
 
-  // Set while a submit is in-flight so the navigation guard can detect when a
-  // submission resolved during a pending dialog and avoid silently discarding the
-  // user's "Keep scoring" choice.
-  const submittingRef = React.useRef(false);
+  // Holds the in-flight submit so an exit path can await its REAL outcome
+  // instead of guessing. Null whenever no submit is pending.
+  const submitInFlightRef = React.useRef<Promise<boolean> | null>(null);
+  // Mirrors the ref for rendering (a ref alone would not re-render the button).
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   // Shared guard for any exit from the scoring view that would drop an
   // entered-but-unsubmitted finish order. Returns true when it is safe to leave.
   const confirmDiscardEntry = async (): Promise<boolean> => {
+    // The user may have hit Submit and then immediately tried to leave. Wait
+    // for the save to actually resolve rather than assuming it succeeded: on
+    // success there is nothing left to discard, and on failure the entered
+    // order must stay on screen, because it lives only in the scoring
+    // component's local state and unmounting would lose it for good.
+    const inFlight = submitInFlightRef.current;
+    if (inFlight) {
+      return inFlight;
+    }
     if (!isScoring || !hasUnsavedEntry) return true;
-    const result = await confirmAction(
+    return confirmAction(
       'You have entered a finish order that has not been submitted yet. ' +
         'Leaving will discard it.',
       'Discard finish order?',
@@ -101,17 +111,6 @@ function HeatRacePage() {
         confirmClassName: 'btn-danger',
       },
     );
-    // If the submit completed while the dialog was open, the scoring view is
-    // already transitioning away — respect the user's explicit choice only if
-    // the submit hasn't resolved in the meantime.
-    if (submittingRef.current) {
-      reportInfo(
-        'Your scores were saved while the dialog was open.',
-        'Scores saved',
-      );
-      return true;
-    }
-    return result;
   };
 
   // Navigate away from the scoring view, confirming first if there is unsaved
@@ -131,8 +130,9 @@ function HeatRacePage() {
 
   const handleSubmitScores = async (placeNumbers: ScoredBoat[]) => {
     if (!selectedHeat || !event) return;
-    submittingRef.current = true;
-    try {
+    // Resolves true only when the scores are actually persisted, so a
+    // concurrent exit attempt can wait on the real result.
+    const runSubmit = async (): Promise<boolean> => {
       // SHRS 3.2 warning: in a multi-heat qualifying series each heat group
       // should only ever race once before redistribution. Warn any time the
       // user tries to score a second (or later) race on a qualifying heat.
@@ -146,7 +146,7 @@ function HeatRacePage() {
               `Press OK to score Race ${nextRaceNumber} anyway, or Cancel to go back and use "Create New Heats from Leaderboard" first.`,
             'Scoring warning',
           );
-          if (!proceed) return;
+          if (!proceed) return false;
         }
       }
 
@@ -179,7 +179,7 @@ function HeatRacePage() {
             `Could not save scores: ${result.reason || 'unknown error'}.`,
           );
         }
-        return;
+        return false;
       }
 
       setHasUnsavedEntry(false);
@@ -189,10 +189,23 @@ function HeatRacePage() {
         `Race scores for "${selectedHeat.heat_name}" were saved.`,
         'Scores submitted',
       );
-    } catch (error) {
+      return true;
+    };
+
+    // Publish the promise BEFORE awaiting it: runSubmit() only runs up to its
+    // first await synchronously, so no click can interleave before the guard
+    // can see it.
+    const pending = runSubmit().catch((error) => {
       reportError('Could not save race scores.', error);
+      return false;
+    });
+    submitInFlightRef.current = pending;
+    setIsSubmitting(true);
+    try {
+      await pending;
     } finally {
-      submittingRef.current = false;
+      submitInFlightRef.current = null;
+      setIsSubmitting(false);
     }
   };
 
@@ -447,6 +460,8 @@ function HeatRacePage() {
               type="button"
               className="btn-ghost back-link"
               onClick={handleBackToHeats}
+              disabled={isSubmitting}
+              aria-busy={isSubmitting}
             >
               <i className="fa fa-arrow-left" aria-hidden="true" /> Back to
               Heats

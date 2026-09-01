@@ -28,6 +28,9 @@ const recomputeFinalLeaderboard = jest.fn();
 // Track whether the recompute functions ran while a db.transaction callback was
 // on the stack, to pin that updateScore recomputes INSIDE its transaction (BK-7).
 let mockInTransaction = false;
+// Set when a transaction callback exits by throwing — i.e. the error reached
+// better-sqlite3 with the transaction still open, so it can roll back.
+let mockThrewInsideTransaction = false;
 const mockRecomputeWasInTransaction = { event: false, final: false };
 jest.mock('../main/functions/leaderboardRecompute', () => ({
   recomputeEventLeaderboard: (...args: any[]) => {
@@ -66,6 +69,9 @@ const dbMock = {
       mockInTransaction = true;
       try {
         return fn(...args);
+      } catch (error) {
+        mockThrewInsideTransaction = true;
+        throw error;
       } finally {
         mockInTransaction = false;
       }
@@ -147,6 +153,7 @@ describe('BK-7 — single-score edit/delete re-scores ties and recomputes', () =
     recomputeEventLeaderboard.mockClear();
     recomputeFinalLeaderboard.mockClear();
     mockInTransaction = false;
+    mockThrewInsideTransaction = false;
     mockRecomputeWasInTransaction.event = false;
     mockRecomputeWasInTransaction.final = false;
   });
@@ -191,6 +198,30 @@ describe('BK-7 — single-score edit/delete re-scores ties and recomputes', () =
     // The recompute must run while the transaction callback is on the stack, so
     // a recompute failure rolls back the edit instead of leaving it persisted.
     expect(mockRecomputeWasInTransaction.event).toBe(true);
+  });
+
+  it('deleteScore recomputes the leaderboard INSIDE its transaction (BK-7)', async () => {
+    await handlerRegistry.deleteScore({}, 2);
+
+    expect(recomputeEventLeaderboard).toHaveBeenCalledWith(42);
+    // deleteScore used to commit the DELETE and the A7 re-scoring, then
+    // recompute outside the transaction. A recompute throw then left the score
+    // gone and the stored leaderboard stale while the IPC call still rejected,
+    // so the renderer reported a failure over an already-mutated database.
+    expect(mockRecomputeWasInTransaction.event).toBe(true);
+  });
+
+  it('a failing recompute rolls the delete back instead of committing it (BK-7)', async () => {
+    recomputeEventLeaderboard.mockImplementationOnce(() => {
+      throw new Error('recompute exploded');
+    });
+
+    await expect(handlerRegistry.deleteScore({}, 2)).rejects.toThrow(
+      /recompute exploded/,
+    );
+    // The throw must escape from inside the transaction callback, which is what
+    // gives better-sqlite3 the chance to roll the DELETE back.
+    expect(mockThrewInsideTransaction).toBe(true);
   });
 
   it('updateScore rejects a 0 / NaN position with a descriptive error (BK-6)', async () => {
