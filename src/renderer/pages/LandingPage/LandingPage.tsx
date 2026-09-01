@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import EventForm, { EventList } from '../../components/EventForm';
+import EventForm from '../../components/EventForm';
+import EventList from '../../components/EventList';
 import Navbar from '../../components/Navbar';
 import { reportError } from '../../utils/userFeedback';
 import './LandingPage.css';

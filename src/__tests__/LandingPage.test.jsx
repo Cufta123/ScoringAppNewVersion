@@ -10,14 +10,13 @@ jest.mock('../renderer/components/EventForm', () => {
   function EventFormMock() {
     return <div>Event Form Mock</div>;
   }
+  return { __esModule: true, default: EventFormMock };
+});
+jest.mock('../renderer/components/EventList', () => {
   function EventListMock() {
     return <div>Event List Mock</div>;
   }
-  return {
-    __esModule: true,
-    default: EventFormMock,
-    EventList: EventListMock,
-  };
+  return { __esModule: true, default: EventListMock };
 });
 jest.mock(
   '../renderer/components/Navbar',
