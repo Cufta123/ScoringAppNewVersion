@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Flag from 'react-world-flags';
-import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
 import printNewHeats from '../utils/printNewHeats';
 import AppModal from './shared/AppModal';
 import {
@@ -9,7 +8,7 @@ import {
   reportInfo,
   reportWarning,
 } from '../utils/userFeedback';
-import { getExcludeCount } from '../utils/leaderboardUtils';
+import { getExcludeCount, getFlagCode } from '../utils/leaderboardUtils';
 import { computeAdjustedFleetTotals } from '../../shared/fleetAssignment';
 import { heatRaceDB } from '../api/db';
 import type { EventRow, HeatBoatRow, LeaderboardEntry } from '../types';
@@ -531,10 +530,6 @@ function HeatComponent({
   const isFinalSeriesView =
     heatsToDisplay.length > 0 &&
     heatsToDisplay.every((heat) => heat.heat_type === 'Final');
-
-  const getFlagCode = (iocCode: string): string => {
-    return iocToFlagCodeMap[iocCode] || iocCode;
-  };
 
   const handleBoatTransfer = async (
     boat: HeatBoatRow,
