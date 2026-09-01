@@ -41,7 +41,6 @@ Use this document first. Only search the repo when this file does not answer the
 
 - Uses `HashRouter` with these routes:
   - `/`
-  - `/global-leaderboard`
   - `/event/:name`
   - `/event/:eventName/heat-race`
   - `/event/:eventName/leaderboard`
@@ -66,7 +65,8 @@ Key tables:
 - `Categories` (seeded with KADET/JUNIOR/SENIOR/VETERAN/MASTER)
 - `Boat_Event` (boat-event association)
 - `Heats`, `Races`, `Scores`, `Heat_Boat`
-- `Leaderboard`, `FinalLeaderboard`, `GlobalLeaderboard`
+- `Leaderboard`, `FinalLeaderboard`
+- `GlobalLeaderboard` (retained but unused; see §10)
 - `RaceAssignmentSnapshots` (SHRS 3.1.5 pre-protest assignment order, persisted
   so the in-memory cache in `raceAssignmentSnapshot.ts` survives restarts)
 
@@ -353,10 +353,13 @@ For most feature/fix requests, do this in order:
 - When adding a preload channel, update all four: `type Channels`, the
   `electronHandler` map in `preload.ts`, the handler's `handle()` registration,
   and the renderer `api/db` wrapper.
-- `updateGlobalLeaderboard` is a deprecated no-op (July 2026): the global
-  leaderboard feature is on hold, the channel stays registered but writes
-  nothing, and the app never populates `GlobalLeaderboard`. Do not "fix" it
-  back to writing without a decision to revive the feature.
+- The global leaderboard feature is removed from the UI (Sept 2026). The route,
+  both nav entry points, the page, the component and the
+  `readGlobalLeaderboard` / `updateGlobalLeaderboard` channels are gone; users
+  could previously navigate to a page that existed only to say the feature was
+  on hold. The `GlobalLeaderboard` table is deliberately KEPT in `DBManager.js`,
+  and `deleteEvent` still clears its rows, so reviving the feature needs no
+  migration.
 
 ## 11. What To Search Only If Needed
 

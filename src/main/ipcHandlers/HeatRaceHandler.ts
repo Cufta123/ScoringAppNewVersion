@@ -754,14 +754,6 @@ handle('updateEventLeaderboard', async (event, event_id) => {
   return { success: true };
 });
 
-// Deprecated: the global-leaderboard feature is on hold. The channel is kept
-// so existing callers don't break, but it intentionally writes nothing — the
-// old implementation aggregated Leaderboard rows across ALL events and applied
-// no discards, producing wrong totals. Revisit if the feature returns.
-handle('updateGlobalLeaderboard', async () => {
-  return { success: true, deprecated: true };
-});
-
 handle('deleteScore', async (event, score_id) => {
   // BK-7: capture the race BEFORE deleting so we can re-run tie scoring and
   // recompute the leaderboard afterwards. Deleting a finisher's row otherwise
@@ -1570,27 +1562,6 @@ handle('readLeaderboard', async (event, event_id) => {
       results.length
     } entries`,
   );
-  return results;
-});
-handle('readGlobalLeaderboard', async () => {
-  const results = db
-    .prepare(
-      `
-      SELECT
-        gl.boat_id,
-        gl.total_points_global,
-        b.sail_number AS boat_number,
-        b.model AS boat_type,
-        s.name,
-        s.surname,
-        b.country
-      FROM GlobalLeaderboard gl
-      LEFT JOIN Boats b ON gl.boat_id = b.boat_id
-      LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id
-      ORDER BY gl.total_points_global ASC
-    `,
-    )
-    .all();
   return results;
 });
 

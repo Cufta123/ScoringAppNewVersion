@@ -38,7 +38,6 @@ const config: Config = {
     '**/src/__tests__/backendUiTieBreak.property.test.jsx',
     '**/src/__tests__/ScoringInputComponent.test.jsx',
     '**/src/__tests__/scoringToLeaderboard.T1.integration.test.jsx',
-    '**/src/__tests__/GlobalLeaderboard.test.jsx',
     '**/src/__tests__/calculateBoatScores.test.ts',
     '**/src/__tests__/calculateFinalBoatScores.test.ts',
     '**/src/__tests__/finalLeaderboardOrder.test.ts',

@@ -35,14 +35,12 @@ export type Channels =
   | 'deleteScore'
   | 'deleteHeatsByEvent'
   | 'updateEventLeaderboard'
-  | 'updateGlobalLeaderboard'
   | 'createNewHeatsBasedOnLeaderboard'
   | 'undoLastScoredRaceForHeat'
   | 'undoLastScoredRace'
   | 'undoLatestHeatRedistribution'
   | 'transferBoatBetweenHeats'
   | 'readLeaderboard'
-  | 'readGlobalLeaderboard'
   | 'updateFinalLeaderboard'
   | 'readFinalLeaderboard'
   | 'readOverallLeaderboard'
@@ -193,7 +191,6 @@ const electronHandler = {
       updateScore: makeInvoker('updateScore'),
       deleteScore: makeInvoker('deleteScore'),
       updateEventLeaderboard: makeInvoker('updateEventLeaderboard'),
-      updateGlobalLeaderboard: makeInvoker('updateGlobalLeaderboard'),
       createNewHeatsBasedOnLeaderboard: makeInvoker(
         'createNewHeatsBasedOnLeaderboard',
       ),
@@ -202,7 +199,6 @@ const electronHandler = {
       undoLatestHeatRedistribution: makeInvoker('undoLatestHeatRedistribution'),
       transferBoatBetweenHeats: makeInvoker('transferBoatBetweenHeats'),
       readLeaderboard: makeInvoker('readLeaderboard'),
-      readGlobalLeaderboard: makeInvoker('readGlobalLeaderboard'),
       updateFinalLeaderboard: makeInvoker('updateFinalLeaderboard'),
       updateRaceResult: makeInvoker('updateRaceResult'),
       saveLeaderboardRaceResultsAtomic: makeInvoker(

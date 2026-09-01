@@ -184,17 +184,6 @@ export interface FinalLeaderboardRow {
   place: number | null;
 }
 
-export interface GlobalLeaderboardRow {
-  boat_id: number;
-  total_points_global: number;
-  name?: string;
-  surname?: string;
-  boat_number?: string | number;
-  boat_type?: string;
-  country?: string;
-  [key: string]: unknown;
-}
-
 /**
  * Minimal shape the compare-mode helpers operate on: any leaderboard-like entry
  * that has a boat id and (in final series) a placement group. The numeric

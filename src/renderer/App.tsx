@@ -8,7 +8,6 @@ import LandingPage from './pages/LandingPage/LandingPage';
 import EventPage from './pages/EventPage/EventPage';
 import HeatRacePage from './pages/HeatRacePage/HeatRacePage';
 import LeaderboardPage from './pages/LeaderboardPage/LeaderboardPage';
-import GlobalLeaderboardPage from './pages/GlobalLeaderboardPage/GlobalLeaderboardPage';
 import ConfirmDialogHost from './components/shared/ConfirmDialogHost';
 import ErrorBoundary from './components/ErrorBoundary';
 import { reportError } from './utils/userFeedback';
@@ -46,10 +45,6 @@ function App() {
       <ErrorBoundary>
         <Routes>
           <Route path="/" element={<LandingPage />} />
-          <Route
-            path="/global-leaderboard"
-            element={<GlobalLeaderboardPage />}
-          />
           <Route path="/event/:name" element={<EventPage />} />
           <Route
             path="/event/:eventName/heat-race"

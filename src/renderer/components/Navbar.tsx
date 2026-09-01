@@ -3,14 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import HelpModal from './shared/HelpModal';
 
 interface NavbarProps {
-  onOpenGlobalLeaderboard?: (() => void) | null;
   onOpenLeaderboard?: (() => void) | null;
   onHeatRaceClick?: (() => void) | null;
   onNavigateHome?: (() => void) | null;
 }
 
 function Navbar({
-  onOpenGlobalLeaderboard = null,
   onOpenLeaderboard = null,
   onHeatRaceClick = null,
   onNavigateHome = null,
@@ -37,17 +35,6 @@ function Navbar({
       </button>
 
       {/* Right: contextual action buttons */}
-      {onOpenGlobalLeaderboard && (
-        <button
-          type="button"
-          onClick={onOpenGlobalLeaderboard}
-          aria-label="Open global leaderboard"
-        >
-          <i className="fa fa-trophy" aria-hidden="true" />
-          Global Leaderboard
-        </button>
-      )}
-
       {onOpenLeaderboard && (
         <button
           type="button"

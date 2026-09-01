@@ -2,7 +2,7 @@
 
 import '@testing-library/jest-dom';
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import LandingPage from '../renderer/pages/LandingPage/LandingPage';
 
@@ -21,15 +21,10 @@ jest.mock('../renderer/components/EventList', () => {
 jest.mock(
   '../renderer/components/Navbar',
   () =>
-    function ({ onOpenGlobalLeaderboard }) {
+    function () {
       return (
         <header>
           <span>Navbar Mock</span>
-          {onOpenGlobalLeaderboard ? (
-            <button type="button" onClick={onOpenGlobalLeaderboard}>
-              Global Leaderboard
-            </button>
-          ) : null}
         </header>
       );
     },
@@ -43,10 +38,6 @@ const renderLandingPage = () =>
     <MemoryRouter initialEntries={['/']}>
       <Routes>
         <Route path="/" element={<LandingPage />} />
-        <Route
-          path="/global-leaderboard"
-          element={<div>Global Leaderboard Screen</div>}
-        />
       </Routes>
     </MemoryRouter>,
   );
@@ -86,17 +77,5 @@ describe('LandingPage', () => {
     expect(await screen.findByText('Your Events')).toBeInTheDocument();
     expect(screen.getByText('Event List Mock')).toBeInTheDocument();
     expect(screen.queryByText('How it works')).not.toBeInTheDocument();
-  });
-
-  it('navigates to the global leaderboard route', async () => {
-    renderLandingPage();
-
-    fireEvent.click(
-      screen.getByRole('button', { name: /global leaderboard/i }),
-    );
-
-    expect(
-      await screen.findByText('Global Leaderboard Screen'),
-    ).toBeInTheDocument();
   });
 });
