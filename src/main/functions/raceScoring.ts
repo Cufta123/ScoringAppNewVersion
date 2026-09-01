@@ -6,6 +6,7 @@
  */
 import { db } from '../../../public/Database/DBManager';
 import computeTiePlacements from '../../shared/raceTieScoring';
+import applyRaceColumnEdit from '../../shared/raceColumnEdit';
 import { captureRaceAssignmentSnapshotIfMissing } from './assignmentShield';
 import {
   recomputeEventLeaderboard,
@@ -16,7 +17,6 @@ import {
   getScoringPenaltyPoints,
   isNonScoringPenalty,
   normalizeScoreStatus,
-  promotesBoatsBehind,
   protestCommitteeStatuses,
   rdgStatuses,
   scoringPenaltyStatuses,
@@ -269,130 +269,72 @@ export function applyRaceResultUpdate(
   const currentPosition = currentResult.position;
   const previousStatus = normalizeScoreStatus(currentResult.status);
 
-  db.prepare(
-    'UPDATE Scores SET position = ?, points = ?, status = ? WHERE race_id = ? AND boat_id = ?',
-  ).run(finalPosition, points, status, race_id, boat_id);
+  // Load the whole race so the rule application below is a pure computation
+  // over its cells. The transformation — the RRS A6.1 promotion, the manual
+  // place ripple, and the RRS A7 re-average — lives in shared/raceColumnEdit,
+  // so the renderer's edit preview runs the very same code and cannot drift
+  // from what is persisted here.
+  const raceRows = db
+    .prepare(
+      `SELECT score_id, boat_id, position, points,
+              COALESCE(status, 'FINISHED') AS status
+       FROM Scores
+       WHERE race_id = ?
+       ORDER BY score_id ASC`,
+    )
+    .all(race_id) as {
+    score_id: number;
+    boat_id: number;
+    position: number;
+    points: number;
+    status: string;
+  }[];
 
-  // RRS A6.2: giving redress by adjusting one boat's score must NOT change any
-  // other boat's score. So an RDG edit never triggers displacement or a re-rank
-  // — only the redressed boat's own row (set above) changes. DPI is treated the
-  // same way: a discretionary points penalty does not vacate a finishing place,
-  // so it never displaces other boats.
-  //
-  // RULE-M16 / RRS A6.1: "each boat with a worse finishing place SHALL be moved
-  // up one place" when a boat that finished is disqualified or retires after
-  // finishing. That is mandatory, not a scorer preference, so the promotion is
-  // NOT gated on the "shift other boats" toggle — it used to be, which meant
-  // the default (shift-off) path silently left every boat behind a DSQ one
-  // place too low. The toggle governs only the manual place-move ripple below,
-  // which is a data-entry convenience rather than a rule. The predicate lives
-  // in scoreStatus.promotesBoatsBehind so the write path and the renderer
-  // preview share one definition.
-  const promotesBoats = promotesBoatsBehind(previousStatus, status);
-
-  if (promotesBoats) {
-    db.prepare(
-      `UPDATE Scores SET position = position - 1, points = position - 1
-         WHERE race_id = ? AND status = 'FINISHED' AND position > ?`,
-    ).run(race_id, currentPosition);
-
-    // RRS A6.1 applies to position-keeping penalty boats (ZFP/SCP/T1) too:
-    // they hold a finishing place, so a boat placed worse than the removed
-    // boat moves up one. Their points are a percentage of the DNF score, not
-    // the place, so recompute each instead of the flat position=points shift
-    // above. Doing this here also prevents a stale penalty position from
-    // colliding with a shifted finisher and being mis-read as an RRS A7 tie
-    // by applyRaceTieScoring.
-    const penaltyStatusList = [...scoringPenaltyStatuses]
-      .map((penaltyStatus) => `'${penaltyStatus}'`)
-      .join(', ');
-    const penaltyRowsBehind = db
-      .prepare(
-        `SELECT score_id, position, status FROM Scores
-           WHERE race_id = ? AND status IN (${penaltyStatusList}) AND position > ?`,
-      )
-      .all(race_id, currentPosition) as {
-      score_id: number;
-      position: number;
-      status: string;
-    }[];
-    const shiftPenaltyRow = db.prepare(
-      'UPDATE Scores SET position = ?, points = ? WHERE score_id = ?',
+  const editedIndex = raceRows.findIndex(
+    (row) => String(row.boat_id) === String(boat_id),
+  );
+  if (editedIndex === -1) {
+    throw new Error(
+      `Current result not found for race_id: ${race_id}, boat_id: ${boat_id}`,
     );
-    penaltyRowsBehind.forEach((row) => {
-      const newPosition = row.position - 1;
-      shiftPenaltyRow.run(
-        newPosition,
-        getScoringPenaltyPoints(newPosition, maxBoats, row.status),
-        row.score_id,
-      );
-    });
   }
 
-  // With "shift other boats" OFF a manual place change is an override: only the
-  // edited boat moves, even if that leaves a tie or a gap. The renderer preview
-  // behaves identically so Save never diverges from what the user saw.
-  if (shift_positions && !keepsProvidedPoints) {
-    if (status === 'FINISHED') {
-      // LB-7: the manual ripple must move position-keeping penalty boats
-      // (ZFP/SCP/T1) together with finishers, or the persisted leaderboard
-      // diverges from the renderer preview (which does shift them). Their points
-      // are a percentage of the DNF score (not the place), so recompute each
-      // rather than the flat `position = points` shift used for FINISHED boats.
-      const shiftPositionKeepingRows = (
-        minPos: number,
-        maxPos: number,
-        delta: number,
-      ) => {
-        const penaltyStatusList = [...scoringPenaltyStatuses]
-          .map((penaltyStatus) => `'${penaltyStatus}'`)
-          .join(', ');
-        const rows = db
-          .prepare(
-            `SELECT score_id, position, status FROM Scores
-             WHERE race_id = ? AND status IN (${penaltyStatusList})
-               AND position BETWEEN ? AND ? AND boat_id != ?`,
-          )
-          .all(race_id, minPos, maxPos, boat_id) as {
-          score_id: number;
-          position: number;
-          status: string;
-        }[];
-        const shift = db.prepare(
-          'UPDATE Scores SET position = ?, points = ? WHERE score_id = ?',
-        );
-        rows.forEach((row) => {
-          const newPosition = row.position + delta;
-          shift.run(
-            newPosition,
-            getScoringPenaltyPoints(newPosition, maxBoats, row.status),
-            row.score_id,
-          );
-        });
-      };
+  const updatedCells = applyRaceColumnEdit(
+    raceRows.map((row) => ({
+      position: row.position,
+      points: row.points,
+      status: normalizeScoreStatus(row.status),
+    })),
+    {
+      index: editedIndex,
+      previousPosition: currentPosition,
+      previousStatus,
+      newPosition: finalPosition,
+      newPoints: points,
+      newStatus: status,
+      shiftPositions: shift_positions,
+      maxBoats,
+    },
+  );
 
-      if (currentPosition > finalPosition) {
-        db.prepare(
-          `UPDATE Scores SET position = position + 1, points = position + 1
-           WHERE race_id = ? AND status = 'FINISHED' AND position >= ? AND position < ? AND boat_id != ?`,
-        ).run(race_id, finalPosition, currentPosition, boat_id);
-        shiftPositionKeepingRows(finalPosition, currentPosition - 1, 1);
-      } else if (currentPosition < finalPosition) {
-        db.prepare(
-          `UPDATE Scores SET position = position - 1, points = position - 1
-           WHERE race_id = ? AND status = 'FINISHED' AND position <= ? AND position > ? AND boat_id != ?`,
-        ).run(race_id, finalPosition, currentPosition, boat_id);
-        shiftPositionKeepingRows(currentPosition + 1, finalPosition, -1);
-      }
-    }
-  }
-
-  // RRS A7: re-average any places that are now shared. Needed after either kind
-  // of position change — the mandatory A6.1 promotion (which runs regardless of
-  // the toggle) or the manual ripple above.
-  if (promotesBoats || (shift_positions && !keepsProvidedPoints)) {
-    applyRaceTieScoring(race_id);
-  }
+  // Write back only the rows the edit actually moved. No transaction here:
+  // every caller already runs inside one (see the BK-5 boundary tests), and
+  // the SQL this replaced was likewise a bare sequence of UPDATEs.
+  const writeRow = db.prepare(
+    'UPDATE Scores SET position = ?, points = ?, status = ? WHERE score_id = ?',
+  );
+  updatedCells.forEach((cell, i) => {
+    const row = raceRows[i];
+    // The edited boat is always written, exactly as before: an edit that
+    // resolves to the same place still records the scorer's decision. Other
+    // boats are written only if the edit actually moved them.
+    const unchanged =
+      cell.position === row.position &&
+      cell.points === row.points &&
+      cell.status === row.status;
+    if (i !== editedIndex && unchanged) return;
+    writeRow.run(cell.position, cell.points, cell.status, row.score_id);
+  });
 }
 
 // BK-7: after a single-score edit or delete, refresh the affected event's

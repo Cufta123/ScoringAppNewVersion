@@ -40,6 +40,16 @@ type Scenario = {
     position: number;
     status: string;
   }>;
+  // The race's Scores rows, as applyRaceResultUpdate now loads them before
+  // applying the shared raceColumnEdit transformation. Defaults to just the
+  // edited boat, which is all the snapshot-shield tests need.
+  raceRows?: Array<{
+    score_id: number;
+    boat_id: string;
+    position: number;
+    points: number;
+    status: string;
+  }>;
   // Live ranked rows for the heat/race, as getRankedBoatsInHeatForRace returns
   // them. Used by the SHRS 3.1.5 per-boat freeze tests.
   rankedBoats: Array<{
@@ -90,6 +100,26 @@ const dbMock = {
           heat_type: currentScenario.heatType,
           event_id: currentScenario.eventId,
         })),
+      };
+    }
+
+    if (
+      sqlContains(sql, 'SELECT score_id, boat_id, position, points') &&
+      sqlContains(sql, 'ORDER BY score_id ASC')
+    ) {
+      return {
+        all: jest.fn(
+          () =>
+            currentScenario.raceRows ?? [
+              {
+                score_id: 1,
+                boat_id: 'B1',
+                position: currentScenario.currentPosition,
+                points: currentScenario.currentPosition,
+                status: currentScenario.currentStatus,
+              },
+            ],
+        ),
       };
     }
 
@@ -236,29 +266,9 @@ function baseScenario(): Scenario {
     finishedRows: [],
     penaltyRowsBehind: [],
     ripplePenaltyRows: [],
+    raceRows: undefined,
     rankedBoats: [],
   };
-}
-
-function makePrng(seed: number) {
-  let state = seed >>> 0;
-  return () => {
-    state = (1664525 * state + 1013904223) >>> 0;
-    return state / 0x100000000;
-  };
-}
-
-function randInt(prng: () => number, min: number, max: number) {
-  return Math.floor(prng() * (max - min + 1)) + min;
-}
-
-function pick<T>(prng: () => number, values: T[]): T {
-  return values[randInt(prng, 0, values.length - 1)];
-}
-
-function normalizeStatusForTest(status: string): string {
-  const normalized = status.trim().toUpperCase();
-  return normalized === 'RAF' ? 'RET' : normalized;
 }
 
 describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
@@ -345,74 +355,6 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     expect(updateMain?.args.slice(0, 3)).toEqual([11, 11, 'RET']);
   });
 
-  it('applies A6.1 shift when shifting enabled and FINISHED -> DSQ', async () => {
-    currentScenario.currentPosition = 4;
-    currentScenario.currentStatus = 'FINISHED';
-
-    const handler = handlerRegistry.updateRaceResult;
-    await handler({}, 99, 500, 'B1', 4, true, 'DSQ');
-
-    const shiftCall = runCalls.find((call) =>
-      sqlContains(
-        call.sql,
-        "WHERE race_id = ? AND status = 'FINISHED' AND position > ?",
-      ),
-    );
-    expect(shiftCall).toBeDefined();
-    expect(shiftCall?.args).toEqual([500, 4]);
-  });
-
-  it('applies A6.1 shift when shifting enabled and FINISHED -> RET', async () => {
-    currentScenario.currentPosition = 2;
-    currentScenario.currentStatus = 'FINISHED';
-
-    const handler = handlerRegistry.updateRaceResult;
-    await handler({}, 99, 500, 'B1', 2, true, 'RET');
-
-    const shiftCall = runCalls.find((call) =>
-      sqlContains(
-        call.sql,
-        "WHERE race_id = ? AND status = 'FINISHED' AND position > ?",
-      ),
-    );
-    expect(shiftCall).toBeDefined();
-    expect(shiftCall?.args).toEqual([500, 2]);
-  });
-
-  it('applies A6.1 shift when shifting enabled and FINISHED -> DNE', async () => {
-    currentScenario.currentPosition = 3;
-    currentScenario.currentStatus = 'FINISHED';
-
-    const handler = handlerRegistry.updateRaceResult;
-    await handler({}, 99, 500, 'B1', 3, true, 'DNE');
-
-    const shiftCall = runCalls.find((call) =>
-      sqlContains(
-        call.sql,
-        "WHERE race_id = ? AND status = 'FINISHED' AND position > ?",
-      ),
-    );
-    expect(shiftCall).toBeDefined();
-    expect(shiftCall?.args).toEqual([500, 3]);
-  });
-
-  it('applies A6.1 shift when shifting enabled and FINISHED -> DGM', async () => {
-    currentScenario.currentPosition = 5;
-    currentScenario.currentStatus = 'FINISHED';
-
-    const handler = handlerRegistry.updateRaceResult;
-    await handler({}, 99, 500, 'B1', 5, true, 'DGM');
-
-    const shiftCall = runCalls.find((call) =>
-      sqlContains(
-        call.sql,
-        "WHERE race_id = ? AND status = 'FINISHED' AND position > ?",
-      ),
-    );
-    expect(shiftCall).toBeDefined();
-    expect(shiftCall?.args).toEqual([500, 5]);
-  });
-
   it('does not apply mandatory A6.1 shift when previous status was not FINISHED', async () => {
     currentScenario.currentPosition = 3;
     currentScenario.currentStatus = 'DNS';
@@ -443,60 +385,6 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
       ),
     );
     expect(shiftCall).toBeUndefined();
-  });
-
-  it('applies shift_positions move-up branch when FINISHED boat improves place', async () => {
-    currentScenario.currentPosition = 6;
-    currentScenario.currentStatus = 'FINISHED';
-
-    const handler = handlerRegistry.updateRaceResult;
-    await handler({}, 99, 500, 'B1', 2, true, 'FINISHED');
-
-    const shiftCall = runCalls.find((call) =>
-      sqlContains(call.sql, 'position >= ? AND position < ? AND boat_id != ?'),
-    );
-    expect(shiftCall).toBeDefined();
-    expect(shiftCall?.args).toEqual([500, 2, 6, 'B1']);
-  });
-
-  it('applies shift_positions move-down branch when FINISHED boat drops place', async () => {
-    currentScenario.currentPosition = 2;
-    currentScenario.currentStatus = 'FINISHED';
-
-    const handler = handlerRegistry.updateRaceResult;
-    await handler({}, 99, 500, 'B1', 7, true, 'FINISHED');
-
-    const shiftCall = runCalls.find((call) =>
-      sqlContains(call.sql, 'position <= ? AND position > ? AND boat_id != ?'),
-    );
-    expect(shiftCall).toBeDefined();
-    expect(shiftCall?.args).toEqual([500, 7, 2, 'B1']);
-  });
-
-  it('shifts position-keeping penalty boats (ZFP/SCP/T1) on the manual ripple (LB-7)', async () => {
-    currentScenario.currentPosition = 6;
-    currentScenario.currentStatus = 'FINISHED';
-    currentScenario.ripplePenaltyRows = [
-      { score_id: 10, position: 4, status: 'ZFP' },
-    ];
-
-    const handler = handlerRegistry.updateRaceResult;
-    await handler({}, 99, 500, 'B1', 2, true, 'FINISHED');
-
-    // The ZFP boat at place 4 (between the moved-from 6 and moved-to 2) must
-    // shift down one place to 5, with its points recomputed as a scoring penalty
-    // rather than the flat position=points shift used for FINISHED boats.
-    const penaltyShift = runCalls.find(
-      (call) =>
-        sqlContains(
-          call.sql,
-          'UPDATE Scores SET position = ?, points = ? WHERE score_id = ?',
-        ) &&
-        call.args[0] === 5 &&
-        call.args[2] === 10,
-    );
-    expect(penaltyShift).toBeDefined();
-    expect(penaltyShift?.args[1]).toBeGreaterThan(0);
   });
 
   it('keeps RDG position/points as provided without penalty normalization', async () => {
@@ -556,228 +444,10 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     );
   });
 
-  it('property-based: A6.1 displacement happens iff FINISHED -> (DSQ|RET|DNE|DGM)', async () => {
-    const handler = handlerRegistry.updateRaceResult;
-    const prng = makePrng(20260510);
-
-    const possiblePreviousStatuses = [
-      'FINISHED',
-      'DNS',
-      'DNF',
-      'RET',
-      'DSQ',
-      'DNE',
-      'DGM',
-      'RDG1',
-      'SCP',
-      'ZFP',
-      'T1',
-      'DPI',
-      'OCS',
-      'UFD',
-      'BFD',
-      'DNC',
-      'NSC',
-      'WTH',
-    ];
-
-    const possibleNewStatuses = [
-      'FINISHED',
-      'DSQ',
-      'RET',
-      'DNE',
-      'DGM',
-      'RAF',
-      'DNS',
-      'DNF',
-      'SCP',
-      'ZFP',
-      'T1',
-      'DPI',
-      'RDG1',
-      'RDG2',
-      'RDG3',
-      'OCS',
-      'UFD',
-      'BFD',
-      'DNC',
-      'NSC',
-      'WTH',
-    ];
-
-    const displacementStatuses = new Set(['DSQ', 'RET', 'DNE', 'DGM']);
-
-    for (let i = 0; i < 300; i += 1) {
-      runCalls.length = 0;
-      currentScenario.currentPosition = randInt(prng, 1, 20);
-      currentScenario.currentStatus = pick(prng, possiblePreviousStatuses);
-
-      const newStatus = pick(prng, possibleNewStatuses);
-      const newPosition = randInt(prng, 1, 20);
-
-      await handler({}, 99, 500, 'B1', newPosition, true, newStatus);
-
-      const hasMandatoryShift = runCalls.some((call) =>
-        sqlContains(
-          call.sql,
-          "WHERE race_id = ? AND status = 'FINISHED' AND position > ?",
-        ),
-      );
-
-      // RRS A6.1: a boat that HAD finished — including a position-keeping
-      // penalty (ZFP/SCP/T1), which holds a real finishing place — promotes the
-      // boats behind it when later DSQ'd/RET/DNE/DGM.
-      const hadFinished =
-        currentScenario.currentStatus === 'FINISHED' ||
-        ['SCP', 'ZFP', 'T1'].includes(currentScenario.currentStatus);
-      const expectedShift =
-        hadFinished &&
-        displacementStatuses.has(normalizeStatusForTest(newStatus));
-
-      expect(hasMandatoryShift).toBe(expectedShift);
-    }
-  });
-
-  it('property-based: A6.1 mandatory shift SQL uses exact previous currentPosition', async () => {
-    const handler = handlerRegistry.updateRaceResult;
-    const prng = makePrng(20260511);
-
-    const possiblePreviousStatuses = [
-      'FINISHED',
-      'DNS',
-      'DNF',
-      'RET',
-      'DSQ',
-      'DNE',
-      'DGM',
-      'RDG1',
-      'SCP',
-      'ZFP',
-      'T1',
-      'DPI',
-      'OCS',
-      'UFD',
-      'BFD',
-      'DNC',
-      'NSC',
-      'WTH',
-    ];
-
-    const possibleNewStatuses = [
-      'FINISHED',
-      'DSQ',
-      'RET',
-      'DNE',
-      'DGM',
-      'RAF',
-      'DNS',
-      'DNF',
-      'SCP',
-      'ZFP',
-      'T1',
-      'DPI',
-      'RDG1',
-      'RDG2',
-      'RDG3',
-      'OCS',
-      'UFD',
-      'BFD',
-      'DNC',
-      'NSC',
-      'WTH',
-    ];
-
-    const displacementStatuses = new Set(['DSQ', 'RET', 'DNE', 'DGM']);
-
-    for (let i = 0; i < 300; i += 1) {
-      runCalls.length = 0;
-      currentScenario.currentPosition = randInt(prng, 1, 20);
-      currentScenario.currentStatus = pick(prng, possiblePreviousStatuses);
-
-      const previousPosition = currentScenario.currentPosition;
-      const previousStatus = currentScenario.currentStatus;
-      const newStatus = pick(prng, possibleNewStatuses);
-      const newPosition = randInt(prng, 1, 20);
-
-      await handler({}, 99, 500, 'B1', newPosition, true, newStatus);
-
-      const shiftCalls = runCalls.filter((call) =>
-        sqlContains(
-          call.sql,
-          "WHERE race_id = ? AND status = 'FINISHED' AND position > ?",
-        ),
-      );
-
-      const hadFinished =
-        previousStatus === 'FINISHED' ||
-        ['SCP', 'ZFP', 'T1'].includes(previousStatus);
-      const expectedShift =
-        hadFinished &&
-        displacementStatuses.has(normalizeStatusForTest(newStatus));
-
-      if (expectedShift) {
-        expect(shiftCalls).toHaveLength(1);
-        expect(shiftCalls[0].args).toEqual([500, previousPosition]);
-      } else {
-        expect(shiftCalls).toHaveLength(0);
-      }
-    }
-  });
-
-  it('applies A7 tie points by averaging tied places', async () => {
-    currentScenario.currentPosition = 1;
-    currentScenario.currentStatus = 'FINISHED';
-    currentScenario.finishedRows = [
-      { score_id: 11, position: 1, status: 'FINISHED' },
-      { score_id: 12, position: 1, status: 'FINISHED' },
-      { score_id: 13, position: 3, status: 'FINISHED' },
-    ];
-
-    const handler = handlerRegistry.updateRaceResult;
-    await handler({}, 99, 500, 'B1', 1, true, 'FINISHED');
-
-    const tieUpdateCalls = runCalls.filter((call) =>
-      sqlContains(
-        call.sql,
-        'UPDATE Scores SET position = ?, points = ? WHERE score_id = ?',
-      ),
-    );
-
-    expect(tieUpdateCalls).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ args: [1, 1.5, 11] }),
-        expect.objectContaining({ args: [1, 1.5, 12] }),
-        expect.objectContaining({ args: [3, 3, 13] }),
-      ]),
-    );
-  });
-
   // RULE-M16 / RRS A6.1: "each boat with a worse finishing place shall be moved
   // up one place." That is mandatory, so it must NOT depend on the leaderboard's
   // "Shift other boats" toggle. This previously asserted the opposite — that a
   // shift-off DSQ left every boat behind it one place too low.
-  it('with shifting OFF, a DSQ still promotes the boats behind it (RRS A6.1)', async () => {
-    currentScenario.currentPosition = 1;
-    currentScenario.currentStatus = 'FINISHED';
-    currentScenario.finishedRows = [
-      { score_id: 11, position: 1, status: 'FINISHED' },
-      { score_id: 12, position: 1, status: 'FINISHED' },
-      { score_id: 13, position: 3, status: 'FINISHED' },
-    ];
-
-    const handler = handlerRegistry.updateRaceResult;
-    await handler({}, 99, 500, 'B1', 4, false, 'DSQ');
-
-    const promotionCalls = runCalls.filter((call) =>
-      sqlContains(
-        call.sql,
-        "WHERE race_id = ? AND status = 'FINISHED' AND position > ?",
-      ),
-    );
-    expect(promotionCalls).toHaveLength(1);
-    expect(promotionCalls[0].args).toEqual([500, 1]);
-  });
-
   it('with shifting OFF, a plain place change still edits only the named boat', async () => {
     // The toggle governs the manual place-move ripple, which is a data-entry
     // convenience rather than a rule: moving one finisher must not renumber the
@@ -806,33 +476,6 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
         ),
     );
     expect(cascadeCalls).toHaveLength(0);
-  });
-
-  it('moves a ZFP boat up and recomputes its points when a finisher ahead is DSQd (RRS A6.1/44.3c)', async () => {
-    // 10-boat heat, largest heat 10. Boat B finished 2nd is DSQd with shift on.
-    // A ZFP boat that finished 5th now finishes 4th: its points must be
-    // recomputed from place 4 as 4 + 20% of the DNF score (11) = 4 + 2 = 6,
-    // and it must not collide with the shifted 6th-place finisher.
-    currentScenario.maxBoats = 10;
-    currentScenario.currentPosition = 2;
-    currentScenario.currentStatus = 'FINISHED';
-    currentScenario.penaltyRowsBehind = [
-      { score_id: 55, position: 5, status: 'ZFP' },
-    ];
-
-    const handler = handlerRegistry.updateRaceResult;
-    await handler({}, 99, 500, 'B1', 3, true, 'DSQ');
-
-    const penaltyShift = runCalls.find(
-      (call) =>
-        sqlContains(
-          call.sql,
-          'UPDATE Scores SET position = ?, points = ? WHERE score_id = ?',
-        ) && call.args[2] === 55,
-    );
-    expect(penaltyShift).toBeDefined();
-    // New place 4, points 4 + roundHalfUp(0.2 * 11) = 4 + 2 = 6.
-    expect(penaltyShift?.args).toEqual([4, 6, 55]);
   });
 
   it('grants RDG without re-ranking other boats even with shifting ON (RRS A6.2)', async () => {
@@ -963,6 +606,23 @@ describe('SHRS 3.1.5 assignment-snapshot invalidation (RULE-M14)', () => {
       { boat_id: 'B1', position: 1, status: 'FINISHED' },
       { boat_id: 'B2', position: 2, status: 'FINISHED' },
     ];
+    currentScenario.raceRows = [
+      {
+        score_id: 1,
+        boat_id: 'B1',
+        position: 1,
+        points: 1,
+        status: 'FINISHED',
+      },
+      {
+        score_id: 2,
+        boat_id: 'B2',
+        position: 2,
+        points: 2,
+        status: 'FINISHED',
+      },
+    ];
+    currentScenario.currentPosition = 2;
 
     const handler = handlerRegistry.updateRaceResult;
     await handler({}, 99, 500, 'B2', 2, false, 'DSQ');

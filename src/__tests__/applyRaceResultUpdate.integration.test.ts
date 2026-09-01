@@ -338,6 +338,115 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
     });
   });
 
+  describe('RRS 44.3(c) / T1 — exact penalty points and the cap', () => {
+    // Ported from the SQL-asserting updateRaceResult suite, which checked the
+    // arguments of an UPDATE statement that no longer exists.
+    it('scores ZFP as place + 20% of the DNF score', () => {
+      // largest heat 10 => DNF score 11 => 20% = 2 places => 3 + 2 = 5
+      db = seed(finishers(3), 10);
+      applyRaceResultUpdate(EVENT_ID, RACE_ID, 3, 3, false, 'ZFP');
+      expect(readRace(db)[3]).toEqual([3, 5, 'ZFP']);
+    });
+
+    it('caps SCP at the DNF score', () => {
+      // largest heat 5 => 20% = 1 place => 5 + 1 = 6, which is the cap.
+      db = seed(finishers(5), 5);
+      applyRaceResultUpdate(EVENT_ID, RACE_ID, 5, 5, false, 'SCP');
+      expect(readRace(db)[5]).toEqual([5, 6, 'SCP']);
+    });
+
+    it('applies no artificial minimum in a small heat', () => {
+      // largest heat 5 => 20% = 1 place (not floored to 2) => 2 + 1 = 3
+      db = seed(finishers(5), 5);
+      applyRaceResultUpdate(EVENT_ID, RACE_ID, 2, 2, false, 'ZFP');
+      expect(readRace(db)[2]).toEqual([2, 3, 'ZFP']);
+    });
+
+    it('scores T1 as place + 30% of the DNF score', () => {
+      // largest heat 10 => 30% = 3 places => 4 + 3 = 7
+      db = seed(finishers(5), 10);
+      applyRaceResultUpdate(EVENT_ID, RACE_ID, 4, 4, false, 'T1');
+      expect(readRace(db)[4]).toEqual([4, 7, 'T1']);
+    });
+  });
+
+  describe('status normalization and validation', () => {
+    it('normalizes RAF to RET', () => {
+      db = seed(finishers(3), 10);
+      applyRaceResultUpdate(EVENT_ID, RACE_ID, 2, 2, false, 'RAF');
+      expect(readRace(db)[2]).toEqual([11, 11, 'RET']);
+    });
+
+    it('rejects an unsupported status', () => {
+      db = seed(finishers(3));
+      expect(() =>
+        applyRaceResultUpdate(EVENT_ID, RACE_ID, 1, 3, false, 'FOO'),
+      ).toThrow('Unsupported score status: FOO');
+    });
+
+    it.each([0, Number.NaN])(
+      'rejects %p as a finishing position instead of writing it (BK-6)',
+      (position) => {
+        db = seed(finishers(3));
+        expect(() =>
+          applyRaceResultUpdate(
+            EVENT_ID,
+            RACE_ID,
+            1,
+            position,
+            false,
+            'FINISHED',
+          ),
+        ).toThrow(/must be a positive integer/);
+      },
+    );
+
+    it.each([
+      ['RDG2', 0],
+      ['DPI', -1],
+    ])(
+      'rejects %s with a non-positive value (BK-6 / CMP C-23)',
+      (status, value) => {
+        db = seed(finishers(3));
+        expect(() =>
+          applyRaceResultUpdate(EVENT_ID, RACE_ID, 1, value, false, status),
+        ).toThrow(/must be a positive number/);
+      },
+    );
+
+    it('leaves the race untouched when an edit is rejected', () => {
+      db = seed(finishers(3));
+      const before = readRace(db);
+      expect(() =>
+        applyRaceResultUpdate(EVENT_ID, RACE_ID, 1, 0, false, 'FINISHED'),
+      ).toThrow();
+      expect(readRace(db)).toEqual(before);
+    });
+  });
+
+  describe('RRS A6.1 — displacement happens for exactly four statuses', () => {
+    // Replaces the property-based test that asserted on generated SQL.
+    const DISPLACING = ['DSQ', 'RET', 'DNE', 'DGM'];
+    const NON_DISPLACING = ['DNF', 'DNS', 'OCS', 'BFD', 'UFD', 'DNC', 'NSC'];
+
+    it.each(DISPLACING)('%s promotes the boat behind', (status) => {
+      db = seed(finishers(3), 10);
+      applyRaceResultUpdate(EVENT_ID, RACE_ID, 1, 1, false, status);
+      expect(readRace(db)[2][0]).toBe(1);
+      expect(readRace(db)[3][0]).toBe(2);
+    });
+
+    it.each(NON_DISPLACING)(
+      '%s leaves the boats behind where they are',
+      (status) => {
+        db = seed(finishers(3), 10);
+        applyRaceResultUpdate(EVENT_ID, RACE_ID, 1, 1, false, status);
+        expect(readRace(db)[2][0]).toBe(2);
+        expect(readRace(db)[3][0]).toBe(3);
+      },
+    );
+  });
+
   it('rejects an edit for a boat with no result in the race', () => {
     db = seed(finishers(2));
     expect(() =>
