@@ -116,7 +116,9 @@ into focused modules under `src/main/functions/`. Map of that directory:
 - `raceScoring.ts` — every write to `Scores` for a single race:
   `applyRaceResultUpdate` (RRS A6.1/A6.2, SHRS 5.2), `applyRaceTieScoring`
   (RRS A7), `getMaxHeatSize`, `seedRaceWithDefaultDnsScores`,
-  `ensureCompleteRaceScoresForEvent`, `recomputeLeaderboardsForRace`.
+  `ensureCompleteRaceScoresForEvent` (DNS repair +
+  `ensureDncScoresForMissedQualifyingRaces`, RRS A5.1),
+  `recomputeLeaderboardsForRace`.
 - `raceSeeding.ts` — reading a race's results back in SHRS 5.3 recording order
   for the next round's heat movement (`getSeedingResultsFromLastRace`,
   `getRankedBoatsInHeatForRace`, `getOddEvenMovementAdvisory`).
@@ -229,6 +231,17 @@ Scoring (`calculateBoatScores.ts`, `scoreStatus.ts`)
 - RRS A7 — **Race ties**: tied places share the summed points equally. Enterable
   from the scoring screen via the per-row tie ("=") control, which submits a
   shared place for `applyRaceTieScoring` to average.
+- RRS A5.1 / 5.3 — **Every entered boat is scored for every race in the
+  series.** A boat who sailed in no heat for a round (added mid-event via
+  `assignBoatToHeat`, or entered and never started) is scored **DNC** at
+  (largest heat + 1), not left without a row
+  (`ensureDncScoresForMissedQualifyingRaces` in `raceScoring.ts`, run as part of
+  `ensureCompleteRaceScoresForEvent`). Qualifying only: in the Final Series a
+  boat races one fleet (4.1) and fleets may sail different numbers of races
+  (4.5), so a Gold boat must not collect DNCs for Silver's races. Without this,
+  a short score vector makes `calculateBoatScores` (capped) and
+  `computeAdjustedFleetTotals` (uncapped) disagree about the same boat, and the
+  uncapped one discards her only score and ranks her **first into Gold**.
 - 5.2 (changes RRS A5.2) — A boat scored DNS/DNF/DSQ/etc. gets **(boats in the
   largest heat) + 1** points — NOT boats entered in the series.
 - 5.3 — Recording order: finishers by place, then
@@ -240,9 +253,14 @@ Scoring (`calculateBoatScores.ts`, `scoreStatus.ts`)
   Non-excludable: `DNE`, `DGM` (RRS 90.3(b)). Configurable per event before the
   first warning signal (`shared/discardProfile.ts`); an explicitly **empty**
   threshold list means **never discard**. The count is series-wide — fleet-wide
-  in the Final Series, since 5.1 scores each fleet separately — and is capped
-  per boat by `capExcludeCountForBoat` so a boat always keeps one score. Use the
-  same capped count for a boat's total AND her A8.1 tie-break vector.
+  in the Final Series, since 5.1 scores each fleet separately.
+  `capExcludeCountForBoat` additionally caps it per boat so a boat always keeps
+  one score. **That cap is an app-level guard, not rule text** — 5.4 says
+  "excluding her worst score" with no exception for a boat who has only one.
+  It is a backstop for a boat whose score vector is shorter than the series,
+  which the DNC backfill below should now prevent; if it ever fires, the missing
+  scores are the bug. Use the same capped count for a boat's total AND her A8.1
+  tie-break vector.
 - 5.5 — Overall event score = Qualifying + Final series scores. Lowest in Gold
   wins; fleets rank `Gold > Silver > Bronze > Copper > Fleet 5 > …` regardless
   of raw points (`fleetRank`).
