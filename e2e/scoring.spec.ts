@@ -6,11 +6,12 @@ import {
 } from '@playwright/test';
 import {
   launchApp,
+  closeApp,
   createEvent,
   openEvent,
   addSailor,
   createHeats,
-  dismissToasts,
+  leaveScoring,
   uniqueName,
 } from './helpers';
 
@@ -23,19 +24,10 @@ let app: ElectronApplication;
 let window: Page;
 
 async function enterFreshScoring(): Promise<void> {
-  // Clear lingering toasts first — bottom-right toasts can overlay the heat
-  // cards / Start Scoring button and intercept the clicks below.
-  await dismissToasts(window);
-
-  const back = window.getByRole('button', { name: /Back to Heats/i });
-  if (await back.count()) {
-    await back.first().click();
-    // Wait until the scoring view has fully torn down before re-selecting, so
-    // `Heat A1` resolves to the heat card (not the scoring panel title).
-    await expect(
-      window.getByRole('button', { name: /Submit Scores/i }),
-    ).toHaveCount(0);
-  }
+  // leaveScoring clears lingering toasts first — bottom-right toasts can
+  // overlay the heat cards / Start Scoring button and intercept the clicks
+  // below — and discards any finish order left over from the previous test.
+  await leaveScoring(window);
 
   await window
     .getByText(/Heat A1/i)
@@ -65,7 +57,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await app?.close();
+  await closeApp(app);
 });
 
 test('submit is guarded until every boat is scored, with live progress', async () => {

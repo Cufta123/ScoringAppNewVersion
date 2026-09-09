@@ -1,38 +1,20 @@
-import path from 'path';
 import {
   test,
   expect,
-  _electron as electron,
   type ElectronApplication,
   type Page,
 } from '@playwright/test';
-
-// Path to the built main bundle. Production mode makes resolveHtmlPath load the
-// built renderer from disk (file://) instead of the dev server.
-const MAIN_ENTRY = path.join(
-  __dirname,
-  '..',
-  'release',
-  'app',
-  'dist',
-  'main',
-  'main.js',
-);
+import { launchApp, closeApp } from './helpers';
 
 let app: ElectronApplication;
 let window: Page;
 
 test.beforeAll(async () => {
-  app = await electron.launch({
-    args: [MAIN_ENTRY],
-    env: { ...process.env, NODE_ENV: 'production' },
-  });
-  window = await app.firstWindow();
-  await window.waitForLoadState('domcontentloaded');
+  ({ app, window } = await launchApp());
 });
 
 test.afterAll(async () => {
-  await app?.close();
+  await closeApp(app);
 });
 
 test('main window opens', async () => {

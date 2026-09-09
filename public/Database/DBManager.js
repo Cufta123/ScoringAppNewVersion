@@ -4,10 +4,19 @@ const path = require('path');
 const fs = require('fs');
 const { app } = require('electron');
 
-// Define the path for the database file
-const dbPath = app.isPackaged
-  ? path.join(app.getPath('userData'), 'scoring_app.db')
-  : path.join(__dirname, 'public', 'Database', 'data', 'scoring_app.db');
+// Define the path for the database file.
+//
+// SCORING_APP_DB_PATH overrides both locations. It exists for the end-to-end
+// tests, which drive the real app and would otherwise write into the developer
+// database: every run left its events, sailors and races behind, so runs grew
+// slower and later ones tripped over identity rules (a sail number registered
+// by an earlier run) that have nothing to do with the test at hand. Pointing
+// each run at a throwaway file makes it start from an empty database.
+const dbPath =
+  process.env.SCORING_APP_DB_PATH ||
+  (app.isPackaged
+    ? path.join(app.getPath('userData'), 'scoring_app.db')
+    : path.join(__dirname, 'public', 'Database', 'data', 'scoring_app.db'));
 
 // Define the directory that will contain the database file
 const dataDir = path.dirname(dbPath);

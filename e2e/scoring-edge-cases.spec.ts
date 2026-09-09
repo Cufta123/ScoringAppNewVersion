@@ -6,11 +6,12 @@ import {
 } from '@playwright/test';
 import {
   launchApp,
+  closeApp,
   createEvent,
   openEvent,
   addSailor,
   createHeats,
-  dismissToasts,
+  leaveScoring,
   uniqueName,
 } from './helpers';
 
@@ -32,15 +33,8 @@ let app: ElectronApplication;
 let window: Page;
 
 async function enterFreshScoring(): Promise<void> {
-  await dismissToasts(window);
-
-  const back = window.getByRole('button', { name: /Back to Heats/i });
-  if (await back.count()) {
-    await back.first().click();
-    await expect(
-      window.getByRole('button', { name: /Submit Scores/i }),
-    ).toHaveCount(0);
-  }
+  // Discards any finish order the previous test left entered but unsubmitted.
+  await leaveScoring(window);
 
   await window
     .getByText(/Heat A1/i)
@@ -70,7 +64,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await app?.close();
+  await closeApp(app);
 });
 
 test('partial scoring is blocked and names the boats still missing', async () => {
@@ -104,11 +98,22 @@ test('a penalty can be added, swapped, then cleared back to a finisher', async (
   await window.getByLabel('Penalty for sail 101').selectOption('RET');
   await expect(item.locator('.finish-place')).toContainText('RET');
 
-  // Clear the penalty (None). The boat stays in the order, now as a ranked
-  // finisher (place 1.) rather than being removed.
+  // Clear the penalty (None). The boat was in the finish order ONLY because the
+  // penalty put it there, so clearing it takes the boat back out rather than
+  // leaving an orphan finisher the scorer never placed (c55bc99). The heat
+  // returns to nothing scored.
   await window.getByLabel('Penalty for sail 101').selectOption('');
-  await expect(item.locator('.finish-place')).toContainText('1.');
-  await expect(item.locator('.finish-place')).not.toContainText('RET');
+  await expect(item).toHaveCount(0);
+  await expect(window.getByText(/0 of 3 boats scored/i)).toBeVisible();
+
+  // A boat the scorer DID place keeps its place when a penalty is cleared.
+  await window.getByRole('row', { name: /102/ }).click();
+  const placed = window.locator('.finish-list li', { hasText: 'Sail #102' });
+  await expect(placed.locator('.finish-place')).toContainText('1.');
+  await window.getByLabel('Penalty for sail 102').selectOption('RET');
+  await expect(placed.locator('.finish-place')).toContainText('RET');
+  await window.getByLabel('Penalty for sail 102').selectOption('');
+  await expect(placed.locator('.finish-place')).toContainText('1.');
   await expect(window.getByText(/1 of 3 boats scored/i)).toBeVisible();
 });
 

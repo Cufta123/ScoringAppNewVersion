@@ -86,6 +86,8 @@ const config: Config = {
     '**/src/__tests__/validation.test.ts',
     '**/src/__tests__/HeatRaceHandler.createInitialHeatsAtomic.test.ts',
     '**/src/__tests__/HeatRaceHandler.transactionBoundaries.test.ts',
+    '**/src/__tests__/euroIom2025.published.test.ts',
+    '**/src/__tests__/euroIom2025.startingHeats.test.ts',
   ],
 };
 
