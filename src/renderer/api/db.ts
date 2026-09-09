@@ -110,6 +110,10 @@ export interface HeatRaceDB {
   insertHeat(...args: unknown[]): Promise<InsertResult>;
   insertHeatBoat(...args: unknown[]): Promise<unknown>;
   createInitialHeatsAtomic(eventId: number, numHeats: number): Promise<unknown>;
+  recreateInitialHeatsAtomic(
+    eventId: number,
+    numHeats: number,
+  ): Promise<unknown>;
   insertRace(...args: unknown[]): Promise<InsertResult>;
   insertScore(...args: unknown[]): Promise<InsertResult>;
   updateScore(...args: unknown[]): Promise<unknown>;

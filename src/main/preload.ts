@@ -39,6 +39,7 @@ const SQLITE_CHANNELS = {
     'deleteHeatsByEvent',
     'insertHeatBoat',
     'createInitialHeatsAtomic',
+    'recreateInitialHeatsAtomic',
     'readBoatsByHeat',
     'readAllRaces',
     'insertRace',

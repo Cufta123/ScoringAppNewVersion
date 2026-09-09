@@ -390,9 +390,31 @@ function HeatComponent({
     if (!confirmed) return;
 
     try {
-      await heatRaceDB.deleteHeatsByEvent(event.event_id);
-      await handleCreateHeats();
+      // One atomic call, not delete-then-create. Splitting it put the
+      // destructive half first, so anything that made the create fail — a
+      // duplicate sail number added since, an entry list that no longer fits
+      // the chosen heat count — left the event with NO heats, while
+      // handleCreateHeats swallowed its own validation error and reported only
+      // "Cannot create heats: …", which reads as though nothing happened.
+      await heatRaceDB.recreateInitialHeatsAtomic(event.event_id, numHeats);
+      reportInfo('Heats recreated successfully!', 'Success');
+      setHeatsCreated(true);
+      handleDisplayHeats();
     } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      // The main process authors plain-language validation messages for these;
+      // surface them verbatim so the user knows what to change. The heats they
+      // already had are untouched either way.
+      if (
+        message.includes('boats per heat') ||
+        message.includes('No boats are registered') ||
+        message.includes('Number of heats must be') ||
+        message.includes('duplicate sail numbers') ||
+        message.includes('races have already been scored')
+      ) {
+        reportWarning(message, 'Heats not changed');
+        return;
+      }
       reportError('Could not recreate heats.', error);
     }
   };

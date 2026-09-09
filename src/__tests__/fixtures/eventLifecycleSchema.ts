@@ -134,3 +134,40 @@ export const PER_EVENT_TABLES = [
   'FinalLeaderboard',
   'RaceAssignmentSnapshots',
 ] as const;
+
+/**
+ * A stand-in for the DBManager `db` export, backed by a real node:sqlite
+ * handle held in `holder.current`.
+ *
+ * `transaction` mirrors better-sqlite3: the body runs inside a real
+ * transaction so a constraint failure rolls it back, and a nested call becomes
+ * a SAVEPOINT rather than a second BEGIN (which SQLite rejects). Handlers that
+ * wrap a helper which itself opens a transaction depend on that nesting.
+ */
+export function createSqliteDbMock(holder: { current: any }) {
+  let depth = 0;
+  return {
+    prepare: (...args: any[]) => holder.current.prepare(...args),
+    exec: (...args: any[]) => holder.current.exec(...args),
+    pragma: (source: string) => holder.current.exec(`PRAGMA ${source}`),
+    transaction:
+      (fn: (...args: any[]) => any) =>
+      (...args: any[]) => {
+        const db = holder.current;
+        const savepoint = `sp_${depth}`;
+        db.exec(depth === 0 ? 'BEGIN' : `SAVEPOINT ${savepoint}`);
+        depth += 1;
+        try {
+          const result = fn(...args);
+          depth -= 1;
+          db.exec(depth === 0 ? 'COMMIT' : `RELEASE ${savepoint}`);
+          return result;
+        } catch (error) {
+          depth -= 1;
+          db.exec(depth === 0 ? 'ROLLBACK' : `ROLLBACK TO ${savepoint}`);
+          if (depth > 0) db.exec(`RELEASE ${savepoint}`);
+          throw error;
+        }
+      },
+  };
+}

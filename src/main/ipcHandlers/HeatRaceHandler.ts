@@ -180,102 +180,99 @@ handle('insertHeatBoat', async (event, heat_id, boat_id) => {
 // the SHRS 3.1 serpentine — all in one transaction so a failure can never
 // leave half-created heats behind (the old renderer-side per-row IPC loop
 // could die at the 21st boat of a heat with no rollback).
-handle('createInitialHeatsAtomic', async (_event, event_id, num_heats) => {
-  try {
-    const numHeats = Number(num_heats);
-    if (!Number.isInteger(numHeats) || numHeats < 1 || numHeats > 26) {
-      throw new Error('Number of heats must be between 1 and 26.');
-    }
-
-    const existingHeats = db
-      .prepare('SELECT COUNT(*) AS count FROM Heats WHERE event_id = ?')
-      .get(event_id) as { count: number };
-    if (existingHeats.count > 0) {
-      throw new Error('Heats already exist for this event.');
-    }
-
-    const boats = db
-      .prepare(
-        `SELECT b.boat_id, b.sail_number, b.country
-         FROM Boats b
-         JOIN Boat_Event be ON b.boat_id = be.boat_id
-         WHERE be.event_id = ?`,
-      )
-      .all(event_id) as Array<{
-      boat_id: number;
-      sail_number: string | number | null;
-      country: string | null;
-    }>;
-
-    if (boats.length === 0) {
-      throw new Error(
-        'No boats are registered for this event yet — add entries before creating heats.',
-      );
-    }
-
-    // BK-4: two boats sharing a sail number (or an empty sail number) collide
-    // when keying a boat-by-sail map, which would silently drop one boat from
-    // the heat assignment. Fail loudly instead of assigning the wrong boats.
-    const duplicateSailNumbers = detectDuplicateSailNumbers(boats);
-    if (duplicateSailNumbers.length > 0) {
-      const details = duplicateSailNumbers
-        .map(({ sail, boatIds }) =>
-          sail === ''
-            ? `empty sail number (boats ${boatIds.join(', ')})`
-            : `sail number "${sail}" (boats ${boatIds.join(', ')})`,
-        )
-        .join('; ');
-      throw new Error(
-        `Cannot create heats: duplicate sail numbers — ${details}.`,
-      );
-    }
-
-    if (Math.ceil(boats.length / numHeats) > SHRS_MAX_BOATS_PER_HEAT) {
-      const minHeats = Math.ceil(boats.length / SHRS_MAX_BOATS_PER_HEAT);
-      throw new Error(
-        `${boats.length} boats in ${numHeats} heat(s) would exceed ` +
-          `${SHRS_MAX_BOATS_PER_HEAT} boats per heat (SHRS). ` +
-          `Use at least ${minHeats} heats.`,
-      );
-    }
-
-    boats.sort(compareByCountryThenSail);
-    const heatIndices = assignBoatsToInitialHeatsSerpentine(
-      boats.length,
-      numHeats,
-    );
-
-    const insertHeatStmt = db.prepare(
-      'INSERT INTO Heats (event_id, heat_name, heat_type) VALUES (?, ?, ?)',
-    );
-    const insertHeatBoatStmt = db.prepare(
-      'INSERT INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)',
-    );
-
-    const createHeats = db.transaction(() => {
-      const heatIds: number[] = [];
-      for (let i = 0; i < numHeats; i += 1) {
-        const heatName = `Heat ${String.fromCharCode(65 + i)}1`;
-        const inserted = insertHeatStmt.run(event_id, heatName, 'Qualifying');
-        heatIds.push(Number(inserted.lastInsertRowid));
-      }
-      boats.forEach((boat, i) => {
-        insertHeatBoatStmt.run(heatIds[heatIndices[i]], boat.boat_id);
-      });
-      return { createdHeats: numHeats, assignedBoats: boats.length };
-    });
-
-    const result = createHeats();
-    return { success: true, ...result };
-  } catch (error) {
-    console.error('Error creating initial heats:', (error as Error).message);
-    throw error;
+/**
+ * Validate an initial-heat split and work out where every boat goes, WITHOUT
+ * writing anything. Separated from the insert so "recreate" can prove the new
+ * split is buildable before it throws the current heats away.
+ */
+function planInitialHeats(event_id: any, num_heats: any) {
+  const numHeats = Number(num_heats);
+  if (!Number.isInteger(numHeats) || numHeats < 1 || numHeats > 26) {
+    throw new Error('Number of heats must be between 1 and 26.');
   }
-});
-handle('deleteHeatsByEvent', async (event, event_id) => {
-  // Server-side guard: the renderer blocks "Recreate Heats" once a race has
-  // happened, but that state can be stale — never rely on it for a delete
-  // this destructive.
+
+  const boats = db
+    .prepare(
+      `SELECT b.boat_id, b.sail_number, b.country
+       FROM Boats b
+       JOIN Boat_Event be ON b.boat_id = be.boat_id
+       WHERE be.event_id = ?`,
+    )
+    .all(event_id) as Array<{
+    boat_id: number;
+    sail_number: string | number | null;
+    country: string | null;
+  }>;
+
+  if (boats.length === 0) {
+    throw new Error(
+      'No boats are registered for this event yet — add entries before creating heats.',
+    );
+  }
+
+  // BK-4: two boats sharing a sail number (or an empty sail number) collide
+  // when keying a boat-by-sail map, which would silently drop one boat from
+  // the heat assignment. Fail loudly instead of assigning the wrong boats.
+  const duplicateSailNumbers = detectDuplicateSailNumbers(boats);
+  if (duplicateSailNumbers.length > 0) {
+    const details = duplicateSailNumbers
+      .map(({ sail, boatIds }) =>
+        sail === ''
+          ? `empty sail number (boats ${boatIds.join(', ')})`
+          : `sail number "${sail}" (boats ${boatIds.join(', ')})`,
+      )
+      .join('; ');
+    throw new Error(
+      `Cannot create heats: duplicate sail numbers — ${details}.`,
+    );
+  }
+
+  if (Math.ceil(boats.length / numHeats) > SHRS_MAX_BOATS_PER_HEAT) {
+    const minHeats = Math.ceil(boats.length / SHRS_MAX_BOATS_PER_HEAT);
+    throw new Error(
+      `${boats.length} boats in ${numHeats} heat(s) would exceed ` +
+        `${SHRS_MAX_BOATS_PER_HEAT} boats per heat (SHRS). ` +
+        `Use at least ${minHeats} heats.`,
+    );
+  }
+
+  boats.sort(compareByCountryThenSail);
+  const heatIndices = assignBoatsToInitialHeatsSerpentine(
+    boats.length,
+    numHeats,
+  );
+  return { numHeats, boats, heatIndices };
+}
+
+/** Write a plan from `planInitialHeats`. Caller supplies the transaction. */
+function insertPlannedInitialHeats(
+  event_id: any,
+  plan: ReturnType<typeof planInitialHeats>,
+) {
+  const insertHeatStmt = db.prepare(
+    'INSERT INTO Heats (event_id, heat_name, heat_type) VALUES (?, ?, ?)',
+  );
+  const insertHeatBoatStmt = db.prepare(
+    'INSERT INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)',
+  );
+  const heatIds: number[] = [];
+  for (let i = 0; i < plan.numHeats; i += 1) {
+    const heatName = `Heat ${String.fromCharCode(65 + i)}1`;
+    const inserted = insertHeatStmt.run(event_id, heatName, 'Qualifying');
+    heatIds.push(Number(inserted.lastInsertRowid));
+  }
+  plan.boats.forEach((boat, i) => {
+    insertHeatBoatStmt.run(heatIds[plan.heatIndices[i]], boat.boat_id);
+  });
+  return { createdHeats: plan.numHeats, assignedBoats: plan.boats.length };
+}
+
+/**
+ * Server-side guard for anything that discards an event's heats. The renderer
+ * blocks these once a race has happened, but that state can be stale — never
+ * rely on it for a delete this destructive.
+ */
+function assertNoScoredRacesForEvent(event_id: any) {
   const scoredRaces = db
     .prepare(
       `SELECT COUNT(*) AS count FROM Races r
@@ -288,52 +285,101 @@ handle('deleteHeatsByEvent', async (event, event_id) => {
       'Cannot delete heats because races have already been scored for this event. Undo the races first.',
     );
   }
+}
 
-  // One transaction so a failure can never leave a half-deleted event
-  // (e.g. assignments gone but heats still present).
-  const wipeHeats = db.transaction(() => {
-    try {
-      db.prepare(
-        `DELETE FROM RaceAssignmentSnapshots WHERE race_id IN (
-          SELECT r.race_id FROM Races r
-          JOIN Heats h ON r.heat_id = h.heat_id
-          WHERE h.event_id = ?
-        )`,
-      ).run(event_id);
-    } catch (_snapshotError) {
-      // Older databases may not have RaceAssignmentSnapshots yet.
-    }
-
+/** Drop an event's heats and their assignments. Caller supplies the transaction. */
+function wipeHeatsForEvent(event_id: any) {
+  try {
     db.prepare(
-      `DELETE FROM Scores WHERE race_id IN (
+      `DELETE FROM RaceAssignmentSnapshots WHERE race_id IN (
         SELECT r.race_id FROM Races r
         JOIN Heats h ON r.heat_id = h.heat_id
         WHERE h.event_id = ?
       )`,
     ).run(event_id);
+  } catch (_snapshotError) {
+    // Older databases may not have RaceAssignmentSnapshots yet.
+  }
 
-    db.prepare(
-      `DELETE FROM Races WHERE heat_id IN (
-        SELECT heat_id FROM Heats WHERE event_id = ?
-      )`,
-    ).run(event_id);
+  db.prepare(
+    `DELETE FROM Scores WHERE race_id IN (
+      SELECT r.race_id FROM Races r
+      JOIN Heats h ON r.heat_id = h.heat_id
+      WHERE h.event_id = ?
+    )`,
+  ).run(event_id);
 
-    const heatBoats = db
-      .prepare(
-        'DELETE FROM Heat_Boat WHERE heat_id IN (SELECT heat_id FROM Heats WHERE event_id = ?)',
-      )
-      .run(event_id);
+  db.prepare(
+    `DELETE FROM Races WHERE heat_id IN (
+      SELECT heat_id FROM Heats WHERE event_id = ?
+    )`,
+  ).run(event_id);
 
-    const heatRows = db
-      .prepare('DELETE FROM Heats WHERE event_id = ?')
-      .run(event_id);
+  const heatBoats = db
+    .prepare(
+      'DELETE FROM Heat_Boat WHERE heat_id IN (SELECT heat_id FROM Heats WHERE event_id = ?)',
+    )
+    .run(event_id);
 
-    return {
-      heatBoatsChanges: heatBoats.changes,
-      heatsChanges: heatRows.changes,
-    };
+  const heatRows = db
+    .prepare('DELETE FROM Heats WHERE event_id = ?')
+    .run(event_id);
+
+  return {
+    heatBoatsChanges: heatBoats.changes,
+    heatsChanges: heatRows.changes,
+  };
+}
+
+handle('createInitialHeatsAtomic', async (_event, event_id, num_heats) => {
+  const existingHeats = db
+    .prepare('SELECT COUNT(*) AS count FROM Heats WHERE event_id = ?')
+    .get(event_id) as { count: number };
+  if (existingHeats.count > 0) {
+    throw new Error('Heats already exist for this event.');
+  }
+
+  // Validation, SHRS 3 seeding order and the SHRS 3.1 serpentine assignment
+  // all resolve before the transaction opens, so a failure writes nothing.
+  const plan = planInitialHeats(event_id, num_heats);
+  const createHeats = db.transaction(() =>
+    insertPlannedInitialHeats(event_id, plan),
+  );
+  return { success: true, ...createHeats() };
+});
+
+/**
+ * "Recreate Heats": throw the current split away and seed a new one.
+ *
+ * This exists as ONE handler because the renderer used to call
+ * deleteHeatsByEvent and then createInitialHeatsAtomic. The destructive call
+ * ran first, so anything that made the second one fail — a duplicate sail
+ * number added since the heats were built, an entry list that no longer fits
+ * the chosen heat count — left the event with no heats at all. Worse, the
+ * renderer's create step reports its own validation failures and returns
+ * normally, so the recreate wrapper never saw an error and the user was told
+ * only "Cannot create heats: …", which reads as though nothing happened.
+ *
+ * Planning before the wipe, inside one transaction, makes the whole thing
+ * all-or-nothing: either the new heats exist or the old ones still do.
+ */
+handle('recreateInitialHeatsAtomic', async (_event, event_id, num_heats) => {
+  assertNoScoredRacesForEvent(event_id);
+  const plan = planInitialHeats(event_id, num_heats);
+
+  const recreate = db.transaction(() => {
+    wipeHeatsForEvent(event_id);
+    return insertPlannedInitialHeats(event_id, plan);
   });
+  return { success: true, ...recreate() };
+});
 
+handle('deleteHeatsByEvent', async (event, event_id) => {
+  assertNoScoredRacesForEvent(event_id);
+
+  // One transaction so a failure can never leave a half-deleted event
+  // (e.g. assignments gone but heats still present).
+  const wipeHeats = db.transaction(() => wipeHeatsForEvent(event_id));
   const result = wipeHeats();
   console.log(
     `Deleted ${result.heatsChanges} heat(s) and ${result.heatBoatsChanges} assignment(s) for event ID ${event_id}.`,
