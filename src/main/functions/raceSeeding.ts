@@ -4,8 +4,6 @@
  * movement tables consume.
  */
 import { db } from '../../../public/Database/DBManager';
-import { checkRaceCountForLatestHeats } from './creatingNewHeatsUtls';
-import { getRaceCountForHeat } from './heatQueries';
 import { compareSeededRows, normalizeStatus } from './scoreStatus';
 
 export function getLatestRaceRowsForHeats(
@@ -79,59 +77,6 @@ export function getRankedBoatsInHeatForRace(heat_id: number, race_id: number) {
   rows.sort(compareSeededRows);
 
   return rows;
-}
-
-export function getSeedingResultsFromLastRace(
-  event_id: any,
-  latestHeats: { heat_name: string; heat_id: number }[],
-) {
-  checkRaceCountForLatestHeats(latestHeats, db);
-
-  const raceCount = getRaceCountForHeat(latestHeats[0].heat_id);
-  if (raceCount === 0) {
-    throw new Error(
-      'Cannot create next heats before the current qualifying round has race results.',
-    );
-  }
-
-  const raceRows = getLatestRaceRowsForHeats(latestHeats);
-
-  const rowsByRaceQuery = db.prepare(
-    `SELECT
-      hb.boat_id,
-      sc.position,
-      sc.status,
-      b.country,
-      b.sail_number
-     FROM Heat_Boat hb
-     JOIN Boats b ON b.boat_id = hb.boat_id
-     LEFT JOIN Scores sc ON sc.race_id = ? AND sc.boat_id = hb.boat_id
-     WHERE hb.heat_id = ?`,
-  );
-
-  const seedingRows = raceRows.flatMap((raceRow) =>
-    rowsByRaceQuery
-      .all(raceRow.race_id, raceRow.heat_id)
-      .map(
-        (row: {
-          boat_id: string;
-          position: number | null;
-          status: string | null;
-          country: string | null;
-          sail_number: string | number | null;
-        }) => ({
-          boat_id: row.boat_id,
-          position: row.position,
-          status: normalizeStatus(row.status),
-          country: row.country,
-          sail_number: row.sail_number,
-        }),
-      ),
-  );
-
-  seedingRows.sort(compareSeededRows);
-
-  return seedingRows.map((row) => ({ boat_id: row.boat_id }));
 }
 
 export function getOddEvenMovementAdvisory(

@@ -4,7 +4,6 @@ import { db } from '../../../public/Database/DBManager';
 
 import {
   assignBoatsToInitialHeatsSerpentine,
-  assignBoatsToNewHeatsZigZag,
   checkRaceCountForLatestHeats,
   compareByCountryThenSail,
   findLatestHeatsBySuffix,
@@ -56,7 +55,6 @@ import {
 import {
   getLatestRaceRowsForHeats,
   getOddEvenMovementAdvisory,
-  getSeedingResultsFromLastRace,
 } from '../functions/raceSeeding';
 import { getAssignmentRowsForHeatRace } from '../functions/assignmentShield';
 import {
@@ -1077,17 +1075,22 @@ handle('createNewHeatsBasedOnLeaderboard', async (event, event_id) => {
       });
     });
   }
+  // No silent fallback. Reaching here means the movement table (or the
+  // pre-assigned carry-forward) found nothing to redistribute, which is a data
+  // fault: the previous round's heats are empty, or its results never reached
+  // Scores. Re-seeding from scratch would discard the finishing positions
+  // SHRS 3.1(2) requires the assignment to be based on, and would silently
+  // reshuffle the fleet into a draw nobody sailed for. Fail loudly so the race
+  // office repairs the round instead.
   if (assignments.length === 0) {
-    const leaderboardResults = getSeedingResultsFromLastRace(
-      event_id,
-      sortedLatestHeats,
+    const heatList = sortedLatestHeats.map((heat) => heat.heat_name).join(', ');
+    const cause =
+      assignmentMode === 'pre-assigned'
+        ? 'Those heats have no boats assigned to them.'
+        : 'Those heats have no recorded results to move boats from.';
+    throw new Error(
+      `Cannot build round ${raceNumber}: no boats could be assigned from ${heatList}. ${cause} Check that the previous round is fully scored before redistributing.`,
     );
-    const fallbackAssignments = assignBoatsToNewHeatsZigZag(
-      leaderboardResults,
-      nextHeatNames,
-      raceNumber,
-    );
-    fallbackAssignments.forEach((assignment) => assignments.push(assignment));
   }
 
   // Persist the new heats and their boat assignments atomically so a failure

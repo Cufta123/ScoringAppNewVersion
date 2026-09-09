@@ -617,6 +617,36 @@ describe('HeatRaceHandler createNewHeatsBasedOnLeaderboard', () => {
     expect(insertedHeatBoats).toHaveLength(0);
   });
 
+  // There used to be a zig-zag fallback here that re-seeded the whole fleet
+  // from scratch whenever the movement table produced no assignments. That
+  // threw away the finishing positions SHRS 3.1(2) requires the next round to
+  // be based on, and quietly published a draw nobody had sailed for. An empty
+  // assignment set is a data fault, so it has to surface as one.
+  it('throws instead of re-seeding when no results exist to move boats from', async () => {
+    currentScenario.rankedRowsByHeatId = { 10: [], 20: [], 30: [] };
+
+    const handler = handlerRegistry.createNewHeatsBasedOnLeaderboard;
+
+    await expect(handler({}, 555)).rejects.toThrow(
+      /Cannot build round 2: no boats could be assigned from Heat A1, Heat B1, Heat C1\..*no recorded results/s,
+    );
+    expect(insertedHeats).toHaveLength(0);
+    expect(insertedHeatBoats).toHaveLength(0);
+  });
+
+  it('throws instead of re-seeding when pre-assigned heats hold no boats', async () => {
+    currentScenario.assignmentMode = 'pre-assigned';
+    currentScenario.boatsByHeatId = { 10: [], 20: [], 30: [] };
+
+    const handler = handlerRegistry.createNewHeatsBasedOnLeaderboard;
+
+    await expect(handler({}, 555)).rejects.toThrow(
+      /Cannot build round 2: no boats could be assigned from Heat A1, Heat B1, Heat C1\..*no boats assigned/s,
+    );
+    expect(insertedHeats).toHaveLength(0);
+    expect(insertedHeatBoats).toHaveLength(0);
+  });
+
   it('orders non-finish penalties with DGM before DPI during seeding', async () => {
     currentScenario.rankedRowsByHeatId[20] = [
       {

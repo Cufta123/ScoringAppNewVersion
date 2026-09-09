@@ -91,8 +91,8 @@ into focused modules under `src/main/functions/`. Map of that directory:
 
 - `calculateBoatScores.ts` — qualifying series scoring + SHRS 5.7 tie-break.
 - `calculateFinalBoatScores.ts` — final-fleet scoring (A8.1/A8.2 per group).
-- `creatingNewHeatsUtls.ts` — progressive/zig-zag heat assignment + movement
-  tables (filename typo `Utls` is intentional, see §10).
+- `creatingNewHeatsUtls.ts` — Race 1 serpentine seeding + Heat Movement Tables
+  (filename typo `Utls` is intentional, see §10).
 - `discardConfig.ts` — per-event discard profile lookup. The pure parsing/count
   logic lives in `src/shared/discardProfile.ts` and is re-exported here, so the
   renderer preview and the backend compute discards from one implementation.
@@ -120,8 +120,8 @@ into focused modules under `src/main/functions/`. Map of that directory:
   `ensureDncScoresForMissedQualifyingRaces`, RRS A5.1),
   `recomputeLeaderboardsForRace`.
 - `raceSeeding.ts` — reading a race's results back in SHRS 5.3 recording order
-  for the next round's heat movement (`getSeedingResultsFromLastRace`,
-  `getRankedBoatsInHeatForRace`, `getOddEvenMovementAdvisory`).
+  for the next round's heat movement (`getRankedBoatsInHeatForRace`,
+  `getLatestRaceRowsForHeats`, `getOddEvenMovementAdvisory`).
 - `assignmentShield.ts` — SHRS 3.1.5 per-boat freeze of the pre-protest
   finishing order (`captureRaceAssignmentSnapshotIfMissing`,
   `getAssignmentRowsForHeatRace`); persistence lives in
@@ -194,10 +194,24 @@ Number/size of heats
 
 Qualifying assignment (`creatingNewHeatsUtls.ts`)
 
-- 3.1 — **Progressive**: Race 1 seeds top-down `1,2,3,4,5,5,4,3,2,1`; later
-  races use the Heat Movement Table (`getNextHeatIndexByMovementTable`).
-  Non-finishers ordered `DNF, RET, NSC, OCS, DNS, DNC, UFD, BFD, (DSQ)`; ties by
-  alphanumeric national-letter + sail number (`shared/sailOrder.ts`).
+- 3.1 — **Progressive**: Race 1 seeds top-down `1,2,3,4,5,5,4,3,2,1`
+  (`assignBoatsToInitialHeatsSerpentine`); later races use the Heat Movement
+  Table (`getNextHeatIndexByMovementTable`). Non-finishers ordered
+  `DNF, RET, NSC, OCS, DNS, DNC, UFD, BFD, (DSQ)`; ties by alphanumeric
+  national-letter + sail number (`shared/sailOrder.ts`).
+- 2.2 — heats "as equal as possible" means within one boat, and **nothing pins
+  the extra boat to Heat A**. The 3.1(1) walk drops it wherever it stops (10
+  boats / 3 heats → A=3, B=3, C=4), and the movement table then rotates the odd
+  heat between rounds. The PDF says so itself, above the Heat Movement Tables:
+  "the largest heat size could move from one heat to another". Only 4.1 orders
+  group sizes, and only for final fleets (Silver ≤ Gold ≤ …), which
+  `startFinalSeriesAtomic` implements by handing the remainder to the earliest
+  fleets. Do not "fix" qualifying to match it.
+- `createNewHeatsBasedOnLeaderboard` **throws** when a round yields no
+  assignments. It used to fall back to `assignBoatsToNewHeatsZigZag`, which
+  re-seeded the fleet from scratch and so discarded the finishing positions
+  3.1(2) requires — a fabricated draw published as if it were sailed. Removed;
+  an empty assignment set is a data fault and must surface as one.
 - 3.1.5 — **Only protest-committee decisions** are shielded from changing heat
   assignments (`protestCommitteeStatuses` in `scoreStatus.ts`). An ordinary
   race-office correction may change them, and a boat transfer invalidates the
