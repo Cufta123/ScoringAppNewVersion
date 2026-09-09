@@ -152,6 +152,13 @@ const dbMock = {
       return { all: jest.fn(() => []) };
     }
 
+    // RRS A5.1 / SHRS 5.3 DNC backfill: this fixture's boat sailed every round,
+    // so the "entered but unscored for this round" probe finds nothing. Present
+    // only so the repair path can run; the DNS repair is what this file asserts.
+    if (sqlContains(sql, 'CROSS JOIN') && sqlContains(sql, 'FROM Boat_Event')) {
+      return { all: jest.fn(() => []) };
+    }
+
     throw new Error(`Unhandled SQL in test mock: ${sql}`);
   }),
   transaction: jest.fn((fn: (...args: any[]) => any) => fn),

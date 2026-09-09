@@ -94,6 +94,89 @@ export function seedRaceWithDefaultDnsScores(
   tx();
 }
 
+/**
+ * RRS A5.1 (as changed by SHRS 5.2) and SHRS 5.3: a boat entered in the series
+ * is scored for EVERY race in it. A boat that sailed in no heat for a round did
+ * not come to the starting area, so she is scored DNC at (largest heat + 1) —
+ * she is not simply left without a row.
+ *
+ * Without this a boat added mid-event (`assignBoatToHeat`) carries fewer scores
+ * than the series has races, and the two readers of that vector disagree about
+ * her. `calculateBoatScores` caps her discard count (`capExcludeCountForBoat`)
+ * so she keeps one score and is ranked far too high; `computeAdjustedFleetTotals`
+ * does not cap, discards her only score under SHRS 5.4, and ranks her FIRST —
+ * straight into Gold Fleet (SHRS 4.2). Neither figure is 5.4: the rule scores a
+ * boat on "her race scores in that series", and a boat that missed a race has a
+ * DNC score for it. Backfilling those makes the cap unreachable rather than
+ * load-bearing.
+ *
+ * A round is one `race_number` across that round's heats. A boat who sailed
+ * none of them was in no heat, so there is no heat whose race is naturally
+ * hers; the row is anchored to the round's first race purely because Scores
+ * needs a race_id. Nothing reads it that way: heat assignment ranks boats from
+ * Heat_Boat rather than Scores (`getRankedBoatsInHeatForRace`), the RRS A7 place
+ * walk skips every non-finisher (`raceTieScoring`), and the leaderboard groups
+ * a boat's scores by `race_number`. Points are re-derived against the current
+ * largest heat on every recompute (`renormalizeNonFinisherScores`), so the
+ * anchor cannot freeze a stale value either.
+ *
+ * Qualifying only. In the Final Series a boat races in exactly one fleet
+ * (SHRS 4.1) and fleets may sail different numbers of races (4.5), so a Gold
+ * boat must not collect DNCs for Silver's races; boats in a final fleet are
+ * already covered by the DNS repair above, which walks Heat_Boat.
+ */
+export function ensureDncScoresForMissedQualifyingRaces(event_id: any): number {
+  const missingRounds = db
+    .prepare(
+      `SELECT DISTINCT be.boat_id AS boat_id, rounds.anchor_race_id AS race_id
+       FROM Boat_Event be
+       CROSS JOIN (
+         SELECT r.race_number AS race_number, MIN(r.race_id) AS anchor_race_id
+         FROM Races r
+         JOIN Heats h ON h.heat_id = r.heat_id
+         WHERE h.event_id = ? AND h.heat_type = 'Qualifying'
+         GROUP BY r.race_number
+       ) rounds
+       WHERE be.event_id = ?
+         AND NOT EXISTS (
+           SELECT 1
+           FROM Scores s
+           JOIN Races r2 ON r2.race_id = s.race_id
+           JOIN Heats h2 ON h2.heat_id = r2.heat_id
+           WHERE h2.event_id = ?
+             AND h2.heat_type = 'Qualifying'
+             AND r2.race_number = rounds.race_number
+             AND s.boat_id = be.boat_id
+         )`,
+    )
+    .all(event_id, event_id, event_id) as {
+    boat_id: number;
+    race_id: number;
+  }[];
+
+  if (missingRounds.length === 0) {
+    return 0;
+  }
+
+  const penaltyPosition = getMaxHeatSize(event_id, 'Qualifying') + 1;
+  const insertDnc = db.prepare(
+    `INSERT INTO Scores (race_id, boat_id, position, points, status)
+     VALUES (?, ?, ?, ?, 'DNC')`,
+  );
+
+  const transaction = db.transaction(() => {
+    missingRounds.forEach((row) => {
+      insertDnc.run(row.race_id, row.boat_id, penaltyPosition, penaltyPosition);
+    });
+  });
+
+  transaction();
+  console.warn(
+    `[Data integrity] Scored ${missingRounds.length} missed qualifying race(s) as DNC for event ${event_id} (RRS A5.1 / SHRS 5.3).`,
+  );
+  return missingRounds.length;
+}
+
 export function ensureCompleteRaceScoresForEvent(
   event_id: any,
   heatType: 'Qualifying' | 'Final',
@@ -109,8 +192,17 @@ export function ensureCompleteRaceScoresForEvent(
     )
     .all(event_id, heatType) as { race_id: number; boat_id: number }[];
 
+  // The DNS repair covers boats the heat already knows about; the DNC pass
+  // covers entered boats the heat never listed. Both must run, so neither can
+  // return early on the other's behalf, and DNS runs first so a boat who WAS in
+  // the heat is recorded as having failed to start rather than never appearing.
+  const dncScored =
+    heatType === 'Qualifying'
+      ? () => ensureDncScoresForMissedQualifyingRaces(event_id)
+      : () => 0;
+
   if (missingRows.length === 0) {
-    return 0;
+    return dncScored();
   }
 
   const penaltyPosition = getMaxHeatSize(event_id, heatType) + 1;
@@ -134,7 +226,7 @@ export function ensureCompleteRaceScoresForEvent(
   console.warn(
     `[Data integrity] Repaired ${missingRows.length} missing score row(s) as DNS for event ${event_id} (${heatType}).`,
   );
-  return missingRows.length;
+  return missingRows.length + dncScored();
 }
 
 export function applyRaceTieScoring(race_id: number): void {
