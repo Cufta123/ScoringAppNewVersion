@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Flag from 'react-world-flags';
+import useExclusiveAction from '../hooks/useExclusiveAction';
 import printNewHeats from '../utils/printNewHeats';
 import AppModal from './shared/AppModal';
 import {
@@ -34,6 +35,9 @@ interface HeatComponentProps {
   onHeatSelect?: (heat: HeatWithBoats) => void;
   onStartScoring?: (() => void) | null;
   onUndoLastRace?: ((heat: HeatWithBoats) => void) | null;
+  // Set while the PARENT is running one of its own round-level actions, so
+  // the per-heat buttons can't start a second one underneath it.
+  rowActionsDisabled?: boolean;
   clickable: boolean;
   onQualifyingGroupCountChange?: ((count: number) => void) | null;
   /** Notifies the host page whenever the final-series state changes (started
@@ -65,6 +69,7 @@ function HeatComponent({
   onHeatSelect = () => {},
   onStartScoring = null,
   onUndoLastRace = null,
+  rowActionsDisabled = false,
   clickable,
   onQualifyingGroupCountChange = null,
   onFinalSeriesStateChange = null,
@@ -97,19 +102,7 @@ function HeatComponent({
   // of them through one exclusive runner: a ref gives a synchronous guard (two
   // clicks in the same tick both see busy=false otherwise), and `busy` drives
   // the disabled state on the trigger buttons.
-  const [busy, setBusy] = useState(false);
-  const busyRef = useRef(false);
-  const runExclusive = useCallback(async (fn: () => Promise<void>) => {
-    if (busyRef.current) return;
-    busyRef.current = true;
-    setBusy(true);
-    try {
-      await fn();
-    } finally {
-      busyRef.current = false;
-      setBusy(false);
-    }
-  }, []);
+  const { busy, runExclusive } = useExclusiveAction();
 
   const {
     history: snapshotHistory,
@@ -808,6 +801,8 @@ function HeatComponent({
                         type="button"
                         className="btn-secondary"
                         title={`Delete Race ${heat.raceNumber} in ${heat.heat_name}`}
+                        disabled={rowActionsDisabled}
+                        aria-busy={rowActionsDisabled}
                         onClick={(e) => {
                           e.stopPropagation();
                           onUndoLastRace(heat);

@@ -17,6 +17,7 @@ import {
 } from '../../utils/userFeedback';
 import { eventDB, heatRaceDB } from '../../api/db';
 import type { EventRow } from '../../types';
+import useExclusiveAction from '../../hooks/useExclusiveAction';
 
 function HeatRacePage() {
   const location = useLocation();
@@ -86,6 +87,12 @@ function HeatRacePage() {
   const submitInFlightRef = React.useRef<Promise<boolean> | null>(null);
   // Mirrors the ref for rendering (a ref alone would not re-render the button).
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  // The round-level actions below each chain a confirm dialog and one or more
+  // DB round-trips with no visible progress, and every one of them is
+  // destructive or builds a round. HeatComponent has guarded its own actions
+  // this way for a while; these had nothing.
+  const { busy: roundActionBusy, runExclusive: runRoundAction } =
+    useExclusiveAction();
 
   // Shared guard for any exit from the scoring view that would drop an
   // entered-but-unsubmitted finish order. Returns true when it is safe to leave.
@@ -208,7 +215,7 @@ function HeatRacePage() {
     }
   };
 
-  const handleCreateNewHeatsBasedOnLeaderboard = async () => {
+  const createNewHeatsBasedOnLeaderboard = async () => {
     if (!event) return;
     if (finalSeriesStarted) {
       reportInfo(
@@ -246,7 +253,7 @@ function HeatRacePage() {
   };
 
   // Contextual action: invoked from inside the selected heat card.
-  const handleUndoLastScoredRace = async (heat: ScoringHeat) => {
+  const undoLastScoredRace = async (heat: ScoringHeat) => {
     // If a later round was already built from this round's results, the user
     // must know the redistribution will NOT be undone with the race.
     let laterRoundWarning = '';
@@ -300,7 +307,7 @@ function HeatRacePage() {
     }
   };
 
-  const handleUndoLatestHeatRedistribution = async () => {
+  const undoLatestHeatRedistribution = async () => {
     if (!event) return;
     const confirmed = await confirmAction(
       'Undo latest heat redistribution?\n\nThis will delete the latest qualifying heats and all their boat assignments. This cannot be undone.',
@@ -324,6 +331,14 @@ function HeatRacePage() {
       reportError('Could not undo latest heat redistribution.', error);
     }
   };
+
+  // One at a time, and visibly so — see useExclusiveAction.
+  const handleCreateNewHeatsBasedOnLeaderboard = () =>
+    runRoundAction(createNewHeatsBasedOnLeaderboard);
+  const handleUndoLastScoredRace = (heat: ScoringHeat) =>
+    runRoundAction(() => undoLastScoredRace(heat));
+  const handleUndoLatestHeatRedistribution = () =>
+    runRoundAction(undoLatestHeatRedistribution);
 
   const checkFinalSeriesStarted = useCallback(async () => {
     if (!event?.event_id) return;
@@ -416,6 +431,8 @@ function HeatRacePage() {
                 <button
                   type="button"
                   onClick={handleCreateNewHeatsBasedOnLeaderboard}
+                  disabled={roundActionBusy}
+                  aria-busy={roundActionBusy}
                 >
                   Create New Heats from Leaderboard
                 </button>
@@ -423,6 +440,8 @@ function HeatRacePage() {
                   type="button"
                   className="btn-secondary"
                   onClick={handleUndoLatestHeatRedistribution}
+                  disabled={roundActionBusy}
+                  aria-busy={roundActionBusy}
                 >
                   Undo Heat Redistribution
                 </button>
@@ -448,6 +467,7 @@ function HeatRacePage() {
               onHeatSelect={handleHeatSelect}
               onStartScoring={handleStartScoring}
               onUndoLastRace={handleUndoLastScoredRace}
+              rowActionsDisabled={roundActionBusy}
               onQualifyingGroupCountChange={setNumQualifyingGroups}
               onFinalSeriesStateChange={setFinalSeriesStarted}
               clickable
