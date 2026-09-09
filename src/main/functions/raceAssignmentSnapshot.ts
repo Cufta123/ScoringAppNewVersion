@@ -104,6 +104,25 @@ export function clearAssignmentSnapshot(race_id: number): void {
 }
 
 /**
+ * Drop every cached snapshot, forcing the next read to reload from the table.
+ *
+ * `raceAssignmentSnapshots` is a lazy cache consulted BEFORE the table
+ * (`cache.get(id) ?? loadPersistedAssignmentSnapshot(id)`), so any operation
+ * that rewrites the table behind its back leaves the cache authoritative and
+ * the restored rows ignored. Restoring a backup does exactly that: it reuses
+ * the backed-up race_ids, so a race whose shield changed after the backup was
+ * taken would keep the newer shield in memory and silently outvote the file
+ * the user just restored.
+ *
+ * Clearing everything rather than just this event's races is deliberate — the
+ * cache is pure derived state, reloading is one query per race, and a restore
+ * is rare. A narrower invalidation would only add a way to miss a race.
+ */
+export function invalidateAssignmentSnapshotCache(): void {
+  raceAssignmentSnapshots.clear();
+}
+
+/**
  * RULE-M21: un-shield a single boat after an ordinary race-office correction.
  * The corrected boat's live result should drive its next-round assignment, but
  * every OTHER boat's protest shield must stay intact — unlike the previous

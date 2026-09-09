@@ -1,4 +1,5 @@
 import { db } from '../../../public/Database/DBManager';
+import { invalidateAssignmentSnapshotCache } from './raceAssignmentSnapshot';
 
 // Full export/restore of a single event's rows across every event-scoped table.
 // Used by the snapshot-to-file IPC handlers; kept here so the table list and
@@ -36,6 +37,19 @@ export function buildEventSnapshot(event_id: number) {
           `SELECT s.*
            FROM Scores s
            JOIN Races r ON r.race_id = s.race_id
+           JOIN Heats h ON h.heat_id = r.heat_id
+           WHERE h.event_id = ?`,
+        )
+        .all(event_id),
+      // SHRS 3.1.5: the frozen pre-protest assignment order. Omitting it made
+      // a backup lossy in the one way that changes who races whom — a restored
+      // event would seed its next round from the live post-protest order,
+      // which is exactly what the rule forbids, and it would look correct.
+      RaceAssignmentSnapshots: db
+        .prepare(
+          `SELECT ras.*
+           FROM RaceAssignmentSnapshots ras
+           JOIN Races r ON r.race_id = ras.race_id
            JOIN Heats h ON h.heat_id = r.heat_id
            WHERE h.event_id = ?`,
         )
@@ -80,6 +94,18 @@ export function restoreEventSnapshot(
   }
 
   const tx = db.transaction(() => {
+    // Before the races they reference: foreign keys are enforced and nothing
+    // cascades, so leaving these behind aborts the restore outright rather
+    // than orphaning a row (deleteEvent had the same gap).
+    db.prepare(
+      `DELETE FROM RaceAssignmentSnapshots WHERE race_id IN (
+        SELECT r.race_id
+        FROM Races r
+        JOIN Heats h ON h.heat_id = r.heat_id
+        WHERE h.event_id = ?
+      )`,
+    ).run(event_id);
+
     db.prepare(
       `DELETE FROM Scores WHERE race_id IN (
         SELECT r.race_id
@@ -181,6 +207,21 @@ export function restoreEventSnapshot(
       );
     });
 
+    const insertAssignmentSnapshot = db.prepare(
+      `INSERT INTO RaceAssignmentSnapshots
+         (race_id, rank, boat_id, frozen_position, frozen_status)
+       VALUES (?, ?, ?, ?, ?)`,
+    );
+    (tables.RaceAssignmentSnapshots || []).forEach((row) => {
+      insertAssignmentSnapshot.run(
+        row.race_id,
+        row.rank,
+        row.boat_id,
+        row.frozen_position ?? null,
+        row.frozen_status ?? null,
+      );
+    });
+
     const insertLeaderboard = db.prepare(
       'INSERT INTO Leaderboard (boat_id, total_points_event, event_id, place) VALUES (?, ?, ?, ?)',
     );
@@ -208,4 +249,8 @@ export function restoreEventSnapshot(
   });
 
   tx();
+
+  // The restore rewrote RaceAssignmentSnapshots underneath the in-memory cache,
+  // which is read first. Without this the pre-restore shields keep winning.
+  invalidateAssignmentSnapshotCache();
 }

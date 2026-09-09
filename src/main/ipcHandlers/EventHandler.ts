@@ -249,6 +249,20 @@ handle('deleteEvent', async (event, event_id) => {
       )`,
     ).run(event_id);
 
+    // SHRS 3.1.5 assignment snapshots reference Races, so they must go before
+    // the races do. Foreign keys are enforced (better-sqlite3 is built with
+    // SQLITE_DEFAULT_FOREIGN_KEYS=1) and the schema declares no ON DELETE
+    // CASCADE, so a missed table here does not orphan a row — it aborts the
+    // whole delete with "FOREIGN KEY constraint failed" and the event stays.
+    // That made any event with a protest decision permanently undeletable.
+    db.prepare(
+      `DELETE FROM RaceAssignmentSnapshots WHERE race_id IN (
+        SELECT race_id FROM Races WHERE heat_id IN (
+          SELECT heat_id FROM Heats WHERE event_id = ?
+        )
+      )`,
+    ).run(event_id);
+
     // Delete Scores for all races belonging to heats of this event
     db.prepare(
       `DELETE FROM Scores WHERE race_id IN (
