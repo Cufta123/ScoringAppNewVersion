@@ -74,6 +74,7 @@ const config: Config = {
     '**/src/__tests__/applyRaceResultUpdate.integration.test.ts',
     '**/src/__tests__/dncBackfill.integration.test.ts',
     '**/src/__tests__/eventLifecycle.integration.test.ts',
+    '**/src/__tests__/EventHandler.removeBoatFromEvent.integration.test.ts',
     '**/src/__tests__/HeatRaceHandler.recreateHeats.integration.test.ts',
     '**/src/__tests__/preload.contract.test.ts',
     '**/src/__tests__/escapeHtml.test.js',

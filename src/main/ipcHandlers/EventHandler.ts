@@ -133,10 +133,50 @@ WHERE be.event_id = ?
 });
 
 handle('removeBoatFromEvent', async (event, boat_id, event_id) => {
-  db.prepare('DELETE FROM Boat_Event WHERE boat_id = ? AND event_id = ?').run(
-    boat_id,
-    event_id,
-  );
+  // Server-side guard. The renderer blocks this once a race has happened, but
+  // that state can be stale and the channel is reachable on its own — the same
+  // reasoning deleteHeatsByEvent already applies. A mid-series withdrawal is
+  // recorded as WTH in scoring; removing the entry would orphan her scores.
+  const scored = db
+    .prepare(
+      `SELECT COUNT(*) AS count FROM Races r
+       JOIN Heats h ON h.heat_id = r.heat_id
+       WHERE h.event_id = ?`,
+    )
+    .get(event_id) as { count: number };
+  if (scored.count > 0) {
+    throw new Error(
+      'Cannot remove a boat after a race has already been scored for this event. Record a mid-series withdrawal by scoring the boat as WTH instead.',
+    );
+  }
+
+  // Heats are built from the entry list and can exist before any race, so the
+  // entry and its heat assignment have to go together. Deleting only the
+  // Boat_Event row left the boat in her heat — on the starting list and
+  // scoreable — while every leaderboard read, which joins Boat_Event, no
+  // longer knew about her.
+  const removeEntry = db.transaction(() => {
+    db.prepare(
+      `DELETE FROM Heat_Boat
+       WHERE boat_id = ?
+         AND heat_id IN (SELECT heat_id FROM Heats WHERE event_id = ?)`,
+    ).run(boat_id, event_id);
+
+    // Defensive: a leaderboard row can survive undoing every race, and would
+    // otherwise keep a boat who is no longer entered in the results.
+    db.prepare(
+      'DELETE FROM Leaderboard WHERE boat_id = ? AND event_id = ?',
+    ).run(boat_id, event_id);
+    db.prepare(
+      'DELETE FROM FinalLeaderboard WHERE boat_id = ? AND event_id = ?',
+    ).run(boat_id, event_id);
+
+    db.prepare('DELETE FROM Boat_Event WHERE boat_id = ? AND event_id = ?').run(
+      boat_id,
+      event_id,
+    );
+  });
+  removeEntry();
 });
 
 handle(

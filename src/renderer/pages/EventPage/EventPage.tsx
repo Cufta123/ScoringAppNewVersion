@@ -10,7 +10,11 @@ import LoadingState from '../../components/shared/LoadingState';
 import './EventPage.css';
 import HeatComponent from '../../components/HeatComponent';
 import printStartingList from '../../utils/printStartingList';
-import { reportError, reportInfo } from '../../utils/userFeedback';
+import {
+  reportError,
+  reportInfo,
+  reportWarning,
+} from '../../utils/userFeedback';
 import { checkRaceHappened } from '../../utils/raceStatus';
 import { eventDB, sailorDB } from '../../api/db';
 import type { EventBoatRow, EventRow } from '../../types';
@@ -224,6 +228,14 @@ function EventPage() {
         setAllBoats((prevBoats) => [...prevBoats, removedBoat]);
       }
     } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      // The main process re-checks this because `raceHappened` here can be
+      // stale. Its message names the WTH alternative, so pass it through
+      // rather than replacing it with a generic failure.
+      if (message.includes('race has already been scored')) {
+        reportWarning(message, 'Boat not removed');
+        return;
+      }
       reportError('Could not remove boat from the event.', error);
     }
   };
