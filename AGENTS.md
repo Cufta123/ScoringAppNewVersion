@@ -78,6 +78,20 @@ Important migration details:
 - `Scores` has a unique index covered by `Scores.uniqueIndex.migration.test.ts`.
 - Code that touches the DB must tolerate older databases missing newer
   tables/columns (e.g. `RaceAssignmentSnapshots` reads are wrapped in try/catch).
+- **Foreign keys are ENFORCED** (better-sqlite3 is built with
+  `SQLITE_DEFAULT_FOREIGN_KEYS=1`) and **no table declares ON DELETE CASCADE**,
+  so every delete cascades by hand. A missed referencing table does not orphan
+  a row — it aborts the whole operation with "FOREIGN KEY constraint failed".
+  Anything that deletes an event's races must clear `RaceAssignmentSnapshots`
+  first; `deleteEvent` and `restoreEventSnapshot` both missed it and made any
+  event with a protest decision undeletable. Covered by
+  `eventLifecycle.integration.test.ts`, which asserts `PRAGMA foreign_key_check`
+  is clean afterwards.
+- `ensurePerformanceIndexes()` adds `idx_races_heat_id` and `idx_heats_event_id`
+  (298 ms -> 3 ms for the DNC backfill probe on a four-season database).
+  `Scores(boat_id)` and `ANALYZE` are deliberately excluded — both help one
+  query on the leaderboard click and hurt the other more. Re-measure before
+  adding either; `DBManager.performanceIndexes.test.ts` records the numbers.
 
 DB file paths:
 
@@ -128,9 +142,13 @@ into focused modules under `src/main/functions/`. Map of that directory:
   `raceAssignmentSnapshot.ts`.
 - `fleetTotals.ts` — `buildAdjustedFleetLeaderboard`, the SHRS 4.3
   fleet-assignment ranking adapter over `shared/fleetAssignment.ts`.
-- `eventSnapshot.ts` — full per-event export/restore.
+- `eventSnapshot.ts` — full per-event export/restore. The table list here is
+  the definition of "an event's data"; add new event-scoped tables to the
+  export, the restore's delete, and the restore's reinsert together.
 - `raceAssignmentSnapshot.ts` — SHRS 3.1.5 pre-protest assignment cache +
-  persistence.
+  persistence. The in-memory map is read BEFORE the table, so anything that
+  rewrites the table behind it must call `invalidateAssignmentSnapshotCache()`
+  or the stale shields keep winning (restoring a backup did exactly that).
 
 Shared (renderer + main) — one definition per rule, imported by both processes:
 
@@ -385,6 +403,17 @@ For most feature/fix requests, do this in order:
   rollback, per-row error collection).
 - Returning `false` from preload methods is converted to thrown errors by wrapper.
 - App uses hash routing, so route handling assumptions must match `HashRouter`.
+- Destructive work belongs in ONE handler, not a renderer sequence. "Recreate
+  Heats" was `deleteHeatsByEvent` then `createInitialHeatsAtomic`; the
+  destructive half ran first, so a rejected create left the event with no heats.
+  `recreateInitialHeatsAtomic` plans before it wipes, in one transaction.
+  `planInitialHeats` / `insertPlannedInitialHeats` exist for exactly this split.
+- Renderer `raceHappened`-style state can be stale — never let it be the only
+  guard on a destructive channel. `deleteHeatsByEvent`, `removeBoatFromEvent`
+  and `recreateInitialHeatsAtomic` all re-check server-side.
+- Async actions that mutate rounds go through `useExclusiveAction` (renderer
+  hook). The ref inside it is load-bearing: two clicks in the same tick both
+  read `busy === false` from state. `busy` only drives `disabled`.
 - `HeatRaceHandler.ts` is intentionally thin wiring: the logic lives in
   `src/main/functions/`. Add new pure logic there, not inline in the handler.
   This had drifted — 718 lines of domain helpers had accumulated back in the
