@@ -445,6 +445,29 @@ const initializeSchema = () => {
     });
   };
 
+  /**
+   * Indexes for the joins the leaderboard path walks on every open.
+   *
+   * Only the two unique constraints existed, and both lead with the wrong
+   * column for these lookups. Measured on a four-season database (40 events,
+   * 80 boats, 38,400 scores), the DNC-backfill probe that runs before every
+   * readLeaderboard took 298 ms; with these it takes 3 ms. A single regatta is
+   * instant either way, so this is purely about databases that accumulate.
+   *
+   * Scores(boat_id) is deliberately NOT here. It does speed the leaderboard
+   * SELECT up (16 ms -> 10 ms), but it leads the planner to a worse plan for
+   * the backfill probe (3 ms -> 35 ms), and since both run on the same click
+   * the total gets worse, not better. ANALYZE is likewise avoided: it fixes
+   * the probe but sends the leaderboard SELECT to 165 ms. Re-measure before
+   * adding either.
+   */
+  const ensurePerformanceIndexes = () => {
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_races_heat_id ON Races(heat_id);
+      CREATE INDEX IF NOT EXISTS idx_heats_event_id ON Heats(event_id);
+    `);
+  };
+
   try {
     console.log('Creating Events table...');
     db.exec(createEventsTable);
@@ -506,6 +529,8 @@ const initializeSchema = () => {
     db.exec(createRaceAssignmentSnapshotsTable);
     ensureRaceAssignmentSnapshotsColumns();
     console.log('RaceAssignmentSnapshots table created or already exists.');
+
+    ensurePerformanceIndexes();
 
     console.log('Database schema initialized successfully.');
   } catch (error) {

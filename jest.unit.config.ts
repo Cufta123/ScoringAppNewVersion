@@ -60,6 +60,7 @@ const config: Config = {
     '**/src/__tests__/HeatRaceHandler.submitScoresAtomic.test.ts',
     '**/src/__tests__/HeatRaceHandler.scoreEditRecompute.test.ts',
     '**/src/__tests__/Scores.uniqueIndex.migration.test.ts',
+    '**/src/__tests__/DBManager.performanceIndexes.test.ts',
     '**/src/__tests__/Heat_Boat.uniqueIndex.migration.test.ts',
     '**/src/__tests__/SailorHandler.importLookup.test.ts',
     '**/src/__tests__/SailorHandler.updateSailor.test.ts',

@@ -1057,7 +1057,6 @@ handle('createNewHeatsBasedOnLeaderboard', async (event, event_id) => {
   const heatNameMatch = sortedLatestHeats[0].heat_name.match(/(\d+)$/);
   const lastRaceNumber = heatNameMatch ? parseInt(heatNameMatch[1], 10) : 0;
   const raceNumber = lastRaceNumber + 1;
-  console.log(raceNumber);
   // Generate names for the next round of heats
   const nextHeatNames = generateNextHeatNames(sortedLatestHeats);
 
