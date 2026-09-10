@@ -308,5 +308,10 @@ describe('Property-based: tie-break winner invariants', () => {
       unmount();
       checked += 1;
     }
-  });
+    // 40 trials, each mounting the hook and awaiting two async settles, runs
+    // ~4.3s on an idle machine — 86% of Jest's 5s default, so it failed
+    // intermittently whenever a parallel worker stole CPU. The PRNG is seeded,
+    // so the test itself is deterministic; only the clock was not. Matches the
+    // explicit budget backendUiTieBreak.property.test.jsx already carries.
+  }, 30000);
 });
