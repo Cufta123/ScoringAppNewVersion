@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Flag from 'react-world-flags';
 import useExclusiveAction from '../hooks/useExclusiveAction';
+import { minimumHeatsForEntries } from '../../shared/heatSizing';
 import printNewHeats from '../utils/printNewHeats';
 import AppModal from './shared/AppModal';
 import {
@@ -17,7 +18,7 @@ import {
 } from '../utils/finalSeriesMessages';
 import type { FinalSeriesEligibility } from '../utils/finalSeriesMessages';
 import { computeAdjustedFleetTotals } from '../../shared/fleetAssignment';
-import { heatRaceDB } from '../api/db';
+import { eventDB, heatRaceDB } from '../api/db';
 import type { EventRow, HeatBoatRow, LeaderboardEntry } from '../types';
 
 /** A heat with its boats and current race count, as displayed by this view. */
@@ -77,7 +78,13 @@ function HeatComponent({
 }: HeatComponentProps) {
   const [heats, setHeats] = useState<HeatWithBoats[]>([]);
   const [heatsLoadFailed, setHeatsLoadFailed] = useState(false);
-  const [numHeats, setNumHeats] = useState(5); // Default number of heats
+  // SHRS 2.1, "the number of heats shall be as few as possible". This used to
+  // default to 5 whatever the entry list said, so a club event of a dozen boats
+  // got five heats of two or three unless someone thought to change it. The
+  // default now follows the entry count; an explicit choice is never
+  // overwritten (see heatCountChosenRef).
+  const [numHeats, setNumHeats] = useState(1);
+  const heatCountChosenRef = useRef(false);
   const [selectedHeatId, setSelectedHeatId] = useState<number | null>(null);
   const [heatsCreated, setHeatsCreated] = useState(false);
   const [raceHappened, setRaceHappened] = useState(false);
@@ -109,6 +116,41 @@ function HeatComponent({
     load: loadSnapshotHistory,
     remember: rememberSnapshot,
   } = useSnapshotHistory(event.event_id);
+
+  // Seed the heat-count default from the entry list. Runs while no heats exist
+  // (the only time the control is live) and stops as soon as the user picks a
+  // value, so adding a boat cannot move a choice they already made.
+  useEffect(() => {
+    if (heatCountChosenRef.current) return undefined;
+
+    // Heats already exist: the useful default for "Recreate Heats" is the
+    // split they are on now, so the control reflects reality instead of
+    // proposing a change nobody asked for.
+    if (heatsCreated) {
+      if (numQualifyingGroups > 0) setNumHeats(numQualifyingGroups);
+      return undefined;
+    }
+
+    let cancelled = false;
+    // Defensive on both sides: this is a convenience default, so neither a
+    // read that rejects nor an unavailable channel should take the component
+    // down. Worst case the dropdown keeps its current value, and the main
+    // process still refuses a split that breaks SHRS 2.3.
+    const seedFromEntryList = async () => {
+      try {
+        const entries = await eventDB.readBoatsByEvent(event.event_id);
+        if (cancelled) return;
+        const count = Array.isArray(entries) ? entries.length : 0;
+        setNumHeats(minimumHeatsForEntries(count));
+      } catch {
+        // Keep whatever the control already shows.
+      }
+    };
+    seedFromEntryList();
+    return () => {
+      cancelled = true;
+    };
+  }, [event.event_id, heatsCreated, numQualifyingGroups, refreshToken]);
 
   const handleDisplayHeats = useCallback(async () => {
     try {
@@ -644,7 +686,10 @@ function HeatComponent({
                 <select
                   id="numHeats"
                   value={numHeats}
-                  onChange={(e) => setNumHeats(Number(e.target.value))}
+                  onChange={(e) => {
+                    heatCountChosenRef.current = true;
+                    setNumHeats(Number(e.target.value));
+                  }}
                   disabled={raceHappened || finalSeriesStarted}
                 >
                   {/* Match the backend's 1–26 heat limit (createInitialHeatsAtomic)

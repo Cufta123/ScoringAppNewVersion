@@ -110,7 +110,9 @@ describe('HeatComponent recreate heats', () => {
     await waitFor(() => {
       expect(api.recreateInitialHeatsAtomic).toHaveBeenCalledTimes(1);
     });
-    expect(api.recreateInitialHeatsAtomic).toHaveBeenCalledWith(77, 5);
+    // Defaults to the split the event is already on, not a change nobody
+    // asked for: the mocked readAllHeats returns Heat A1 and Heat B1.
+    expect(api.recreateInitialHeatsAtomic).toHaveBeenCalledWith(77, 2);
     // The destructive half must no longer be reachable on its own.
     expect(api.deleteHeatsByEvent).not.toHaveBeenCalled();
     expect(api.createInitialHeatsAtomic).not.toHaveBeenCalled();
