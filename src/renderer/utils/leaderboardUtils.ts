@@ -2,6 +2,7 @@ import IOC_NATIONS from '../constants/iocNations';
 import { fleetRank } from '../../shared/fleetNames';
 import { getExcludeCountForProfile } from '../../shared/discardProfile';
 import { roundPoints, sumPoints } from '../../shared/points';
+import { averageRedressPoints } from '../../shared/redress';
 import type { LeaderboardEntry, RawLeaderboardEntry } from '../types';
 
 export const PENALTY_CODES = [
@@ -44,33 +45,35 @@ export const parseRaceNum = (val: unknown): number => {
 
 /**
  * RRS A9 average of a boat's points over a chosen set of race indices, excluding
- * one race (the redressed cell). Shared by the RDG1 (all series races) and RDG2
- * (selected races) paths in useLeaderboard so a parse/filter/rounding fix can't
- * drift between them.
+ * one race (the redressed cell), for the edit preview. The rule itself — which
+ * races count, rounding to the tenth — lives in shared/redress.ts, which the
+ * main-process recompute also uses, so the preview equals what Save persists.
  *
  * `selectedIndices` of `null` averages every index; a non-null set averages only
- * the given indices. Non-numeric values are skipped, and an empty average falls
- * back to `penaltyPos` (the score a non-finisher would receive).
+ * the given indices. Non-numeric values are skipped, as are other races scored
+ * by average redress (`statuses`). An empty average falls back to `penaltyPos`
+ * for the preview; the backend keeps the stored value until there is something
+ * to average.
  */
 export const averageRacePoints = (
   raceValues: string[],
   selectedIndices: Set<number> | null,
   excludeIdx: number,
   penaltyPos: number,
+  statuses: string[] = [],
 ): number => {
-  const values = raceValues
+  const cells = raceValues
     .map((value, idx) => ({
-      val: parseFloat(String(value).replace(/[()]/g, '')),
+      points: parseFloat(String(value).replace(/[()]/g, '')),
+      status: statuses[idx] || 'FINISHED',
       idx,
     }))
-    .filter(({ idx, val }) => {
+    .filter(({ idx, points }) => {
       if (idx === excludeIdx) return false;
       if (selectedIndices !== null && !selectedIndices.has(idx)) return false;
-      return !Number.isNaN(val);
+      return !Number.isNaN(points);
     });
-  if (values.length === 0) return penaltyPos;
-  const sum = values.reduce((acc, { val }) => acc + val, 0);
-  return Math.round((sum / values.length + Number.EPSILON) * 10) / 10;
+  return averageRedressPoints(cells) ?? penaltyPos;
 };
 
 /**

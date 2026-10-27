@@ -91,63 +91,69 @@ handle('updateSailor', async (event, sailorData) => {
   console.log('Received sailorData:', sailorData); // Log the received data
 
   try {
-    // Resolve the sailor via the boat being edited. boat_id is unique, so this
-    // can never edit the wrong "John Doe" the way a name+surname lookup could.
-    const boatRow = db
-      .prepare(
-        'SELECT s.sailor_id, s.club_id FROM Boats b JOIN Sailors s ON s.sailor_id = b.sailor_id WHERE b.boat_id = ?',
-      )
-      .get(boat_id) as { sailor_id: number; club_id: number } | undefined;
-    if (!boatRow) throw new Error(`Boat not found: ${boat_id}`);
-    const { sailor_id } = boatRow;
-
-    // Fetch category_id based on category_name
-    const category = db
-      .prepare('SELECT category_id FROM Categories WHERE category_name = ?')
-      .get(category_name);
-    if (!category) throw new Error(`Category not found: ${category_name}`);
-    const { category_id } = category;
-
-    // Keep the sailor's current club unless the name actually changed. When it
-    // does, match an existing club by name AND country (clubs with the same
-    // name can exist in different countries) before creating a new one.
-    let { club_id } = boatRow;
-    if (club_name !== originalClubName) {
-      const existingClub = db
+    // One transaction: a new club, the sailor row and the boat row change
+    // together or not at all. A failure part-way (e.g. on the boat update)
+    // used to leave the sailor renamed and a stray club created.
+    const applyEdit = db.transaction(() => {
+      // Resolve the sailor via the boat being edited. boat_id is unique, so this
+      // can never edit the wrong "John Doe" the way a name+surname lookup could.
+      const boatRow = db
         .prepare(
-          'SELECT club_id FROM Clubs WHERE club_name = ? AND country = ?',
+          'SELECT s.sailor_id, s.club_id FROM Boats b JOIN Sailors s ON s.sailor_id = b.sailor_id WHERE b.boat_id = ?',
         )
-        .get(club_name, country) as { club_id: number } | undefined;
-      if (existingClub) {
-        club_id = existingClub.club_id;
-      } else {
-        const newClub = db
-          .prepare('INSERT INTO Clubs (club_name, country) VALUES (?, ?)')
-          .run(club_name, country);
-        club_id = newClub.lastInsertRowid as number;
+        .get(boat_id) as { sailor_id: number; club_id: number } | undefined;
+      if (!boatRow) throw new Error(`Boat not found: ${boat_id}`);
+      const { sailor_id } = boatRow;
+
+      // Fetch category_id based on category_name
+      const category = db
+        .prepare('SELECT category_id FROM Categories WHERE category_name = ?')
+        .get(category_name);
+      if (!category) throw new Error(`Category not found: ${category_name}`);
+      const { category_id } = category;
+
+      // Keep the sailor's current club unless the name actually changed. When it
+      // does, match an existing club by name AND country (clubs with the same
+      // name can exist in different countries) before creating a new one.
+      let { club_id } = boatRow;
+      if (club_name !== originalClubName) {
+        const existingClub = db
+          .prepare(
+            'SELECT club_id FROM Clubs WHERE club_name = ? AND country = ?',
+          )
+          .get(club_name, country) as { club_id: number } | undefined;
+        if (existingClub) {
+          club_id = existingClub.club_id;
+        } else {
+          const newClub = db
+            .prepare('INSERT INTO Clubs (club_name, country) VALUES (?, ?)')
+            .run(club_name, country);
+          club_id = newClub.lastInsertRowid as number;
+        }
       }
-    }
 
-    // Update sailor information
-    const sailorResult = db
-      .prepare(
-        'UPDATE Sailors SET name = ?, surname = ?, category_id = ?, club_id = ? WHERE sailor_id = ?',
-      )
-      .run(name, surname, category_id, club_id, sailor_id);
-    console.log('Sailor update result:', sailorResult);
+      // Update sailor information
+      const sailorResult = db
+        .prepare(
+          'UPDATE Sailors SET name = ?, surname = ?, category_id = ?, club_id = ? WHERE sailor_id = ?',
+        )
+        .run(name, surname, category_id, club_id, sailor_id);
+      console.log('Sailor update result:', sailorResult);
 
-    // Update boat information
-    const boatResult = db
-      .prepare(
-        'UPDATE Boats SET sail_number = ?, country = ?, model = ? WHERE boat_id = ?',
-      )
-      .run(sail_number, country, model, boat_id);
-    console.log('Boat update result:', boatResult);
+      // Update boat information
+      const boatResult = db
+        .prepare(
+          'UPDATE Boats SET sail_number = ?, country = ?, model = ? WHERE boat_id = ?',
+        )
+        .run(sail_number, country, model, boat_id);
+      console.log('Boat update result:', boatResult);
 
-    return {
-      sailorChanges: sailorResult.changes,
-      boatChanges: boatResult.changes,
-    };
+      return {
+        sailorChanges: sailorResult.changes,
+        boatChanges: boatResult.changes,
+      };
+    });
+    return applyEdit();
   } catch (error) {
     log(`Error updating sailor or boat: ${error}`);
     throw error;

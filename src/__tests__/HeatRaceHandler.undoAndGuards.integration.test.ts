@@ -206,6 +206,59 @@ describe('undo, series guards and missed-round DNCs (real SQLite, FKs on)', () =
     });
   });
 
+  describe('adding a late entry to a heat (insertHeatBoat)', () => {
+    beforeEach(() => {
+      db.exec(
+        `INSERT INTO Boats (boat_id, sail_number, country, model) VALUES (${LATE_ENTRY}, ${LATE_ENTRY}, 'CRO', 'IOM');
+         INSERT INTO Boat_Event (boat_id, event_id) VALUES (${LATE_ENTRY}, ${EVENT_ID});
+         INSERT INTO Boats (boat_id, sail_number, country, model) VALUES (6, 6, 'CRO', 'IOM');`,
+      );
+    });
+
+    it('adds her to a heat of the current round that has not raced', async () => {
+      await scoreHeat(db, 'Heat A1');
+      await handlerRegistry.insertHeatBoat(
+        {},
+        heatId(db, 'Heat B1'),
+        LATE_ENTRY,
+      );
+      expect(boatsIn(db, 'Heat B1')).toContain(LATE_ENTRY);
+    });
+
+    it('refuses a heat that has already raced', async () => {
+      await scoreHeat(db, 'Heat A1');
+      await expect(
+        handlerRegistry.insertHeatBoat({}, heatId(db, 'Heat A1'), LATE_ENTRY),
+      ).rejects.toThrow(/already raced/);
+    });
+
+    it('refuses a second heat in the same round', async () => {
+      await handlerRegistry.insertHeatBoat(
+        {},
+        heatId(db, 'Heat A1'),
+        LATE_ENTRY,
+      );
+      await expect(
+        handlerRegistry.insertHeatBoat({}, heatId(db, 'Heat B1'), LATE_ENTRY),
+      ).rejects.toThrow(/already in Heat A1/);
+    });
+
+    it('refuses a boat that is not entered in the event', async () => {
+      await expect(
+        handlerRegistry.insertHeatBoat({}, heatId(db, 'Heat A1'), 6),
+      ).rejects.toThrow(/not entered/);
+    });
+
+    it('refuses a superseded round', async () => {
+      await scoreHeat(db, 'Heat A1');
+      await scoreHeat(db, 'Heat B1');
+      await handlerRegistry.createNewHeatsBasedOnLeaderboard({}, EVENT_ID);
+      await expect(
+        handlerRegistry.insertHeatBoat({}, heatId(db, 'Heat A1'), LATE_ENTRY),
+      ).rejects.toThrow(/next round/);
+    });
+  });
+
   describe('a boat entered after the heats were built', () => {
     beforeEach(() => {
       db.exec(

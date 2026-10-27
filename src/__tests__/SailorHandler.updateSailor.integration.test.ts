@@ -28,13 +28,12 @@ jest.mock('electron', () => ({
 // The handler binds `db` once at import time. Delegate every call to whichever
 // fresh in-memory database the current test built, so each test is isolated.
 const mockDbHolder: { current: any } = { current: null };
-jest.mock('../../public/Database/DBManager', () => ({
-  db: {
-    prepare: (...args: any[]) => mockDbHolder.current.prepare(...args),
-    exec: (...args: any[]) => mockDbHolder.current.exec(...args),
-    transaction: (fn: (...args: any[]) => any) => fn,
-  },
-}));
+// Real transactions (BEGIN/COMMIT/ROLLBACK), so atomicity is tested too.
+jest.mock('../../public/Database/DBManager', () => {
+  // eslint-disable-next-line global-require, @typescript-eslint/no-var-requires
+  const { createSqliteDbMock } = require('./fixtures/eventLifecycleSchema');
+  return { db: createSqliteDbMock(mockDbHolder) };
+});
 
 function buildSeededDb() {
   const db = new DatabaseSync(':memory:');
@@ -242,6 +241,34 @@ describe('SailorHandler SQL handlers (real SQLite)', () => {
       .prepare('SELECT club_id FROM Sailors WHERE sailor_id = 1')
       .get();
     expect(sailor.club_id).toBe(Number(club.club_id));
+  });
+
+  it('updateSailor changes nothing when any part of the edit fails', async () => {
+    const db = mockDbHolder.current;
+    const boatId = addSailorWithBoat(db, {
+      name: 'John',
+      surname: 'Doe',
+      sail: 47,
+    });
+
+    // The boat update fails (sail_number is NOT NULL) AFTER the new club and
+    // the sailor rename have been written; all of it must roll back.
+    await expect(
+      handlerRegistry.updateSailor(
+        {},
+        {
+          ...baseEdit,
+          name: 'Johnny',
+          surname: 'Doe',
+          club_name: 'JK Labud',
+          boat_id: boatId,
+          sail_number: null,
+        },
+      ),
+    ).rejects.toThrow(/NOT NULL/);
+
+    expect(db.prepare('SELECT name FROM Sailors').get().name).toBe('John');
+    expect(db.prepare('SELECT COUNT(*) AS c FROM Clubs').get().c).toBe(1);
   });
 
   it('readAllSailors and readAllBoats JOIN queries execute on real SQLite', async () => {

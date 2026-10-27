@@ -141,6 +141,13 @@ describe('schema migrations', () => {
     db.exec(
       "INSERT INTO RaceAssignmentSnapshots (race_id, rank, boat_id, frozen_position, frozen_status) VALUES (1, 0, 1, 1, 'FINISHED')",
     );
+    // Migration 3: RDG2 race selection column.
+    expect(
+      db
+        .prepare("PRAGMA table_info('Scores')")
+        .all()
+        .map((row: { name: string }) => row.name),
+    ).toContain('rdg_race_ids');
     expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
     db.close();
   });

@@ -318,6 +318,16 @@ Scoring (`calculateBoatScores.ts`, `scoreStatus.ts`)
   of raw points (`fleetRank`).
 - 5.6 — Redress averages computed separately per series: an RDG2 average covers
   ONLY races in the same series as the redressed cell — never a Q+F pool.
+- RRS A9 (A10 in 2025–28) redress, `shared/redress.ts`: RDG1 = average of all
+  other races in the series, RDG2 = average of PC-chosen races (stored in
+  `Scores.rdg_race_ids`, schema migration 3), RDG3 = PC-set points (never
+  recomputed). Averages include discarded races, EXCLUDE other RDG1/RDG2
+  races, round to the tenth (0.05 up), and are LIVE: every leaderboard
+  recompute re-derives them (`refreshRedressAverages`). The renderer preview
+  uses the same function.
+- Series ties that A8 cannot break (identical scores) SHARE the place
+  (1, 2, 2, 4) — `findUnbrokenTies` + `assignPlaces` in `scoringUtils.ts`,
+  used by qualifying, final and overall standings.
 - 5.7 — **Event ties**:
   - (i) Single-heat events: RRS A8.1 then A8.2.
   - (ii) Multi-heat events: A8.1/A8.2 except — (1) only races where the tied
@@ -393,6 +403,9 @@ Handler / integration:
   `HeatRaceHandler.startFinalSeriesAtomic.test.ts`,
   `HeatRaceHandler.finalSeriesEligibility.test.ts`
 - `explainTieBreak.test.ts`, `compareUtils.test.ts`
+- Published-results replays: `euroIom2025.published.test.ts` (SHRS) and
+  `iomWorlds2024.published.test.ts` (HMS event; checks discards, totals and
+  order only — its sheet has one documented nett error, ARG 63).
 - `ScoringInputComponent.test.jsx`, `useLeaderboard.scoring.test.jsx`
 
 `npm run test:unit` runs every `src/__tests__/**/*.test.*` except the
@@ -468,6 +481,11 @@ For most feature/fix requests, do this in order:
   once the next round was built from it (undo the redistribution first).
 - Undo deletes a race's `RaceAssignmentSnapshots` rows INSIDE its transaction,
   before the race (FKs enforced, no cascade).
+- Late entries: a boat entered after heats exist is in no heat. The heats view
+  shows `UnassignedEntriesNotice`; `insertHeatBoat` only accepts an entered
+  boat into a current-round qualifying heat that has not raced.
+- Sailor/boat edits intentionally apply everywhere, past events included
+  (one record per sailor/boat). Do not add per-event entry snapshots.
 - Point totals go through `sumPoints`/`roundPoints` (`shared/points.ts`). A
   plain sum of tenth-point RDG scores carries float noise, equal totals stop
   comparing equal, and the SHRS 5.7 tie-break is skipped.

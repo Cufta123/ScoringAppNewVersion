@@ -359,6 +359,9 @@ export function applyRaceResultUpdate(
   new_position: any,
   shift_positions: boolean,
   new_status: any,
+  // RDG2 only: the race ids the protest committee chose to average, so the
+  // recompute can keep the average live (shared/redress.ts).
+  rdg_race_ids?: unknown,
 ) {
   const status = normalizeScoreStatus(new_status);
   const isRdg = rdgStatuses.includes(status);
@@ -514,6 +517,21 @@ export function applyRaceResultUpdate(
     if (i !== editedIndex && unchanged) return;
     writeRow.run(cell.position, cell.points, cell.status, row.score_id);
   });
+
+  // Record (or drop) the RDG2 basis. Only touched when it matters, so an
+  // ordinary edit issues no extra write.
+  const editedScoreId = raceRows[editedIndex].score_id;
+  if (status === 'RDG2' && Array.isArray(rdg_race_ids)) {
+    const ids = rdg_race_ids.map(Number).filter((id) => Number.isFinite(id));
+    db.prepare('UPDATE Scores SET rdg_race_ids = ? WHERE score_id = ?').run(
+      ids.length > 0 ? JSON.stringify(ids) : null,
+      editedScoreId,
+    );
+  } else if (status !== 'RDG2' && previousStatus === 'RDG2') {
+    db.prepare('UPDATE Scores SET rdg_race_ids = NULL WHERE score_id = ?').run(
+      editedScoreId,
+    );
+  }
 }
 
 // BK-7: after a single-score edit or delete, refresh the affected event's

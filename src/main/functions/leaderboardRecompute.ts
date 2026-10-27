@@ -3,6 +3,71 @@ import calculateBoatScores from './calculateBoatScores';
 import calculateFinalBoatScores from './calculateFinalBoatScores';
 import { getMaxHeatSizeForEvent } from './heatQueries';
 import { deriveNonFinisherPoints } from './scoreStatus';
+import {
+  averageRedressPoints,
+  parseRedressRaceIds,
+} from '../../shared/redress';
+
+interface SeriesScoreRow {
+  score_id: number;
+  position: number;
+  status: string;
+  boat_id?: number | string | null;
+  race_id?: number | null;
+  points?: number | null;
+  rdg_race_ids?: string | null;
+}
+
+/**
+ * RRS A9 average-points redress is LIVE: "the average of her points in all the
+ * races in the series" changes every time she sails another race, so RDG1 and
+ * RDG2 points are re-derived from the boat's other scores in this series on
+ * every recompute (src/shared/redress.ts has the rule). RDG3 is a PC-set value
+ * and is left alone. A redress row with nothing to average yet keeps its
+ * stored value.
+ */
+export function refreshRedressAverages(rows: SeriesScoreRow[]) {
+  const redressRows = rows.filter(
+    (row) =>
+      (row.status === 'RDG1' || row.status === 'RDG2') &&
+      row.boat_id != null &&
+      row.race_id != null,
+  );
+  if (redressRows.length === 0) return;
+
+  const rowsByBoat = new Map<string, SeriesScoreRow[]>();
+  rows.forEach((row) => {
+    if (row.boat_id == null) return;
+    const key = String(row.boat_id);
+    if (!rowsByBoat.has(key)) rowsByBoat.set(key, []);
+    rowsByBoat.get(key)!.push(row);
+  });
+
+  const updateStmt = db.prepare(
+    'UPDATE Scores SET position = ?, points = ? WHERE score_id = ?',
+  );
+  redressRows.forEach((row) => {
+    let pool = (rowsByBoat.get(String(row.boat_id)) ?? []).filter(
+      (other) => other.score_id !== row.score_id,
+    );
+    if (row.status === 'RDG2') {
+      const chosen = parseRedressRaceIds(row.rdg_race_ids);
+      if (!chosen) return; // basis unknown (saved before it was recorded)
+      const chosenSet = new Set(chosen);
+      pool = pool.filter((other) => chosenSet.has(Number(other.race_id)));
+    }
+    const average = averageRedressPoints(
+      pool.map((other) => ({
+        points: Number(other.points),
+        status: other.status,
+      })),
+    );
+    if (average === null || average === Number(row.points)) return;
+    updateStmt.run(average, average, row.score_id);
+    row.points = average;
+    row.position = average;
+  });
+}
 
 // Recompute and persist the qualifying and final leaderboards for an event from
 // the raw Scores rows. Both rebuild their table inside a transaction so a failed
@@ -23,17 +88,14 @@ export function renormalizeNonFinisherScores(
   }
   const rows = db
     .prepare(
-      `SELECT s.score_id, s.position, COALESCE(s.status, 'FINISHED') AS status
+      `SELECT s.score_id, s.position, COALESCE(s.status, 'FINISHED') AS status,
+              s.boat_id, s.race_id, s.points, s.rdg_race_ids
        FROM Scores s
        JOIN Races r ON s.race_id = r.race_id
        JOIN Heats h ON r.heat_id = h.heat_id
        WHERE h.event_id = ? AND h.heat_type = ?`,
     )
-    .all(event_id, heat_type) as {
-    score_id: number;
-    position: number;
-    status: string;
-  }[];
+    .all(event_id, heat_type) as SeriesScoreRow[];
 
   if (rows.length === 0) {
     return;
@@ -46,8 +108,14 @@ export function renormalizeNonFinisherScores(
     const derived = deriveNonFinisherPoints(row.status, row.position, maxBoats);
     if (derived !== null) {
       updateStmt.run(derived, row.score_id);
+      // Keep the in-memory row current: redress averages below read it.
+      // eslint-disable-next-line no-param-reassign
+      row.points = derived;
     }
   });
+
+  // After the non-finisher fix-up, so averages use the corrected points.
+  refreshRedressAverages(rows);
 }
 
 export function recomputeEventLeaderboard(event_id: any) {

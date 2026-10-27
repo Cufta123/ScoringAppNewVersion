@@ -196,7 +196,7 @@ export function restoreEventSnapshot(
     });
 
     const insertScore = db.prepare(
-      'INSERT INTO Scores (score_id, race_id, boat_id, position, points, status) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO Scores (score_id, race_id, boat_id, position, points, status, rdg_race_ids) VALUES (?, ?, ?, ?, ?, ?, ?)',
     );
     (tables.Scores || []).forEach((row) => {
       insertScore.run(
@@ -206,6 +206,8 @@ export function restoreEventSnapshot(
         row.position,
         row.points,
         row.status,
+        // Absent from snapshots taken before schema migration 3.
+        row.rdg_race_ids ?? null,
       );
     });
 

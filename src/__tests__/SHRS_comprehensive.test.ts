@@ -370,8 +370,9 @@ describe('A5 / SHRS 5.2 – Penalty scores', () => {
     ]);
     expect(r.f1.place).toBe(1);
     expect(r.f2.place).toBe(2);
-    // All DSQ boats have same score, should be placed 3,4,5
-    expect([r.d1.place, r.d2.place, r.d3.place].sort()).toEqual([3, 4, 5]);
+    // All DSQ boats have identical scores in every race: RRS A8 cannot
+    // separate them, so they remain tied and share 3rd.
+    expect([r.d1.place, r.d2.place, r.d3.place]).toEqual([3, 3, 3]);
   });
 
   it('penalty boat excluded in discard still counts toward total races', () => {
@@ -781,9 +782,11 @@ describe('SHRS 5.3 – Status recording order', () => {
     ]);
     expect(r.fin1.place).toBe(1);
     expect(r.fin2.place).toBe(2);
-    // All penalties tied at 6, will be placed 3-5
-    const penaltyPlaces = [r.dnf.place, r.dsq.place, r.dns.place].sort();
-    expect(penaltyPlaces).toEqual([3, 4, 5]);
+    // All penalties score 6 in the only race: tied, sharing 3rd. (The 5.3
+    // recording order still sorts them for heat assignment; it does not split
+    // a series-score tie.)
+    const penaltyPlaces = [r.dnf.place, r.dsq.place, r.dns.place];
+    expect(penaltyPlaces).toEqual([3, 3, 3]);
   });
 });
 
@@ -1080,7 +1083,7 @@ describe('Edge cases', () => {
     expect(r.b.totalPoints).toBe(30);
   });
 
-  it('2 boats with perfectly identical scores and races remain in stable order', () => {
+  it('2 boats with perfectly identical scores and races remain tied', () => {
     setupQualifyingMockDb(
       { a: [3, 1], b: [3, 1] },
       { a: [3, 1], b: [3, 1] },
@@ -1096,9 +1099,9 @@ describe('Edge cases', () => {
       },
     );
     const r = runQualifying([makeQResult('a', 2), makeQResult('b', 2)]);
-    // Perfectly tied: should still get distinct places (stable sort)
-    const places = [r.a.place, r.b.place].sort();
-    expect(places).toEqual([1, 2]);
+    // Perfectly tied: RRS A8 cannot separate them, so they share 1st rather
+    // than being split by read order.
+    expect([r.a.place, r.b.place]).toEqual([1, 1]);
   });
 
   it('handles very large fleet (50 boats) with unique scores', () => {

@@ -102,6 +102,45 @@ export function getKeptScores(
  * SHRS 2026 5.7(ii)(3): resolve the highest-place tie first, then re-apply
  * the tie-break comparison on the remaining tied boats.
  */
+/**
+ * Boats that are STILL tied with the boat directly above them after every
+ * tie-break has been applied (`compare` returns 0). RRS A8 breaks ties only
+ * while the scores differ somewhere; boats with identical scores remain tied
+ * and share the place, rather than being split by an internal id.
+ */
+export function findUnbrokenTies<T extends { boat_id: any }>(
+  order: T[],
+  compare: (left: T, right: T) => number,
+): Set<string> {
+  const tied = new Set<string>();
+  for (let i = 1; i < order.length; i += 1) {
+    if (compare(order[i - 1], order[i]) === 0) {
+      tied.add(String(order[i].boat_id));
+    }
+  }
+  return tied;
+}
+
+/**
+ * Number a ranked table 1..n, giving a boat that remained tied with the boat
+ * above (same total, in `tiedWithAbove`) the same place: 1, 2, 2, 4.
+ */
+export function assignPlaces(
+  table: { boat_id: any; totalPoints: number; place?: number }[],
+  tiedWithAbove: Set<string>,
+): void {
+  table.forEach((boat, index) => {
+    const above = table[index - 1];
+    // eslint-disable-next-line no-param-reassign
+    boat.place =
+      above &&
+      above.totalPoints === boat.totalPoints &&
+      tiedWithAbove.has(String(boat.boat_id))
+        ? above.place
+        : index + 1;
+  });
+}
+
 export function resolveTiesSequentially<T>(
   items: T[],
   compare: (left: T, right: T) => number,

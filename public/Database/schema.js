@@ -371,6 +371,22 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 3,
+    name: 'remember which races an RDG2 redress averages',
+    // RDG averages are live (RRS A9 averages "all the races in the series",
+    // which keeps growing), so the recompute has to know the protest
+    // committee's chosen races for an RDG2. JSON array of race ids; NULL for
+    // every other status. See src/shared/redress.ts.
+    up(db) {
+      addMissingColumns(db, 'Scores', [
+        {
+          name: 'rdg_race_ids',
+          sql: 'ALTER TABLE Scores ADD COLUMN rdg_race_ids TEXT;',
+        },
+      ]);
+    },
+  },
 ];
 
 const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

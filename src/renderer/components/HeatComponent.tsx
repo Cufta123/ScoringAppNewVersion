@@ -4,6 +4,7 @@ import useExclusiveAction from '../hooks/useExclusiveAction';
 import { minimumHeatsForEntries } from '../../shared/heatSizing';
 import printNewHeats from '../utils/printNewHeats';
 import AppModal from './shared/AppModal';
+import UnassignedEntriesNotice from './UnassignedEntriesNotice';
 import {
   confirmAction,
   reportError,
@@ -737,6 +738,19 @@ function HeatComponent({
           Could not load the heats for this event. The list below may be
           incomplete — reload the page to try again.
         </div>
+      )}
+
+      {heatsCreated && !heatsLoadFailed && (
+        <UnassignedEntriesNotice
+          eventId={event.event_id}
+          heats={heats}
+          raceHappened={raceHappened}
+          finalSeriesStarted={finalSeriesStarted}
+          refreshKey={heats}
+          busy={busy || rowActionsDisabled}
+          runExclusive={runExclusive}
+          onAssigned={handleDisplayHeats}
+        />
       )}
 
       {heatsToDisplay.length === 0 && !heatsCreated && !heatsLoadFailed && (
