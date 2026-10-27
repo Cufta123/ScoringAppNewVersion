@@ -78,6 +78,15 @@ function QualifyingTable({
 
   const identityHeaders = ['Rank', 'Name', 'Country', 'Sail #', 'Type'];
   const raceCount = leaderboard[0]?.races?.length || 0;
+  // SHRS 1.1: a race consists of all its heats. Results of a round some heats
+  // have not sailed yet are shown after the counted races, greyed, and are
+  // not part of any total until the round is complete.
+  const pendingCount = Math.max(
+    0,
+    ...leaderboard.map((entry) => entry.pending_races?.length ?? 0),
+  );
+  const pendingTitle =
+    'In progress: not every heat has sailed this race yet, so it is not counted (SHRS 1.1).';
 
   // Boats sharing a race_id are the ones in the same physical race (heat). Used
   // to cap a finishing-place input at that race's boat count — across multiple
@@ -118,6 +127,13 @@ function QualifyingTable({
         Qualifying Series
       </h3>
 
+      {pendingCount > 0 && (
+        <p className="race-in-progress-note" role="note">
+          * Round in progress: not every heat has sailed it yet. Its results are
+          shown greyed and are not counted until the round is complete (SHRS
+          1.1).
+        </p>
+      )}
       <div
         style={{
           border: `1.5px solid ${QUAL_ACCENT.border}`,
@@ -236,6 +252,17 @@ function QualifyingTable({
                   </th>
                 );
               })}
+              {Array.from({ length: pendingCount }, (_, i) => (
+                <th
+                  scope="col"
+                  key={`qh-p${i + 1}`}
+                  className="race-in-progress"
+                  title={pendingTitle}
+                  aria-label={`Q${raceCount + i + 1} in progress, not counted`}
+                >
+                  Q{raceCount + i + 1}*
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -381,6 +408,29 @@ function QualifyingTable({
                         setRdg2Picker={setRdg2Picker}
                         confirmRdg2={confirmRdg2}
                       />
+                    );
+                  })}
+                  {Array.from({ length: pendingCount }, (_, i) => {
+                    const pending = entry.pending_races?.[i];
+                    let text = '–';
+                    if (pending) {
+                      text =
+                        pending.status === 'FINISHED'
+                          ? String(pending.position)
+                          : pending.status;
+                    }
+                    return (
+                      <td
+                        key={`ev-${entry.boat_id}-p${i}`}
+                        className="race-in-progress"
+                        title={
+                          pending
+                            ? `${pending.heat_name}: in progress, not counted yet`
+                            : 'Not sailed yet in this round'
+                        }
+                      >
+                        {text}
+                      </td>
                     );
                   })}
                 </tr>

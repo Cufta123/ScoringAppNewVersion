@@ -2224,3 +2224,35 @@ button.submit-scores-btn.is-unavailable:hover {
   color: #8a1c1c;
   background: rgba(200, 40, 40, 0.1);
 }
+
+/* ── Qualifying round still being sailed (SHRS 1.1) ─── */
+.leaderboard-table th.race-in-progress,
+th.race-in-progress {
+  text-align: center;
+  padding: 7px 10px;
+  font-weight: 600;
+  font-style: italic;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.06);
+  border-left: 1px dashed rgba(255, 255, 255, 0.35);
+}
+
+td.race-in-progress {
+  text-align: center;
+  padding: 8px 10px;
+  font-style: italic;
+  color: var(--text-secondary);
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0 6px,
+    rgba(15, 45, 74, 0.04) 6px 12px
+  );
+  border-left: 1px dashed var(--border);
+}
+
+.race-in-progress-note {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
