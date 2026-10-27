@@ -70,7 +70,10 @@ interface EditedSailor {
 
 interface SailorListProps {
   sailors: SailorListSailor[];
-  onRemoveBoat: (boatId: number) => void | Promise<void>;
+  /** Resolves true when the boat was removed (false/void: it was not). */
+  onRemoveBoat: (boatId: number) => boolean | void | Promise<boolean | void>;
+  /** False once a race is scored: the entry list is fixed (WTH instead). */
+  canRemove?: boolean;
   onRefreshSailors: () => void;
   headerActions?: React.ReactNode;
   /** True while the parent is still fetching boats — distinguishes "loading"
@@ -81,6 +84,7 @@ interface SailorListProps {
 function SailorList({
   sailors,
   onRemoveBoat,
+  canRemove = true,
   onRefreshSailors,
   headerActions = null,
   loading = false,
@@ -211,8 +215,10 @@ function SailorList({
 
     if (!confirmed) return;
 
-    await onRemoveBoat(sailor.boat_id);
-    reportInfo('Boat removed from event.', 'Removed');
+    // Only confirm what happened: the parent refuses after a race is scored
+    // and reports a failure itself.
+    const removed = await onRemoveBoat(sailor.boat_id);
+    if (removed === true) reportInfo('Boat removed from event.', 'Removed');
   };
 
   const handleInputChange = (
@@ -468,19 +474,21 @@ function SailorList({
                         />
                       </button>
                     )}
-                    <button
-                      type="button"
-                      className="icon-action-btn"
-                      aria-label={`Remove boat ${sailor.sail_number} from event`}
-                      title="Remove boat from event"
-                      onClick={() => handleRemoveWithConfirm(sailor)}
-                    >
-                      <i
-                        className="fa fa-trash"
-                        aria-hidden="true"
-                        style={{ color: 'var(--danger)' }}
-                      />
-                    </button>
+                    {canRemove && (
+                      <button
+                        type="button"
+                        className="icon-action-btn"
+                        aria-label={`Remove boat ${sailor.sail_number} from event`}
+                        title="Remove boat from event"
+                        onClick={() => handleRemoveWithConfirm(sailor)}
+                      >
+                        <i
+                          className="fa fa-trash"
+                          aria-hidden="true"
+                          style={{ color: 'var(--danger)' }}
+                        />
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>

@@ -115,6 +115,24 @@ export default function useLeaderboard(eventId: number) {
     OverallLeaderboardEntry[]
   >([]);
   const [shiftPositions, setShiftPositions] = useState(false);
+  // Cells holding typed input that cannot be saved (a place outside 1..boats
+  // in the race, points of 0 …), keyed `${boatId}-${raceIndex}` → a sentence
+  // naming the sail and race. Save refuses while any is listed.
+  const [invalidCells, setInvalidCells] = useState<Record<string, string>>({});
+  const reportInvalidCell = useCallback(
+    (key: string, message: string | null) =>
+      setInvalidCells((prev) => {
+        if (message == null) {
+          if (!(key in prev)) return prev;
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        }
+        if (prev[key] === message) return prev;
+        return { ...prev, [key]: message };
+      }),
+    [],
+  );
   const [discardProfiles, setDiscardProfiles] = useState<DiscardProfiles>({
     qualifying: 'standard',
     final: 'standard',
@@ -591,11 +609,14 @@ export default function useLeaderboard(eventId: number) {
 
   const hasUnsavedChanges = useMemo(() => {
     if (!editMode) return false;
+    // Something typed but not valid yet is still unsaved work to ask about.
+    if (Object.keys(invalidCells).length > 0) return true;
     const source = finalSeriesStarted ? leaderboard : eventLeaderboard;
     if (!Array.isArray(source) || source.length === 0) return false;
     return JSON.stringify(editableLeaderboard) !== JSON.stringify(source);
   }, [
     editMode,
+    invalidCells,
     editableLeaderboard,
     leaderboard,
     eventLeaderboard,
@@ -1177,6 +1198,14 @@ export default function useLeaderboard(eventId: number) {
     // state is set only after the confirm dialog, so it cannot block a second
     // click that arrives while that dialog is open.
     if (savingRef.current) return;
+    const invalidMessages = Object.values(invalidCells);
+    if (invalidMessages.length > 0) {
+      reportWarning(
+        `Nothing was saved. Fix the results marked in red first:\n${invalidMessages.join('\n')}`,
+        'Some results are not valid',
+      );
+      return;
+    }
     savingRef.current = true;
     try {
       if (!editableLeaderboard || !leaderboard) {
@@ -1279,6 +1308,16 @@ export default function useLeaderboard(eventId: number) {
         );
       }
 
+      if (updateOperations.length === 0) {
+        userEditsRef.current.clear();
+        setRdgMeta({});
+        setRdg2Picker(null);
+        setEditMode(false);
+        setEditableLeaderboard(cloneEntries(originalSource));
+        reportInfo('No result was changed.', 'Nothing to save');
+        return;
+      }
+
       setSaving(true);
       try {
         await heatRaceDB.saveLeaderboardRaceResultsAtomic(
@@ -1377,6 +1416,7 @@ export default function useLeaderboard(eventId: number) {
     rdgMeta,
     rdg2Picker,
     hasUnsavedChanges,
+    invalidCells,
     // Derived
     hasEventData,
     hasFinalData,
@@ -1394,6 +1434,7 @@ export default function useLeaderboard(eventId: number) {
     handleRaceChange,
     confirmRdg2,
     handleCompareRowClick,
+    reportInvalidCell,
     exportAs,
     getFlagCode,
   };

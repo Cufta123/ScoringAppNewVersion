@@ -113,6 +113,8 @@ const baseLeaderboardHook = {
   handleRaceChange: jest.fn(),
   confirmRdg2: jest.fn(),
   handleCompareRowClick: jest.fn(),
+  reportInvalidCell: jest.fn(),
+  invalidCells: {},
   exportAs: jest.fn(),
   getFlagCode: jest.fn(),
 };

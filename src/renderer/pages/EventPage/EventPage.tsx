@@ -198,8 +198,8 @@ function EventPage() {
     }
   };
 
-  const handleRemoveBoat = async (boatId: number) => {
-    if (!event) return;
+  const handleRemoveBoat = async (boatId: number): Promise<boolean> => {
+    if (!event) return false;
 
     // Mirror the add-boat guard: once a race has been sailed the entry list is
     // fixed — removing a boat here would orphan its heat assignments and
@@ -209,7 +209,7 @@ function EventPage() {
         'Boats cannot be removed after a race has happened. Record a mid-series withdrawal by scoring the boat as WTH instead.',
         'Action blocked',
       );
-      return;
+      return false;
     }
 
     try {
@@ -227,6 +227,7 @@ function EventPage() {
       if (removedBoat) {
         setAllBoats((prevBoats) => [...prevBoats, removedBoat]);
       }
+      return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : '';
       // The main process re-checks this because `raceHappened` here can be
@@ -234,9 +235,10 @@ function EventPage() {
       // rather than replacing it with a generic failure.
       if (message.includes('race has already been scored')) {
         reportWarning(message, 'Boat not removed');
-        return;
+        return false;
       }
       reportError('Could not remove boat from the event.', error);
+      return false;
     }
   };
 
@@ -397,6 +399,7 @@ function EventPage() {
             sailors={Array.isArray(boats) ? boats : []}
             loading={boatsLoading}
             onRemoveBoat={handleRemoveBoat}
+            canRemove={!raceHappened}
             onRefreshSailors={fetchBoatsWithSailors}
             headerActions={
               <div className="list-header-actions">

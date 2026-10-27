@@ -3,7 +3,11 @@
 import '@testing-library/jest-dom';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import useLeaderboard from '../renderer/hooks/useLeaderboard';
-import { reportError } from '../renderer/utils/userFeedback';
+import {
+  reportError,
+  reportInfo,
+  reportWarning,
+} from '../renderer/utils/userFeedback';
 
 jest.mock('exceljs', () => {
   return function ExcelJS() {
@@ -25,6 +29,8 @@ jest.mock('../renderer/utils/userFeedback', () => ({
   confirmAction: jest.fn().mockResolvedValue(true),
   confirmChoice: jest.fn().mockResolvedValue('cancel'),
   reportError: jest.fn(),
+  reportInfo: jest.fn(),
+  reportWarning: jest.fn(),
 }));
 
 const baseLeaderboardRows = [
@@ -1149,6 +1155,63 @@ describe('useLeaderboard scoring/edit flow', () => {
     });
   });
 
+  describe('invalid typed results', () => {
+    it('Save refuses while a cell holds an impossible place, and names it', async () => {
+      const { result } = renderHook(() => useLeaderboard(1));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      await act(async () => {
+        await result.current.toggleEditMode();
+      });
+      act(() => {
+        result.current.handleRaceChange('b2', 0, null, 'DSQ');
+        result.current.reportInvalidCell(
+          'b1-0',
+          'Sail 101, Q1: Only 2 boats sailed this race, so the place must be 1–2.',
+        );
+      });
+
+      await act(async () => {
+        await result.current.handleSave();
+      });
+      expect(
+        window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic,
+      ).not.toHaveBeenCalled();
+      expect(reportWarning).toHaveBeenCalledWith(
+        expect.stringContaining('Sail 101, Q1'),
+        'Some results are not valid',
+      );
+      expect(result.current.editMode).toBe(true);
+
+      // Once the cell is fixed, the queued edit saves.
+      act(() => result.current.reportInvalidCell('b1-0', null));
+      await act(async () => {
+        await result.current.handleSave();
+      });
+      expect(
+        window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic,
+      ).toHaveBeenCalledTimes(1);
+    });
+
+    it('Save with nothing changed writes nothing and says so', async () => {
+      const { result } = renderHook(() => useLeaderboard(1));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      await act(async () => {
+        await result.current.toggleEditMode();
+      });
+      await act(async () => {
+        await result.current.handleSave();
+      });
+      expect(
+        window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic,
+      ).not.toHaveBeenCalled();
+      expect(reportInfo).toHaveBeenCalledWith(
+        'No result was changed.',
+        'Nothing to save',
+      );
+      expect(result.current.editMode).toBe(false);
+    });
+  });
+
   describe('LB-5: edits cleared before refetch after a successful save', () => {
     it('leaves edit mode and clears edits even when the post-save refetch fails', async () => {
       // First readLeaderboard call is the mount fetch; the second is the
@@ -1181,10 +1244,10 @@ describe('useLeaderboard scoring/edit flow', () => {
       await act(async () => {
         await result.current.handleSave();
       });
-      const [, retryOps] =
-        window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic.mock
-          .calls[1];
-      expect(retryOps).toEqual([]);
+      // Nothing is queued, so the retry writes nothing at all.
+      expect(
+        window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic,
+      ).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -1238,10 +1301,9 @@ describe('useLeaderboard scoring/edit flow', () => {
       await act(async () => {
         await result.current.handleSave();
       });
-      const [, ops] =
-        window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic.mock
-          .calls[0];
-      expect(ops).toEqual([]);
+      expect(
+        window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic,
+      ).not.toHaveBeenCalled();
     });
 
     it('ignores a late qualifying fetch once the final series has started', async () => {

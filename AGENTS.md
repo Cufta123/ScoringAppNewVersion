@@ -573,6 +573,23 @@ For most feature/fix requests, do this in order:
   plain sum of tenth-point RDG scores carries float noise, equal totals stop
   comparing equal, and the SHRS 5.7 tie-break is skipped.
 
+- **Outdoor readability is a requirement**: the app is used by race officers
+  (often 60+) on cheap laptops in sunshine. Root font is 17px; secondary text
+  and borders are dark tokens (`--text-secondary`, `--border-strong`); toasts
+  are top-centre with dark text; the window opens maximised. Do not
+  reintroduce pale greys, small uppercase labels or bottom-right toasts.
+  `UI_TOUR=1 npx playwright test e2e/ui-tour.spec.ts` seeds a 30-boat event
+  and saves a screenshot of every screen (to `e2e-ui-tour/`) for review.
+- **Typed results are never corrected silently.** Leaderboard cells and the
+  scoring page's place field are text inputs (a `type="number"` field changes
+  on the mouse wheel / arrow keys). `utils/raceCellInput.ts` decides what is
+  valid: a place is a whole number 1..boats in that race; RDG3/DPI points are
+  > 0, <=99, one decimal, comma accepted. Invalid input stays red with the
+  > range, is not applied, and Save refuses naming each cell
+  > (`editValidity.tsx` context -> `useLeaderboard.invalidCells`). The main
+  > process also refuses a place past the largest heat
+  > (`applyRaceResultUpdate`).
+
 ## 11. What To Search Only If Needed
 
 Only run repo-wide search if needed after using this file.

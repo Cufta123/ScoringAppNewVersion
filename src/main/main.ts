@@ -129,6 +129,9 @@ const createWindow = async () => {
     if (process.env.START_MINIMIZED) {
       mainWindow.minimize();
     } else {
+      // Open filling the screen: on a 1366x768 laptop the old 1024x728
+      // window cut the leaderboard, and not everyone knows to maximise it.
+      mainWindow.maximize();
       mainWindow.show();
     }
   });

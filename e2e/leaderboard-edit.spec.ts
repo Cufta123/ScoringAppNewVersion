@@ -184,19 +184,29 @@ test('numeric and penalty edits persist through Save and recompute', async () =>
   await openLeaderboard();
   await window.getByRole('button', { name: 'Edit Results' }).click();
 
-  // Numeric edit: type 9 into Bob's Race 3. "Shift other boats" is OFF (the
-  // default), so this is a pure manual override: only Bob changes. The input is
-  // capped at the heat size, so 9 clamps to last place (4) and Bob's net updates
-  // to 2 + 2 + 4 = 8. Cara and Dan are left untouched (Dan keeps his 4, so the
-  // race now has two boats on 4 — a deliberate tie that the user can fix later).
+  // Numeric edit on Bob's Race 3. "Shift other boats" is OFF (the default),
+  // so this is a pure manual override: only Bob changes. A place past the
+  // last boat is refused, not corrected: 9 in a 4-boat race stays in red with
+  // the allowed range, changes nothing, and blocks Save until fixed.
   const bobR3 = window
     .getByRole('row', { name: /Bob/ })
     .getByLabel('Race 3 value');
   await bobR3.fill('9');
-  // While focused the input shows the raw draft ("9") so typing isn't fought
-  // by the clamp; the clamped value lands when focus leaves the field.
+  await bobR3.blur();
+  await expect(bobR3).toHaveValue('9');
+  await expect(bobR3).toHaveAttribute('aria-invalid', 'true');
+  await expect(
+    window.getByRole('row', { name: /Bob/ }).getByRole('alert'),
+  ).toHaveText('1–4');
+  await expect(overallCell(/Bob/)).toHaveText('6');
+
+  // Fixed to last place (4): Bob's net updates to 2 + 2 + 4 = 8. Cara and Dan
+  // are left untouched (Dan keeps his 4, so the race now has two boats on 4 —
+  // a deliberate tie that the user can fix later).
+  await bobR3.fill('4');
   await bobR3.blur();
   await expect(bobR3).toHaveValue('4');
+  await expect(bobR3).not.toHaveAttribute('aria-invalid', 'true');
   await expect(overallCell(/Bob/)).toHaveText('8');
 
   // Penalty edit: Cara's Race 1 → DNS. The input disables for a hard penalty.

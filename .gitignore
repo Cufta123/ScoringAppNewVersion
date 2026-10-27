@@ -40,3 +40,4 @@ out/
 # Claude Code — local DeepSeek worker credentials/backups (never commit)
 .claude/settings.local.json
 .claude/deepseek/*.backup
+e2e-ui-tour/

@@ -136,9 +136,12 @@ c.club_name, c.country AS club_country,
 cat.category_name
 FROM Boats b
 JOIN Boat_Event be ON b.boat_id = be.boat_id
-JOIN Sailors s ON b.sailor_id = s.sailor_id
-JOIN Clubs c ON s.club_id = c.club_id
-JOIN Categories cat ON s.category_id = cat.category_id
+-- LEFT: an entered boat is always listed. With inner joins a sailor with no
+-- club or category (an older import, a restored backup) vanished from the
+-- entry list while still racing, and the page said nobody was registered.
+LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id
+LEFT JOIN Clubs c ON s.club_id = c.club_id
+LEFT JOIN Categories cat ON s.category_id = cat.category_id
 WHERE be.event_id = ?
       `,
     )

@@ -179,14 +179,11 @@ function LeaderboardToolbar({
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
-            // Active = teal (matching the Compare toggle). Editing is not
-            // destructive, so it must not use the danger-red reserved for
-            // delete/discard actions.
-            border: `1px solid ${editMode ? 'var(--teal, #0f9478)' : 'var(--border, #dde3ea)'}`,
-            background: editMode
-              ? 'var(--teal, #0f9478)'
-              : 'var(--surface, #f0f4f8)',
-            color: editMode ? '#fff' : 'var(--navy)',
+            // In edit mode this is Cancel: a plain white button, so it never
+            // looks like Save (green) or a destructive action (red).
+            border: `2px solid ${editMode ? 'var(--text-secondary)' : 'var(--border, #dde3ea)'}`,
+            background: 'var(--surface, #fff)',
+            color: 'var(--navy)',
             opacity: editDisabled ? 0.5 : 1,
             cursor: editDisabled ? 'not-allowed' : 'pointer',
           }}

@@ -30,11 +30,13 @@
   --bg-subtle: #e4eef8;
   --surface: #ffffff;
   --surface-2: #f8fbff;
-  --border: #c8dff2;
-  --border-strong: #91bde0;
+  /* Contrast is set for outdoor use: a cheap laptop screen in sunshine
+     washes out pale greys, so borders and secondary text stay dark. */
+  --border: #a9c3da;
+  --border-strong: #6b93b8;
   --text: #0d1f2d;
-  --text-secondary: #3a5068;
-  --text-muted: #5a7389;
+  --text-secondary: #213a52;
+  --text-muted: #3d5670;
   --radius-sm: 6px;
   --radius: 12px;
   --radius-lg: 18px;
@@ -50,6 +52,12 @@
 html,
 body {
   height: 100%;
+}
+
+/* One step above the browser default: every rem-sized text and control in
+   the app grows with it, for older eyes and low-resolution screens. */
+html {
+  font-size: 17px;
 }
 
 .skip-link {
@@ -76,7 +84,7 @@ body {
     'Segoe UI',
     Roboto,
     sans-serif;
-  font-size: 16px;
+  font-size: 1rem;
   line-height: 1.5;
   color: var(--text);
   background-color: var(--bg);
@@ -231,9 +239,9 @@ select,
 textarea {
   width: 100%;
   padding: 10px 14px;
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-family: inherit;
-  border: 1.5px solid var(--border);
+  border: 2px solid var(--border-strong);
   border-radius: var(--radius);
   background: var(--surface);
   color: var(--text);
@@ -334,11 +342,9 @@ select.compact-select {
 
 label {
   display: block;
-  font-size: 0.88rem;
+  font-size: 0.95rem;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   margin-bottom: 5px;
 }
 
@@ -362,9 +368,8 @@ th {
   background: var(--navy);
   padding: 11px 16px;
   font-weight: 700;
-  font-size: 0.88rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-size: 0.92rem;
+  letter-spacing: 0.01em;
   text-align: left;
 }
 th:first-child {
@@ -1817,8 +1822,21 @@ button.finish-add-btn:hover {
 
 .finish-label {
   flex: 1;
-  font-size: 0.9rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  font-size: 1rem;
   color: var(--navy);
+}
+.finish-sail {
+  font-size: 1.1rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.finish-name {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
 }
 
 .finish-not-in-heat {
@@ -1949,6 +1967,37 @@ button.submit-scores-btn.is-unavailable:hover {
    steps instead of one run-on sentence. */
 .Toastify__toast-body {
   white-space: pre-line;
+}
+
+/* Messages must be readable at a glance in sunshine: dark text, a bold
+   coloured edge for the kind of message, larger type, and shown at the top
+   centre where they do not cover the finish order or the Save button. */
+.Toastify__toast-container {
+  width: min(560px, 94vw);
+}
+.Toastify__toast {
+  border: 2px solid var(--border-strong);
+  border-left-width: 8px;
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.45;
+  font-family: inherit;
+}
+.Toastify__toast--error {
+  border-color: var(--danger);
+}
+.Toastify__toast--warning {
+  border-color: var(--amber);
+}
+.Toastify__toast--success {
+  border-color: var(--teal);
+}
+.Toastify__toast--info {
+  border-color: var(--ocean);
+}
+.Toastify__close-button {
+  color: var(--text);
+  opacity: 0.8;
 }
 
 /* ── Error boundary ───────────────────────────────────────── */
@@ -2255,4 +2304,48 @@ td.race-in-progress {
   margin: 0 0 8px;
   font-size: 0.85rem;
   color: var(--text-secondary);
+}
+
+/* ── Heat cards: status and sail numbers ──────────────────── */
+.heat-column h4.heat-card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 1.15rem;
+}
+.heat-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 0.85rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.heat-status-done {
+  background: var(--teal-light);
+  color: #075c4a;
+  border: 2px solid var(--teal);
+}
+.heat-status-waiting {
+  background: var(--amber-light);
+  color: #8a4a06;
+  border: 2px solid var(--amber);
+}
+td.heat-sail-number {
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+.heat-column.selected {
+  border-width: 3px;
+}
+
+/* Tick boxes large enough to see and hit on a small, bright screen. */
+input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
 }

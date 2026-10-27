@@ -164,7 +164,11 @@ test('submitting a complete race records it and locks roster edits', async () =>
   await window.getByRole('button', { name: /Submit Scores/i }).click();
 
   // Back on the heat list, the heat now shows a completed Race 1.
-  await expect(window.getByText(/Heat A1 \(Race 1\)/i)).toBeVisible();
+  await expect(
+    window
+      .locator('.heat-column', { hasText: 'Heat A1' })
+      .locator('.heat-status-done'),
+  ).toHaveText(/Scored/);
 
   // SHRS rule: once a race is scored, no more sailors/boats may be added.
   await window.getByRole('button', { name: /Back to Event/i }).click();
