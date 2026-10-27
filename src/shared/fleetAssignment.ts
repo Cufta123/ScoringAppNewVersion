@@ -3,6 +3,8 @@
 // IPC handler delegate here so the SHRS 4.3 temporary-discard rule cannot drift
 // between two copies.
 
+import { sumPoints } from './points';
+
 const NON_EXCLUDABLE_FLEET_STATUSES = new Set(['DNE', 'DGM']);
 
 // SHRS 2026-1 Rule 4.3: when a qualifying series has more than five but fewer
@@ -122,9 +124,8 @@ export function computeAdjustedFleetTotals(
       excludedIndexes.add(excludableCandidates[1].idx);
     }
 
-    const totalPoints = points.reduce(
-      (sum, value, idx) => (excludedIndexes.has(idx) ? sum : sum + value),
-      0,
+    const totalPoints = sumPoints(
+      points.filter((_value, idx) => !excludedIndexes.has(idx)),
     );
 
     return { boat_id: boat.boat_id, totalPoints };

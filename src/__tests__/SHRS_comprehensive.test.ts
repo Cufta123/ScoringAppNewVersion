@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
  * COMPREHENSIVE SHRS (Simple Heat Racing System) & RRS Appendix A TESTS
@@ -34,7 +33,7 @@ import {
   parseRaceNum,
 } from '../renderer/utils/leaderboardUtils';
 import {
-  assignBoatsToNewHeatsZigZag,
+  assignBoatsToInitialHeatsSerpentine,
   getNextHeatIndexByMovementTable,
 } from '../main/functions/creatingNewHeatsUtls';
 
@@ -967,37 +966,51 @@ describe('Complex scenario – Mixed penalties and finishers', () => {
 // SECTION 11: HEAT ASSIGNMENT (SHRS 3.1 / 3.2)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-describe('SHRS 3.1 – Zigzag seeding for Race 1', () => {
-  const boats = (n: number) =>
-    Array.from({ length: n }, (_, i) => ({ boat_id: `b${i + 1}` }));
+describe('SHRS 3.1(1) – serpentine seeding for Race 1', () => {
+  const sizes = (boatCount: number, numHeats: number) => {
+    const counts = new Array(numHeats).fill(0);
+    assignBoatsToInitialHeatsSerpentine(boatCount, numHeats).forEach((heat) => {
+      counts[heat] += 1;
+    });
+    return counts;
+  };
 
   it('2 heats, 4 boats: snake A,B,B,A', () => {
-    const r = assignBoatsToNewHeatsZigZag(boats(4), ['A1', 'B1'], 1);
-    expect(r.map((a) => a.heatId)).toEqual([0, 1, 1, 0]);
+    expect(assignBoatsToInitialHeatsSerpentine(4, 2)).toEqual([0, 1, 1, 0]);
   });
 
   it('3 heats, 6 boats: snake A,B,C,C,B,A', () => {
-    const r = assignBoatsToNewHeatsZigZag(boats(6), ['A1', 'B1', 'C1'], 1);
-    expect(r.map((a) => a.heatId)).toEqual([0, 1, 2, 2, 1, 0]);
+    expect(assignBoatsToInitialHeatsSerpentine(6, 3)).toEqual([
+      0, 1, 2, 2, 1, 0,
+    ]);
   });
 
-  it('2 heats, 5 boats: extra goes to first heat', () => {
-    const r = assignBoatsToNewHeatsZigZag(boats(5), ['A1', 'B1'], 1);
-    const counts = [0, 0];
-    r.forEach(({ heatId }) => {
-      counts[heatId]++;
-    });
-    expect(counts[0]).toBe(3); // first heat gets extra
-    expect(counts[1]).toBe(2);
+  it('2 heats, 5 boats: the walk leaves the extra boat in Heat A', () => {
+    expect(sizes(5, 2)).toEqual([3, 2]);
   });
 
   it('4 heats, 16 boats: even distribution', () => {
-    const r = assignBoatsToNewHeatsZigZag(boats(16), ['A', 'B', 'C', 'D'], 1);
-    const counts = [0, 0, 0, 0];
-    r.forEach(({ heatId }) => {
-      counts[heatId]++;
-    });
-    expect(counts).toEqual([4, 4, 4, 4]);
+    expect(sizes(16, 4)).toEqual([4, 4, 4, 4]);
+  });
+
+  // The extra boat is NOT pinned to Heat A. 3.1(1) prescribes the order
+  // 1,2,3,4,5,5,4,3,2,1, and the odd boat lands wherever that walk stops —
+  // here on the LAST heat. Only 4.1 (final fleets) requires the earlier
+  // group to be the larger one; 2.2 only requires the sizes to be as equal
+  // as possible, which they are.
+  it('3 heats, 10 boats: the extra boat lands in the last heat', () => {
+    expect(sizes(10, 3)).toEqual([3, 3, 4]);
+  });
+
+  it('never leaves heats more than one boat apart (SHRS 2.2)', () => {
+    for (let numHeats = 2; numHeats <= 5; numHeats += 1) {
+      for (let boatCount = numHeats; boatCount <= 60; boatCount += 1) {
+        const counts = sizes(boatCount, numHeats);
+        expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(
+          1,
+        );
+      }
+    }
   });
 });
 

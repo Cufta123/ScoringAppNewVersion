@@ -4,7 +4,7 @@ import {
   type ElectronApplication,
   type Page,
 } from '@playwright/test';
-import { launchApp, createEvent, uniqueName } from './helpers';
+import { launchApp, closeApp, createEvent, uniqueName } from './helpers';
 
 // These tests share one app instance and mutate the event list, so they must
 // run in order.
@@ -18,7 +18,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await app?.close();
+  await closeApp(app);
 });
 
 test.beforeEach(async () => {

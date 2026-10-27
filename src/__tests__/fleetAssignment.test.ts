@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 /**
  * Unit tests for src/shared/fleetAssignment.ts — the SHRS 4.1/4.2/4.3 fleet
  * assignment totals shared by the main process and the renderer. Focused on

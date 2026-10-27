@@ -152,6 +152,18 @@ const dbMock = {
       return { all: jest.fn(() => []) };
     }
 
+    // RRS A5.1 / SHRS 5.3 DNC backfill: answering "no qualifying heats" makes
+    // it a no-op. Present only so the repair path can run; the DNS repair is
+    // what this file asserts (dncBackfill.integration covers the backfill).
+    if (
+      sqlContains(
+        sql,
+        "SELECT heat_id, heat_name FROM Heats WHERE event_id = ? AND heat_type = 'Qualifying'",
+      )
+    ) {
+      return { all: jest.fn(() => []) };
+    }
+
     throw new Error(`Unhandled SQL in test mock: ${sql}`);
   }),
   transaction: jest.fn((fn: (...args: any[]) => any) => fn),

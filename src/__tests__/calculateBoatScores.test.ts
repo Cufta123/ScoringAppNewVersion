@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 /**
  * Tests for calculateBoatScores.ts
  *

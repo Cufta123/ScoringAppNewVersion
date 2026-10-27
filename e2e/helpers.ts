@@ -1,3 +1,5 @@
+import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import {
   _electron as electron,
@@ -25,15 +27,75 @@ export interface LaunchedApp {
   window: Page;
 }
 
-/** Launch the real Electron app in production mode and return the first window. */
+/**
+ * A private, empty database file for one app launch.
+ *
+ * The app creates the file and its schema on first use, so it is enough to hand
+ * it a path inside a fresh temp directory. Each launch therefore starts from
+ * zero events and zero boats: tests no longer inherit the sail numbers, clubs
+ * and finished races left behind by earlier runs, and no run can write into the
+ * developer database. The directory is left for the OS to reap so a failed run's
+ * data is still there to inspect.
+ */
+function freshDatabasePath(): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'iom-e2e-'));
+  return path.join(dir, 'scoring_app.db');
+}
+
+/**
+ * Launch the real Electron app in production mode and return the first window.
+ *
+ * Unsaved scoring entries and unsaved leaderboard edits both arm a native
+ * `beforeunload` prompt. Playwright leaves such a dialog open, which blocks
+ * `app.close()` and fails the run in worker teardown rather than in a test, so
+ * every launched window auto-accepts native dialogs. In-app confirmations are a
+ * separate, ordinary DOM modal — see `confirmModal` below — and are never
+ * auto-dismissed, so tests still assert on them.
+ */
 export async function launchApp(): Promise<LaunchedApp> {
   const app = await electron.launch({
     args: [MAIN_ENTRY],
-    env: { ...process.env, NODE_ENV: 'production' },
+    env: {
+      ...process.env,
+      NODE_ENV: 'production',
+      SCORING_APP_DB_PATH: freshDatabasePath(),
+    },
   });
   const window = await app.firstWindow();
+  window.on('dialog', (dialog) => {
+    dialog.accept().catch(() => {});
+  });
   await window.waitForLoadState('domcontentloaded');
   return { app, window };
+}
+
+/**
+ * Shut the app down without letting teardown swallow the run.
+ *
+ * `app.close()` can block indefinitely when the renderer still has something to
+ * say — an unsaved finish order arming `beforeunload`, or a modal left open by
+ * a failing test. Playwright then reports "worker teardown timeout" and marks
+ * every remaining test in the file as never run, which hides the real failure
+ * behind an unrelated one. Give the graceful close a bounded window, then take
+ * the process down.
+ */
+export async function closeApp(app: ElectronApplication): Promise<void> {
+  const pid = app.process()?.pid;
+  const closed = app
+    .close()
+    .then(() => true)
+    .catch(() => false);
+  const gaveUp = new Promise<boolean>((resolve) => {
+    setTimeout(() => resolve(false), 15_000).unref?.();
+  });
+  if (await Promise.race([closed, gaveUp])) return;
+  if (pid) {
+    try {
+      process.kill(pid, 'SIGKILL');
+    } catch {
+      // Already gone — nothing to clean up.
+    }
+  }
 }
 
 /** Unique-per-run name so repeated runs never collide on the name-keyed route. */
@@ -77,10 +139,77 @@ export async function dismissToasts(window: Page): Promise<void> {
     .catch(() => {});
 }
 
+/**
+ * The app's confirmation dialog (<AppModal /> via `confirmAction`). It is a
+ * regular DOM modal, not a native one, so it must be answered by clicking a
+ * button — nothing dismisses it implicitly, and while it is open it covers the
+ * page and swallows every other click.
+ */
+export function confirmModal(window: Page, title?: string | RegExp) {
+  return title === undefined
+    ? window.getByRole('dialog')
+    : window.getByRole('dialog', { name: title });
+}
+
+/**
+ * Answer a confirmation dialog if one is open, and report whether it was.
+ *
+ * Best-effort by design: helpers call this on paths where the guard *may*
+ * appear (it depends on whether there is unsaved work), so an absent dialog is
+ * a normal outcome rather than a failure. Use `confirmModal` directly when a
+ * test means to assert that a particular dialog appeared.
+ *
+ * Waits for THIS dialog to close, identified by its own title, rather than for
+ * the page to have no dialog at all: answering one confirmation often opens the
+ * next (declining the recovery backup goes straight on to the Rule 4.3
+ * question), and a wait for "no dialogs" never comes true on those paths.
+ */
+export async function answerConfirm(
+  window: Page,
+  button: string | RegExp,
+  { title }: { title?: string | RegExp } = {},
+): Promise<boolean> {
+  const dialog = confirmModal(window, title).first();
+  if (!(await dialog.count())) return false;
+  // The dialog labels itself with its title; use that to wait it out.
+  const label = await dialog.getAttribute('aria-label');
+  await dialog.getByRole('button', { name: button }).click({ timeout: 5000 });
+  await expect(
+    label ? window.getByRole('dialog', { name: label }) : dialog,
+  ).toHaveCount(0);
+  return true;
+}
+
+/**
+ * Leave the scoring view via "Back to Heats", discarding an unsubmitted finish
+ * order if the app asks.
+ *
+ * Entering a finish order and then leaving without submitting is guarded by
+ * HeatRacePage's `confirmDiscardEntry`. Tests that reset to a clean scoring
+ * screen genuinely do want the entry thrown away, so they answer "Discard";
+ * without answering, the modal stays up and every later step times out.
+ * No-ops when the scoring view is not open.
+ */
+export async function leaveScoring(window: Page): Promise<void> {
+  await dismissToasts(window);
+  const back = window.getByRole('button', { name: /Back to Heats/i });
+  if (!(await back.count())) return;
+  await back.first().click();
+  await answerConfirm(window, /^Discard$/, { title: /Discard finish order/i });
+  // Wait until the scoring view has fully torn down before the caller
+  // re-selects a heat, so `Heat A1` resolves to the heat card rather than the
+  // scoring panel title.
+  await expect(
+    window.getByRole('button', { name: /Submit Scores/i }),
+  ).toHaveCount(0);
+}
+
 /** Navigate back to the landing page via the navbar brand button. */
 export async function gotoHome(window: Page): Promise<void> {
   await dismissToasts(window);
   await window.getByRole('button', { name: 'Go to home page' }).click();
+  // The brand button is guarded the same way "Back to Heats" is.
+  await answerConfirm(window, /^Discard$/, { title: /Discard finish order/i });
   await expect(window.getByText(/Create a New Event/i)).toBeVisible();
 }
 

@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 /**
  * Tests for getFinalSeriesEligibility (via its IPC handler) — the SHRS
  * validation that decides whether the Final Series can start. The renderer

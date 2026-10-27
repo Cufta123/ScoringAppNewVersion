@@ -4,6 +4,12 @@ module.exports = {
   rules: {
     // A temporary hack related to IDE not resolving correct package.json
     'import/no-extraneous-dependencies': 'off',
+    // The SQLite schema is snake_case (event_id, heat_id, total_points_final),
+    // and those column names flow through IPC payloads, handler parameters and
+    // renderer row types unchanged. Renaming at each boundary would obscure the
+    // mapping to the table, so the rule is disabled project-wide instead of via
+    // the 39 per-file `/* eslint-disable camelcase */` headers this replaces.
+    camelcase: 'off',
     'react/react-in-jsx-scope': 'off',
     'react/jsx-filename-extension': 'off',
     'import/extensions': 'off',
@@ -30,6 +36,18 @@ module.exports = {
     'react/require-default-props': ['error', { functions: 'defaultArguments' }],
   },
   overrides: [
+    {
+      // Playwright specs drive the app step by step, so sequential `await` in a
+      // loop is the correct shape rather than a mistake, and index counters are
+      // idiomatic. Mirrors the unit-test override below; without it `npm run
+      // lint` reports 18 pre-existing errors and cannot be used as a gate.
+      files: ['e2e/**/*.{js,ts}'],
+      rules: {
+        'no-await-in-loop': 'off',
+        'no-plusplus': 'off',
+        'no-restricted-syntax': 'off',
+      },
+    },
     {
       // Test files legitimately export helpers, use raw DB column names
       // (snake_case), require() modules lazily, and lean on loops plus bitwise

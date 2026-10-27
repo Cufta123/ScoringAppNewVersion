@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import EventForm, { EventList } from '../../components/EventForm';
+import EventForm from '../../components/EventForm';
+import EventList from '../../components/EventList';
 import Navbar from '../../components/Navbar';
 import { reportError } from '../../utils/userFeedback';
 import './LandingPage.css';
@@ -8,7 +8,6 @@ import { eventDB } from '../../api/db';
 import type { EventRow } from '../../types';
 
 function LandingPage() {
-  const navigate = useNavigate();
   // null = not loaded yet; [] = loaded and empty
   const [events, setEvents] = useState<EventRow[] | null>(null);
   // Distinguish "load failed" from "no events yet" — otherwise a failed read
@@ -36,7 +35,7 @@ function LandingPage() {
 
   return (
     <div>
-      <Navbar onOpenGlobalLeaderboard={() => navigate('/global-leaderboard')} />
+      <Navbar />
 
       <main id="main-content" className="landing-page" tabIndex={-1}>
         {/* ── Hero ─── */}

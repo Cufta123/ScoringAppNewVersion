@@ -6,6 +6,7 @@ import {
 } from '@playwright/test';
 import {
   launchApp,
+  closeApp,
   openEvent,
   addSailor,
   createHeats,
@@ -76,7 +77,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await app?.close();
+  await closeApp(app);
 });
 
 test('advanced settings drive scoring and a 7-race series reaches the final series', async () => {
@@ -166,7 +167,7 @@ test('advanced settings drive scoring and a 7-race series reaches the final seri
 
   // Snapshot offer first — skip it.
   await expect(
-    window.getByRole('heading', { name: /Save recovery snapshot/i }),
+    window.getByRole('heading', { name: /Save recovery backup/i }),
   ).toBeVisible();
   await window
     .getByRole('dialog')

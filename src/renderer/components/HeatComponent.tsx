@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Flag from 'react-world-flags';
-import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
+import useExclusiveAction from '../hooks/useExclusiveAction';
+import { minimumHeatsForEntries } from '../../shared/heatSizing';
 import printNewHeats from '../utils/printNewHeats';
 import AppModal from './shared/AppModal';
 import {
@@ -9,9 +10,15 @@ import {
   reportInfo,
   reportWarning,
 } from '../utils/userFeedback';
-import { getExcludeCount } from '../utils/leaderboardUtils';
+import { getExcludeCount, getFlagCode } from '../utils/leaderboardUtils';
+import useSnapshotHistory from '../hooks/useSnapshotHistory';
+import {
+  finalSeriesBlockedMessage,
+  unsailedLatestRoundMessage,
+} from '../utils/finalSeriesMessages';
+import type { FinalSeriesEligibility } from '../utils/finalSeriesMessages';
 import { computeAdjustedFleetTotals } from '../../shared/fleetAssignment';
-import { heatRaceDB } from '../api/db';
+import { eventDB, heatRaceDB } from '../api/db';
 import type { EventRow, HeatBoatRow, LeaderboardEntry } from '../types';
 
 /** A heat with its boats and current race count, as displayed by this view. */
@@ -24,28 +31,14 @@ export interface HeatWithBoats {
   raceNumber: number;
 }
 
-interface SnapshotEntry {
-  fileName: string;
-  savedAt: string;
-}
-
-interface FinalSeriesEligibility {
-  ok?: boolean;
-  reason?: string;
-  raceCountBreakdown?: Array<{ name: string; count: number }>;
-  numFinalHeats?: number;
-  completedQualifyingRaces?: number;
-  rule43Applies?: boolean;
-  noRacesCompleted?: boolean;
-  latestRoundUnsailed?: boolean;
-  latestRoundNumber?: number | null;
-}
-
 interface HeatComponentProps {
   event: EventRow;
   onHeatSelect?: (heat: HeatWithBoats) => void;
   onStartScoring?: (() => void) | null;
   onUndoLastRace?: ((heat: HeatWithBoats) => void) | null;
+  // Set while the PARENT is running one of its own round-level actions, so
+  // the per-heat buttons can't start a second one underneath it.
+  rowActionsDisabled?: boolean;
   clickable: boolean;
   onQualifyingGroupCountChange?: ((count: number) => void) | null;
   /** Notifies the host page whenever the final-series state changes (started
@@ -77,6 +70,7 @@ function HeatComponent({
   onHeatSelect = () => {},
   onStartScoring = null,
   onUndoLastRace = null,
+  rowActionsDisabled = false,
   clickable,
   onQualifyingGroupCountChange = null,
   onFinalSeriesStateChange = null,
@@ -84,7 +78,13 @@ function HeatComponent({
 }: HeatComponentProps) {
   const [heats, setHeats] = useState<HeatWithBoats[]>([]);
   const [heatsLoadFailed, setHeatsLoadFailed] = useState(false);
-  const [numHeats, setNumHeats] = useState(5); // Default number of heats
+  // SHRS 2.1, "the number of heats shall be as few as possible". This used to
+  // default to 5 whatever the entry list said, so a club event of a dozen boats
+  // got five heats of two or three unless someone thought to change it. The
+  // default now follows the entry count; an explicit choice is never
+  // overwritten (see heatCountChosenRef).
+  const [numHeats, setNumHeats] = useState(1);
+  const heatCountChosenRef = useRef(false);
   const [selectedHeatId, setSelectedHeatId] = useState<number | null>(null);
   const [heatsCreated, setHeatsCreated] = useState(false);
   const [raceHappened, setRaceHappened] = useState(false);
@@ -100,7 +100,6 @@ function HeatComponent({
   const [newHeatsFormat, setNewHeatsFormat] = useState<
     'excel' | 'pdf' | 'html'
   >('excel');
-  const [snapshotHistory, setSnapshotHistory] = useState<SnapshotEntry[]>([]);
 
   // Every heat-mutating action here (create/recreate/transfer/start-final/
   // restore) chains one or more DB round-trips, and Start Final Series chains
@@ -110,64 +109,48 @@ function HeatComponent({
   // of them through one exclusive runner: a ref gives a synchronous guard (two
   // clicks in the same tick both see busy=false otherwise), and `busy` drives
   // the disabled state on the trigger buttons.
-  const [busy, setBusy] = useState(false);
-  const busyRef = useRef(false);
-  const runExclusive = useCallback(async (fn: () => Promise<void>) => {
-    if (busyRef.current) return;
-    busyRef.current = true;
-    setBusy(true);
-    try {
-      await fn();
-    } finally {
-      busyRef.current = false;
-      setBusy(false);
+  const { busy, runExclusive } = useExclusiveAction();
+
+  const {
+    history: snapshotHistory,
+    load: loadSnapshotHistory,
+    remember: rememberSnapshot,
+  } = useSnapshotHistory(event.event_id);
+
+  // Seed the heat-count default from the entry list. Runs while no heats exist
+  // (the only time the control is live) and stops as soon as the user picks a
+  // value, so adding a boat cannot move a choice they already made.
+  useEffect(() => {
+    if (heatCountChosenRef.current) return undefined;
+
+    // Heats already exist: the useful default for "Recreate Heats" is the
+    // split they are on now, so the control reflects reality instead of
+    // proposing a change nobody asked for.
+    if (heatsCreated) {
+      if (numQualifyingGroups > 0) setNumHeats(numQualifyingGroups);
+      return undefined;
     }
-  }, []);
 
-  const snapshotStorageKey = `eventSnapshotHistory:${event.event_id}`;
-
-  const loadSnapshotHistory = useCallback(() => {
-    try {
-      const raw = window.localStorage.getItem(snapshotStorageKey);
-      if (!raw) {
-        setSnapshotHistory([]);
-        return;
+    let cancelled = false;
+    // Defensive on both sides: this is a convenience default, so neither a
+    // read that rejects nor an unavailable channel should take the component
+    // down. Worst case the dropdown keeps its current value, and the main
+    // process still refuses a split that breaks SHRS 2.3.
+    const seedFromEntryList = async () => {
+      try {
+        const entries = await eventDB.readBoatsByEvent(event.event_id);
+        if (cancelled) return;
+        const count = Array.isArray(entries) ? entries.length : 0;
+        setNumHeats(minimumHeatsForEntries(count));
+      } catch {
+        // Keep whatever the control already shows.
       }
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) {
-        setSnapshotHistory([]);
-        return;
-      }
-      setSnapshotHistory(
-        parsed.filter(
-          (entry) =>
-            entry &&
-            typeof entry.fileName === 'string' &&
-            typeof entry.savedAt === 'string',
-        ),
-      );
-    } catch (_error) {
-      setSnapshotHistory([]);
-    }
-  }, [snapshotStorageKey]);
-
-  const rememberSnapshot = useCallback(
-    (filePath: string | null | undefined) => {
-      const fileName =
-        String(filePath || '')
-          .split(/[\\/]/)
-          .pop() || 'snapshot.json';
-      const entry = {
-        fileName,
-        savedAt: new Date().toISOString(),
-      };
-
-      const next = [entry, ...snapshotHistory].slice(0, 5);
-      setSnapshotHistory(next);
-      window.localStorage.setItem(snapshotStorageKey, JSON.stringify(next));
-    },
-    [snapshotHistory, snapshotStorageKey],
-  );
+    };
+    seedFromEntryList();
+    return () => {
+      cancelled = true;
+    };
+  }, [event.event_id, heatsCreated, numQualifyingGroups, refreshToken]);
 
   const handleDisplayHeats = useCallback(async () => {
     try {
@@ -261,19 +244,11 @@ function HeatComponent({
         : shrs43ApplyChoice;
 
     try {
-      if (allowOversize) {
-        await heatRaceDB.startFinalSeriesAtomic(
-          event.event_id,
-          true,
-          applyShs43TemporarySecondDiscard,
-        );
-      } else {
-        await heatRaceDB.startFinalSeriesAtomic(
-          event.event_id,
-          false,
-          applyShs43TemporarySecondDiscard,
-        );
-      }
+      await heatRaceDB.startFinalSeriesAtomic(
+        event.event_id,
+        allowOversize,
+        applyShs43TemporarySecondDiscard,
+      );
       setFinalSeriesStarted(true);
       reportInfo('Final Series started successfully!', 'Success');
       handleDisplayHeats();
@@ -310,23 +285,10 @@ function HeatComponent({
       )) as FinalSeriesEligibility;
 
       if (!eligibility.ok) {
-        let message;
-        if (eligibility.reason === 'NO_HEATS') {
-          message =
-            'No qualifying heats found. Please create heats before starting the Final Series.';
-        } else if (eligibility.reason === 'SINGLE_FLEET') {
-          message =
-            'With only one heat the event is a single-fleet event (SHRS 1.1) — no Final Series applies.';
-        } else if (eligibility.reason === 'NO_RACES_COMPLETED') {
-          message =
-            'No qualifying races have been completed yet. Final-fleet assignment is based on the Qualifying Series ranking (SHRS 4.2), so complete at least one qualifying race before starting the Final Series.';
-        } else {
-          const breakdown = (eligibility.raceCountBreakdown || [])
-            .map((r) => `${r.name}: ${r.count} race(s)`)
-            .join('\n');
-          message = `Cannot start the Final Series — not all heats have the same number of races:\n\n${breakdown}\n\nFinish the current round first.`;
-        }
-        reportInfo(message, 'Cannot start final series');
+        reportInfo(
+          finalSeriesBlockedMessage(eligibility),
+          'Cannot start final series',
+        );
         return;
       }
 
@@ -341,14 +303,8 @@ function HeatComponent({
         // A new round of heats exists but has 0 races. It is NOT "no races
         // completed" — earlier rounds were sailed. Tell the user the empty
         // latest round is ignored and the last completed round is used.
-        const latestLabel = eligibility.latestRoundNumber
-          ? ` (round ${eligibility.latestRoundNumber})`
-          : '';
-        const completed = eligibility.completedQualifyingRaces ?? 0;
         const proceed = await confirmAction(
-          `The latest round of heats${latestLabel} has no completed races yet.\n\n` +
-            `The Final Series will be based on the last completed round — ${completed} qualifying race(s). ` +
-            `The empty latest round will be ignored.\n\nContinue?`,
+          unsailedLatestRoundMessage(eligibility),
           'Latest round not sailed',
         );
         if (!proceed) return;
@@ -469,9 +425,31 @@ function HeatComponent({
     if (!confirmed) return;
 
     try {
-      await heatRaceDB.deleteHeatsByEvent(event.event_id);
-      await handleCreateHeats();
+      // One atomic call, not delete-then-create. Splitting it put the
+      // destructive half first, so anything that made the create fail — a
+      // duplicate sail number added since, an entry list that no longer fits
+      // the chosen heat count — left the event with NO heats, while
+      // handleCreateHeats swallowed its own validation error and reported only
+      // "Cannot create heats: …", which reads as though nothing happened.
+      await heatRaceDB.recreateInitialHeatsAtomic(event.event_id, numHeats);
+      reportInfo('Heats recreated successfully!', 'Success');
+      setHeatsCreated(true);
+      handleDisplayHeats();
     } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      // The main process authors plain-language validation messages for these;
+      // surface them verbatim so the user knows what to change. The heats they
+      // already had are untouched either way.
+      if (
+        message.includes('boats per heat') ||
+        message.includes('No boats are registered') ||
+        message.includes('Number of heats must be') ||
+        message.includes('duplicate sail numbers') ||
+        message.includes('races have already been scored')
+      ) {
+        reportWarning(message, 'Heats not changed');
+        return;
+      }
       reportError('Could not recreate heats.', error);
     }
   };
@@ -531,10 +509,6 @@ function HeatComponent({
   const isFinalSeriesView =
     heatsToDisplay.length > 0 &&
     heatsToDisplay.every((heat) => heat.heat_type === 'Final');
-
-  const getFlagCode = (iocCode: string): string => {
-    return iocToFlagCodeMap[iocCode] || iocCode;
-  };
 
   const handleBoatTransfer = async (
     boat: HeatBoatRow,
@@ -712,7 +686,10 @@ function HeatComponent({
                 <select
                   id="numHeats"
                   value={numHeats}
-                  onChange={(e) => setNumHeats(Number(e.target.value))}
+                  onChange={(e) => {
+                    heatCountChosenRef.current = true;
+                    setNumHeats(Number(e.target.value));
+                  }}
                   disabled={raceHappened || finalSeriesStarted}
                 >
                   {/* Match the backend's 1–26 heat limit (createInitialHeatsAtomic)
@@ -869,6 +846,8 @@ function HeatComponent({
                         type="button"
                         className="btn-secondary"
                         title={`Delete Race ${heat.raceNumber} in ${heat.heat_name}`}
+                        disabled={rowActionsDisabled}
+                        aria-busy={rowActionsDisabled}
                         onClick={(e) => {
                           e.stopPropagation();
                           onUndoLastRace(heat);

@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 /**
  * SHRS 5.3 / 3.1(iv): "Ties will be recorded in alphanumerical order of
  * national letter and sail number." (RULE-m5)

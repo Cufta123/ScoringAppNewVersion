@@ -11,6 +11,35 @@ permissions:
   contents: write
 
 jobs:
+  test:
+    name: Lint + unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          # 22+: the scoring and migration tests run against a real SQLite
+          # engine through Node's built-in node:sqlite (added in 22.5).
+          node-version: 22
+          cache: npm
+
+      - name: Install Dependencies
+        # Tests never load the native better-sqlite3 build, so skip the
+        # postinstall rebuild for Electron.
+        run: npm ci --ignore-scripts
+
+      - name: Typecheck (tsc --noEmit)
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit + integration tests
+        run: npm run test:unit
+
   build:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -104,7 +133,8 @@ jobs:
 
   release:
     name: Publish "latest" release
-    needs: build
+    # Never publish a build whose tests failed.
+    needs: [test, build]
     runs-on: ubuntu-latest
     steps:
       - name: Download all build artifacts

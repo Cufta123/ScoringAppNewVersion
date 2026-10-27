@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 /**
  * Unit tests for discardConfig.ts — SHRS 5.4 discard configuration. Covers the
  * standard-profile boundary arithmetic and the custom-profile parsing/validation

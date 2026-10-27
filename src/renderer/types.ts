@@ -4,8 +4,6 @@
 // typed as `Promise<any>`, so this module is the renderer's typed view of that
 // contract — keep it in sync with the schema and the handler return shapes.
 
-/* eslint-disable camelcase */
-
 // --- Scoring vocabulary -----------------------------------------------------
 
 /** Penalty / redress status codes a score can carry (SHRS + RRS Appendix A). */
@@ -184,17 +182,6 @@ export interface FinalLeaderboardRow {
   total_points_final: number;
   placement_group: PlacementGroup;
   place: number | null;
-}
-
-export interface GlobalLeaderboardRow {
-  boat_id: number;
-  total_points_global: number;
-  name?: string;
-  surname?: string;
-  boat_number?: string | number;
-  boat_type?: string;
-  country?: string;
-  [key: string]: unknown;
 }
 
 /**

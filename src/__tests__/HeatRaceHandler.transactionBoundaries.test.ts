@@ -120,6 +120,39 @@ const dbMock = {
       };
     }
 
+    // updateRaceResult loads the race, applies the shared raceColumnEdit
+    // transformation, then writes back only the rows that moved. One boat is
+    // enough here: this suite asserts transaction boundaries, not scoring.
+    if (
+      contains(sql, 'SELECT score_id, boat_id, position, points') &&
+      contains(sql, 'ORDER BY score_id ASC')
+    ) {
+      return {
+        all: () => [
+          {
+            score_id: 1,
+            boat_id: 'B1',
+            position: 3,
+            points: 3,
+            status: 'FINISHED',
+          },
+        ],
+      };
+    }
+    if (
+      contains(
+        sql,
+        'UPDATE Scores SET position = ?, points = ?, status = ? WHERE score_id = ?',
+      )
+    ) {
+      return {
+        run: () => {
+          ops.push('UPDATE Scores');
+          return { changes: updateChanges };
+        },
+      };
+    }
+
     // Generic per-boat score write (insertScore / updateRaceResult).
     if (
       contains(

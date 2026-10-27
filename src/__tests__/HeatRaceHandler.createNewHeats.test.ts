@@ -177,9 +177,62 @@ const dbMock = {
       };
     }
 
+    // applyRaceResultUpdate loads the whole race, applies the shared
+    // raceColumnEdit transformation, and writes back only what moved. Serve
+    // the read from the same rankedRowsByHeatId model the rest of this mock
+    // maintains; score_id is synthesised from the row's index in that list.
+    if (
+      sqlContains(sql, 'SELECT score_id, boat_id, position, points') &&
+      sqlContains(sql, 'FROM Scores') &&
+      sqlContains(sql, 'ORDER BY score_id ASC')
+    ) {
+      return {
+        all: jest.fn((race_id: number) => {
+          const sourceHeat = Object.entries(
+            currentScenario.latestRaceByHeatId,
+          ).find(([, race]) => race.race_id === race_id);
+          if (!sourceHeat) return [];
+          const heatId = Number(sourceHeat[0]);
+          const rows = currentScenario.rankedRowsByHeatId[heatId] || [];
+          return rows.map((row, index) => ({
+            score_id: heatId * 1000 + index,
+            boat_id: row.boat_id,
+            position: row.position ?? 0,
+            points: row.position ?? 0,
+            status: row.status || 'FINISHED',
+          }));
+        }),
+      };
+    }
+
     if (sql.toUpperCase().includes('UPDATE SCORES SET')) {
       return {
         run: jest.fn((...args: any[]) => {
+          if (
+            sqlContains(
+              sql,
+              'UPDATE Scores SET position = ?, points = ?, status = ? WHERE score_id = ?',
+            )
+          ) {
+            const [position, _points, status, score_id] = args;
+            const heatId = Math.floor(score_id / 1000);
+            const rowIndex = score_id % 1000;
+            const rows = currentScenario.rankedRowsByHeatId[heatId] || [];
+            if (rows[rowIndex]) {
+              rows[rowIndex] = { ...rows[rowIndex], position, status };
+              // Simulate the post-protest reshuffle the real ordering does.
+              currentScenario.rankedRowsByHeatId[heatId] = [...rows].sort(
+                (a, b) => {
+                  const aPos =
+                    a.position == null ? Number.MAX_SAFE_INTEGER : a.position;
+                  const bPos =
+                    b.position == null ? Number.MAX_SAFE_INTEGER : b.position;
+                  return aPos - bPos;
+                },
+              );
+            }
+          }
+
           if (
             sqlContains(
               sql,
@@ -559,6 +612,36 @@ describe('HeatRaceHandler createNewHeatsBasedOnLeaderboard', () => {
 
     await expect(handler({}, 555)).rejects.toThrow(
       'Latest qualifying heats are not aligned on the same race number.',
+    );
+    expect(insertedHeats).toHaveLength(0);
+    expect(insertedHeatBoats).toHaveLength(0);
+  });
+
+  // There used to be a zig-zag fallback here that re-seeded the whole fleet
+  // from scratch whenever the movement table produced no assignments. That
+  // threw away the finishing positions SHRS 3.1(2) requires the next round to
+  // be based on, and quietly published a draw nobody had sailed for. An empty
+  // assignment set is a data fault, so it has to surface as one.
+  it('throws instead of re-seeding when no results exist to move boats from', async () => {
+    currentScenario.rankedRowsByHeatId = { 10: [], 20: [], 30: [] };
+
+    const handler = handlerRegistry.createNewHeatsBasedOnLeaderboard;
+
+    await expect(handler({}, 555)).rejects.toThrow(
+      /Cannot build round 2: no boats could be assigned from Heat A1, Heat B1, Heat C1\..*no recorded results/s,
+    );
+    expect(insertedHeats).toHaveLength(0);
+    expect(insertedHeatBoats).toHaveLength(0);
+  });
+
+  it('throws instead of re-seeding when pre-assigned heats hold no boats', async () => {
+    currentScenario.assignmentMode = 'pre-assigned';
+    currentScenario.boatsByHeatId = { 10: [], 20: [], 30: [] };
+
+    const handler = handlerRegistry.createNewHeatsBasedOnLeaderboard;
+
+    await expect(handler({}, 555)).rejects.toThrow(
+      /Cannot build round 2: no boats could be assigned from Heat A1, Heat B1, Heat C1\..*no boats assigned/s,
     );
     expect(insertedHeats).toHaveLength(0);
     expect(insertedHeatBoats).toHaveLength(0);

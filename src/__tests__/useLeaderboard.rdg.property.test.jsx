@@ -227,5 +227,8 @@ describe('Property-based: RDG1/RDG2/RDG3 random stress', () => {
 
       unmount();
     }
-  });
+    // ~2.5s on an idle machine, half of Jest's 5s default. Same shape as the
+    // A8.1/A8.2 property test, which flaked under parallel load at 86% of that
+    // budget; an explicit one here keeps the margin from being a coincidence.
+  }, 30000);
 });

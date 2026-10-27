@@ -1,7 +1,6 @@
-/* eslint-disable camelcase */
-import { ipcMain } from 'electron';
 import { db } from '../../../public/Database/DBManager';
 import { normalizeDiscardConfigString } from '../functions/discardConfig';
+import handle from './handle';
 
 interface SqliteError extends Error {
   code: string;
@@ -38,23 +37,12 @@ const normalizeHeatOverflowPolicy = (value: unknown): string => {
 
 console.log('EventHandler.ts loaded');
 
-ipcMain.on('ipc-example', async (event, arg) => {
-  const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
-  log(msgTemplate(arg));
-  event.reply('ipc-example', msgTemplate('pongSailor'));
+handle('readAllEvents', async () => {
+  const events = await db.prepare('SELECT * FROM Events').all();
+  return events;
 });
 
-ipcMain.handle('readAllEvents', async () => {
-  try {
-    const events = await db.prepare('SELECT * FROM Events').all();
-    return events;
-  } catch (error) {
-    console.error('Error reading all events:', error);
-    throw error;
-  }
-});
-
-ipcMain.handle(
+handle(
   'insertEvent',
   async (
     event,
@@ -116,57 +104,86 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle('associateBoatWithEvent', async (event, boat_id, event_id) => {
-  try {
-    const result = db
-      .prepare('INSERT INTO Boat_Event (boat_id, event_id) VALUES (?, ?)')
-      .run(boat_id, event_id);
-    return { lastInsertRowid: result.lastInsertRowid };
-  } catch (error) {
-    log(`Error associating boat with event: ${error}`);
-    throw error;
-  }
+handle('associateBoatWithEvent', async (event, boat_id, event_id) => {
+  const result = db
+    // OR IGNORE: one entry per boat per event (schema migration 2). Entering
+    // a boat that is already entered is a no-op, not an error.
+    .prepare(
+      'INSERT OR IGNORE INTO Boat_Event (boat_id, event_id) VALUES (?, ?)',
+    )
+    .run(boat_id, event_id);
+  return { lastInsertRowid: result.lastInsertRowid };
 });
 
-ipcMain.handle('readBoatsByEvent', async (event, event_id) => {
-  try {
-    const rows = db
-      .prepare(
-        `
+handle('readBoatsByEvent', async (event, event_id) => {
+  const rows = db
+    .prepare(
+      `
 SELECT
-  b.boat_id, b.sail_number, b.country AS boat_country, b.model,
-  s.name, s.surname,
-  c.club_name, c.country AS club_country,
-  cat.category_name
+b.boat_id, b.sail_number, b.country AS boat_country, b.model,
+s.name, s.surname,
+c.club_name, c.country AS club_country,
+cat.category_name
 FROM Boats b
 JOIN Boat_Event be ON b.boat_id = be.boat_id
 JOIN Sailors s ON b.sailor_id = s.sailor_id
 JOIN Clubs c ON s.club_id = c.club_id
 JOIN Categories cat ON s.category_id = cat.category_id
 WHERE be.event_id = ?
-        `,
-      )
-      .all(event_id);
-    return rows;
-  } catch (error) {
-    console.error('Error reading boats by event:', error);
-    throw error;
-  }
+      `,
+    )
+    .all(event_id);
+  return rows;
 });
 
-ipcMain.handle('removeBoatFromEvent', async (event, boat_id, event_id) => {
-  try {
+handle('removeBoatFromEvent', async (event, boat_id, event_id) => {
+  // Server-side guard. The renderer blocks this once a race has happened, but
+  // that state can be stale and the channel is reachable on its own — the same
+  // reasoning deleteHeatsByEvent already applies. A mid-series withdrawal is
+  // recorded as WTH in scoring; removing the entry would orphan her scores.
+  const scored = db
+    .prepare(
+      `SELECT COUNT(*) AS count FROM Races r
+       JOIN Heats h ON h.heat_id = r.heat_id
+       WHERE h.event_id = ?`,
+    )
+    .get(event_id) as { count: number };
+  if (scored.count > 0) {
+    throw new Error(
+      'Cannot remove a boat after a race has already been scored for this event. Record a mid-series withdrawal by scoring the boat as WTH instead.',
+    );
+  }
+
+  // Heats are built from the entry list and can exist before any race, so the
+  // entry and its heat assignment have to go together. Deleting only the
+  // Boat_Event row left the boat in her heat — on the starting list and
+  // scoreable — while every leaderboard read, which joins Boat_Event, no
+  // longer knew about her.
+  const removeEntry = db.transaction(() => {
+    db.prepare(
+      `DELETE FROM Heat_Boat
+       WHERE boat_id = ?
+         AND heat_id IN (SELECT heat_id FROM Heats WHERE event_id = ?)`,
+    ).run(boat_id, event_id);
+
+    // Defensive: a leaderboard row can survive undoing every race, and would
+    // otherwise keep a boat who is no longer entered in the results.
+    db.prepare(
+      'DELETE FROM Leaderboard WHERE boat_id = ? AND event_id = ?',
+    ).run(boat_id, event_id);
+    db.prepare(
+      'DELETE FROM FinalLeaderboard WHERE boat_id = ? AND event_id = ?',
+    ).run(boat_id, event_id);
+
     db.prepare('DELETE FROM Boat_Event WHERE boat_id = ? AND event_id = ?').run(
       boat_id,
       event_id,
     );
-  } catch (error) {
-    log(`Error removing boat from event: ${error}`);
-    throw error;
-  }
+  });
+  removeEntry();
 });
 
-ipcMain.handle(
+handle(
   'updateEvent',
   async (
     event,
@@ -267,58 +284,65 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle('deleteEvent', async (event, event_id) => {
-  try {
-    db.transaction(() => {
-      // Remove GlobalLeaderboard entries for boats in this event before Boat_Event is deleted
-      db.prepare(
-        `DELETE FROM GlobalLeaderboard WHERE boat_id IN (
-          SELECT boat_id FROM Boat_Event WHERE event_id = ?
-        )`,
-      ).run(event_id);
+handle('deleteEvent', async (event, event_id) => {
+  db.transaction(() => {
+    // Remove GlobalLeaderboard entries for boats in this event before Boat_Event is deleted
+    db.prepare(
+      `DELETE FROM GlobalLeaderboard WHERE boat_id IN (
+        SELECT boat_id FROM Boat_Event WHERE event_id = ?
+      )`,
+    ).run(event_id);
 
-      // Delete Scores for all races belonging to heats of this event
-      db.prepare(
-        `DELETE FROM Scores WHERE race_id IN (
-          SELECT race_id FROM Races WHERE heat_id IN (
-            SELECT heat_id FROM Heats WHERE event_id = ?
-          )
-        )`,
-      ).run(event_id);
-
-      // Delete Races for heats of this event
-      db.prepare(
-        `DELETE FROM Races WHERE heat_id IN (
+    // SHRS 3.1.5 assignment snapshots reference Races, so they must go before
+    // the races do. Foreign keys are enforced (better-sqlite3 is built with
+    // SQLITE_DEFAULT_FOREIGN_KEYS=1) and the schema declares no ON DELETE
+    // CASCADE, so a missed table here does not orphan a row — it aborts the
+    // whole delete with "FOREIGN KEY constraint failed" and the event stays.
+    // That made any event with a protest decision permanently undeletable.
+    db.prepare(
+      `DELETE FROM RaceAssignmentSnapshots WHERE race_id IN (
+        SELECT race_id FROM Races WHERE heat_id IN (
           SELECT heat_id FROM Heats WHERE event_id = ?
-        )`,
-      ).run(event_id);
+        )
+      )`,
+    ).run(event_id);
 
-      // Delete Heat_Boat associations for heats of this event
-      db.prepare(
-        `DELETE FROM Heat_Boat WHERE heat_id IN (
+    // Delete Scores for all races belonging to heats of this event
+    db.prepare(
+      `DELETE FROM Scores WHERE race_id IN (
+        SELECT race_id FROM Races WHERE heat_id IN (
           SELECT heat_id FROM Heats WHERE event_id = ?
-        )`,
-      ).run(event_id);
+        )
+      )`,
+    ).run(event_id);
 
-      // Delete Heats for this event
-      db.prepare('DELETE FROM Heats WHERE event_id = ?').run(event_id);
+    // Delete Races for heats of this event
+    db.prepare(
+      `DELETE FROM Races WHERE heat_id IN (
+        SELECT heat_id FROM Heats WHERE event_id = ?
+      )`,
+    ).run(event_id);
 
-      // Delete Boat_Event associations
-      db.prepare('DELETE FROM Boat_Event WHERE event_id = ?').run(event_id);
+    // Delete Heat_Boat associations for heats of this event
+    db.prepare(
+      `DELETE FROM Heat_Boat WHERE heat_id IN (
+        SELECT heat_id FROM Heats WHERE event_id = ?
+      )`,
+    ).run(event_id);
 
-      // Delete Leaderboard and FinalLeaderboard entries
-      db.prepare('DELETE FROM Leaderboard WHERE event_id = ?').run(event_id);
-      db.prepare('DELETE FROM FinalLeaderboard WHERE event_id = ?').run(
-        event_id,
-      );
+    // Delete Heats for this event
+    db.prepare('DELETE FROM Heats WHERE event_id = ?').run(event_id);
 
-      // Finally delete the event itself
-      db.prepare('DELETE FROM Events WHERE event_id = ?').run(event_id);
-    })();
+    // Delete Boat_Event associations
+    db.prepare('DELETE FROM Boat_Event WHERE event_id = ?').run(event_id);
 
-    return { success: true };
-  } catch (error) {
-    console.error('Error deleting event:', error);
-    throw error;
-  }
+    // Delete Leaderboard and FinalLeaderboard entries
+    db.prepare('DELETE FROM Leaderboard WHERE event_id = ?').run(event_id);
+    db.prepare('DELETE FROM FinalLeaderboard WHERE event_id = ?').run(event_id);
+
+    // Finally delete the event itself
+    db.prepare('DELETE FROM Events WHERE event_id = ?').run(event_id);
+  })();
+
+  return { success: true };
 });

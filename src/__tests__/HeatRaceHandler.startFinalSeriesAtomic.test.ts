@@ -125,6 +125,19 @@ const dbMock = {
       return { all: jest.fn(() => []) };
     }
 
+    // RRS A5.1 / SHRS 5.3 DNC backfill, the second half of that repair: these
+    // fixtures supply the leaderboard rows directly, so every entered boat is
+    // already scored for every round and the probe finds nothing to backfill.
+    // The fleet split these tests assert on is unaffected either way.
+    if (
+      sqlContains(
+        sql,
+        "SELECT heat_id, heat_name FROM Heats WHERE event_id = ? AND heat_type = 'Qualifying'",
+      )
+    ) {
+      return { all: jest.fn(() => []) };
+    }
+
     if (
       sqlContains(sql, 'FROM Leaderboard lb') &&
       sqlContains(

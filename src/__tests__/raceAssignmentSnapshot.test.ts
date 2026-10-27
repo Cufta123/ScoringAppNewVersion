@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 /**
  * Tests for raceAssignmentSnapshot.ts — the SHRS 3.1.5 per-boat protest shield
  * and its persistence. The focus here is the migration boundary: a database

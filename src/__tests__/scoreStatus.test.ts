@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 /**
  * Unit tests for the pure score-status helpers extracted from
  * HeatRaceHandler into src/main/functions/scoreStatus.ts. These encode SHRS

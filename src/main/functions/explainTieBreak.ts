@@ -1,5 +1,5 @@
-/* eslint-disable camelcase */
 import { db } from '../../../public/Database/DBManager';
+import { sumPoints } from '../../shared/points';
 import {
   getEventDiscardConfig,
   getExcludeCountForConfig,
@@ -167,7 +167,7 @@ function getAllQualifyingBoatIds(event_id: any): string[] {
 }
 
 const sumKept = (races: DisplayRace[]) =>
-  races.reduce((acc, race) => (race.excluded ? acc : acc + race.points), 0);
+  sumPoints(races.filter((race) => !race.excluded).map((race) => race.points));
 
 // First position (best-to-worst, ascending) where two sorted score arrays
 // differ — mirrors RRS A8.1.

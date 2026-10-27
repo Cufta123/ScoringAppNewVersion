@@ -6,6 +6,7 @@ import {
 } from '@playwright/test';
 import {
   launchApp,
+  closeApp,
   gotoHome,
   createEvent,
   openEvent,
@@ -25,7 +26,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await app?.close();
+  await closeApp(app);
 });
 
 test.beforeEach(async () => {

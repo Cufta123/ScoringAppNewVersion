@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 /**
  * SHRS 1.5 (rank by qualifying score when the Final Series has no completed
  * races) and SHRS 5.5 (fleet precedence for every fleet, not just the four

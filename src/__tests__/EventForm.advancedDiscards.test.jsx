@@ -3,7 +3,8 @@
 import '@testing-library/jest-dom';
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import EventForm, { EventList } from '../renderer/components/EventForm';
+import EventForm from '../renderer/components/EventForm';
+import EventList from '../renderer/components/EventList';
 import { reportInfo } from '../renderer/utils/userFeedback';
 
 const navigateMock = jest.fn();

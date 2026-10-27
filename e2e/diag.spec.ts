@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 import {
   launchApp,
-  createEvent,
   openEvent,
   addSailor,
   createHeats,
@@ -108,7 +107,7 @@ test('full advanced-settings -> 7 rounds -> final series', async () => {
   await dismissToasts(window);
   await window.getByRole('button', { name: /Start Final Series/i }).click();
   await expect(
-    window.getByRole('heading', { name: /Save recovery snapshot/i }),
+    window.getByRole('heading', { name: /Save recovery backup/i }),
   ).toBeVisible();
   await window
     .getByRole('dialog')

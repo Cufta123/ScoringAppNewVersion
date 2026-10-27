@@ -21,7 +21,6 @@ import type {
   ClubRow,
   EventBoatRow,
   EventRow,
-  GlobalLeaderboardRow,
   HeatBoatRow,
   HeatRow,
   InsertResult,
@@ -107,18 +106,20 @@ export interface HeatRaceDB {
   readAllScores(raceId: number): Promise<ScoreRow[]>;
   readLeaderboard(eventId: number): Promise<RawLeaderboardEntry[]>;
   readFinalLeaderboard(eventId: number): Promise<RawLeaderboardEntry[]>;
-  readGlobalLeaderboard(): Promise<GlobalLeaderboardRow[]>;
   readOverallLeaderboard(eventId: number): Promise<OverallLeaderboardEntry[]>;
   insertHeat(...args: unknown[]): Promise<InsertResult>;
   insertHeatBoat(...args: unknown[]): Promise<unknown>;
   createInitialHeatsAtomic(eventId: number, numHeats: number): Promise<unknown>;
+  recreateInitialHeatsAtomic(
+    eventId: number,
+    numHeats: number,
+  ): Promise<unknown>;
   insertRace(...args: unknown[]): Promise<InsertResult>;
   insertScore(...args: unknown[]): Promise<InsertResult>;
   updateScore(...args: unknown[]): Promise<unknown>;
   deleteScore(scoreId: number): Promise<unknown>;
   deleteHeatsByEvent(eventId: number): Promise<unknown>;
   updateEventLeaderboard(eventId: number): Promise<unknown>;
-  updateGlobalLeaderboard(...args: unknown[]): Promise<unknown>;
   updateFinalLeaderboard(...args: unknown[]): Promise<unknown>;
   updateRaceResult(...args: unknown[]): Promise<unknown>;
   createNewHeatsBasedOnLeaderboard(...args: unknown[]): Promise<unknown>;

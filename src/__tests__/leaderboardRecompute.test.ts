@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 /**
  * Tests for leaderboardRecompute.ts — the glue that rebuilds the Qualifying
  * (Leaderboard) and Final (FinalLeaderboard) tables from the raw Scores rows.

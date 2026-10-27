@@ -1,10 +1,4 @@
-/* eslint-disable camelcase */
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import ExcelJS from 'exceljs';
-import { saveAs } from 'file-saver';
-import { jsPDF as JsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import registerPdfUnicodeFont from '../utils/registerPdfUnicodeFont';
 import {
   PENALTY_CODES,
   RDG_TYPES,
@@ -13,8 +7,6 @@ import {
   applyExclusions,
   processLeaderboardEntry,
   getFlagCode,
-  getRaceCellDisplay,
-  escapeCsvCell,
   averageRacePoints,
 } from '../utils/leaderboardUtils';
 import {
@@ -28,12 +20,18 @@ import {
   reportInfo,
   reportWarning,
 } from '../utils/userFeedback';
-import escapeHtml from '../utils/escapeHtml';
+import { exportLeaderboard } from '../utils/leaderboardExport';
 import {
   getScoringPenaltyPoints,
-  promotesBoatsBehind,
   scoringPenaltyStatuses,
 } from '../../shared/scoringPenalty';
+import applyRaceColumnEdit from '../../shared/raceColumnEdit';
+import {
+  buildConflictMessage,
+  computeSwapEdits,
+  findPlaceConflicts,
+} from '../utils/placeConflicts';
+import type { UserRaceEdit } from '../utils/placeConflicts';
 import { eventDB, heatRaceDB } from '../api/db';
 import type {
   CompareInfo,
@@ -54,18 +52,6 @@ interface MaxHeatSizes {
   final: number;
 }
 
-type ExportCell = string | number;
-
-interface ExportSection {
-  title: string | null;
-  rows: ExportCell[][];
-}
-
-interface ExportData {
-  header: string[];
-  sections: ExportSection[];
-}
-
 /** A single race-result change queued by handleSave for the atomic write. */
 interface SaveRaceOperation {
   raceId?: string;
@@ -83,50 +69,6 @@ interface RaceCellState {
   position: number;
   points: number;
   status: string;
-}
-
-/**
- * Renderer mirror of HeatRaceHandler.applyRaceTieScoring for a single race
- * column, so the edit-mode preview shows exactly what the backend persists on
- * save. Finishers — and position-keeping penalties (ZFP/SCP/T1), which occupy a
- * place slot — are walked in position order and given contiguous places; tied
- * positions share averaged points (RRS A7). Hard penalties (DNS/DSQ/…) and RDG
- * cells are not finishers, so they keep the position/points already assigned to
- * them and do not consume a finishing slot.
- */
-function rerankRaceColumn(cells: RaceCellState[]): RaceCellState[] {
-  const next = cells.map((cell) => ({ ...cell }));
-  const participants = next
-    .map((cell, idx) => ({ idx, position: cell.position, status: cell.status }))
-    .filter(
-      (cell) =>
-        cell.status === 'FINISHED' || scoringPenaltyStatuses.has(cell.status),
-    )
-    .sort((a, b) => a.position - b.position || a.idx - b.idx);
-
-  let cursor = 1;
-  let i = 0;
-  while (i < participants.length) {
-    const tieValue = participants[i].position;
-    const group: { idx: number }[] = [];
-    while (i < participants.length && participants[i].position === tieValue) {
-      group.push({ idx: participants[i].idx });
-      i += 1;
-    }
-    const startPlace = cursor;
-    const endPlace = cursor + group.length - 1;
-    const tiePoints = (startPlace + endPlace) / 2;
-    group.forEach(({ idx }) => {
-      // Only finishers are (re)scored; penalty boats keep their own place +
-      // points but still consume the slot above.
-      if (next[idx].status === 'FINISHED') {
-        next[idx].position = startPlace;
-        next[idx].points = tiePoints;
-      }
-    });
-    cursor += group.length;
-  }
-  return next;
 }
 
 export default function useLeaderboard(eventId: number) {
@@ -161,15 +103,6 @@ export default function useLeaderboard(eventId: number) {
   // save-time toggle to every queued edit would diverge from the preview.
   // `rdgSelection` keeps the RDG2 race choice so the average can be refreshed
   // when later edits change the boat's points in the selected races.
-  interface UserRaceEdit {
-    boatId: number;
-    raceIndex: number;
-    rawPosition: number;
-    status: string;
-    shift: boolean;
-    // SHRS 5.6: indices into the edited cell's OWN series race list.
-    rdgSelection?: { seriesIndices: number[] };
-  }
   const userEditsRef = useRef<Map<string, UserRaceEdit>>(new Map());
   // LB-2: synchronous re-entrancy guard for handleSave. `saving` state is
   // batched and only set AFTER the confirmChoice dialog, so two rapid clicks
@@ -246,67 +179,6 @@ export default function useLeaderboard(eventId: number) {
       ? maxHeatSizes.final
       : maxHeatSizes.qualifying;
     return (size || entryCount) + 1;
-  };
-
-  const sanitizeFilenamePart = (value: unknown, fallback = 'event'): string => {
-    const raw = String(value ?? '').trim();
-    const safe = raw.replace(/[<>:"/\\|?*]+/g, '_').replace(/\s+/g, '_');
-    return safe || fallback;
-  };
-
-  const getExportMeta = async () => {
-    let eventName = `event_${eventId}`;
-    try {
-      const events = await eventDB.readAllEvents();
-      if (Array.isArray(events)) {
-        const match = events.find(
-          (event) => String(event.event_id) === String(eventId),
-        );
-        if (match?.event_name) {
-          eventName = match.event_name;
-        }
-      }
-    } catch (_) {
-      // keep fallback name
-    }
-
-    const raceNumber = finalSeriesStarted
-      ? (leaderboard?.[0]?.races?.length ?? 0)
-      : (eventLeaderboard?.[0]?.races?.length ?? 0);
-
-    const safeEventName = sanitizeFilenamePart(eventName, `event_${eventId}`);
-    const seriesLabel = finalSeriesStarted ? 'final' : 'race';
-    return {
-      safeEventName,
-      raceNumber,
-      seriesLabel,
-    };
-  };
-
-  const toPdfText = (value: unknown): string => {
-    const source = String(value ?? '').normalize('NFC');
-
-    // Repair common mojibake patterns (UTF-8 bytes read as latin1/cp1252).
-    if (!/[ÃÅÄÐÆØ]/.test(source)) {
-      return source;
-    }
-
-    try {
-      const bytes = Uint8Array.from(
-        Array.from(source).map((char) => char.charCodeAt(0) % 256),
-      );
-      const decoded = new TextDecoder('utf-8').decode(bytes).normalize('NFC');
-
-      const hasReplacementChar = decoded.includes('\uFFFD');
-      const gainedDiacritics = /[čćđšžČĆĐŠŽ]/.test(decoded);
-      if (!hasReplacementChar && gainedDiacritics) {
-        return decoded;
-      }
-    } catch (_) {
-      // Keep source text when repair cannot be safely applied.
-    }
-
-    return source;
   };
 
   // ─── Compare ────────────────────────────────────────────────────────────────
@@ -805,8 +677,8 @@ export default function useLeaderboard(eventId: number) {
 
   // Position-keeping penalties (ZFP/SCP/T1) display their finishing place, but
   // score more points (RRS 44.3c/T1). The race cells store the place, so the
-  // edit-mode preview total must convert those cells to their penalty points —
-  // matching getScoringPenaltyPoints in the main process — before summing.
+  // edit-mode preview total must convert those cells to their penalty points
+  // via the shared getScoringPenaltyPoints before summing.
   // Other statuses already store their points as the cell value.
   const toScoreValuesForTotal = (
     rawRaces: string[],
@@ -1061,14 +933,10 @@ export default function useLeaderboard(eventId: number) {
 
     const oldPosition = parseRaceNum(targetEntry.races[raceIndex]);
 
-    // RULE-M16 / RRS A6.1: a boat that HAD finished and is now disqualified or
-    // retired-after-finishing is removed from the finishing order, so every
-    // boat behind her moves up one place. Mandatory, so it applies whatever the
-    // "Shift other boats" toggle says — matching applyRaceResultUpdate in the
-    // main process. RDG/DPI never displace anyone (RRS A6.2 / A10).
+    // RULE-M16 / RRS A6.1 and the manual ripple are both decided inside
+    // shared/raceColumnEdit; the hook only supplies the before/after facts.
     const previousCellStatus =
       targetEntry.race_statuses?.[raceIndex] || 'FINISHED';
-    const promotesBoats = promotesBoatsBehind(previousCellStatus, newStatus);
 
     // Group the boats that share THIS physical race (same race_id at this
     // column). Those are the only boats whose finishing places interact: a
@@ -1158,154 +1026,47 @@ export default function useLeaderboard(eventId: number) {
       };
     };
 
-    let updated: LeaderboardEntry[];
-
-    if (shiftPositions) {
-      // Shift ON: mirror the backend — insert the edited boat at its new place
-      // and ripple the surrounding finishers, then re-rank the race to
-      // contiguous places (ties share averaged points, RRS A7).
-      const column: RaceCellState[] = groupIdx.map((idx) => {
-        const entry = cloned[idx];
-        if (entry.boat_id === boatId) {
-          return {
-            position: newPosition,
-            points: newPoints,
-            status: newStatus,
-          };
-        }
-        const pos = parseRaceNum(entry.races[raceIndex]);
-        const rawPts = parseFloat(
-          String(
-            entry.race_points?.[raceIndex] ?? entry.races[raceIndex],
-          ).replace(/[()]/g, ''),
-        );
-        return {
-          position: pos,
-          points: Number.isNaN(rawPts) ? pos : rawPts,
-          status: entry.race_statuses?.[raceIndex] || 'FINISHED',
-        };
-      });
-
-      if (!isPenalty) {
-        column.forEach((cell, i) => {
-          if (cloned[groupIdx[i]].boat_id === boatId) return;
-          // LB-7: only hard (displacing) penalties and RDG cells are left alone
-          // — they hold no finishing slot. Position-keeping penalties (ZFP/SCP/
-          // T1) occupy a real place and must shift with the finishers; otherwise
-          // rerankRaceColumn re-ranks the FINISHED boats around the frozen
-          // penalty and produces duplicate places.
-          const keepsPlace = scoringPenaltyStatuses.has(cell.status);
-          if (cell.status !== 'FINISHED' && !keepsPlace) return;
-          const otherPos = cell.position;
-          if (
-            oldPosition > newPosition &&
-            otherPos >= newPosition &&
-            otherPos < oldPosition
-          ) {
-            cell.position += 1;
-            cell.points = keepsPlace
-              ? getScoringPenaltyPoints(cell.position, maxBoats, cell.status)
-              : cell.position;
-          } else if (
-            oldPosition < newPosition &&
-            otherPos <= newPosition &&
-            otherPos > oldPosition
-          ) {
-            cell.position -= 1;
-            cell.points = keepsPlace
-              ? getScoringPenaltyPoints(cell.position, maxBoats, cell.status)
-              : cell.position;
-          }
-        });
-      }
-
-      const ranked = rerankRaceColumn(column);
-      const rankedByIdx = new Map<number, RaceCellState>();
-      groupIdx.forEach((idx, i) => rankedByIdx.set(idx, ranked[i]));
-
-      updated = cloned.map((entry, idx) => {
-        const rankedCell = rankedByIdx.get(idx);
-        // Boats in other races are never touched by an edit in this race.
-        if (!rankedCell) return entry;
-        return recomputeEntry(
-          entry,
-          rankedCell.position,
-          rankedCell.points,
-          rankedCell.status,
-        );
-      });
-    } else if (promotesBoats) {
-      // RULE-M16 / RRS A6.1: "each boat with a worse finishing place shall be
-      // moved up one place." Mandatory, so it happens even with shift OFF —
-      // mirroring the backend, which applies the promotion regardless of the
-      // toggle. Without this the preview would show the boats behind a DSQ
-      // unchanged while the save moved them up.
-      const column: RaceCellState[] = groupIdx.map((idx) => {
-        const entry = cloned[idx];
-        if (entry.boat_id === boatId) {
-          return {
-            position: newPosition,
-            points: newPoints,
-            status: newStatus,
-          };
-        }
-        const pos = parseRaceNum(entry.races[raceIndex]);
-        const rawPts = parseFloat(
-          String(
-            entry.race_points?.[raceIndex] ?? entry.races[raceIndex],
-          ).replace(/[()]/g, ''),
-        );
-        const status = entry.race_statuses?.[raceIndex] || 'FINISHED';
-        // Boats behind the removed boat move up one place. Position-keeping
-        // penalties (ZFP/SCP/T1) hold a real finishing place, so they move too,
-        // and their points are recomputed from the new place (RRS 44.3c).
-        const keepsPlace = scoringPenaltyStatuses.has(status);
-        const movesUp =
-          (status === 'FINISHED' || keepsPlace) && pos > oldPosition;
-        if (!movesUp) {
-          return {
-            position: pos,
-            points: Number.isNaN(rawPts) ? pos : rawPts,
-            status,
-          };
-        }
-        const promoted = pos - 1;
-        return {
-          position: promoted,
-          points: keepsPlace
-            ? getScoringPenaltyPoints(promoted, maxBoats, status)
-            : promoted,
-          status,
-        };
-      });
-
-      // RRS A7: re-average any places now shared, exactly as the backend's
-      // applyRaceTieScoring does after the same promotion.
-      const ranked = rerankRaceColumn(column);
-      const rankedByIdx = new Map<number, RaceCellState>();
-      groupIdx.forEach((idx, i) => rankedByIdx.set(idx, ranked[i]));
-
-      updated = cloned.map((entry, idx) => {
-        const rankedCell = rankedByIdx.get(idx);
-        if (!rankedCell) return entry;
-        return recomputeEntry(
-          entry,
-          rankedCell.position,
-          rankedCell.points,
-          rankedCell.status,
-        );
-      });
-    } else {
-      // Shift OFF: change ONLY the edited boat. Every other boat keeps its
-      // place and points exactly as they are — no cascade. This can leave a
-      // tie or a gap in the race until the user resolves it manually, which is
-      // the intended manual-override behaviour.
-      updated = cloned.map((entry) =>
-        entry.boat_id === boatId
-          ? recomputeEntry(entry, newPosition, newPoints, newStatus)
-          : entry,
+    // The RRS A6.1 promotion, the manual ripple and the RRS A7 re-average all
+    // live in shared/raceColumnEdit, which the main process runs too — so this
+    // preview cannot show something other than what Save persists.
+    const editedPosition = groupIdx.indexOf(
+      cloned.findIndex((entry) => entry.boat_id === boatId),
+    );
+    const column: RaceCellState[] = groupIdx.map((idx) => {
+      const entry = cloned[idx];
+      const pos = parseRaceNum(entry.races[raceIndex]);
+      const rawPts = parseFloat(
+        String(
+          entry.race_points?.[raceIndex] ?? entry.races[raceIndex],
+        ).replace(/[()]/g, ''),
       );
-    }
+      return {
+        position: pos,
+        points: Number.isNaN(rawPts) ? pos : rawPts,
+        status: entry.race_statuses?.[raceIndex] || 'FINISHED',
+      };
+    });
+
+    const ranked = applyRaceColumnEdit(column, {
+      index: editedPosition,
+      previousPosition: oldPosition,
+      previousStatus: previousCellStatus,
+      newPosition,
+      newPoints,
+      newStatus,
+      shiftPositions,
+      maxBoats,
+    });
+
+    const rankedByIdx = new Map<number, RaceCellState>();
+    groupIdx.forEach((idx, i) => rankedByIdx.set(idx, ranked[i]));
+
+    const updated = cloned.map((entry, idx) => {
+      const cell = rankedByIdx.get(idx);
+      // Boats in other races are never touched by an edit in this race.
+      if (!cell) return entry;
+      return recomputeEntry(entry, cell.position, cell.points, cell.status);
+    });
 
     setEditableLeaderboard(refreshSessionRdgAverages(updated));
   };
@@ -1401,208 +1162,6 @@ export default function useLeaderboard(eventId: number) {
     setRdg2Picker(null);
   };
 
-  // A finishing-place collision the user introduced this edit session: within
-  // one race two FINISHED boats now hold the same place. Each colliding place
-  // is one PlaceConflict; the boats carry their own column index so handleSave
-  // can swap places when the user asks for it.
-  interface ConflictBoat {
-    entry: LeaderboardEntry;
-    raceIndex: number;
-  }
-  interface PlaceConflict {
-    label: string;
-    raceId: string;
-    place: number;
-    boats: ConflictBoat[];
-  }
-
-  const findPlaceConflicts = (rows: LeaderboardEntry[]): PlaceConflict[] => {
-    // Only inspect races the user actually touched this session, so a pre-
-    // existing tie loaded from the DB never blocks an unrelated save.
-    const editedRaceIds = new Set<string>();
-    userEditsRef.current.forEach(({ boatId, raceIndex }) => {
-      const entry = rows.find((e) => e.boat_id === boatId);
-      const raceId = entry?.race_ids?.[raceIndex];
-      if (raceId != null) editedRaceIds.add(String(raceId));
-    });
-    if (editedRaceIds.size === 0) return [];
-
-    // Group every place-holding boat's place by the physical race it sailed.
-    // Finishers AND position-keeping penalties (ZFP/SCP/T1) occupy a finishing
-    // slot; hard-penalty and RDG cells don't, so they're skipped.
-    interface Slot {
-      label: string;
-      place: number;
-      entry: LeaderboardEntry;
-      raceIndex: number;
-    }
-    const byRace = new Map<string, Slot[]>();
-    rows.forEach((entry) => {
-      entry.race_ids?.forEach((raceId, idx) => {
-        const raceIdStr = String(raceId);
-        if (!editedRaceIds.has(raceIdStr)) return;
-        const status = entry.race_statuses?.[idx] || 'FINISHED';
-        if (status !== 'FINISHED' && !scoringPenaltyStatuses.has(status)) {
-          return;
-        }
-        const place = parseRaceNum(entry.races[idx]);
-        if (!Number.isFinite(place) || place <= 0) return;
-        // Match the table headers: F… for final races, Q… for qualifying.
-        const label = finalSeriesStarted ? `F${idx + 1}` : `Q${idx + 1}`;
-        const slots = byRace.get(raceIdStr) ?? [];
-        slots.push({ label, place, entry, raceIndex: idx });
-        byRace.set(raceIdStr, slots);
-      });
-    });
-
-    const conflicts: PlaceConflict[] = [];
-    byRace.forEach((slots, raceId) => {
-      const byPlace = new Map<number, Slot[]>();
-      slots.forEach((slot) => {
-        const group = byPlace.get(slot.place) ?? [];
-        group.push(slot);
-        byPlace.set(slot.place, group);
-      });
-      byPlace.forEach((group, place) => {
-        if (group.length >= 2) {
-          conflicts.push({
-            label: group[0].label,
-            raceId,
-            place,
-            boats: group.map((g) => ({
-              entry: g.entry,
-              raceIndex: g.raceIndex,
-            })),
-          });
-        }
-      });
-    });
-    return conflicts;
-  };
-
-  const describeBoat = (entry: LeaderboardEntry): string => {
-    const name = `${entry.name ?? ''} ${entry.surname ?? ''}`.trim();
-    const tag = [entry.country, entry.boat_number].filter(Boolean).join(' ');
-    return tag ? `${name} (${tag})` : name;
-  };
-
-  // Build the Save-time warning body listing each colliding place, the boats
-  // sharing it, and the three resolutions the dialog offers.
-  const buildConflictMessage = (conflicts: PlaceConflict[]): string => {
-    const blocks = conflicts.map((conflict) => {
-      const boats = conflict.boats
-        .map((boat) => `   • ${describeBoat(boat.entry)}`)
-        .join('\n');
-      return `${conflict.label} — place ${conflict.place}:\n${boats}`;
-    });
-    const sample = conflicts[0];
-    const split = (sample.place + (sample.place + 1)) / 2;
-    return (
-      'These boats now share the same finishing place — normally every ' +
-      'place is unique:\n\n' +
-      `${blocks.join('\n\n')}\n\n` +
-      'Choose how to resolve it:\n' +
-      '   • Switch places — the boat already on that place takes the place ' +
-      'you moved the other boat from (every place stays unique).\n' +
-      `   • Save anyway — keep the boats tied; per RRS A7 they split the ` +
-      `points equally (e.g. places ${sample.place}+${sample.place + 1} → ` +
-      `${split} each).\n` +
-      '   • Cancel — go back and fix it yourself.'
-    );
-  };
-
-  // For each conflict, work out the swap: the boats sharing the place are
-  // rotated so every place ends up unique. Returns extra raw edits (one per
-  // displaced boat) to merge into the save payload.
-  const computeSwapEdits = (
-    conflicts: PlaceConflict[],
-    editableSource: LeaderboardEntry[],
-  ): UserRaceEdit[] => {
-    const swaps: UserRaceEdit[] = [];
-    // LB-8: claimed places are tracked across the WHOLE conflicts loop, not per
-    // conflict. Two conflicts in the same race each compute their own holes from
-    // the same editable view, so without this both could send a displaced boat to
-    // the same free place — reintroducing exactly the tie "Switch places" was
-    // meant to remove.
-    const claimedPlaces = new Set<number>();
-    conflicts.forEach((conflict) => {
-      const { raceIndex } = conflict.boats[0];
-
-      // The boat(s) the user moved onto this place this session.
-      const movedHere = conflict.boats.filter((boat) => {
-        const edit = userEditsRef.current.get(
-          `${boat.entry.boat_id}-${boat.raceIndex}`,
-        );
-        return edit != null && edit.rawPosition === conflict.place;
-      });
-      if (movedHere.length === 0) return;
-
-      // One boat keeps the place it was moved to; everyone else sharing it is
-      // displaced into a vacated place. Handles N-boat conflicts (the old code
-      // only looked at `movedHere[0]`, collapsing the rest onto one place).
-      const primaryMover = movedHere[0];
-      const displaced = conflict.boats.filter(
-        (boat) => boat.entry.boat_id !== primaryMover.entry.boat_id,
-      );
-      if (displaced.length === 0) return;
-
-      // LB-8: derive the vacated places from the EDITABLE leaderboard, not the
-      // saved one. A place is vacated when no boat outside this conflict
-      // occupies it. Reading the saved leaderboard was wrong: a later edit can
-      // move another boat into the mover's old saved place, and with several
-      // movers all their displaced boats would be sent to one saved place,
-      // creating a fresh silent conflict.
-      const conflictBoatIds = new Set(
-        conflict.boats.map((boat) => String(boat.entry.boat_id)),
-      );
-      const occupiedElsewhere = new Set<number>();
-      let heatSize = 0;
-      editableSource.forEach((entry) => {
-        const raceId = entry.race_ids?.[raceIndex];
-        if (raceId == null) return;
-        if (String(raceId) !== conflict.raceId) return;
-        const status = entry.race_statuses?.[raceIndex] || 'FINISHED';
-        if (status !== 'FINISHED' && !scoringPenaltyStatuses.has(status)) {
-          return;
-        }
-        const place = parseRaceNum(entry.races[raceIndex]);
-        if (!Number.isFinite(place) || place <= 0) return;
-        heatSize += 1;
-        if (!conflictBoatIds.has(String(entry.boat_id))) {
-          occupiedElsewhere.add(place);
-        }
-      });
-
-      const holes: number[] = [];
-      for (let place = 1; place <= heatSize; place += 1) {
-        if (
-          place !== conflict.place &&
-          !occupiedElsewhere.has(place) &&
-          !claimedPlaces.has(place)
-        ) {
-          holes.push(place);
-        }
-      }
-
-      displaced.forEach((boat, i) => {
-        const targetPlace = holes[i];
-        if (targetPlace == null) return; // not enough free slots: leave as-is
-        claimedPlaces.add(targetPlace);
-        swaps.push({
-          boatId: boat.entry.boat_id,
-          raceIndex: boat.raceIndex,
-          rawPosition: targetPlace,
-          // A position-keeping penalty (ZFP/SCP/T1) stays a penalty when it
-          // is moved to the vacated place — only its place changes.
-          status: boat.entry.race_statuses?.[boat.raceIndex] || 'FINISHED',
-          // Direct assignment into the vacated slot: no ripple wanted.
-          shift: false,
-        });
-      });
-    });
-    return swaps;
-  };
-
   const handleSave = async () => {
     // LB-2: synchronous re-entrancy guard (see savingRef declaration). `saving`
     // state is set only after the confirm dialog, so it cannot block a second
@@ -1627,7 +1186,11 @@ export default function useLeaderboard(eventId: number) {
       // Switch places → keep every place unique (the displaced boat takes the
       // place the other boat was moved from); Save anyway → keep the tie (RRS A7
       // splits the points); Cancel → write nothing and stay in edit mode.
-      const placeConflicts = findPlaceConflicts(editableLeaderboard);
+      const placeConflicts = findPlaceConflicts(
+        editableLeaderboard,
+        userEditsRef.current,
+        finalSeriesStarted,
+      );
       if (placeConflicts.length > 0) {
         const choice = await confirmChoice(
           buildConflictMessage(placeConflicts),
@@ -1642,11 +1205,13 @@ export default function useLeaderboard(eventId: number) {
         );
         if (choice === 'cancel') return;
         if (choice === 'confirm') {
-          computeSwapEdits(placeConflicts, editableLeaderboard).forEach(
-            (swap) => {
-              effectiveEditMap.set(`${swap.boatId}-${swap.raceIndex}`, swap);
-            },
-          );
+          computeSwapEdits(
+            placeConflicts,
+            editableLeaderboard,
+            userEditsRef.current,
+          ).forEach((swap) => {
+            effectiveEditMap.set(`${swap.boatId}-${swap.raceIndex}`, swap);
+          });
         }
         // 'extra' (Save anyway) keeps the tie: leave effectiveEdits unchanged.
       }
@@ -1734,396 +1299,17 @@ export default function useLeaderboard(eventId: number) {
     }
   };
 
-  // ─── Export helpers ──────────────────────────────────────────────────────────
+  // ─── Export ──────────────────────────────────────────────────────────────────
 
-  /**
-   * Builds a flat export structure:
-   *   { header: string[], sections: Array<{ title: string|null, rows: any[][] }> }
-   *
-   * When the final series has started the layout mirrors FinalFleetTable:
-   *   Rank | Name | Country | Sail# | Type | Gross | Overall | Q1…Qn | F1…Fn
-   * When qualifying only the layout mirrors QualifyingTable:
-   *   Rank | Name | Country | Sail# | Type | R1…Rn | Total
-   */
-  // Format a race value the same way ScoreCell / getRaceCellDisplay does.
-  const formatCell = (race: string, status: string | undefined): string =>
-    getRaceCellDisplay(race, status || 'FINISHED').displayText;
-
-  const buildExportData = (): ExportData => {
-    const parseScore = (v: unknown): number => {
-      const n = parseFloat(String(v ?? '').replace(/[()]/g, ''));
-      return Number.isNaN(n) ? 0 : n;
-    };
-
-    if (!finalSeriesStarted) {
-      // ── Qualifying-only view ────────────────────────────────────────────────
-      const raceCount = eventLeaderboard[0]?.races?.length ?? 0;
-      const header = [
-        'Rank',
-        'Name',
-        'Country',
-        'Sail #',
-        'Type',
-        'Gross',
-        'Overall',
-        ...Array.from({ length: raceCount }, (_, i) => `Q${i + 1}`),
-      ];
-      const rows = (eventLeaderboard ?? []).map((e, i) => {
-        const grossTotal = (e.race_points ?? e.races ?? []).reduce(
-          (s, r) => s + parseScore(r),
-          0,
-        );
-        const overall = e.computed_total ?? e.total_points_event;
-        return [
-          e.place ?? i + 1,
-          `${e.name} ${e.surname}`,
-          e.country ?? '',
-          e.boat_number ?? '',
-          e.boat_type ?? '',
-          grossTotal > 0 ? grossTotal : '–',
-          overall != null && !Number.isNaN(overall) ? overall : '–',
-          ...(e.races ?? []).map((r, ri) =>
-            formatCell(r, e.race_statuses?.[ri]),
-          ),
-        ];
-      });
-      return { header, sections: [{ title: null, rows }] };
-    }
-
-    // ── Final-series view ───────────────────────────────────────────────────
-    // Exports always read the SAVED leaderboard, never the edit-mode draft —
-    // a mid-edit export must not leak unsaved values (and the qualifying
-    // export above already behaves this way).
-    const qualRaceCount = eventLeaderboard[0]?.races?.length ?? 0;
-    const finalRaceCount = (leaderboard ?? [])[0]?.races?.length ?? 0;
-
-    const header = [
-      'Rank',
-      'Name',
-      'Country',
-      'Sail #',
-      'Type',
-      'Gross',
-      'Overall',
-      ...Array.from({ length: qualRaceCount }, (_, i) => `Q${i + 1}`),
-      ...Array.from({ length: finalRaceCount }, (_, i) => `F${i + 1}`),
-    ];
-
-    const grpMap = (leaderboard ?? []).reduce(
-      (acc, entry) => {
-        const g = entry.placement_group || 'General';
-        if (!acc[g]) acc[g] = [];
-        acc[g].push(entry);
-        return acc;
-      },
-      {} as Record<string, LeaderboardEntry[]>,
-    );
-    const grpOrder = Object.keys(grpMap).sort(compareFleetGroups);
-
-    const sections = grpOrder.map((g) => ({
-      title: `${g} Fleet`,
-      rows: (grpMap[g] ?? []).map((entry, i) => {
-        const qualEntry = eventLeaderboard.find(
-          (e) => e.boat_id === entry.boat_id,
-        );
-        const qualRaces = qualEntry?.races ?? [];
-        const finalRaces = entry.races ?? [];
-        const qualRacePoints = qualEntry?.race_points ?? qualRaces;
-        const finalRacePoints = entry.race_points ?? finalRaces;
-
-        const qualGross = qualRacePoints.reduce((s, r) => s + parseScore(r), 0);
-        const finalGross = finalRacePoints.reduce(
-          (s, r) => s + parseScore(r),
-          0,
-        );
-        const gross = qualGross + finalGross;
-
-        const overall =
-          entry.total_points_combined != null &&
-          !Number.isNaN(entry.total_points_combined)
-            ? entry.total_points_combined
-            : '–';
-
-        return [
-          entry.overall_rank ?? i + 1,
-          `${entry.name} ${entry.surname}`,
-          entry.country ?? '',
-          entry.boat_number ?? '',
-          entry.boat_type ?? '',
-          gross > 0 ? gross : '–',
-          overall,
-          ...qualRaces.map((r, ri) =>
-            formatCell(r, qualEntry?.race_statuses?.[ri]),
-          ),
-          ...finalRaces.map((r, ri) =>
-            formatCell(r, entry.race_statuses?.[ri]),
-          ),
-        ];
-      }),
-    }));
-
-    return { header, sections };
-  };
-
-  // ─── Excel export ────────────────────────────────────────────────────────────
-
-  const exportToExcel = async () => {
-    const { header, sections } = buildExportData();
-    const { safeEventName, raceNumber, seriesLabel } = await getExportMeta();
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Leaderboard');
-    worksheet.addRow(header);
-    sections.forEach(({ title, rows }) => {
-      if (title) worksheet.addRow([title]);
-      rows.forEach((r) => worksheet.addRow(r));
+  // Exporting reads finished data only, so it lives in utils/leaderboardExport
+  // as plain functions; the hook just hands it the current view.
+  const exportAs = (format: string) =>
+    exportLeaderboard(format, {
+      eventId,
+      finalSeriesStarted,
+      leaderboard,
+      eventLeaderboard,
     });
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    });
-    saveAs(
-      blob,
-      `${safeEventName}_${seriesLabel}_${raceNumber}_leaderboard.xlsx`,
-    );
-  };
-
-  // ─── CSV export ──────────────────────────────────────────────────────────────
-
-  const exportToCSV = async () => {
-    const { header, sections } = buildExportData();
-    const { safeEventName, raceNumber, seriesLabel } = await getExportMeta();
-    // LB-6 (security): escapeCsvCell (leaderboardUtils) neutralises CSV formula
-    // injection (= + - @) and quotes comma/quote/newline/CR so a sail number or
-    // name cannot execute in Excel/Sheets or break the row/column grid.
-    const lines = [header.map(escapeCsvCell).join(',')];
-    sections.forEach(({ title, rows }) => {
-      if (title) lines.push(escapeCsvCell(title));
-      rows.forEach((r) => lines.push(r.map(escapeCsvCell).join(',')));
-    });
-    const blob = new Blob([lines.join('\n')], {
-      type: 'text/csv;charset=utf-8;',
-    });
-    saveAs(
-      blob,
-      `${safeEventName}_${seriesLabel}_${raceNumber}_leaderboard.csv`,
-    );
-  };
-
-  // ─── TXT export ──────────────────────────────────────────────────────────────
-
-  const exportToTXT = async () => {
-    const { header, sections } = buildExportData();
-    const { safeEventName, raceNumber, seriesLabel } = await getExportMeta();
-    const allRows = sections.flatMap(({ rows }) => rows);
-    const colWidths = header.map((h, ci) =>
-      Math.max(
-        String(h).length,
-        ...allRows.map((r) => String(r[ci] ?? '').length),
-      ),
-    );
-    const pad = (v: unknown, w: number): string => String(v ?? '').padEnd(w);
-    const divider = colWidths.map((w) => '-'.repeat(w)).join('-+-');
-    const fmtRow = (r: ExportCell[]): string =>
-      r.map((v, i) => pad(v, colWidths[i])).join(' | ');
-
-    const lines = [fmtRow(header), divider];
-    sections.forEach(({ title, rows }) => {
-      if (title) {
-        lines.push('');
-        lines.push(`=== ${title} ===`);
-        lines.push(divider);
-      }
-      rows.forEach((r) => lines.push(fmtRow(r)));
-    });
-    const blob = new Blob([lines.join('\n')], {
-      type: 'text/plain;charset=utf-8;',
-    });
-    saveAs(
-      blob,
-      `${safeEventName}_${seriesLabel}_${raceNumber}_leaderboard.txt`,
-    );
-  };
-
-  // ─── Markdown export ─────────────────────────────────────────────────────────
-
-  const exportToMarkdown = async () => {
-    const { header, sections } = buildExportData();
-    const { safeEventName, raceNumber, seriesLabel } = await getExportMeta();
-    const allRows = sections.flatMap(({ rows }) => rows);
-    const colWidths = header.map((h, ci) =>
-      Math.max(
-        String(h).length,
-        ...allRows.map((r) => String(r[ci] ?? '').length),
-      ),
-    );
-    const pad = (v: unknown, w: number): string => String(v ?? '').padEnd(w);
-    const fmtRow = (r: ExportCell[]): string =>
-      `| ${r.map((v, i) => pad(v, colWidths[i])).join(' | ')} |`;
-    const separator = `| ${colWidths.map((w) => '-'.repeat(w)).join(' | ')} |`;
-
-    const lines = [fmtRow(header), separator];
-    sections.forEach(({ title, rows }) => {
-      if (title) {
-        lines.push('');
-        lines.push(`### ${title}`);
-        lines.push('');
-        lines.push(fmtRow(header));
-        lines.push(separator);
-      }
-      rows.forEach((r) => lines.push(fmtRow(r)));
-    });
-    const blob = new Blob([lines.join('\n')], {
-      type: 'text/markdown;charset=utf-8;',
-    });
-    saveAs(
-      blob,
-      `${safeEventName}_${seriesLabel}_${raceNumber}_leaderboard.md`,
-    );
-  };
-
-  // ─── HTML export ─────────────────────────────────────────────────────────────
-
-  const exportToHTML = async () => {
-    const { header, sections } = buildExportData();
-    const { safeEventName, raceNumber, seriesLabel } = await getExportMeta();
-    const thCells = header
-      .map((h) => `<th scope="col">${escapeHtml(h)}</th>`)
-      .join('');
-    let tableBody = '';
-    sections.forEach(({ title, rows }) => {
-      if (title) {
-        tableBody += `<tr><td colspan="${header.length}" class="group-header">${escapeHtml(title)}</td></tr>`;
-      }
-      rows.forEach((r) => {
-        tableBody += `<tr>${r.map((v) => `<td>${escapeHtml(v)}</td>`).join('')}</tr>`;
-      });
-    });
-    const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-  <title>Leaderboard</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 24px; color: #1b2740; }
-    h1 { font-size: 1.4rem; margin-bottom: 16px; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { border: 1px solid #dde3ea; padding: 6px 10px; text-align: left; font-size: 0.85rem; }
-    th { background: #1b2740; color: #fff; }
-    tr:nth-child(even) { background: #f0f4f8; }
-    .group-header { background: #2a9d8f; color: #fff; font-weight: 700; font-size: 0.9rem; }
-  </style>
-</head>
-<body>
-  <h1>Leaderboard</h1>
-  <table>
-    <thead><tr>${thCells}</tr></thead>
-    <tbody>${tableBody}</tbody>
-  </table>
-</body>
-</html>`;
-    // Prefix with UTF-8 BOM so Windows apps consistently decode diacritics.
-    const blob = new Blob(['\uFEFF', html], {
-      type: 'text/html;charset=utf-8;',
-    });
-    saveAs(
-      blob,
-      `${safeEventName}_${seriesLabel}_${raceNumber}_leaderboard.html`,
-    );
-  };
-
-  // ─── PDF export ──────────────────────────────────────────────────────────────
-
-  const exportToPDF = async () => {
-    const { header, sections } = buildExportData();
-    const { safeEventName, raceNumber, seriesLabel } = await getExportMeta();
-    const doc = new JsPDF({ orientation: 'landscape' });
-    await registerPdfUnicodeFont(doc);
-    doc.setFontSize(14);
-    doc.setFont('DejaVuSans', 'bold');
-    doc.text('Leaderboard', 14, 16);
-    doc.setFont('DejaVuSans', 'normal');
-
-    let startY = 22;
-    sections.forEach(({ title, rows }) => {
-      if (title) {
-        doc.setFontSize(11);
-        doc.setFont('DejaVuSans', 'bold');
-        doc.text(title, 14, startY + 4);
-        doc.setFont('DejaVuSans', 'normal');
-        startY += 8;
-      }
-      autoTable(doc, {
-        head: [header.map((cell) => toPdfText(cell))],
-        body: rows.map((r) => r.map((v) => toPdfText(v))),
-        startY,
-        styles: { fontSize: 7, cellPadding: 2, font: 'DejaVuSans' },
-        headStyles: {
-          fillColor: [27, 39, 64],
-          font: 'DejaVuSans',
-          fontStyle: 'bold',
-        },
-        alternateRowStyles: { fillColor: [240, 244, 248] },
-        didDrawPage: (data) => {
-          if (data.cursor) {
-            startY = data.cursor.y + 6;
-          }
-        },
-      });
-      // jspdf-autotable attaches `lastAutoTable` to the jsPDF instance; it is
-      // always set immediately after an autoTable() call.
-      const docWithTable = doc as JsPDF & {
-        lastAutoTable?: { finalY: number };
-      };
-      startY = (docWithTable.lastAutoTable?.finalY ?? startY) + 10;
-    });
-    doc.save(`${safeEventName}_${seriesLabel}_${raceNumber}_leaderboard.pdf`);
-  };
-
-  // ─── Unified export dispatcher ───────────────────────────────────────────────
-
-  const EXPORT_LABELS: Record<string, string> = {
-    excel: 'Excel',
-    csv: 'CSV',
-    txt: 'Plain text',
-    md: 'Markdown',
-    html: 'HTML',
-    pdf: 'PDF',
-  };
-
-  const runExport = (format: string): Promise<void> => {
-    switch (format) {
-      case 'excel':
-        return exportToExcel();
-      case 'csv':
-        return exportToCSV();
-      case 'txt':
-        return exportToTXT();
-      case 'md':
-        return exportToMarkdown();
-      case 'html':
-        return exportToHTML();
-      case 'pdf':
-        return exportToPDF();
-      default:
-        return exportToExcel();
-    }
-  };
-
-  const exportAs = async (format: string) => {
-    const label = EXPORT_LABELS[format] ?? 'Excel';
-    try {
-      await runExport(format);
-      reportInfo(`Leaderboard exported as ${label}.`, 'Export complete');
-    } catch (error) {
-      // A single format can fail (e.g. PDF font embedding) while others work, so
-      // point the user at an alternative rather than a dead end.
-      reportError(
-        `Could not export the leaderboard as ${label}. Try a different format (Excel or CSV usually works).`,
-        error,
-      );
-    }
-  };
 
   // ─── Derived values ──────────────────────────────────────────────────────────
 
@@ -2191,7 +1377,6 @@ export default function useLeaderboard(eventId: number) {
     handleRaceChange,
     confirmRdg2,
     handleCompareRowClick,
-    exportToExcel,
     exportAs,
     getFlagCode,
   };

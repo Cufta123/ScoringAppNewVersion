@@ -6,6 +6,7 @@ import {
 } from '@playwright/test';
 import {
   launchApp,
+  closeApp,
   createEvent,
   openEvent,
   addSailor,
@@ -93,7 +94,7 @@ async function cancelEditing(): Promise<void> {
   await window.getByRole('button', { name: 'Cancel Editing' }).click();
   const dialogConfirm = window
     .getByRole('dialog')
-    .getByRole('button', { name: 'Confirm' });
+    .getByRole('button', { name: 'Discard' });
   if (await dialogConfirm.count()) {
     await dialogConfirm.click();
   }
@@ -104,7 +105,6 @@ async function cancelEditing(): Promise<void> {
 
 test.beforeAll(async () => {
   ({ app, window } = await launchApp());
-  window.on('dialog', (dialog) => dialog.accept().catch(() => {}));
 
   await createEvent(window, EVENT_NAME);
   await openEvent(window, EVENT_NAME);
@@ -124,7 +124,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await app?.close();
+  await closeApp(app);
 });
 
 test('the worst race is discarded (parenthesised) and excluded from the net', async () => {

@@ -13,7 +13,7 @@ Use this document first. Only search the repo when this file does not answer the
 
 - Main process bootstrap: `src/main/main.ts`
 - IPC registration side effects: `src/main/ipcHandlers/index.ts`
-- IPC handlers:
+- IPC handlers (registered via `handle()` in `src/main/ipcHandlers/handle.ts`):
   - `src/main/ipcHandlers/SailorHandler.ts`
   - `src/main/ipcHandlers/EventHandler.ts`
   - `src/main/ipcHandlers/HeatRaceHandler.ts`
@@ -24,7 +24,9 @@ Use this document first. Only search the repo when this file does not answer the
 - Renderer DB access wrapper: `src/renderer/api/db` (re-exports `eventDB`,
   `heatRaceDB`, etc. over `window.electron.sqlite.*`).
 - Renderer routes: `src/renderer/App.tsx`
-- Database schema and migration logic: `public/Database/DBManager.js`
+- Database open + startup: `public/Database/DBManager.js`; versioned schema
+  migrations: `public/Database/schema.js`; automatic backups:
+  `public/Database/backup.js`
 - App menu: `src/main/menu.ts`
 - Unit test config: `jest.unit.config.ts`
 
@@ -41,7 +43,6 @@ Use this document first. Only search the repo when this file does not answer the
 
 - Uses `HashRouter` with these routes:
   - `/`
-  - `/global-leaderboard`
   - `/event/:name`
   - `/event/:eventName/heat-race`
   - `/event/:eventName/leaderboard`
@@ -51,11 +52,25 @@ Use this document first. Only search the repo when this file does not answer the
 
 - `src/main/preload.ts` exposes grouped sqlite APIs under `window.electron.sqlite.*`.
 - Wrapper throws on `false` return values, so renderer callers should expect exceptions.
-- Channel names are strongly listed in `type Channels`.
+- Channel names live once in `SQLITE_CHANNELS`, grouped as the renderer consumes
+  them; `type Channels` and the invoker map are derived from that list.
 
 ## 4. Database Model (SQLite)
 
-Database initialization and schema creation are in `public/Database/DBManager.js`.
+The schema is built by numbered migrations in `public/Database/schema.js`.
+`PRAGMA user_version` records how far a database has been migrated; on open,
+every newer migration runs once, in order. To change the schema, APPEND a
+migration — never edit a shipped one. `DBManager.js` takes a
+`pre-migration-*` backup before any pending migration, and refuses to start
+(error dialog, exit) if a migration fails or the database comes from a newer
+app version, rather than running on a half-migrated file.
+`schema.migrations.test.ts` runs the real migrations against node:sqlite.
+
+Backups (`backup.js`) go to `<db folder>/backups`: on start-up, every 5 min
+while data changes, and on quit, via `VACUUM INTO`. The newest 24 `auto-*`
+copies are kept plus the last one of each earlier day; `pre-migration-*` are
+never pruned. Help → Open Backups Folder opens the folder. To restore: quit,
+copy a backup over `scoring_app.db`.
 
 Key tables:
 
@@ -66,7 +81,8 @@ Key tables:
 - `Categories` (seeded with KADET/JUNIOR/SENIOR/VETERAN/MASTER)
 - `Boat_Event` (boat-event association)
 - `Heats`, `Races`, `Scores`, `Heat_Boat`
-- `Leaderboard`, `FinalLeaderboard`, `GlobalLeaderboard`
+- `Leaderboard`, `FinalLeaderboard`
+- `GlobalLeaderboard` (retained but unused; see §10)
 - `RaceAssignmentSnapshots` (SHRS 3.1.5 pre-protest assignment order, persisted
   so the in-memory cache in `raceAssignmentSnapshot.ts` survives restarts)
 
@@ -77,6 +93,22 @@ Important migration details:
 - `Scores` has a unique index covered by `Scores.uniqueIndex.migration.test.ts`.
 - Code that touches the DB must tolerate older databases missing newer
   tables/columns (e.g. `RaceAssignmentSnapshots` reads are wrapped in try/catch).
+- **Foreign keys are ENFORCED** (better-sqlite3 is built with
+  `SQLITE_DEFAULT_FOREIGN_KEYS=1`) and **no table declares ON DELETE CASCADE**,
+  so every delete cascades by hand. A missed referencing table does not orphan
+  a row — it aborts the whole operation with "FOREIGN KEY constraint failed".
+  Anything that deletes an event's races must clear `RaceAssignmentSnapshots`
+  first; `deleteEvent` and `restoreEventSnapshot` both missed it and made any
+  event with a protest decision undeletable. Covered by
+  `eventLifecycle.integration.test.ts`, which asserts `PRAGMA foreign_key_check`
+  is clean afterwards.
+- Migration 2 makes `Boat_Event (boat_id, event_id)` unique;
+  `associateBoatWithEvent` is `INSERT OR IGNORE`.
+- Migration 1 adds `idx_races_heat_id` and `idx_heats_event_id`
+  (298 ms -> 3 ms for the DNC backfill probe on a four-season database).
+  `Scores(boat_id)` and `ANALYZE` are deliberately excluded — both help one
+  query on the leaderboard click and hurt the other more. Re-measure before
+  adding either; `DBManager.performanceIndexes.test.ts` records the numbers.
 
 DB file paths:
 
@@ -90,8 +122,8 @@ into focused modules under `src/main/functions/`. Map of that directory:
 
 - `calculateBoatScores.ts` — qualifying series scoring + SHRS 5.7 tie-break.
 - `calculateFinalBoatScores.ts` — final-fleet scoring (A8.1/A8.2 per group).
-- `creatingNewHeatsUtls.ts` — progressive/zig-zag heat assignment + movement
-  tables (filename typo `Utls` is intentional, see §10).
+- `creatingNewHeatsUtls.ts` — Race 1 serpentine seeding + Heat Movement Tables
+  (filename typo `Utls` is intentional, see §10).
 - `discardConfig.ts` — per-event discard profile lookup. The pure parsing/count
   logic lives in `src/shared/discardProfile.ts` and is re-exported here, so the
   renderer preview and the backend compute discards from one implementation.
@@ -109,9 +141,31 @@ into focused modules under `src/main/functions/`. Map of that directory:
   raw `Scores`.
 - `heatQueries.ts` — shared reads (`getLatestQualifyingHeats`,
   `getRaceCountForHeat`).
-- `eventSnapshot.ts` — full per-event export/restore.
+- `eventSettings.ts` — per-event SHRS configuration on the Events row:
+  qualifying assignment mode (3.1/3.2), heat overflow policy and
+  `SHRS_MAX_BOATS_PER_HEAT` (2.3), and the discard-profile lock (5.4).
+- `raceScoring.ts` — every write to `Scores` for a single race:
+  `applyRaceResultUpdate` (RRS A6.1/A6.2, SHRS 5.2), `applyRaceTieScoring`
+  (RRS A7), `getMaxHeatSize`, `seedRaceWithDefaultDnsScores`,
+  `ensureCompleteRaceScoresForEvent` (DNS repair +
+  `ensureDncScoresForMissedQualifyingRaces`, RRS A5.1),
+  `recomputeLeaderboardsForRace`.
+- `raceSeeding.ts` — reading a race's results back in SHRS 5.3 recording order
+  for the next round's heat movement (`getRankedBoatsInHeatForRace`,
+  `getLatestRaceRowsForHeats`, `getOddEvenMovementAdvisory`).
+- `assignmentShield.ts` — SHRS 3.1.5 per-boat freeze of the pre-protest
+  finishing order (`captureRaceAssignmentSnapshotIfMissing`,
+  `getAssignmentRowsForHeatRace`); persistence lives in
+  `raceAssignmentSnapshot.ts`.
+- `fleetTotals.ts` — `buildAdjustedFleetLeaderboard`, the SHRS 4.3
+  fleet-assignment ranking adapter over `shared/fleetAssignment.ts`.
+- `eventSnapshot.ts` — full per-event export/restore. The table list here is
+  the definition of "an event's data"; add new event-scoped tables to the
+  export, the restore's delete, and the restore's reinsert together.
 - `raceAssignmentSnapshot.ts` — SHRS 3.1.5 pre-protest assignment cache +
-  persistence.
+  persistence. The in-memory map is read BEFORE the table, so anything that
+  rewrites the table behind it must call `invalidateAssignmentSnapshotCache()`
+  or the stale shields keep winning (restoring a backup did exactly that).
 
 Shared (renderer + main) — one definition per rule, imported by both processes:
 
@@ -124,6 +178,16 @@ Shared (renderer + main) — one definition per rule, imported by both processes
   orders "Fleet 5"+ too, not just Gold/Silver/Bronze/Copper).
 - `sailOrder.ts` — SHRS 5.3 / 3.1(iv) tie order: national letter then numeric
   sail number.
+- `raceTieScoring.ts` — the RRS A7 place walk: tied boats share the averaged
+  points of the places they occupy, position-keeping penalties consume a slot
+  without being re-scored.
+- `raceColumnEdit.ts` — what one result edit does to a whole race: the RRS A6.1
+  promotion, the optional manual ripple, and the A7 re-average. The main
+  process (`applyRaceResultUpdate`) and the renderer's edit preview
+  (`handleRaceChange`) BOTH call this, so the preview cannot disagree with what
+  Save persists. Each used to implement it separately — SQL on one side, array
+  arithmetic on the other, kept aligned by hand and by comment. Do not
+  reintroduce a local copy.
 
 When extending the handler, keep this pattern: pure logic goes in a
 `functions/` module (so it is unit-testable), the handler only wires IPC.
@@ -165,10 +229,24 @@ Number/size of heats
 
 Qualifying assignment (`creatingNewHeatsUtls.ts`)
 
-- 3.1 — **Progressive**: Race 1 seeds top-down `1,2,3,4,5,5,4,3,2,1`; later
-  races use the Heat Movement Table (`getNextHeatIndexByMovementTable`).
-  Non-finishers ordered `DNF, RET, NSC, OCS, DNS, DNC, UFD, BFD, (DSQ)`; ties by
-  alphanumeric national-letter + sail number (`shared/sailOrder.ts`).
+- 3.1 — **Progressive**: Race 1 seeds top-down `1,2,3,4,5,5,4,3,2,1`
+  (`assignBoatsToInitialHeatsSerpentine`); later races use the Heat Movement
+  Table (`getNextHeatIndexByMovementTable`). Non-finishers ordered
+  `DNF, RET, NSC, OCS, DNS, DNC, UFD, BFD, (DSQ)`; ties by alphanumeric
+  national-letter + sail number (`shared/sailOrder.ts`).
+- 2.2 — heats "as equal as possible" means within one boat, and **nothing pins
+  the extra boat to Heat A**. The 3.1(1) walk drops it wherever it stops (10
+  boats / 3 heats → A=3, B=3, C=4), and the movement table then rotates the odd
+  heat between rounds. The PDF says so itself, above the Heat Movement Tables:
+  "the largest heat size could move from one heat to another". Only 4.1 orders
+  group sizes, and only for final fleets (Silver ≤ Gold ≤ …), which
+  `startFinalSeriesAtomic` implements by handing the remainder to the earliest
+  fleets. Do not "fix" qualifying to match it.
+- `createNewHeatsBasedOnLeaderboard` **throws** when a round yields no
+  assignments. It used to fall back to `assignBoatsToNewHeatsZigZag`, which
+  re-seeded the fleet from scratch and so discarded the finishing positions
+  3.1(2) requires — a fabricated draw published as if it were sailed. Removed;
+  an empty assignment set is a data fault and must surface as one.
 - 3.1.5 — **Only protest-committee decisions** are shielded from changing heat
   assignments (`protestCommitteeStatuses` in `scoreStatus.ts`). An ordinary
   race-office correction may change them, and a boat transfer invalidates the
@@ -202,6 +280,20 @@ Scoring (`calculateBoatScores.ts`, `scoreStatus.ts`)
 - RRS A7 — **Race ties**: tied places share the summed points equally. Enterable
   from the scoring screen via the per-row tie ("=") control, which submits a
   shared place for `applyRaceTieScoring` to average.
+- RRS A5.1 / 5.3 — **Every entered boat is scored for every race in the
+  series.** A boat who sailed in no heat for a round (added mid-event via
+  `assignBoatToHeat`, or entered and never started) is scored **DNC** at
+  (largest heat + 1), not left without a row
+  (`ensureDncScoresForMissedQualifyingRaces` in `raceScoring.ts`, run as part of
+  `ensureCompleteRaceScoresForEvent`, and on round completion inside
+  `submitHeatRaceScoresAtomic`). A series race is keyed by (heat round from the
+  name suffix, `race_number`), and only backfilled once EVERY heat of that
+  round has sailed it. Qualifying only: in the Final Series a
+  boat races one fleet (4.1) and fleets may sail different numbers of races
+  (4.5), so a Gold boat must not collect DNCs for Silver's races. Without this,
+  a short score vector makes `calculateBoatScores` (capped) and
+  `computeAdjustedFleetTotals` (uncapped) disagree about the same boat, and the
+  uncapped one discards her only score and ranks her **first into Gold**.
 - 5.2 (changes RRS A5.2) — A boat scored DNS/DNF/DSQ/etc. gets **(boats in the
   largest heat) + 1** points — NOT boats entered in the series.
 - 5.3 — Recording order: finishers by place, then
@@ -213,9 +305,14 @@ Scoring (`calculateBoatScores.ts`, `scoreStatus.ts`)
   Non-excludable: `DNE`, `DGM` (RRS 90.3(b)). Configurable per event before the
   first warning signal (`shared/discardProfile.ts`); an explicitly **empty**
   threshold list means **never discard**. The count is series-wide — fleet-wide
-  in the Final Series, since 5.1 scores each fleet separately — and is capped
-  per boat by `capExcludeCountForBoat` so a boat always keeps one score. Use the
-  same capped count for a boat's total AND her A8.1 tie-break vector.
+  in the Final Series, since 5.1 scores each fleet separately.
+  `capExcludeCountForBoat` additionally caps it per boat so a boat always keeps
+  one score. **That cap is an app-level guard, not rule text** — 5.4 says
+  "excluding her worst score" with no exception for a boat who has only one.
+  It is a backstop for a boat whose score vector is shorter than the series,
+  which the DNC backfill below should now prevent; if it ever fires, the missing
+  scores are the bug. Use the same capped count for a boat's total AND her A8.1
+  tie-break vector.
 - 5.5 — Overall event score = Qualifying + Final series scores. Lowest in Gold
   wins; fleets rank `Gold > Silver > Bronze > Copper > Fleet 5 > …` regardless
   of raw points (`fleetRank`).
@@ -298,10 +395,13 @@ Handler / integration:
 - `explainTieBreak.test.ts`, `compareUtils.test.ts`
 - `ScoringInputComponent.test.jsx`, `useLeaderboard.scoring.test.jsx`
 
-`npm run test:unit` targets the explicit list in `jest.unit.config.ts`; when you
-add a test, also add it there or it only runs under `test:full`. Tests avoid the
-native `better-sqlite3` build — they mock `db` from `DBManager` (SQL-sniffing or
-op-log mocks), so no real SQLite is needed.
+`npm run test:unit` runs every `src/__tests__/**/*.test.*` except the
+template's `App.test.tsx` (needs a build). CI runs typecheck, lint and
+`test:unit` on Node 22 and will not publish a release if they fail. Tests avoid
+the native `better-sqlite3` build. Prefer real SQLite via node:sqlite
+(Node >= 22.5) and `createSqliteDbMock` in `fixtures/eventLifecycleSchema.ts`
+over SQL-sniffing mocks: a hand-built fixture whose shape production never
+writes (race_number = round) hid the DNC backfill bug for a release.
 
 ## 9. Fast Change Workflow
 
@@ -319,20 +419,58 @@ For most feature/fix requests, do this in order:
 - File name typo is intentional in codebase: `creatingNewHeatsUtls.ts` (not
   `Utils`). Its test file IS spelled `creatingNewHeatsUtils.test.ts`.
 - Handlers are registered by import side effects; deleting imports can silently break IPC.
+- Register IPC handlers with `handle()` from `ipcHandlers/handle.ts`, not
+  `ipcMain.handle` directly. It logs the channel name and rethrows, so a
+  handler body needs no try/catch just to report a failure. Keep an inner
+  try/catch only when the catch does real work (SQLITE_BUSY retry, snapshot
+  rollback, per-row error collection).
 - Returning `false` from preload methods is converted to thrown errors by wrapper.
 - App uses hash routing, so route handling assumptions must match `HashRouter`.
-- `HeatRaceHandler.ts` is intentionally thin wiring: most logic now lives in
+- Destructive work belongs in ONE handler, not a renderer sequence. "Recreate
+  Heats" was `deleteHeatsByEvent` then `createInitialHeatsAtomic`; the
+  destructive half ran first, so a rejected create left the event with no heats.
+  `recreateInitialHeatsAtomic` plans before it wipes, in one transaction.
+  `planInitialHeats` / `insertPlannedInitialHeats` exist for exactly this split.
+- Renderer `raceHappened`-style state can be stale — never let it be the only
+  guard on a destructive channel. `deleteHeatsByEvent`, `removeBoatFromEvent`
+  and `recreateInitialHeatsAtomic` all re-check server-side.
+- Async actions that mutate rounds go through `useExclusiveAction` (renderer
+  hook). The ref inside it is load-bearing: two clicks in the same tick both
+  read `busy === false` from state. `busy` only drives `disabled`.
+- `HeatRaceHandler.ts` is intentionally thin wiring: the logic lives in
   `src/main/functions/`. Add new pure logic there, not inline in the handler.
+  This had drifted — 718 lines of domain helpers had accumulated back in the
+  handler and were moved out in Sept 2026. If you find yourself writing a
+  non-handler function in this file, it belongs in `functions/`.
 - `functions/` modules import `db` directly from `DBManager` (not passed in),
   and only call `db.prepare` inside functions — never at module top level, so
   importing a module never touches the database.
-- When adding a preload channel, update all four: `type Channels`, the
-  `electronHandler` map in `preload.ts`, the handler's `ipcMain.handle`, and the
-  renderer `api/db` wrapper.
-- `updateGlobalLeaderboard` is a deprecated no-op (July 2026): the global
-  leaderboard feature is on hold, the channel stays registered but writes
-  nothing, and the app never populates `GlobalLeaderboard`. Do not "fix" it
-  back to writing without a decision to revive the feature.
+- When adding a preload channel, update three places: the `SQLITE_CHANNELS`
+  list in `preload.ts` (the `Channels` union and the invoker map are both
+  derived from it, so they cannot disagree), the handler's `handle()`
+  registration, and the renderer `api/db` wrapper. The wrapper is not
+  duplication — preload types every method as `Promise<any>`, and `api/db.ts`
+  is where the real return types live.
+- The global leaderboard feature is removed from the UI (Sept 2026). The route,
+  both nav entry points, the page, the component and the
+  `readGlobalLeaderboard` / `updateGlobalLeaderboard` channels are gone; users
+  could previously navigate to a page that existed only to say the feature was
+  on hold. The `GlobalLeaderboard` table is deliberately KEPT in `DBManager.js`,
+  and `deleteEvent` still clears its rows, so reviving the feature needs no
+  migration.
+
+- `Races.race_number` counts races WITHIN one heat, so nearly every
+  qualifying race is `race_number = 1` (each round is a new set of heats).
+  Never group qualifying races by `race_number` alone; the round is the heat
+  name suffix (`getHeatRoundFromName`, "Heat B3" -> 3).
+- Qualifying writes are guarded server-side (`functions/seriesGuards.ts`): no
+  scoring or undoing a qualifying heat once the Final Series has started, or
+  once the next round was built from it (undo the redistribution first).
+- Undo deletes a race's `RaceAssignmentSnapshots` rows INSIDE its transaction,
+  before the race (FKs enforced, no cascade).
+- Point totals go through `sumPoints`/`roundPoints` (`shared/points.ts`). A
+  plain sum of tenth-point RDG scores carries float noise, equal totals stop
+  comparing equal, and the SHRS 5.7 tie-break is skipped.
 
 ## 11. What To Search Only If Needed
 
@@ -354,5 +492,5 @@ A change is complete when all are true:
 
 ## 13. Claude Compatibility
 
-This repo also includes `CLAUDE.md` as a mirror pointer for Claude workflows.
-If both files diverge, treat this `AGENTS.md` as source of truth and sync `CLAUDE.md`.
+This file is the single source of truth for all coding agents (Claude and GPT).
+There is no separate `CLAUDE.md`; Claude reads `AGENTS.md` directly.

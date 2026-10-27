@@ -1,5 +1,4 @@
 /* eslint-disable jsx-a11y/label-has-associated-control */
-/* eslint-disable camelcase */
 import React, { useState, useEffect, useCallback } from 'react';
 import Autosuggest from 'react-autosuggest';
 import {
@@ -10,7 +9,7 @@ import {
 } from '../utils/userFeedback';
 import { checkRaceHappened } from '../utils/raceStatus';
 
-import iocCountries from '../constants/iocCountries.json';
+import IOC_NATIONS from '../constants/iocNations';
 import { SUBGROUP_OPTIONS } from '../../shared/subgroups';
 import { eventDB, sailorDB } from '../api/db';
 import type { ClubRow } from '../types';
@@ -352,9 +351,9 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
                 <option value="" disabled>
                   Select country…
                 </option>
-                {Object.entries(iocCountries).map(([code, countryName]) => (
+                {Object.entries(IOC_NATIONS).map(([code, nation]) => (
                   <option key={code} value={code}>
-                    {countryName} ({code})
+                    {nation.name} ({code})
                   </option>
                 ))}
               </select>

@@ -1,5 +1,5 @@
-/* eslint-disable camelcase */
 import { db } from '../../../public/Database/DBManager';
+import { sumPoints } from '../../shared/points';
 import {
   getEventDiscardConfig,
   getExcludeCountForConfig,
@@ -153,10 +153,7 @@ export default function calculateFinalBoatScores(
 
     // Exclude worst excludable scores (DNE/DGM are never excluded)
     const scoresToInclude = getKeptScores(scoreEntries, excludeCount);
-    const totalPoints = scoresToInclude.reduce(
-      (acc: number, score: number) => acc + score,
-      0,
-    );
+    const totalPoints = sumPoints(scoresToInclude);
 
     groupTables.get(groupName)?.push({ boat_id, totalPoints });
   });

@@ -1,7 +1,7 @@
-/* eslint-disable camelcase */
-import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
+import IOC_NATIONS from '../constants/iocNations';
 import { fleetRank } from '../../shared/fleetNames';
 import { getExcludeCountForProfile } from '../../shared/discardProfile';
+import { roundPoints, sumPoints } from '../../shared/points';
 import type { LeaderboardEntry, RawLeaderboardEntry } from '../types';
 
 export const PENALTY_CODES = [
@@ -121,7 +121,7 @@ export const applyExclusions = (
   if (excludeCount === 0) {
     return {
       markedRaces: rawPositions.map((r) => String(r).replace(/[()]/g, '')),
-      total: points.reduce((a, b) => a + b, 0),
+      total: sumPoints(points),
     };
   }
   const candidates = points
@@ -146,7 +146,7 @@ export const applyExclusions = (
     total += p;
     return String(race).replace(/[()]/g, '');
   });
-  return { markedRaces, total };
+  return { markedRaces, total: roundPoints(total) };
 };
 
 /**
@@ -194,7 +194,7 @@ export const processLeaderboardEntry = (
  * Map an IOC country code to a react-world-flags code.
  */
 export const getFlagCode = (iocCode: string): string =>
-  iocToFlagCodeMap[iocCode] || iocCode;
+  IOC_NATIONS[iocCode]?.flag || iocCode;
 
 /**
  * LB-6 (security): escape one CSV cell. Neutralises CSV formula injection — a

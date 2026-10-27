@@ -6,6 +6,7 @@ import {
 } from '@playwright/test';
 import {
   launchApp,
+  closeApp,
   openEvent,
   addSailor,
   createEvent,
@@ -96,7 +97,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await app?.close();
+  await closeApp(app);
 });
 
 test('starting the Final Series with an unsailed new round does not claim "no races completed"', async () => {
@@ -163,7 +164,7 @@ test('starting the Final Series with an unsailed new round does not claim "no ra
 
   // Next is the recovery-snapshot offer — skip it.
   await expect(
-    window.getByRole('heading', { name: /Save recovery snapshot/i }),
+    window.getByRole('heading', { name: /Save recovery backup/i }),
   ).toBeVisible();
   await window
     .getByRole('dialog')

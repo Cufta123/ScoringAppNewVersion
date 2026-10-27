@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 /**
  * Unit tests for src/shared/scoringPenalty.ts — RRS 44.3(c)/Appendix T1
  * scoring-penalty math shared by main + renderer. Under SHRS 5.2 the DNF

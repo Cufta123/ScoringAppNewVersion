@@ -33,13 +33,6 @@ jest.mock(
       return <div>Leaderboard Page Mock</div>;
     },
 );
-jest.mock(
-  '../renderer/pages/GlobalLeaderboardPage/GlobalLeaderboardPage',
-  () =>
-    function () {
-      return <div>Global Leaderboard Page Mock</div>;
-    },
-);
 
 describe('App routing', () => {
   beforeEach(() => {
@@ -72,14 +65,5 @@ describe('App routing', () => {
     render(<App />);
 
     expect(screen.getByText('Leaderboard Page Mock')).toBeInTheDocument();
-  });
-
-  it('renders global leaderboard page route', () => {
-    window.location.hash = '#/global-leaderboard';
-    render(<App />);
-
-    expect(
-      screen.getByText('Global Leaderboard Page Mock'),
-    ).toBeInTheDocument();
   });
 });

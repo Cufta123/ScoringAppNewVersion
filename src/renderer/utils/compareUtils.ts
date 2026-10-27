@@ -1,5 +1,3 @@
-/* eslint-disable camelcase */
-
 import type { CompareEntry, PlacementGroup } from '../types';
 
 const normalizeGroup = (group?: PlacementGroup | null): string =>

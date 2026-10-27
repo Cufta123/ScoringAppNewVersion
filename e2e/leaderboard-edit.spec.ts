@@ -6,11 +6,13 @@ import {
 } from '@playwright/test';
 import {
   launchApp,
+  closeApp,
   createEvent,
   openEvent,
   addSailor,
   createHeats,
   dismissToasts,
+  answerConfirm,
   uniqueName,
 } from './helpers';
 
@@ -90,9 +92,6 @@ function overallCell(rowName: RegExp) {
 
 test.beforeAll(async () => {
   ({ app, window } = await launchApp());
-  // Unsaved edits arm a native `beforeunload` prompt; auto-accept it so app
-  // teardown never blocks on a dialog Playwright would otherwise have to handle.
-  window.on('dialog', (dialog) => dialog.accept().catch(() => {}));
 
   await createEvent(window, EVENT_NAME);
   await openEvent(window, EVENT_NAME);
@@ -112,7 +111,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await app?.close();
+  await closeApp(app);
 });
 
 test('read-mode leaderboard shows the expected ranks and net totals', async () => {
@@ -169,10 +168,7 @@ test('a penalty edit updates the live total and Cancel discards it', async () =>
   await expect(
     window.getByRole('heading', { name: /Discard changes/i }),
   ).toBeVisible();
-  await window
-    .getByRole('dialog')
-    .getByRole('button', { name: 'Confirm' })
-    .click();
+  await answerConfirm(window, 'Discard', { title: /Discard changes/i });
 
   // Back in read mode, Cara is unchanged: no DNS, net still 9.
   await expect(
@@ -273,10 +269,7 @@ test('leaving the page with unsaved edits is guarded', async () => {
 
   // Discard the pending edit so the app can close without a beforeunload prompt.
   await window.getByRole('button', { name: 'Cancel Editing' }).click();
-  await window
-    .getByRole('dialog')
-    .getByRole('button', { name: 'Confirm' })
-    .click();
+  await answerConfirm(window, 'Discard', { title: /Discard changes/i });
   await expect(
     window.getByRole('button', { name: 'Edit Results' }),
   ).toBeVisible();

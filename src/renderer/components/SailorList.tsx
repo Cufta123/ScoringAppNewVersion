@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Flag from 'react-world-flags';
-import iocToFlagCodeMap from '../constants/iocToFlagCodeMap';
+import { getFlagCode } from '../utils/leaderboardUtils';
 import { toSubgroupLabel } from '../../shared/subgroups';
 import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
 import { sailorDB } from '../api/db';
@@ -224,10 +224,6 @@ function SailorList({
 
   const toggleExpand = () => {
     setIsExpanded(!isExpanded);
-  };
-
-  const getFlagCode = (iocCode: string): string => {
-    return iocToFlagCodeMap[iocCode] || iocCode;
   };
 
   return (

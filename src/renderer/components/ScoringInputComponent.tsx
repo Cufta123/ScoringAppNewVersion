@@ -1,17 +1,24 @@
 /* eslint-disable no-nested-ternary */
 import React, { useState, useEffect } from 'react';
 import { reportError, reportInfo, reportWarning } from '../utils/userFeedback';
+import { POSITION_KEEPING_PENALTIES } from '../utils/penaltyOrder';
 import {
-  POSITION_KEEPING_PENALTIES,
-  orderBoatsByPenalty,
-} from '../utils/penaltyOrder';
+  buildPlaceNumbers,
+  buildScoredRace,
+  getOrderedBoatNumbers,
+  normalizeBoatNumber,
+  pruneTies,
+  reorderBoats,
+  tieKey,
+} from '../utils/finishOrder';
+import type { ScoredBoat, SailNumber } from '../utils/finishOrder';
 import {
   FINISH_ENTRY_PENALTY_CODES,
   penaltyLabel,
 } from '../constants/penaltyLabels';
 import { heatRaceDB } from '../api/db';
 
-type SailNumber = string | number;
+export type { ScoredBoat };
 
 export interface ScoringBoat {
   boat_id: number;
@@ -26,13 +33,6 @@ export interface ScoringHeat {
   heat_name: string;
   raceNumber?: number;
   boats: ScoringBoat[];
-}
-
-/** One boat's scored result, emitted to onSubmit. */
-export interface ScoredBoat {
-  boatNumber: SailNumber;
-  place: number;
-  status: string;
 }
 
 interface ScoringInputComponentProps {
@@ -156,83 +156,6 @@ function ScoringInputComponent({
     addInputRef.current?.focus();
   }, [heat.heat_id]);
 
-  const normalizeBoatNumber = (value: SailNumber): string =>
-    value != null ? String(value).trim() : '';
-  // Identity key for an RRS A7 tie between two ADJACENT boats. Encoding both
-  // boats (not just the lower one) means a tie can never silently rebind to a
-  // different boat when the boat above is removed or displaced.
-  const tieKey = (lower: SailNumber, upper: SailNumber): string =>
-    `${normalizeBoatNumber(lower)}::${normalizeBoatNumber(upper)}`;
-  const compareBoatNumbers = (a: SailNumber, b: SailNumber): number =>
-    normalizeBoatNumber(a).localeCompare(normalizeBoatNumber(b), undefined, {
-      numeric: true,
-      sensitivity: 'base',
-    });
-  const buildPlaceNumbers = (
-    orderedBoats: SailNumber[],
-    tiesSet: Set<string> = new Set(),
-  ): Record<string, number> => {
-    const newPlaceNumbers: Record<string, number> = {};
-    let nextPlace = 1;
-    orderedBoats.forEach((boat, index) => {
-      // RRS A7: a boat tied with the one above shares its place. The skipped
-      // place is recovered because `nextPlace` advances past every boat, tied
-      // or not, so the next distinct finisher gets the correct place (e.g. two
-      // boats tied for 1st → the next boat is 3rd).
-      if (index > 0 && tiesSet.has(tieKey(boat, orderedBoats[index - 1]))) {
-        newPlaceNumbers[boat] = newPlaceNumbers[orderedBoats[index - 1]];
-      } else {
-        newPlaceNumbers[boat] = nextPlace;
-      }
-      nextPlace += 1;
-    });
-    return newPlaceNumbers;
-  };
-
-  // Drop tie markers that are no longer valid: boats removed from the finish
-  // order, or boats that now carry a displacing penalty (they are no longer
-  // "tied at the finishing line" — SHRS 5.3 sends them to the end).
-  const pruneTies = (
-    boats: SailNumber[],
-    penaltiesByBoat: Record<string, string>,
-    tiesSet: Set<string>,
-  ): Set<string> => {
-    const remaining = new Set(boats.map(normalizeBoatNumber));
-    // Position of each boat in the (ordered) list. Tie keys are directional
-    // adjacency pairs (`lower::upper`), so a tie is only valid while `upper`
-    // sits directly above `lower` in the finish order.
-    const indexOf = new Map<string, number>();
-    boats.forEach((boat, index) => {
-      indexOf.set(normalizeBoatNumber(boat), index);
-    });
-    const pruned = new Set<string>();
-    tiesSet.forEach((key) => {
-      const [lower, upper] = key.split('::');
-      if (!remaining.has(lower) || !remaining.has(upper)) return;
-      const lowerPenalty = penaltiesByBoat[lower];
-      const upperPenalty = penaltiesByBoat[upper];
-      if (
-        (lowerPenalty && !POSITION_KEEPING_PENALTIES.has(lowerPenalty)) ||
-        (upperPenalty && !POSITION_KEEPING_PENALTIES.has(upperPenalty))
-      ) {
-        return;
-      }
-      // A reorder can separate a tied pair; once they are no longer directly
-      // adjacent the tie must be dropped, otherwise it silently re-activates if
-      // adjacency is restored later.
-      const lowerIndex = indexOf.get(lower);
-      const upperIndex = indexOf.get(upper);
-      if (lowerIndex === undefined || upperIndex === undefined) return;
-      if (lowerIndex !== upperIndex + 1) return;
-      pruned.add(key);
-    });
-    return pruned;
-  };
-  const getOrderedBoatNumbers = (
-    boats: SailNumber[],
-    penaltiesByBoat: Record<string, string>,
-  ): SailNumber[] =>
-    orderBoatsByPenalty(boats, penaltiesByBoat, compareBoatNumbers);
   const isValidBoatNumber = (boatNumber: SailNumber): boolean =>
     validBoats
       .map((value) => normalizeBoatNumber(value))
@@ -377,19 +300,11 @@ function ScoringInputComponent({
   };
 
   const handleReorderBoat = (fromIndex: number, toIndex: number) => {
-    if (toIndex < 0 || toIndex > boatNumbers.length || fromIndex === toIndex) {
-      return;
-    }
-    const updatedBoatNumbers = [...boatNumbers];
-    const [movedBoat] = updatedBoatNumbers.splice(fromIndex, 1);
-    updatedBoatNumbers.splice(toIndex, 0, movedBoat);
-    const ordered = getOrderedBoatNumbers(updatedBoatNumbers, penalties);
-    // A reorder can break an RRS A7 tie's adjacency, so prune stale ties (as
-    // remove/penalty already do) before recomputing places.
-    const prunedTies = pruneTies(ordered, penalties, ties);
-    setBoatNumbers(ordered);
-    setPlaceNumbers(buildPlaceNumbers(ordered, prunedTies));
-    setTies(prunedTies);
+    const next = reorderBoats(boatNumbers, penalties, ties, fromIndex, toIndex);
+    if (!next) return;
+    setBoatNumbers(next.boats);
+    setPlaceNumbers(next.places);
+    setTies(next.ties);
   };
 
   const handleDragStart = (index: number) => {
@@ -511,78 +426,14 @@ function ScoringInputComponent({
 
     setInvalidBoatNumbers([]);
 
-    const allBoats = [...new Set([...boatNumbers, ...validBoats])];
-    const orderedBoatNumbers = getOrderedBoatNumbers(boatNumbers, penalties);
-    const boatPlaces: ScoredBoat[] = [];
-    const includedBoats = new Set<SailNumber>();
-    let finishingPlace = 1;
-    let penaltyPlace: number | null = null;
-
-    orderedBoatNumbers.forEach((boatNumber) => {
-      includedBoats.add(boatNumber);
-      const penalty = penalties[boatNumber];
-      if (!penalty) {
-        boatPlaces.push({
-          boatNumber,
-          // RRS A7: use the tie-aware place so boats dead-heated at the line
-          // submit the same place (the next boat skips to place + 1).
-          place: placeNumbers[boatNumber],
-          status: 'FINISHED',
-        });
-        finishingPlace += 1;
-        return;
-      }
-
-      if (POSITION_KEEPING_PENALTIES.has(penalty)) {
-        // A position-keeping penalty (ZFP/SCP/T1) keeps its finishing place —
-        // which, when the boat is tied, is the shared place, not the running
-        // counter (RRS A7).
-        boatPlaces.push({
-          boatNumber,
-          place: placeNumbers[boatNumber],
-          status: penalty,
-        });
-        finishingPlace += 1;
-        return;
-      }
-
-      if (penaltyPlace === null) {
-        penaltyPlace = finishingPlace;
-      }
-
-      boatPlaces.push({
-        boatNumber,
-        place: penaltyPlace,
-        status: penalty,
-      });
-      penaltyPlace += 1;
+    const { boatPlaces, missingBoats } = buildScoredRace({
+      boatNumbers,
+      penalties,
+      placeNumbers,
+      validBoats,
     });
 
-    // Defensive safety net: if a penalty exists for a valid boat that is not in
-    // the ordered list, still include it in the submitted payload.
-    validBoats.forEach((boatNumber) => {
-      if (includedBoats.has(boatNumber) || !penalties[boatNumber]) return;
-      if (penaltyPlace === null) {
-        penaltyPlace = finishingPlace;
-      }
-      boatPlaces.push({
-        boatNumber,
-        place: penaltyPlace,
-        status: penalties[boatNumber],
-      });
-      penaltyPlace += 1;
-    });
-
-    const assignedBoatNumbers = new Set(
-      [...boatNumbers, ...Object.keys(penalties)].map((value) =>
-        normalizeBoatNumber(value),
-      ),
-    );
-    const allBoatsAccountedFor = allBoats.every((boatNumber) =>
-      assignedBoatNumbers.has(normalizeBoatNumber(boatNumber)),
-    );
-
-    if (allBoatsAccountedFor) {
+    if (missingBoats.length === 0) {
       setSubmitting(true);
       try {
         await onSubmit(boatPlaces);
@@ -593,10 +444,6 @@ function ScoringInputComponent({
         submitGuardRef.current = false;
       }
     } else {
-      const missingBoats = allBoats.filter(
-        (boatNumber) =>
-          !assignedBoatNumbers.has(normalizeBoatNumber(boatNumber)),
-      );
       reportWarning(
         `Still missing: sail ${missingBoats.join(', sail ')}.\n\n` +
           'Every boat needs a finishing place or a penalty before you can submit. ' +
