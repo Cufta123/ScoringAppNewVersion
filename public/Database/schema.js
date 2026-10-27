@@ -22,6 +22,7 @@
  */
 
 const { installJournal } = require('./journal');
+const { COUNTED_RACES_VIEW } = require('./views');
 
 const readColumns = (db, table) =>
   new Set(
@@ -396,6 +397,14 @@ const MIGRATIONS = [
     // when a database reaches this version: earlier changes were never kept.
     up(db) {
       installJournal(db);
+    },
+  },
+  {
+    version: 5,
+    name: 'CountedRaces view (a qualifying race counts once every heat sailed it)',
+    // See views.js. The standings count only completed races of the series.
+    up(db) {
+      db.exec(COUNTED_RACES_VIEW);
     },
   },
 ];

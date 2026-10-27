@@ -68,6 +68,7 @@ export function getSeriesDiscardRaceCount(
          FROM Scores s
          JOIN Races r ON s.race_id = r.race_id
          JOIN Heats h ON r.heat_id = h.heat_id
+         JOIN CountedRaces cr ON cr.race_id = s.race_id
          WHERE h.event_id = ? AND h.heat_type = ? ${heatNameFilter}
          GROUP BY s.boat_id
        )`,

@@ -16,6 +16,8 @@ export {};
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires, import/order
 const { DatabaseSync } = require('node:sqlite');
+// eslint-disable-next-line @typescript-eslint/no-var-requires, import/order
+const { COUNTED_RACES_VIEW } = require('../../public/Database/views');
 
 jest.mock('electron', () => ({
   ipcMain: { handle: jest.fn(), on: jest.fn() },
@@ -82,6 +84,7 @@ function seed() {
       points REAL NOT NULL,
       status TEXT NOT NULL
     );
+    ${COUNTED_RACES_VIEW}
   `);
   db.exec(`INSERT INTO Events (event_id) VALUES (${EVENT_ID});`);
 
@@ -231,6 +234,7 @@ describe('DNC backfill for races a boat missed (RRS A5.1 / SHRS 5.3)', () => {
         CREATE TABLE Races (race_id INTEGER PRIMARY KEY AUTOINCREMENT, heat_id INTEGER NOT NULL, race_number INTEGER NOT NULL);
         CREATE TABLE Heat_Boat (heat_id INTEGER NOT NULL, boat_id INTEGER NOT NULL);
         CREATE TABLE Scores (score_id INTEGER PRIMARY KEY AUTOINCREMENT, race_id INTEGER NOT NULL, boat_id INTEGER NOT NULL, position INTEGER NOT NULL, points REAL NOT NULL, status TEXT NOT NULL);
+        ${COUNTED_RACES_VIEW}
       `);
       [1, 2, 3, 4, 99].forEach((boat) =>
         multi.exec(

@@ -181,6 +181,12 @@ const dbMock = {
   transaction: jest.fn((fn: () => any) => fn),
 };
 
+// The standings rebuild has its own tests; this file supplies the standings.
+jest.mock('../main/functions/standings', () => ({
+  __esModule: true,
+  default: jest.fn(),
+}));
+
 jest.mock('../../public/Database/DBManager', () => ({
   db: dbMock,
 }));

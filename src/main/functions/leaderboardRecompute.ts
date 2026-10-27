@@ -16,6 +16,8 @@ interface SeriesScoreRow {
   race_id?: number | null;
   points?: number | null;
   rdg_race_ids?: string | null;
+  /** 0 for a race whose round is still being sailed (see CountedRaces). */
+  counted?: number | boolean | null;
 }
 
 /**
@@ -47,8 +49,12 @@ export function refreshRedressAverages(rows: SeriesScoreRow[]) {
     'UPDATE Scores SET position = ?, points = ? WHERE score_id = ?',
   );
   redressRows.forEach((row) => {
+    // Average only races that count in the standings: a heat of a round still
+    // being sailed must not move a counted redress score (SHRS 1.1).
     let pool = (rowsByBoat.get(String(row.boat_id)) ?? []).filter(
-      (other) => other.score_id !== row.score_id,
+      (other) =>
+        other.score_id !== row.score_id &&
+        (other.counted == null || Boolean(other.counted)),
     );
     if (row.status === 'RDG2') {
       const chosen = parseRedressRaceIds(row.rdg_race_ids);
@@ -89,10 +95,12 @@ export function renormalizeNonFinisherScores(
   const rows = db
     .prepare(
       `SELECT s.score_id, s.position, COALESCE(s.status, 'FINISHED') AS status,
-              s.boat_id, s.race_id, s.points, s.rdg_race_ids
+              s.boat_id, s.race_id, s.points, s.rdg_race_ids,
+              (cr.race_id IS NOT NULL) AS counted
        FROM Scores s
        JOIN Races r ON s.race_id = r.race_id
        JOIN Heats h ON r.heat_id = h.heat_id
+       LEFT JOIN CountedRaces cr ON cr.race_id = s.race_id
        WHERE h.event_id = ? AND h.heat_type = ?`,
     )
     .all(event_id, heat_type) as SeriesScoreRow[];
@@ -125,6 +133,7 @@ export function recomputeEventLeaderboard(event_id: any) {
     FROM Scores
     JOIN Races ON Scores.race_id = Races.race_id
     JOIN Heats ON Races.heat_id = Heats.heat_id
+    JOIN CountedRaces ON CountedRaces.race_id = Scores.race_id
     WHERE Heats.event_id = ? AND Heats.heat_type = 'Qualifying'
     GROUP BY boat_id
     ORDER BY total_points_event ASC

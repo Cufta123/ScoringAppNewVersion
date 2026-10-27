@@ -45,8 +45,8 @@ const state = {
   scoreSeq: 0,
   // HRH M4 probe: the event_id passed to getMaxHeatSize's MAX(boat_count) query.
   maxHeatSizeEventId: null as number | null,
-  // Heat 10 has the boats we score; heat 20 has no races so the latest heats
-  // have unequal race counts and the leaderboard recompute branch is skipped.
+  // Heat 10 has the boats we score; heat 20 has no races yet, so the round is
+  // still being sailed. (The standings rebuild is mocked below.)
   boatsByHeat: {
     10: Array.from({ length: 10 }, (_, i) => ({
       boat_id: i + 1,
@@ -281,6 +281,17 @@ function upsertScore(
   });
   return { lastInsertRowid: state.scoreSeq, changes: 1 };
 }
+
+// Completing a round's scores (DNC backfill) and rebuilding the standings have
+// their own real-SQLite tests; this file checks the race write itself.
+jest.mock('../main/functions/raceScoring', () => ({
+  ...jest.requireActual('../main/functions/raceScoring'),
+  ensureCompleteRaceScoresForEvent: jest.fn(() => 0),
+}));
+jest.mock('../main/functions/leaderboardRecompute', () => ({
+  ...jest.requireActual('../main/functions/leaderboardRecompute'),
+  recomputeEventLeaderboard: jest.fn(),
+}));
 
 jest.mock('../../public/Database/DBManager', () => ({ db: dbMock }));
 

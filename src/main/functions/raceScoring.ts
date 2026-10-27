@@ -153,12 +153,10 @@ export function ensureDncScoresForMissedQualifyingRaces(event_id: any): number {
   }
 
   const roundOfHeat = new Map<number, number>();
-  const heatsInRound = new Map<number, number>();
   heats.forEach((heat) => {
     const round = getHeatRoundFromName(heat.heat_name);
     if (round === null) return;
     roundOfHeat.set(Number(heat.heat_id), round);
-    heatsInRound.set(round, (heatsInRound.get(round) ?? 0) + 1);
   });
 
   const races = db
@@ -198,8 +196,21 @@ export function ensureDncScoresForMissedQualifyingRaces(event_id: any): number {
     }
   });
 
+  // A series race is completed once every heat of its round has sailed it.
+  // CountedRaces (public/Database/views.js) is the one definition of that, so
+  // the DNC backfill and the standings agree on which races exist.
+  const counted = new Set(
+    (
+      db
+        .prepare(
+          `SELECT race_id FROM CountedRaces
+           WHERE event_id = ? AND heat_type = 'Qualifying'`,
+        )
+        .all(event_id) as { race_id: number }[]
+    ).map((row) => Number(row.race_id)),
+  );
   const completedKeys = [...seriesRaces.entries()]
-    .filter(([, entry]) => entry.heatIds.size === heatsInRound.get(entry.round))
+    .filter(([, entry]) => counted.has(entry.anchorRaceId))
     .map(([key]) => key);
   if (completedKeys.length === 0) {
     return 0;

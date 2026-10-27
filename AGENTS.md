@@ -148,6 +148,28 @@ Important migration details:
   `historyDescribe.test.ts`, `historyRevert.test.ts` and
   `EventHistoryDialog.test.jsx`.
 
+- Migration 5 adds the **`CountedRaces` view** (`public/Database/views.js`),
+  the one definition of which races count in the standings: every final race,
+  and a qualifying race once EVERY heat of its round (with boats) has sailed
+  it — SHRS 1.1, "each race will consist of two or more heats". Everything
+  that scores the qualifying series joins it: the rebuild
+  (`recomputeEventLeaderboard`, redress averages), `calculateBoatScores`,
+  `getSeriesDiscardRaceCount`, the tie-breaks, `explainScore`, the fleet
+  split, the DNC backfill and `readLeaderboard`. A round still being sailed
+  leaves the standings exactly as after the last full round; its results come
+  back separately as `pending_races` and show greyed ("Q3\*") on the
+  leaderboard, outside every total. Tests that build their own schema must
+  add `COUNTED_RACES_VIEW` (`eventLifecycleSchema.ts` does).
+- **`Leaderboard` / `FinalLeaderboard` are a cache.** Every read for a user
+  (`readLeaderboard`, `readFinalLeaderboard`, `readOverallLeaderboard`,
+  `explainBoatScore`, the fleet split in `startFinalSeriesAtomic`) rebuilds
+  them from the scores first (`functions/standings.ts` `refreshStandings`,
+  ~20 ms for 80 boats × 15 rounds), so a stale table cannot reach the screen.
+  Writes still rebuild inside their own transaction as before; scoring a
+  qualifying heat now always rebuilds (it used to skip unless every heat had
+  the same race count). Tests that feed fixed standings through a mocked
+  database mock `functions/standings` instead.
+
 DB file paths:
 
 - Packaged: under `app.getPath('userData')/scoring_app.db`

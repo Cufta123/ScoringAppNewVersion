@@ -81,8 +81,8 @@ Qualifying | boat 2 | rank 7 | overall 11
 seed 9: overall
 Gold | boat 3 | rank 1 | overall 15 | Q 11 + F 4
 Gold | boat 1 | rank 2 | overall 15 | Q 10 + F 5
-Gold | boat 2 | rank 3 | overall 16 | Q 9 + F 7
-Gold | boat 5 | rank 4 | overall 16 | Q 9 + F 7
+Gold | boat 5 | rank 3 | overall 16 | Q 9 + F 7
+Gold | boat 2 | rank 4 | overall 19 | Q 12 + F 7
 Gold | boat 4 | rank 5 | overall 24 | Q 12 + F 12
 seed 10: overall
 Qualifying | boat 6 | rank 1 | overall 3
@@ -353,7 +353,7 @@ seed 38: overall
 Gold | boat 1 | rank 1 | overall 18.9 | Q 9 + F 9.9
 Gold | boat 3 | rank 2 | overall 21 | Q 9 + F 12
 Silver | boat 4 | rank 3 | overall 16.7 | Q 9.7 + F 7
-Silver | boat 2 | rank 4 | overall 17 | Q 8 + F 9
+Silver | boat 2 | rank 4 | overall 20 | Q 11 + F 9
 seed 39: overall
 Gold | boat 4 | rank 1 | overall 24 | Q 19 + F 5
 Gold | boat 7 | rank 2 | overall 26 | Q 21 + F 5
@@ -365,10 +365,10 @@ Bronze | boat 9 | rank 7 | overall 13 | Q 13 + F 0
 Bronze | boat 6 | rank 8 | overall 15 | Q 15 + F 0
 Bronze | boat 3 | rank 9 | overall 23 | Q 23 + F 0
 seed 40: overall
-Gold | boat 1 | rank 1 | overall 8 | Q 2 + F 6
+Gold | boat 1 | rank 1 | overall 10 | Q 4 + F 6
 Gold | boat 4 | rank 2 | overall 12 | Q 5 + F 7
 Silver | boat 2 | rank 3 | overall 14 | Q 7 + F 7
-Bronze | boat 3 | rank 4 | overall 3 | Q 2 + F 1
+Bronze | boat 3 | rank 4 | overall 5 | Q 4 + F 1
 seed 41: overall
 Qualifying | boat 9 | rank 1 | overall 17.3
 Qualifying | boat 1 | rank 2 | overall 19.9
@@ -405,7 +405,7 @@ Bronze | boat 3 | rank 7 | overall 5 | Q 1 + F 4
 Bronze | boat 6 | rank 8 | overall 8.1 | Q 4 + F 4.1
 Bronze | boat 9 | rank 9 | overall 9.5 | Q 4 + F 5.5
 seed 44: overall
-Gold | boat 3 | rank 1 | overall 17 | Q 9 + F 8
+Gold | boat 3 | rank 1 | overall 20 | Q 12 + F 8
 Gold | boat 1 | rank 2 | overall 21 | Q 10 + F 11
 Silver | boat 4 | rank 3 | overall 13 | Q 10 + F 3
 Silver | boat 2 | rank 4 | overall 17 | Q 11 + F 6
@@ -615,8 +615,8 @@ Gold | boat 1 | rank 1 | overall 8 | Q 7 + F 1
 Gold | boat 5 | rank 2 | overall 8 | Q 6 + F 2
 Gold | boat 3 | rank 3 | overall 10 | Q 8 + F 2
 Silver | boat 4 | rank 4 | overall 6 | Q 5 + F 1
-Silver | boat 2 | rank 5 | overall 7 | Q 6 + F 1
-Silver | boat 6 | rank 6 | overall 11 | Q 7 + F 4
+Silver | boat 2 | rank 5 | overall 9 | Q 8 + F 1
+Silver | boat 6 | rank 6 | overall 14 | Q 10 + F 4
 seed 67: overall
 Gold | boat 1 | rank 1 | overall 7 | Q 3 + F 4
 Gold | boat 3 | rank 2 | overall 15 | Q 4 + F 11
@@ -1174,11 +1174,11 @@ Qualifying | boat 4 | rank 13 | overall 38
 Qualifying | boat 11 | rank 14 | overall 49
 seed 116: overall
 Gold | boat 7 | rank 1 | overall 34 | Q 18 + F 16
-Gold | boat 1 | rank 2 | overall 36.6 | Q 16.6 + F 20
-Gold | boat 3 | rank 3 | overall 39 | Q 17 + F 22
-Gold | boat 5 | rank 4 | overall 39 | Q 21 + F 18
-Silver | boat 6 | rank 5 | overall 21 | Q 18 + F 3
-Silver | boat 2 | rank 6 | overall 24.4 | Q 19.4 + F 5
+Gold | boat 3 | rank 2 | overall 39 | Q 17 + F 22
+Gold | boat 5 | rank 3 | overall 39 | Q 21 + F 18
+Gold | boat 1 | rank 4 | overall 40.6 | Q 20.6 + F 20
+Silver | boat 2 | rank 5 | overall 24.4 | Q 19.4 + F 5
+Silver | boat 6 | rank 6 | overall 25 | Q 22 + F 3
 Silver | boat 4 | rank 7 | overall 27.7 | Q 18.7 + F 9
 seed 117: overall
 Gold | boat 7 | rank 1 | overall 23 | Q 15 + F 8
@@ -1199,6 +1199,7 @@ seed 118: overall
 Qualifying | boat 2 | rank 1 | overall 3
 Qualifying | boat 4 | rank 2 | overall 4
 Qualifying | boat 1 | rank 3 | overall 5
+Qualifying | boat 3 | rank 4 | overall 6
 seed 119: overall
 Qualifying | boat 2 | rank 1 | overall 6
 Qualifying | boat 5 | rank 2 | overall 8
@@ -1489,9 +1490,9 @@ Silver | boat 10 | rank 13 | overall 25 | Q 11 + F 14
 seed 146: overall
 Gold | boat 1 | rank 1 | overall 15 | Q 11 + F 4
 Gold | boat 4 | rank 2 | overall 18 | Q 12 + F 6
-Silver | boat 5 | rank 3 | overall 12 | Q 7 + F 5
-Silver | boat 2 | rank 4 | overall 13 | Q 10 + F 3
-Bronze | boat 3 | rank 5 | overall 9 | Q 9 + F 0
+Silver | boat 2 | rank 3 | overall 13 | Q 10 + F 3
+Silver | boat 5 | rank 4 | overall 14 | Q 9 + F 5
+Bronze | boat 3 | rank 5 | overall 11 | Q 11 + F 0
 seed 147: overall
 Gold | boat 5 | rank 1 | overall 15 | Q 9 + F 6
 Gold | boat 3 | rank 2 | overall 18 | Q 12 + F 6

@@ -12,6 +12,9 @@
  * SQL-string matching cannot see that class of bug at all, which is why these
  * run against a real engine.
  */
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { COUNTED_RACES_VIEW } = require('../../../public/Database/views');
+
 export const EVENT_LIFECYCLE_SCHEMA = `
   CREATE TABLE Events (
     event_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -118,6 +121,8 @@ export const EVENT_LIFECYCLE_SCHEMA = `
     FOREIGN KEY (race_id) REFERENCES Races(race_id),
     FOREIGN KEY (boat_id) REFERENCES Boats(boat_id)
   );
+
+  ${COUNTED_RACES_VIEW}
 `;
 
 /**
