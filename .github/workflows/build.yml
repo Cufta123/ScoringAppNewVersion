@@ -4,11 +4,14 @@ on:
   push:
     branches:
       - main
+  # Tests, builds and the GUI smoke run on every pull request too, so a
+  # problem shows up before it is merged. Only a push to main publishes.
+  pull_request:
   workflow_dispatch:
 
-# Needed so the build can publish/update the "latest" GitHub Release.
+# Read-only by default; only the release job below can write.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   test:
@@ -21,8 +24,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          # 22+: the scoring and migration tests run against a real SQLite
-          # engine through Node's built-in node:sqlite (added in 22.5).
+          # 22.13+: the scoring and migration tests run against a real SQLite
+          # engine through Node's built-in node:sqlite (unflagged in 22.13).
           node-version: 22
           cache: npm
 
@@ -133,9 +136,15 @@ jobs:
 
   release:
     name: Publish "latest" release
-    # Never publish a build whose tests failed.
-    needs: [test, build]
+    # Never publish a build whose unit tests OR GUI smoke tests failed.
+    needs: [test, build, smoke]
+    # Only from main: a manual run on a feature branch (or a pull request)
+    # must not replace the "latest" release with that branch's build.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    # The only job that writes: it creates/updates the GitHub Release.
+    permissions:
+      contents: write
     steps:
       - name: Download all build artifacts
         uses: actions/download-artifact@v8
