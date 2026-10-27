@@ -379,7 +379,10 @@ function HeatRacePage() {
 
   return (
     <div>
-      <Navbar onNavigateHome={() => guardedNavigate(() => navigate('/'))} />
+      <Navbar
+        onNavigateHome={() => guardedNavigate(() => navigate('/'))}
+        historyEventId={event?.event_id ?? null}
+      />
 
       <main id="main-content" className="page-wrapper" tabIndex={-1}>
         <Breadcrumbs

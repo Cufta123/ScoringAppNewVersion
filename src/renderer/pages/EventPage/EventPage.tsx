@@ -260,6 +260,7 @@ function EventPage() {
       <Navbar
         onOpenLeaderboard={handleOpenLeaderboard}
         onHeatRaceClick={handleHeatRaceClick}
+        historyEventId={event.event_id}
       />
 
       <main id="main-content" className="page-wrapper" tabIndex={-1}>

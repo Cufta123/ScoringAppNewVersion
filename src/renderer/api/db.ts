@@ -32,6 +32,7 @@ import type {
   ScoreRow,
   TieBreakResult,
 } from '../types';
+import type { HistoryAction } from '../../shared/history/describe';
 
 /**
  * Result of a bulk sailor import. The success path (handler) reports
@@ -96,6 +97,8 @@ export interface EventDB {
     heatOverflowPolicy: string,
   ): Promise<unknown>;
   deleteEvent(eventId: number): Promise<unknown>;
+  /** The event's change history, newest action first. */
+  readEventHistory(eventId: number): Promise<HistoryAction[]>;
   associateBoatWithEvent(boatId: number, eventId: number): Promise<unknown>;
   removeBoatFromEvent(boatId: number, eventId: number): Promise<unknown>;
 }

@@ -115,6 +115,23 @@ Important migration details:
   `Scores(boat_id)` and `ANALYZE` are deliberately excluded — both help one
   query on the leaderboard click and hurt the other more. Re-measure before
   adding either; `DBManager.performanceIndexes.test.ts` records the numbers.
+- Migration 4 adds the **change journal** (`public/Database/journal.js`):
+  SQLite triggers on `Events`, `Boat_Event`, `Heats`, `Heat_Boat`, `Races` and
+  `Scores` append one `ChangeLog` row per inserted/updated/deleted row (whole
+  row before and after as JSON, plus readable labels in `context`). An update
+  that changes nothing is not logged. Derived tables (`Leaderboard`,
+  `FinalLeaderboard`, `RaceAssignmentSnapshots`) are not journalled. Deleting
+  an event deletes its history. The triggers list the columns as they were
+  when installed: a migration that adds a column to a journalled table must
+  call `installJournalTriggers(db)` again. The IPC wrapper (`handle.ts`) groups
+  what one call wrote under a `ChangeActions` row via the observer that
+  `main.ts` installs (`changeJournal.ts`); tests leave it unset unless they
+  test the journal. `readEventHistory` serves it; `shared/history/describe.ts`
+  turns rows into sentences and nets out a row written several times by one
+  action (scoring first enters DNS for every boat). The Navbar's History button
+  (`EventHistoryDialog`) shows it on the event, scoring and leaderboard pages.
+  Covered by `changeJournal.integration.test.ts` (real migrations and
+  handlers), `historyDescribe.test.ts` and `EventHistoryDialog.test.jsx`.
 
 DB file paths:
 

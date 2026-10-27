@@ -346,6 +346,7 @@ function LeaderboardPage() {
         onNavigateHome={() =>
           navigateWithUnsavedCheck({ path: '/', options: undefined })
         }
+        historyEventId={event?.event_id ?? null}
       />
       <main
         id="main-content"
