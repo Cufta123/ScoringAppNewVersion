@@ -109,11 +109,11 @@ test('a penalty can be added, swapped, then cleared back to a finisher', async (
   // A boat the scorer DID place keeps its place when a penalty is cleared.
   await window.getByRole('row', { name: /102/ }).click();
   const placed = window.locator('.finish-list li', { hasText: 'Sail #102' });
-  await expect(placed.locator('.finish-place')).toContainText('1.');
+  await expect(placed.getByRole('spinbutton')).toHaveValue('1');
   await window.getByLabel('Penalty for sail 102').selectOption('RET');
   await expect(placed.locator('.finish-place')).toContainText('RET');
   await window.getByLabel('Penalty for sail 102').selectOption('');
-  await expect(placed.locator('.finish-place')).toContainText('1.');
+  await expect(placed.getByRole('spinbutton')).toHaveValue('1');
   await expect(window.getByText(/1 of 3 boats scored/i)).toBeVisible();
 });
 
@@ -130,7 +130,7 @@ test('a non-position-keeping penalty (DNS) sinks below the finishers', async () 
 
   // Finishers keep places 1 and 2; the DNS boat is ranked last.
   await expect(items.nth(0)).toContainText('Sail #101');
-  await expect(items.nth(0).locator('.finish-place')).toContainText('1.');
+  await expect(items.nth(0).getByRole('spinbutton')).toHaveValue('1');
   await expect(items.nth(1)).toContainText('Sail #102');
   const last = items.nth(2);
   await expect(last).toContainText('Sail #103');
@@ -148,20 +148,20 @@ test('reordering renumbers places and moving down then up restores order', async
   const item102 = window.locator('.finish-list li', { hasText: 'Sail #102' });
 
   // Initial: 101 is first (place 1).
-  await expect(item101.locator('.finish-place')).toContainText('1.');
+  await expect(item101.getByRole('spinbutton')).toHaveValue('1');
 
   // Move 101 down: 102 becomes place 1, 101 becomes place 2 (places renumber).
   await window.getByRole('button', { name: 'Move sail 101 down' }).click();
   await expect(window.locator('.finish-list li').first()).toContainText(
     'Sail #102',
   );
-  await expect(item102.locator('.finish-place')).toContainText('1.');
-  await expect(item101.locator('.finish-place')).toContainText('2.');
+  await expect(item102.getByRole('spinbutton')).toHaveValue('1');
+  await expect(item101.getByRole('spinbutton')).toHaveValue('2');
 
   // Move 101 back up: original order and place 1 are restored.
   await window.getByRole('button', { name: 'Move sail 101 up' }).click();
   await expect(window.locator('.finish-list li').first()).toContainText(
     'Sail #101',
   );
-  await expect(item101.locator('.finish-place')).toContainText('1.');
+  await expect(item101.getByRole('spinbutton')).toHaveValue('1');
 });

@@ -106,7 +106,8 @@
     "testPathIgnorePatterns": [
       "release/app/dist",
       ".erb/dll",
-      "<rootDir>/e2e/"
+      "<rootDir>/e2e/",
+      "<rootDir>/src/__tests__/fixtures/"
     ],
     "transform": {
       "\\.(ts|tsx|js|jsx)$": "ts-jest"
