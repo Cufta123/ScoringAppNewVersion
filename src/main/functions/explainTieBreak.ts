@@ -508,7 +508,7 @@ function explainOverall(
   // Authoritative winner from the overall (combined) comparator.
   const packetA = buildOverallTiePacket(event_id, boatAId);
   const packetB = buildOverallTiePacket(event_id, boatBId);
-  const cmp = compareOverallTiePackets(boatAId, boatBId, packetA, packetB);
+  const cmp = compareOverallTiePackets(packetA, packetB);
   // cmp === 0 means the boats stay tied after every applicable rule
   // (SHRS 5.7(ii)(4)) — report no winner rather than a boat_id-derived order.
   base.winnerBoatId = pickWinner(cmp, boatAId, boatBId);

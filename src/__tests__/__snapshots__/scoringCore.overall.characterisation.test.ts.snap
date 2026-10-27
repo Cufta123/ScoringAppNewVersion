@@ -1,0 +1,1541 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`overall standings characterisation (150 seeded random events) events 1-25 rank exactly as recorded 1`] = `
+"seed 1: overall
+Qualifying | boat 9 | rank 1 | overall 6
+Qualifying | boat 6 | rank 2 | overall 7
+Qualifying | boat 2 | rank 3 | overall 8.1
+Qualifying | boat 8 | rank 4 | overall 8.8
+Qualifying | boat 1 | rank 5 | overall 9
+Qualifying | boat 3 | rank 6 | overall 10
+Qualifying | boat 5 | rank 7 | overall 11
+Qualifying | boat 4 | rank 8 | overall 12
+Qualifying | boat 7 | rank 9 | overall 12
+seed 2: overall
+Gold | boat 1 | rank 1 | overall 13.5 | Q 10 + F 3.5
+Gold | boat 4 | rank 2 | overall 14 | Q 10 + F 4
+Gold | boat 7 | rank 3 | overall 20 | Q 15 + F 5
+Silver | boat 2 | rank 4 | overall 11 | Q 10 + F 1
+Silver | boat 5 | rank 5 | overall 11.2 | Q 10.2 + F 1
+Bronze | boat 6 | rank 6 | overall 14 | Q 8 + F 6
+Bronze | boat 3 | rank 7 | overall 15.2 | Q 9.2 + F 6
+seed 3: overall
+Gold | boat 1 | rank 1 | overall 22 | Q 12 + F 10
+Gold | boat 5 | rank 2 | overall 25 | Q 18 + F 7
+Gold | boat 7 | rank 3 | overall 31 | Q 13 + F 18
+Gold | boat 3 | rank 4 | overall 34 | Q 19 + F 15
+Gold | boat 9 | rank 5 | overall 35 | Q 17 + F 18
+Silver | boat 2 | rank 6 | overall 23.1 | Q 13.1 + F 10
+Silver | boat 8 | rank 7 | overall 26 | Q 20 + F 6
+Silver | boat 6 | rank 8 | overall 29.4 | Q 20 + F 9.4
+Silver | boat 4 | rank 9 | overall 31 | Q 21 + F 10
+seed 4: overall
+Gold | boat 4 | rank 1 | overall 11 | Q 11 + F 0
+Gold | boat 1 | rank 2 | overall 11 | Q 11 + F 0
+Silver | boat 2 | rank 3 | overall 18.1 | Q 10.1 + F 8
+Silver | boat 5 | rank 4 | overall 23.7 | Q 15 + F 8.7
+Bronze | boat 6 | rank 5 | overall 12 | Q 9 + F 3
+Bronze | boat 3 | rank 6 | overall 15 | Q 9 + F 6
+seed 5: overall
+Gold | boat 5 | rank 1 | overall 4 | Q 3 + F 1
+Gold | boat 1 | rank 2 | overall 4 | Q 1 + F 3
+Gold | boat 3 | rank 2 | overall 4 | Q 1 + F 3
+Silver | boat 2 | rank 4 | overall 7 | Q 1 + F 6
+Silver | boat 4 | rank 5 | overall 11 | Q 4 + F 7
+Silver | boat 6 | rank 6 | overall 11 | Q 1 + F 10
+seed 6: overall
+Gold | boat 4 | rank 1 | overall 9 | Q 6 + F 3
+Gold | boat 7 | rank 2 | overall 11 | Q 8 + F 3
+Gold | boat 1 | rank 3 | overall 11 | Q 6 + F 5
+Gold | boat 10 | rank 4 | overall 12 | Q 5 + F 7
+Silver | boat 8 | rank 5 | overall 15.7 | Q 5.7 + F 10
+Silver | boat 5 | rank 6 | overall 21 | Q 9 + F 12
+Silver | boat 2 | rank 7 | overall 21 | Q 7 + F 14
+Silver | boat 11 | rank 8 | overall 24 | Q 16 + F 8
+Bronze | boat 3 | rank 9 | overall 12 | Q 9 + F 3
+Bronze | boat 9 | rank 10 | overall 19.9 | Q 16.9 + F 3
+Bronze | boat 6 | rank 11 | overall 20 | Q 14 + F 6
+seed 7: overall
+Gold | boat 4 | rank 1 | overall 10 | Q 5 + F 5
+Gold | boat 13 | rank 2 | overall 11.9 | Q 5.9 + F 6
+Gold | boat 1 | rank 3 | overall 14 | Q 9 + F 5
+Gold | boat 10 | rank 4 | overall 15 | Q 8 + F 7
+Gold | boat 7 | rank 5 | overall 18 | Q 12 + F 6
+Silver | boat 14 | rank 6 | overall 6 | Q 5 + F 1
+Silver | boat 2 | rank 7 | overall 8 | Q 7 + F 1
+Silver | boat 5 | rank 8 | overall 10.8 | Q 9.8 + F 1
+Silver | boat 8 | rank 9 | overall 12.8 | Q 10.8 + F 2
+Silver | boat 11 | rank 10 | overall 14 | Q 13 + F 1
+Bronze | boat 12 | rank 11 | overall 14 | Q 7 + F 7
+Bronze | boat 9 | rank 12 | overall 14.3 | Q 10 + F 4.3
+Bronze | boat 3 | rank 13 | overall 15 | Q 10 + F 5
+Bronze | boat 6 | rank 14 | overall 22 | Q 16 + F 6
+seed 8: overall
+Qualifying | boat 5 | rank 1 | overall 6
+Qualifying | boat 3 | rank 2 | overall 6.7
+Qualifying | boat 1 | rank 3 | overall 7
+Qualifying | boat 6 | rank 4 | overall 7.9
+Qualifying | boat 4 | rank 5 | overall 8
+Qualifying | boat 7 | rank 5 | overall 8
+Qualifying | boat 2 | rank 7 | overall 11
+seed 9: overall
+Gold | boat 3 | rank 1 | overall 15 | Q 11 + F 4
+Gold | boat 1 | rank 2 | overall 15 | Q 10 + F 5
+Gold | boat 2 | rank 3 | overall 16 | Q 9 + F 7
+Gold | boat 5 | rank 4 | overall 16 | Q 9 + F 7
+Gold | boat 4 | rank 5 | overall 24 | Q 12 + F 12
+seed 10: overall
+Qualifying | boat 6 | rank 1 | overall 3
+Qualifying | boat 9 | rank 2 | overall 4
+Qualifying | boat 10 | rank 3 | overall 4
+Qualifying | boat 4 | rank 4 | overall 4
+Qualifying | boat 7 | rank 5 | overall 4
+Qualifying | boat 8 | rank 6 | overall 4.4
+Qualifying | boat 3 | rank 7 | overall 5
+Qualifying | boat 2 | rank 8 | overall 5
+Qualifying | boat 5 | rank 9 | overall 5
+Qualifying | boat 11 | rank 10 | overall 5
+Qualifying | boat 1 | rank 11 | overall 6.7
+seed 11: overall
+Qualifying | boat 2 | rank 1 | overall 7
+Qualifying | boat 4 | rank 2 | overall 8
+Qualifying | boat 6 | rank 3 | overall 10
+Qualifying | boat 7 | rank 4 | overall 11
+Qualifying | boat 5 | rank 5 | overall 11.7
+Qualifying | boat 9 | rank 6 | overall 12
+Qualifying | boat 3 | rank 7 | overall 14.8
+Qualifying | boat 1 | rank 8 | overall 16
+Qualifying | boat 8 | rank 9 | overall 19
+Qualifying | boat 10 | rank 10 | overall 20
+seed 12: overall
+Gold | boat 3 | rank 1 | overall 11.9 | Q 2.9 + F 9
+Gold | boat 9 | rank 2 | overall 12 | Q 5 + F 7
+Gold | boat 6 | rank 3 | overall 18 | Q 3 + F 15
+Gold | boat 1 | rank 4 | overall 18 | Q 6 + F 12
+Gold | boat 7 | rank 5 | overall 20.4 | Q 4 + F 16.4
+Gold | boat 8 | rank 6 | overall 23 | Q 5 + F 18
+Gold | boat 10 | rank 7 | overall 23 | Q 3 + F 20
+Gold | boat 5 | rank 8 | overall 25 | Q 6 + F 19
+Gold | boat 2 | rank 9 | overall 25.3 | Q 5 + F 20.3
+Gold | boat 4 | rank 10 | overall 29 | Q 2 + F 27
+seed 13: overall
+Qualifying | boat 1 | rank 1 | overall 1
+Qualifying | boat 2 | rank 1 | overall 1
+Qualifying | boat 3 | rank 3 | overall 2
+Qualifying | boat 4 | rank 3 | overall 2
+seed 14: overall
+Qualifying | boat 4 | rank 1 | overall 1
+Qualifying | boat 2 | rank 2 | overall 1
+Qualifying | boat 5 | rank 3 | overall 1
+Qualifying | boat 3 | rank 4 | overall 1
+Qualifying | boat 1 | rank 5 | overall 2
+Qualifying | boat 6 | rank 6 | overall 2
+Qualifying | boat 9 | rank 6 | overall 2
+Qualifying | boat 8 | rank 8 | overall 4
+Qualifying | boat 7 | rank 9 | overall 6
+seed 15: overall
+Qualifying | boat 2 | rank 1 | overall 3
+Qualifying | boat 6 | rank 2 | overall 4
+Qualifying | boat 3 | rank 3 | overall 5
+Qualifying | boat 7 | rank 4 | overall 5
+Qualifying | boat 5 | rank 5 | overall 5.2
+Qualifying | boat 8 | rank 6 | overall 6
+Qualifying | boat 1 | rank 7 | overall 7
+Qualifying | boat 4 | rank 8 | overall 8
+seed 16: overall
+Gold | boat 4 | rank 1 | overall 18 | Q 8 + F 10
+Gold | boat 6 | rank 2 | overall 20 | Q 4 + F 16
+Gold | boat 8 | rank 3 | overall 21 | Q 8 + F 13
+Gold | boat 1 | rank 4 | overall 21 | Q 9 + F 12
+Gold | boat 3 | rank 5 | overall 21 | Q 7 + F 14
+Gold | boat 11 | rank 6 | overall 22 | Q 5 + F 17
+Gold | boat 12 | rank 7 | overall 23 | Q 11 + F 12
+Gold | boat 10 | rank 8 | overall 23 | Q 9 + F 14
+Gold | boat 9 | rank 9 | overall 24.6 | Q 7.6 + F 17
+Gold | boat 7 | rank 10 | overall 25 | Q 7 + F 18
+Gold | boat 5 | rank 11 | overall 28 | Q 8 + F 20
+Gold | boat 2 | rank 12 | overall 30 | Q 7 + F 23
+seed 17: overall
+Qualifying | boat 2 | rank 1 | overall 1
+Qualifying | boat 7 | rank 2 | overall 2
+Qualifying | boat 8 | rank 2 | overall 2
+Qualifying | boat 5 | rank 4 | overall 5
+Qualifying | boat 4 | rank 5 | overall 5.8
+Qualifying | boat 1 | rank 6 | overall 7
+Qualifying | boat 3 | rank 6 | overall 7
+Qualifying | boat 6 | rank 6 | overall 7
+Qualifying | boat 9 | rank 6 | overall 7
+seed 18: overall
+Qualifying | boat 3 | rank 1 | overall 12
+Qualifying | boat 7 | rank 2 | overall 12
+Qualifying | boat 6 | rank 3 | overall 16
+Qualifying | boat 8 | rank 4 | overall 17
+Qualifying | boat 5 | rank 5 | overall 19
+Qualifying | boat 1 | rank 6 | overall 19
+Qualifying | boat 4 | rank 7 | overall 20
+Qualifying | boat 9 | rank 8 | overall 20
+Qualifying | boat 2 | rank 9 | overall 23.4
+seed 19: overall
+Gold | boat 6 | rank 1 | overall 16 | Q 9 + F 7
+Gold | boat 7 | rank 2 | overall 21 | Q 11 + F 10
+Gold | boat 2 | rank 3 | overall 22 | Q 10 + F 12
+Gold | boat 5 | rank 4 | overall 23 | Q 10 + F 13
+Gold | boat 8 | rank 5 | overall 23 | Q 14 + F 9
+Gold | boat 1 | rank 6 | overall 25 | Q 15 + F 10
+Gold | boat 3 | rank 7 | overall 28 | Q 14 + F 14
+Gold | boat 4 | rank 8 | overall 28 | Q 11 + F 17
+seed 20: overall
+Qualifying | boat 10 | rank 1 | overall 5
+Qualifying | boat 6 | rank 2 | overall 11
+Qualifying | boat 2 | rank 3 | overall 11
+Qualifying | boat 9 | rank 4 | overall 14
+Qualifying | boat 3 | rank 5 | overall 15
+Qualifying | boat 7 | rank 6 | overall 16
+Qualifying | boat 5 | rank 7 | overall 17
+Qualifying | boat 4 | rank 8 | overall 17
+Qualifying | boat 1 | rank 9 | overall 17.4
+Qualifying | boat 8 | rank 10 | overall 21
+seed 21: overall
+Qualifying | boat 2 | rank 1 | overall 3
+Qualifying | boat 5 | rank 2 | overall 3.9
+Qualifying | boat 4 | rank 3 | overall 4
+Qualifying | boat 7 | rank 4 | overall 5
+Qualifying | boat 1 | rank 5 | overall 5
+Qualifying | boat 3 | rank 6 | overall 5.3
+Qualifying | boat 6 | rank 7 | overall 7
+seed 22: overall
+Qualifying | boat 4 | rank 1 | overall 4
+Qualifying | boat 5 | rank 2 | overall 4
+Qualifying | boat 3 | rank 3 | overall 5
+Qualifying | boat 2 | rank 4 | overall 5
+Qualifying | boat 6 | rank 5 | overall 5.5
+Qualifying | boat 1 | rank 6 | overall 11
+seed 23: overall
+Qualifying | boat 10 | rank 1 | overall 11
+Qualifying | boat 2 | rank 2 | overall 13
+Qualifying | boat 4 | rank 3 | overall 15
+Qualifying | boat 9 | rank 4 | overall 16
+Qualifying | boat 3 | rank 5 | overall 16.1
+Qualifying | boat 5 | rank 6 | overall 17
+Qualifying | boat 7 | rank 7 | overall 20
+Qualifying | boat 8 | rank 8 | overall 20
+Qualifying | boat 6 | rank 9 | overall 21
+Qualifying | boat 1 | rank 10 | overall 21
+seed 24: overall
+Gold | boat 1 | rank 1 | overall 24 | Q 12 + F 12
+Gold | boat 3 | rank 2 | overall 31 | Q 12 + F 19
+Gold | boat 6 | rank 3 | overall 34 | Q 8 + F 26
+Gold | boat 2 | rank 4 | overall 34.3 | Q 16 + F 18.3
+Gold | boat 4 | rank 5 | overall 36.7 | Q 11 + F 25.7
+Gold | boat 5 | rank 6 | overall 41.7 | Q 9 + F 32.7
+Gold | boat 7 | rank 7 | overall 52 | Q 18 + F 34
+seed 25: overall
+Gold | boat 5 | rank 1 | overall 4 | Q 2 + F 2
+Gold | boat 1 | rank 2 | overall 6.1 | Q 4 + F 2.1
+Gold | boat 9 | rank 3 | overall 6.8 | Q 2 + F 4.8
+Gold | boat 3 | rank 4 | overall 7 | Q 2 + F 5
+Gold | boat 7 | rank 5 | overall 12.2 | Q 3.2 + F 9
+Silver | boat 4 | rank 6 | overall 3 | Q 2 + F 1
+Silver | boat 2 | rank 7 | overall 4 | Q 2 + F 2
+Silver | boat 8 | rank 8 | overall 4.2 | Q 2 + F 2.2
+Silver | boat 10 | rank 9 | overall 4.9 | Q 3 + F 1.9
+Silver | boat 6 | rank 10 | overall 5 | Q 2 + F 3"
+`;
+
+exports[`overall standings characterisation (150 seeded random events) events 26-50 rank exactly as recorded 1`] = `
+"seed 26: overall
+Gold | boat 1 | rank 1 | overall 14 | Q 12 + F 2
+Gold | boat 5 | rank 2 | overall 18.3 | Q 16.3 + F 2
+Gold | boat 9 | rank 3 | overall 22 | Q 18 + F 4
+Gold | boat 3 | rank 4 | overall 23 | Q 20 + F 3
+Gold | boat 7 | rank 5 | overall 24 | Q 20 + F 4
+Silver | boat 6 | rank 6 | overall 11 | Q 9 + F 2
+Silver | boat 8 | rank 7 | overall 16 | Q 15 + F 1
+Silver | boat 4 | rank 8 | overall 19 | Q 13 + F 6
+Silver | boat 2 | rank 9 | overall 36.3 | Q 34.3 + F 2
+seed 27: overall
+Qualifying | boat 1 | rank 1 | overall 8
+Qualifying | boat 4 | rank 2 | overall 9
+Qualifying | boat 3 | rank 3 | overall 12
+Qualifying | boat 2 | rank 4 | overall 14
+seed 28: overall
+Gold | boat 5 | rank 1 | overall 5.7 | Q 3 + F 2.7
+Gold | boat 8 | rank 2 | overall 6 | Q 3 + F 3
+Gold | boat 10 | rank 3 | overall 6 | Q 2 + F 4
+Gold | boat 11 | rank 4 | overall 7 | Q 3 + F 4
+Gold | boat 4 | rank 5 | overall 7 | Q 2 + F 5
+Gold | boat 12 | rank 6 | overall 8 | Q 6 + F 2
+Gold | boat 6 | rank 7 | overall 8 | Q 3 + F 5
+Gold | boat 1 | rank 8 | overall 8 | Q 2 + F 6
+Gold | boat 3 | rank 9 | overall 9 | Q 2 + F 7
+Gold | boat 7 | rank 10 | overall 12 | Q 3 + F 9
+Gold | boat 9 | rank 11 | overall 14 | Q 6 + F 8
+Gold | boat 2 | rank 12 | overall 19 | Q 3 + F 16
+seed 29: overall
+Gold | boat 5 | rank 1 | overall 8 | Q 4 + F 4
+Gold | boat 6 | rank 2 | overall 13 | Q 6 + F 7
+Gold | boat 1 | rank 3 | overall 15 | Q 9 + F 6
+Gold | boat 2 | rank 4 | overall 16 | Q 9 + F 7
+Gold | boat 3 | rank 5 | overall 16 | Q 9 + F 7
+Gold | boat 7 | rank 6 | overall 17 | Q 11 + F 6
+Gold | boat 4 | rank 7 | overall 18 | Q 16 + F 2
+seed 30: overall
+Qualifying | boat 5 | rank 1 | overall 5
+Qualifying | boat 3 | rank 2 | overall 5
+Qualifying | boat 6 | rank 3 | overall 6
+Qualifying | boat 2 | rank 4 | overall 7
+Qualifying | boat 1 | rank 5 | overall 8
+Qualifying | boat 4 | rank 6 | overall 9
+Qualifying | boat 7 | rank 7 | overall 11
+Qualifying | boat 8 | rank 8 | overall 11.8
+seed 31: overall
+Gold | boat 12 | rank 1 | overall 21 | Q 4 + F 17
+Gold | boat 4 | rank 2 | overall 24.9 | Q 3.9 + F 21
+Gold | boat 9 | rank 3 | overall 30.5 | Q 7 + F 23.5
+Gold | boat 10 | rank 4 | overall 30.8 | Q 5 + F 25.8
+Gold | boat 2 | rank 5 | overall 31.4 | Q 4 + F 27.4
+Gold | boat 1 | rank 6 | overall 32 | Q 4 + F 28
+Gold | boat 3 | rank 7 | overall 34 | Q 4 + F 30
+Gold | boat 7 | rank 8 | overall 38 | Q 3 + F 35
+Gold | boat 11 | rank 9 | overall 41 | Q 3 + F 38
+Gold | boat 8 | rank 10 | overall 41 | Q 9 + F 32
+Gold | boat 6 | rank 11 | overall 45 | Q 11 + F 34
+Gold | boat 5 | rank 12 | overall 52 | Q 17 + F 35
+seed 32: overall
+Gold | boat 3 | rank 1 | overall 12 | Q 6 + F 6
+Gold | boat 4 | rank 2 | overall 16 | Q 9 + F 7
+Gold | boat 6 | rank 3 | overall 16.6 | Q 9.3 + F 7.3
+Gold | boat 1 | rank 4 | overall 17 | Q 8 + F 9
+Gold | boat 2 | rank 5 | overall 20 | Q 9 + F 11
+Gold | boat 5 | rank 6 | overall 22 | Q 11 + F 11
+seed 33: overall
+Qualifying | boat 7 | rank 1 | overall 3.7
+Qualifying | boat 1 | rank 2 | overall 5
+Qualifying | boat 3 | rank 3 | overall 5
+Qualifying | boat 10 | rank 4 | overall 6
+Qualifying | boat 9 | rank 5 | overall 6
+Qualifying | boat 2 | rank 6 | overall 6
+Qualifying | boat 6 | rank 7 | overall 7
+Qualifying | boat 5 | rank 8 | overall 12
+Qualifying | boat 8 | rank 9 | overall 14
+Qualifying | boat 4 | rank 10 | overall 24
+seed 34: overall
+Gold | boat 1 | rank 1 | overall 5 | Q 3 + F 2
+Gold | boat 3 | rank 2 | overall 9 | Q 6 + F 3
+Gold | boat 5 | rank 3 | overall 11 | Q 5 + F 6
+Silver | boat 2 | rank 4 | overall 11.8 | Q 3 + F 8.8
+Silver | boat 4 | rank 5 | overall 20 | Q 6 + F 14
+seed 35: overall
+Gold | boat 3 | rank 1 | overall 3 | Q 3 + F 0
+Gold | boat 7 | rank 2 | overall 3 | Q 3 + F 0
+Gold | boat 11 | rank 3 | overall 4 | Q 4 + F 0
+Gold | boat 5 | rank 4 | overall 4 | Q 4 + F 0
+Gold | boat 9 | rank 5 | overall 5 | Q 5 + F 0
+Gold | boat 1 | rank 6 | overall 7 | Q 7 + F 0
+Silver | boat 10 | rank 7 | overall 9 | Q 3 + F 6
+Silver | boat 2 | rank 8 | overall 12 | Q 6 + F 6
+Silver | boat 4 | rank 9 | overall 12.8 | Q 6 + F 6.8
+Silver | boat 6 | rank 10 | overall 15 | Q 7 + F 8
+Silver | boat 8 | rank 11 | overall 21 | Q 8 + F 13
+seed 36: overall
+Gold | boat 1 | rank 1 | overall 34 | Q 18 + F 16
+Gold | boat 5 | rank 2 | overall 43.2 | Q 28.2 + F 15
+Gold | boat 3 | rank 3 | overall 47.9 | Q 32 + F 15.9
+Silver | boat 4 | rank 4 | overall 17 | Q 17 + F 0
+Silver | boat 6 | rank 5 | overall 24 | Q 24 + F 0
+Silver | boat 2 | rank 6 | overall 31 | Q 31 + F 0
+seed 37: overall
+Qualifying | boat 2 | rank 1 | overall 1
+Qualifying | boat 1 | rank 2 | overall 1
+Qualifying | boat 4 | rank 3 | overall 1
+Qualifying | boat 3 | rank 4 | overall 2
+seed 38: overall
+Gold | boat 1 | rank 1 | overall 18.9 | Q 9 + F 9.9
+Gold | boat 3 | rank 2 | overall 21 | Q 9 + F 12
+Silver | boat 4 | rank 3 | overall 16.7 | Q 9.7 + F 7
+Silver | boat 2 | rank 4 | overall 17 | Q 8 + F 9
+seed 39: overall
+Gold | boat 4 | rank 1 | overall 24 | Q 19 + F 5
+Gold | boat 7 | rank 2 | overall 26 | Q 21 + F 5
+Gold | boat 1 | rank 3 | overall 30 | Q 24 + F 6
+Silver | boat 8 | rank 4 | overall 21.6 | Q 13 + F 8.6
+Silver | boat 5 | rank 5 | overall 26 | Q 19 + F 7
+Silver | boat 2 | rank 6 | overall 26 | Q 18 + F 8
+Bronze | boat 9 | rank 7 | overall 13 | Q 13 + F 0
+Bronze | boat 6 | rank 8 | overall 15 | Q 15 + F 0
+Bronze | boat 3 | rank 9 | overall 23 | Q 23 + F 0
+seed 40: overall
+Gold | boat 1 | rank 1 | overall 8 | Q 2 + F 6
+Gold | boat 4 | rank 2 | overall 12 | Q 5 + F 7
+Silver | boat 2 | rank 3 | overall 14 | Q 7 + F 7
+Bronze | boat 3 | rank 4 | overall 3 | Q 2 + F 1
+seed 41: overall
+Qualifying | boat 9 | rank 1 | overall 17.3
+Qualifying | boat 1 | rank 2 | overall 19.9
+Qualifying | boat 3 | rank 3 | overall 20.1
+Qualifying | boat 2 | rank 4 | overall 21
+Qualifying | boat 7 | rank 5 | overall 23
+Qualifying | boat 4 | rank 6 | overall 23
+Qualifying | boat 8 | rank 7 | overall 25
+Qualifying | boat 10 | rank 8 | overall 27
+Qualifying | boat 5 | rank 9 | overall 27
+Qualifying | boat 6 | rank 10 | overall 28
+seed 42: overall
+Qualifying | boat 6 | rank 1 | overall 2
+Qualifying | boat 11 | rank 2 | overall 3
+Qualifying | boat 10 | rank 3 | overall 3
+Qualifying | boat 1 | rank 4 | overall 4
+Qualifying | boat 2 | rank 5 | overall 5
+Qualifying | boat 5 | rank 5 | overall 5
+Qualifying | boat 3 | rank 7 | overall 5
+Qualifying | boat 4 | rank 7 | overall 5
+Qualifying | boat 7 | rank 7 | overall 5
+Qualifying | boat 12 | rank 10 | overall 6
+Qualifying | boat 13 | rank 11 | overall 6
+Qualifying | boat 9 | rank 12 | overall 8
+Qualifying | boat 8 | rank 13 | overall 8
+seed 43: overall
+Gold | boat 4 | rank 1 | overall 6 | Q 6 + F 0
+Gold | boat 7 | rank 1 | overall 6 | Q 6 + F 0
+Gold | boat 1 | rank 3 | overall 7 | Q 7 + F 0
+Silver | boat 8 | rank 4 | overall 12 | Q 2 + F 10
+Silver | boat 5 | rank 5 | overall 17 | Q 9 + F 8
+Silver | boat 2 | rank 6 | overall 18 | Q 6 + F 12
+Bronze | boat 3 | rank 7 | overall 5 | Q 1 + F 4
+Bronze | boat 6 | rank 8 | overall 8.1 | Q 4 + F 4.1
+Bronze | boat 9 | rank 9 | overall 9.5 | Q 4 + F 5.5
+seed 44: overall
+Gold | boat 3 | rank 1 | overall 17 | Q 9 + F 8
+Gold | boat 1 | rank 2 | overall 21 | Q 10 + F 11
+Silver | boat 4 | rank 3 | overall 13 | Q 10 + F 3
+Silver | boat 2 | rank 4 | overall 17 | Q 11 + F 6
+seed 45: overall
+Gold | boat 1 | rank 1 | overall 23 | Q 5 + F 18
+Gold | boat 7 | rank 2 | overall 24 | Q 11 + F 13
+Gold | boat 9 | rank 3 | overall 25 | Q 4 + F 21
+Gold | boat 3 | rank 4 | overall 26.4 | Q 11.4 + F 15
+Gold | boat 5 | rank 5 | overall 28.5 | Q 8.5 + F 20
+Gold | boat 11 | rank 6 | overall 30 | Q 7 + F 23
+Silver | boat 10 | rank 7 | overall 8 | Q 7 + F 1
+Silver | boat 2 | rank 8 | overall 9 | Q 8 + F 1
+Silver | boat 12 | rank 9 | overall 9 | Q 7 + F 2
+Silver | boat 4 | rank 10 | overall 16.5 | Q 14.5 + F 2
+Silver | boat 6 | rank 11 | overall 20 | Q 19 + F 1
+Silver | boat 8 | rank 12 | overall 22 | Q 21 + F 1
+seed 46: overall
+Qualifying | boat 7 | rank 1 | overall 3
+Qualifying | boat 4 | rank 2 | overall 4
+Qualifying | boat 6 | rank 3 | overall 4
+Qualifying | boat 3 | rank 4 | overall 4.6
+Qualifying | boat 8 | rank 5 | overall 5
+Qualifying | boat 2 | rank 6 | overall 5
+Qualifying | boat 5 | rank 7 | overall 7
+Qualifying | boat 1 | rank 8 | overall 8
+seed 47: overall
+Qualifying | boat 5 | rank 1 | overall 5
+Qualifying | boat 3 | rank 2 | overall 5
+Qualifying | boat 8 | rank 3 | overall 6.5
+Qualifying | boat 9 | rank 4 | overall 8
+Qualifying | boat 6 | rank 5 | overall 9
+Qualifying | boat 1 | rank 6 | overall 10
+Qualifying | boat 4 | rank 7 | overall 10.9
+Qualifying | boat 7 | rank 8 | overall 14
+Qualifying | boat 2 | rank 9 | overall 14
+seed 48: overall
+Qualifying | boat 5 | rank 1 | overall 8
+Qualifying | boat 6 | rank 2 | overall 11
+Qualifying | boat 2 | rank 3 | overall 14
+Qualifying | boat 3 | rank 4 | overall 17
+Qualifying | boat 1 | rank 5 | overall 20
+Qualifying | boat 4 | rank 6 | overall 24
+seed 49: overall
+Qualifying | boat 1 | rank 1 | overall 6
+Qualifying | boat 9 | rank 2 | overall 13
+Qualifying | boat 10 | rank 3 | overall 14
+Qualifying | boat 4 | rank 4 | overall 15
+Qualifying | boat 6 | rank 5 | overall 16
+Qualifying | boat 3 | rank 6 | overall 16.2
+Qualifying | boat 5 | rank 7 | overall 19
+Qualifying | boat 12 | rank 8 | overall 20
+Qualifying | boat 7 | rank 9 | overall 20
+Qualifying | boat 11 | rank 10 | overall 27
+Qualifying | boat 2 | rank 11 | overall 29
+Qualifying | boat 8 | rank 12 | overall 30
+seed 50: overall
+Qualifying | boat 7 | rank 1 | overall 2
+Qualifying | boat 6 | rank 2 | overall 2.2
+Qualifying | boat 3 | rank 3 | overall 2.3
+Qualifying | boat 1 | rank 4 | overall 3
+Qualifying | boat 4 | rank 4 | overall 3
+Qualifying | boat 2 | rank 6 | overall 4
+Qualifying | boat 5 | rank 6 | overall 4"
+`;
+
+exports[`overall standings characterisation (150 seeded random events) events 51-75 rank exactly as recorded 1`] = `
+"seed 51: overall
+Gold | boat 4 | rank 1 | overall 13 | Q 10 + F 3
+Gold | boat 1 | rank 2 | overall 16 | Q 13 + F 3
+Gold | boat 7 | rank 3 | overall 18 | Q 15 + F 3
+Silver | boat 8 | rank 4 | overall 20 | Q 12 + F 8
+Silver | boat 5 | rank 5 | overall 25.3 | Q 16.3 + F 9
+Silver | boat 2 | rank 6 | overall 26 | Q 16 + F 10
+Bronze | boat 3 | rank 7 | overall 17.3 | Q 10.3 + F 7
+Bronze | boat 6 | rank 8 | overall 25 | Q 15 + F 10
+seed 52: overall
+Gold | boat 1 | rank 1 | overall 6 | Q 6 + F 0
+Gold | boat 7 | rank 2 | overall 6.2 | Q 6.2 + F 0
+Gold | boat 5 | rank 3 | overall 6.8 | Q 6.8 + F 0
+Gold | boat 3 | rank 4 | overall 7 | Q 7 + F 0
+Silver | boat 6 | rank 5 | overall 10 | Q 5 + F 5
+Silver | boat 8 | rank 6 | overall 10 | Q 7 + F 3
+Silver | boat 4 | rank 7 | overall 11 | Q 8 + F 3
+Silver | boat 2 | rank 8 | overall 12 | Q 7 + F 5
+seed 53: overall
+Qualifying | boat 2 | rank 1 | overall 1
+Qualifying | boat 3 | rank 1 | overall 1
+Qualifying | boat 4 | rank 1 | overall 1
+Qualifying | boat 1 | rank 4 | overall 2
+seed 54: overall
+Qualifying | boat 4 | rank 1 | overall 4
+Qualifying | boat 2 | rank 2 | overall 5
+Qualifying | boat 6 | rank 3 | overall 6.8
+Qualifying | boat 5 | rank 4 | overall 7
+Qualifying | boat 3 | rank 5 | overall 8
+Qualifying | boat 1 | rank 6 | overall 8.6
+Qualifying | boat 7 | rank 7 | overall 10
+seed 55: overall
+Gold | boat 9 | rank 1 | overall 10 | Q 1 + F 9
+Gold | boat 6 | rank 2 | overall 11 | Q 2 + F 9
+Gold | boat 2 | rank 3 | overall 15 | Q 1 + F 14
+Gold | boat 7 | rank 4 | overall 16 | Q 2 + F 14
+Gold | boat 11 | rank 5 | overall 17 | Q 2 + F 15
+Gold | boat 3 | rank 6 | overall 25 | Q 5 + F 20
+Gold | boat 5 | rank 7 | overall 26 | Q 1 + F 25
+Gold | boat 4 | rank 8 | overall 28 | Q 1 + F 27
+Gold | boat 10 | rank 9 | overall 29 | Q 5 + F 24
+Gold | boat 1 | rank 10 | overall 31 | Q 1 + F 30
+Gold | boat 8 | rank 11 | overall 39 | Q 2 + F 37
+seed 56: overall
+Gold | boat 5 | rank 1 | overall 8 | Q 6 + F 2
+Gold | boat 9 | rank 2 | overall 12.9 | Q 10.9 + F 2
+Gold | boat 11 | rank 3 | overall 13 | Q 10 + F 3
+Gold | boat 7 | rank 4 | overall 16 | Q 13 + F 3
+Gold | boat 3 | rank 5 | overall 18 | Q 11 + F 7
+Gold | boat 1 | rank 6 | overall 24 | Q 23 + F 1
+Silver | boat 4 | rank 7 | overall 8 | Q 6 + F 2
+Silver | boat 8 | rank 8 | overall 9 | Q 8 + F 1
+Silver | boat 6 | rank 9 | overall 10 | Q 9 + F 1
+Silver | boat 10 | rank 10 | overall 10 | Q 7 + F 3
+Silver | boat 2 | rank 11 | overall 17 | Q 16 + F 1
+seed 57: overall
+Gold | boat 1 | rank 1 | overall 8 | Q 5 + F 3
+Gold | boat 4 | rank 2 | overall 10.5 | Q 6.5 + F 4
+Silver | boat 2 | rank 3 | overall 9 | Q 8 + F 1
+Silver | boat 5 | rank 4 | overall 11 | Q 10 + F 1
+Bronze | boat 3 | rank 5 | overall 16.1 | Q 9 + F 7.1
+seed 58: overall
+Gold | boat 11 | rank 1 | overall 24 | Q 19 + F 5
+Gold | boat 3 | rank 2 | overall 30 | Q 20 + F 10
+Gold | boat 7 | rank 3 | overall 31 | Q 22 + F 9
+Gold | boat 5 | rank 4 | overall 33 | Q 21 + F 12
+Gold | boat 9 | rank 5 | overall 34.4 | Q 27.1 + F 7.3
+Gold | boat 1 | rank 6 | overall 49 | Q 33 + F 16
+Silver | boat 2 | rank 7 | overall 19.1 | Q 14.1 + F 5
+Silver | boat 8 | rank 8 | overall 19.4 | Q 14.9 + F 4.5
+Silver | boat 10 | rank 9 | overall 21.1 | Q 15.1 + F 6
+Silver | boat 6 | rank 10 | overall 27 | Q 20 + F 7
+Silver | boat 4 | rank 11 | overall 36 | Q 31 + F 5
+seed 59: overall
+Qualifying | boat 1 | rank 1 | overall 3.4
+Qualifying | boat 6 | rank 2 | overall 4
+Qualifying | boat 5 | rank 3 | overall 5
+Qualifying | boat 3 | rank 4 | overall 5
+Qualifying | boat 4 | rank 5 | overall 8
+Qualifying | boat 2 | rank 6 | overall 8
+seed 60: overall
+Gold | boat 3 | rank 1 | overall 17 | Q 8 + F 9
+Gold | boat 5 | rank 2 | overall 19 | Q 10 + F 9
+Gold | boat 1 | rank 3 | overall 24 | Q 11 + F 13
+Silver | boat 2 | rank 4 | overall 23 | Q 10 + F 13
+Silver | boat 4 | rank 5 | overall 23 | Q 11 + F 12
+Silver | boat 6 | rank 6 | overall 24 | Q 14 + F 10
+seed 61: overall
+Gold | boat 4 | rank 1 | overall 2 | Q 1 + F 1
+Gold | boat 7 | rank 2 | overall 3 | Q 2 + F 1
+Gold | boat 10 | rank 3 | overall 3 | Q 1 + F 2
+Gold | boat 1 | rank 4 | overall 6 | Q 4 + F 2
+Gold | boat 13 | rank 5 | overall 9 | Q 6 + F 3
+Silver | boat 5 | rank 6 | overall 2 | Q 1 + F 1
+Silver | boat 2 | rank 7 | overall 3 | Q 2 + F 1
+Silver | boat 8 | rank 8 | overall 4 | Q 2 + F 2
+Silver | boat 11 | rank 9 | overall 8 | Q 2 + F 6
+Bronze | boat 12 | rank 10 | overall 4 | Q 2 + F 2
+Bronze | boat 6 | rank 11 | overall 5.8 | Q 3 + F 2.8
+Bronze | boat 9 | rank 12 | overall 8 | Q 6 + F 2
+Bronze | boat 3 | rank 13 | overall 8.6 | Q 6 + F 2.6
+seed 62: overall
+Qualifying | boat 4 | rank 1 | overall 1
+Qualifying | boat 1 | rank 2 | overall 1.8
+Qualifying | boat 2 | rank 3 | overall 3
+Qualifying | boat 3 | rank 3 | overall 3
+Qualifying | boat 5 | rank 5 | overall 4
+seed 63: overall
+Gold | boat 5 | rank 1 | overall 11 | Q 8 + F 3
+Gold | boat 7 | rank 2 | overall 12 | Q 6 + F 6
+Gold | boat 3 | rank 3 | overall 17 | Q 9 + F 8
+Gold | boat 1 | rank 4 | overall 25 | Q 17 + F 8
+Silver | boat 6 | rank 5 | overall 12.6 | Q 7 + F 5.6
+Silver | boat 2 | rank 6 | overall 13 | Q 8 + F 5
+Silver | boat 4 | rank 7 | overall 15 | Q 8 + F 7
+seed 64: overall
+Qualifying | boat 8 | rank 1 | overall 23.7
+Qualifying | boat 6 | rank 2 | overall 33
+Qualifying | boat 5 | rank 3 | overall 34
+Qualifying | boat 9 | rank 4 | overall 36
+Qualifying | boat 11 | rank 5 | overall 37
+Qualifying | boat 3 | rank 6 | overall 43.1
+Qualifying | boat 2 | rank 7 | overall 45.8
+Qualifying | boat 1 | rank 8 | overall 49
+Qualifying | boat 4 | rank 9 | overall 55.4
+Qualifying | boat 10 | rank 10 | overall 58
+Qualifying | boat 7 | rank 11 | overall 64.3
+seed 65: overall
+Qualifying | boat 10 | rank 1 | overall 4
+Qualifying | boat 5 | rank 2 | overall 5
+Qualifying | boat 2 | rank 3 | overall 5
+Qualifying | boat 9 | rank 4 | overall 5
+Qualifying | boat 1 | rank 5 | overall 5
+Qualifying | boat 8 | rank 6 | overall 5
+Qualifying | boat 4 | rank 7 | overall 7
+Qualifying | boat 6 | rank 8 | overall 7.8
+Qualifying | boat 3 | rank 9 | overall 9
+Qualifying | boat 7 | rank 10 | overall 10
+seed 66: overall
+Gold | boat 1 | rank 1 | overall 8 | Q 7 + F 1
+Gold | boat 5 | rank 2 | overall 8 | Q 6 + F 2
+Gold | boat 3 | rank 3 | overall 10 | Q 8 + F 2
+Silver | boat 4 | rank 4 | overall 6 | Q 5 + F 1
+Silver | boat 2 | rank 5 | overall 7 | Q 6 + F 1
+Silver | boat 6 | rank 6 | overall 11 | Q 7 + F 4
+seed 67: overall
+Gold | boat 1 | rank 1 | overall 7 | Q 3 + F 4
+Gold | boat 3 | rank 2 | overall 15 | Q 4 + F 11
+Gold | boat 5 | rank 3 | overall 17 | Q 8 + F 9
+Gold | boat 7 | rank 4 | overall 24 | Q 18 + F 6
+Gold | boat 9 | rank 5 | overall 25.5 | Q 13 + F 12.5
+Silver | boat 10 | rank 6 | overall 8 | Q 5 + F 3
+Silver | boat 6 | rank 7 | overall 11 | Q 9 + F 2
+Silver | boat 8 | rank 8 | overall 12.3 | Q 9 + F 3.3
+Silver | boat 2 | rank 9 | overall 14 | Q 10 + F 4
+Silver | boat 4 | rank 10 | overall 20 | Q 12 + F 8
+seed 68: overall
+Gold | boat 3 | rank 1 | overall 12 | Q 4 + F 8
+Gold | boat 4 | rank 2 | overall 12.8 | Q 4 + F 8.8
+Gold | boat 1 | rank 3 | overall 13 | Q 4 + F 9
+Gold | boat 2 | rank 4 | overall 16 | Q 4 + F 12
+Gold | boat 5 | rank 5 | overall 17 | Q 6 + F 11
+seed 69: overall
+Qualifying | boat 11 | rank 1 | overall 6
+Qualifying | boat 5 | rank 2 | overall 7.3
+Qualifying | boat 8 | rank 3 | overall 8
+Qualifying | boat 3 | rank 4 | overall 8
+Qualifying | boat 12 | rank 5 | overall 8
+Qualifying | boat 6 | rank 6 | overall 9
+Qualifying | boat 9 | rank 7 | overall 11
+Qualifying | boat 4 | rank 8 | overall 11
+Qualifying | boat 1 | rank 9 | overall 12
+Qualifying | boat 2 | rank 10 | overall 14
+Qualifying | boat 7 | rank 11 | overall 15
+Qualifying | boat 10 | rank 12 | overall 16
+seed 70: overall
+Qualifying | boat 1 | rank 1 | overall 7
+Qualifying | boat 4 | rank 2 | overall 9
+Qualifying | boat 3 | rank 3 | overall 9.4
+Qualifying | boat 7 | rank 4 | overall 11
+Qualifying | boat 5 | rank 5 | overall 11.8
+Qualifying | boat 6 | rank 6 | overall 13
+Qualifying | boat 2 | rank 7 | overall 20
+seed 71: overall
+Gold | boat 5 | rank 1 | overall 22 | Q 7 + F 15
+Gold | boat 4 | rank 2 | overall 24 | Q 11 + F 13
+Gold | boat 9 | rank 3 | overall 24 | Q 6 + F 18
+Gold | boat 8 | rank 4 | overall 29 | Q 8 + F 21
+Gold | boat 6 | rank 5 | overall 29 | Q 9 + F 20
+Gold | boat 2 | rank 6 | overall 31 | Q 9 + F 22
+Gold | boat 10 | rank 7 | overall 31.8 | Q 9 + F 22.8
+Gold | boat 3 | rank 8 | overall 32 | Q 7 + F 25
+Gold | boat 1 | rank 9 | overall 40 | Q 6 + F 34
+Gold | boat 7 | rank 10 | overall 43.9 | Q 9 + F 34.9
+seed 72: overall
+Gold | boat 5 | rank 1 | overall 7 | Q 1 + F 6
+Gold | boat 1 | rank 2 | overall 8 | Q 1 + F 7
+Gold | boat 3 | rank 3 | overall 8 | Q 2 + F 6
+Silver | boat 2 | rank 4 | overall 7.5 | Q 1 + F 6.5
+Silver | boat 4 | rank 5 | overall 8 | Q 2 + F 6
+Silver | boat 6 | rank 6 | overall 9.4 | Q 1 + F 8.4
+seed 73: overall
+Qualifying | boat 4 | rank 1 | overall 9
+Qualifying | boat 10 | rank 2 | overall 12
+Qualifying | boat 6 | rank 3 | overall 13
+Qualifying | boat 5 | rank 4 | overall 14
+Qualifying | boat 11 | rank 5 | overall 15.4
+Qualifying | boat 1 | rank 6 | overall 16
+Qualifying | boat 2 | rank 7 | overall 16.9
+Qualifying | boat 9 | rank 8 | overall 17
+Qualifying | boat 8 | rank 9 | overall 17
+Qualifying | boat 7 | rank 10 | overall 17
+Qualifying | boat 13 | rank 11 | overall 17.8
+Qualifying | boat 3 | rank 12 | overall 18
+Qualifying | boat 12 | rank 13 | overall 19.8
+Qualifying | boat 14 | rank 14 | overall 37
+seed 74: overall
+Gold | boat 13 | rank 1 | overall 13 | Q 12 + F 1
+Gold | boat 1 | rank 2 | overall 15 | Q 13 + F 2
+Gold | boat 10 | rank 3 | overall 15 | Q 14 + F 1
+Gold | boat 4 | rank 4 | overall 15.8 | Q 14.8 + F 1
+Gold | boat 7 | rank 5 | overall 26 | Q 24 + F 2
+Silver | boat 8 | rank 6 | overall 15.5 | Q 15.5 + F 0
+Silver | boat 14 | rank 7 | overall 17.8 | Q 17.8 + F 0
+Silver | boat 5 | rank 8 | overall 18 | Q 18 + F 0
+Silver | boat 2 | rank 9 | overall 19 | Q 19 + F 0
+Silver | boat 11 | rank 10 | overall 21 | Q 21 + F 0
+Bronze | boat 9 | rank 11 | overall 15 | Q 10 + F 5
+Bronze | boat 6 | rank 12 | overall 24 | Q 16 + F 8
+Bronze | boat 3 | rank 13 | overall 29 | Q 21 + F 8
+Bronze | boat 12 | rank 14 | overall 29 | Q 21 + F 8
+seed 75: overall
+Gold | boat 3 | rank 1 | overall 17 | Q 8 + F 9
+Gold | boat 1 | rank 2 | overall 19.1 | Q 6 + F 13.1
+Gold | boat 11 | rank 3 | overall 22 | Q 7 + F 15
+Gold | boat 7 | rank 4 | overall 24 | Q 11 + F 13
+Gold | boat 13 | rank 5 | overall 31 | Q 22 + F 9
+Gold | boat 5 | rank 6 | overall 31 | Q 14 + F 17
+Gold | boat 9 | rank 7 | overall 31 | Q 8 + F 23
+Silver | boat 12 | rank 8 | overall 12 | Q 5 + F 7
+Silver | boat 6 | rank 9 | overall 16 | Q 8 + F 8
+Silver | boat 10 | rank 10 | overall 19 | Q 11 + F 8
+Silver | boat 8 | rank 11 | overall 21 | Q 11 + F 10
+Silver | boat 2 | rank 12 | overall 23 | Q 17 + F 6
+Silver | boat 4 | rank 13 | overall 25 | Q 17 + F 8"
+`;
+
+exports[`overall standings characterisation (150 seeded random events) events 76-100 rank exactly as recorded 1`] = `
+"seed 76: overall
+Qualifying | boat 11 | rank 1 | overall 17
+Qualifying | boat 9 | rank 2 | overall 18
+Qualifying | boat 7 | rank 3 | overall 18
+Qualifying | boat 2 | rank 4 | overall 19
+Qualifying | boat 4 | rank 5 | overall 20
+Qualifying | boat 8 | rank 6 | overall 21
+Qualifying | boat 12 | rank 7 | overall 21.5
+Qualifying | boat 6 | rank 8 | overall 26
+Qualifying | boat 1 | rank 9 | overall 27
+Qualifying | boat 5 | rank 10 | overall 28.3
+Qualifying | boat 10 | rank 11 | overall 29.8
+Qualifying | boat 3 | rank 12 | overall 30
+seed 77: overall
+Gold | boat 5 | rank 1 | overall 2 | Q 1 + F 1
+Gold | boat 2 | rank 2 | overall 3 | Q 2 + F 1
+Gold | boat 10 | rank 3 | overall 5 | Q 3 + F 2
+Gold | boat 3 | rank 4 | overall 6 | Q 1 + F 5
+Gold | boat 9 | rank 4 | overall 6 | Q 1 + F 5
+Gold | boat 8 | rank 6 | overall 6.9 | Q 2 + F 4.9
+Gold | boat 4 | rank 7 | overall 7 | Q 3 + F 4
+Gold | boat 1 | rank 8 | overall 7 | Q 2 + F 5
+Gold | boat 7 | rank 8 | overall 7 | Q 2 + F 5
+Gold | boat 11 | rank 10 | overall 7 | Q 1 + F 6
+Gold | boat 6 | rank 11 | overall 9 | Q 7 + F 2
+seed 78: overall
+Gold | boat 6 | rank 1 | overall 14 | Q 11 + F 3
+Gold | boat 8 | rank 2 | overall 18 | Q 13 + F 5
+Gold | boat 7 | rank 3 | overall 18 | Q 12 + F 6
+Gold | boat 1 | rank 4 | overall 18.9 | Q 13.9 + F 5
+Gold | boat 5 | rank 5 | overall 18.9 | Q 10 + F 8.9
+Gold | boat 4 | rank 6 | overall 22.7 | Q 16.7 + F 6
+Gold | boat 3 | rank 7 | overall 24 | Q 16 + F 8
+Gold | boat 2 | rank 8 | overall 26 | Q 21 + F 5
+seed 79: overall
+Qualifying | boat 10 | rank 1 | overall 8.7
+Qualifying | boat 3 | rank 2 | overall 9.2
+Qualifying | boat 4 | rank 3 | overall 11
+Qualifying | boat 9 | rank 4 | overall 13
+Qualifying | boat 7 | rank 5 | overall 13
+Qualifying | boat 12 | rank 6 | overall 13
+Qualifying | boat 8 | rank 7 | overall 15
+Qualifying | boat 5 | rank 8 | overall 16
+Qualifying | boat 11 | rank 9 | overall 17
+Qualifying | boat 1 | rank 10 | overall 17
+Qualifying | boat 2 | rank 11 | overall 17
+Qualifying | boat 6 | rank 12 | overall 20
+seed 80: overall
+Gold | boat 10 | rank 1 | overall 20 | Q 16 + F 4
+Gold | boat 4 | rank 2 | overall 20 | Q 14 + F 6
+Gold | boat 7 | rank 3 | overall 23 | Q 20 + F 3
+Gold | boat 1 | rank 4 | overall 23 | Q 19 + F 4
+Silver | boat 2 | rank 5 | overall 19 | Q 16 + F 3
+Silver | boat 11 | rank 6 | overall 31 | Q 26 + F 5
+Silver | boat 8 | rank 7 | overall 32 | Q 29 + F 3
+Silver | boat 5 | rank 8 | overall 35 | Q 25 + F 10
+Bronze | boat 3 | rank 9 | overall 20 | Q 15 + F 5
+Bronze | boat 12 | rank 10 | overall 20.3 | Q 16.3 + F 4
+Bronze | boat 6 | rank 11 | overall 24 | Q 18 + F 6
+Bronze | boat 9 | rank 12 | overall 27 | Q 23 + F 4
+seed 81: overall
+Gold | boat 3 | rank 1 | overall 8 | Q 2 + F 6
+Gold | boat 7 | rank 2 | overall 12 | Q 3 + F 9
+Gold | boat 5 | rank 3 | overall 14.3 | Q 4 + F 10.3
+Gold | boat 1 | rank 4 | overall 15 | Q 5 + F 10
+Silver | boat 8 | rank 5 | overall 3 | Q 1 + F 2
+Silver | boat 4 | rank 6 | overall 4 | Q 2 + F 2
+Silver | boat 2 | rank 7 | overall 5 | Q 3 + F 2
+Silver | boat 6 | rank 8 | overall 5.9 | Q 2.9 + F 3
+seed 82: overall
+Gold | boat 8 | rank 1 | overall 21 | Q 5 + F 16
+Gold | boat 1 | rank 2 | overall 21 | Q 8 + F 13
+Gold | boat 9 | rank 3 | overall 24 | Q 7 + F 17
+Gold | boat 2 | rank 4 | overall 27 | Q 5 + F 22
+Gold | boat 7 | rank 5 | overall 29 | Q 9 + F 20
+Gold | boat 4 | rank 6 | overall 29.6 | Q 7.6 + F 22
+Gold | boat 6 | rank 7 | overall 31 | Q 6 + F 25
+Gold | boat 5 | rank 8 | overall 33.6 | Q 15 + F 18.6
+Gold | boat 3 | rank 9 | overall 37 | Q 6 + F 31
+seed 83: overall
+Qualifying | boat 9 | rank 1 | overall 6
+Qualifying | boat 1 | rank 2 | overall 8
+Qualifying | boat 6 | rank 3 | overall 8
+Qualifying | boat 7 | rank 4 | overall 9
+Qualifying | boat 10 | rank 5 | overall 9
+Qualifying | boat 5 | rank 6 | overall 9
+Qualifying | boat 3 | rank 7 | overall 11
+Qualifying | boat 2 | rank 8 | overall 12
+Qualifying | boat 8 | rank 9 | overall 13
+Qualifying | boat 4 | rank 10 | overall 13
+seed 84: overall
+Qualifying | boat 1 | rank 1 | overall 6
+Qualifying | boat 4 | rank 2 | overall 7.1
+Qualifying | boat 3 | rank 3 | overall 8
+Qualifying | boat 8 | rank 4 | overall 12
+Qualifying | boat 11 | rank 5 | overall 12.9
+Qualifying | boat 13 | rank 6 | overall 13
+Qualifying | boat 2 | rank 7 | overall 13
+Qualifying | boat 6 | rank 8 | overall 13
+Qualifying | boat 10 | rank 9 | overall 13.9
+Qualifying | boat 5 | rank 10 | overall 14.4
+Qualifying | boat 7 | rank 11 | overall 16
+Qualifying | boat 12 | rank 12 | overall 23
+Qualifying | boat 9 | rank 13 | overall 23
+seed 85: overall
+Qualifying | boat 6 | rank 1 | overall 8
+Qualifying | boat 2 | rank 2 | overall 9
+Qualifying | boat 10 | rank 3 | overall 10
+Qualifying | boat 3 | rank 4 | overall 11.7
+Qualifying | boat 9 | rank 5 | overall 12
+Qualifying | boat 8 | rank 6 | overall 13.4
+Qualifying | boat 5 | rank 7 | overall 14
+Qualifying | boat 7 | rank 8 | overall 16
+Qualifying | boat 4 | rank 9 | overall 16
+Qualifying | boat 11 | rank 10 | overall 25.6
+Qualifying | boat 1 | rank 11 | overall 27
+seed 86: overall
+Gold | boat 4 | rank 1 | overall 18 | Q 5 + F 13
+Gold | boat 1 | rank 2 | overall 21 | Q 11 + F 10
+Gold | boat 7 | rank 3 | overall 22.3 | Q 6.3 + F 16
+Gold | boat 10 | rank 4 | overall 23 | Q 8 + F 15
+Silver | boat 11 | rank 5 | overall 10 | Q 6 + F 4
+Silver | boat 2 | rank 6 | overall 12 | Q 5 + F 7
+Silver | boat 5 | rank 7 | overall 13 | Q 11 + F 2
+Silver | boat 8 | rank 8 | overall 13 | Q 10 + F 3
+Bronze | boat 3 | rank 9 | overall 15 | Q 7 + F 8
+Bronze | boat 9 | rank 10 | overall 17 | Q 7 + F 10
+Bronze | boat 12 | rank 11 | overall 23 | Q 5 + F 18
+Bronze | boat 6 | rank 12 | overall 23 | Q 7 + F 16
+seed 87: overall
+Gold | boat 1 | rank 1 | overall 2 | Q 2 + F 0
+Gold | boat 5 | rank 1 | overall 2 | Q 2 + F 0
+Gold | boat 3 | rank 3 | overall 3 | Q 3 + F 0
+Gold | boat 7 | rank 4 | overall 5 | Q 5 + F 0
+Silver | boat 8 | rank 5 | overall 4 | Q 2 + F 2
+Silver | boat 6 | rank 6 | overall 4 | Q 1 + F 3
+Silver | boat 4 | rank 7 | overall 5 | Q 1 + F 4
+Silver | boat 2 | rank 8 | overall 6 | Q 1 + F 5
+seed 88: overall
+Gold | boat 3 | rank 1 | overall 8 | Q 7 + F 1
+Gold | boat 4 | rank 2 | overall 9.2 | Q 6 + F 3.2
+Gold | boat 2 | rank 3 | overall 12 | Q 10 + F 2
+Gold | boat 8 | rank 4 | overall 12 | Q 10 + F 2
+Gold | boat 1 | rank 5 | overall 12 | Q 9 + F 3
+Gold | boat 7 | rank 6 | overall 13 | Q 9 + F 4
+Gold | boat 5 | rank 7 | overall 13 | Q 9 + F 4
+Gold | boat 6 | rank 8 | overall 13 | Q 9 + F 4
+seed 89: overall
+Gold | boat 11 | rank 1 | overall 3 | Q 2 + F 1
+Gold | boat 1 | rank 2 | overall 4 | Q 2 + F 2
+Gold | boat 5 | rank 2 | overall 4 | Q 2 + F 2
+Gold | boat 3 | rank 4 | overall 5 | Q 4 + F 1
+Gold | boat 9 | rank 5 | overall 6 | Q 4 + F 2
+Gold | boat 13 | rank 6 | overall 9 | Q 7 + F 2
+Gold | boat 7 | rank 7 | overall 16 | Q 8 + F 8
+Silver | boat 2 | rank 8 | overall 17 | Q 7 + F 10
+Silver | boat 10 | rank 9 | overall 20 | Q 3 + F 17
+Silver | boat 12 | rank 10 | overall 21 | Q 7 + F 14
+Silver | boat 6 | rank 11 | overall 22 | Q 3 + F 19
+Silver | boat 4 | rank 12 | overall 23 | Q 3 + F 20
+Silver | boat 8 | rank 13 | overall 25 | Q 4 + F 21
+seed 90: overall
+Qualifying | boat 4 | rank 1 | overall 7
+Qualifying | boat 1 | rank 2 | overall 11
+Qualifying | boat 2 | rank 3 | overall 12
+Qualifying | boat 3 | rank 4 | overall 12
+Qualifying | boat 7 | rank 5 | overall 12
+Qualifying | boat 6 | rank 6 | overall 13
+Qualifying | boat 5 | rank 7 | overall 13
+seed 91: overall
+Gold | boat 13 | rank 1 | overall 5 | Q 3 + F 2
+Gold | boat 4 | rank 2 | overall 6 | Q 4 + F 2
+Gold | boat 1 | rank 3 | overall 7 | Q 4 + F 3
+Gold | boat 10 | rank 4 | overall 10 | Q 9 + F 1
+Gold | boat 7 | rank 5 | overall 10 | Q 4 + F 6
+Silver | boat 5 | rank 6 | overall 2 | Q 2 + F 0
+Silver | boat 11 | rank 7 | overall 3 | Q 3 + F 0
+Silver | boat 2 | rank 8 | overall 4 | Q 4 + F 0
+Silver | boat 14 | rank 9 | overall 5 | Q 5 + F 0
+Silver | boat 8 | rank 10 | overall 6 | Q 6 + F 0
+Bronze | boat 12 | rank 11 | overall 11 | Q 2 + F 9
+Bronze | boat 6 | rank 12 | overall 12 | Q 5 + F 7
+Bronze | boat 9 | rank 13 | overall 12 | Q 5 + F 7
+Bronze | boat 3 | rank 14 | overall 18 | Q 7 + F 11
+seed 92: overall
+Gold | boat 11 | rank 1 | overall 4.5 | Q 1.5 + F 3
+Gold | boat 7 | rank 2 | overall 6.5 | Q 1 + F 5.5
+Gold | boat 6 | rank 3 | overall 6.6 | Q 1.6 + F 5
+Gold | boat 8 | rank 4 | overall 7.3 | Q 2.3 + F 5
+Gold | boat 10 | rank 5 | overall 8 | Q 2 + F 6
+Gold | boat 3 | rank 6 | overall 9 | Q 7 + F 2
+Gold | boat 13 | rank 7 | overall 9 | Q 3 + F 6
+Gold | boat 9 | rank 8 | overall 10 | Q 4 + F 6
+Gold | boat 4 | rank 9 | overall 10 | Q 3 + F 7
+Gold | boat 1 | rank 10 | overall 11 | Q 6 + F 5
+Gold | boat 5 | rank 11 | overall 12 | Q 7 + F 5
+Gold | boat 2 | rank 12 | overall 13.1 | Q 4.1 + F 9
+Gold | boat 12 | rank 13 | overall 14 | Q 7 + F 7
+seed 93: overall
+Gold | boat 10 | rank 1 | overall 14 | Q 6 + F 8
+Gold | boat 4 | rank 2 | overall 17 | Q 11 + F 6
+Gold | boat 7 | rank 3 | overall 21.6 | Q 17 + F 4.6
+Gold | boat 1 | rank 4 | overall 22 | Q 16 + F 6
+Silver | boat 2 | rank 5 | overall 7 | Q 7 + F 0
+Silver | boat 8 | rank 6 | overall 8 | Q 8 + F 0
+Silver | boat 5 | rank 7 | overall 11 | Q 11 + F 0
+Bronze | boat 6 | rank 8 | overall 14 | Q 13 + F 1
+Bronze | boat 9 | rank 9 | overall 14 | Q 12 + F 2
+Bronze | boat 3 | rank 10 | overall 16 | Q 15 + F 1
+seed 94: overall
+Gold | boat 12 | rank 1 | overall 30 | Q 15 + F 15
+Gold | boat 6 | rank 2 | overall 33 | Q 9 + F 24
+Gold | boat 13 | rank 3 | overall 34 | Q 14 + F 20
+Gold | boat 9 | rank 4 | overall 35 | Q 18 + F 17
+Gold | boat 7 | rank 5 | overall 37 | Q 11 + F 26
+Gold | boat 4 | rank 6 | overall 41 | Q 18 + F 23
+Gold | boat 3 | rank 7 | overall 44 | Q 14 + F 30
+Gold | boat 5 | rank 8 | overall 46 | Q 17 + F 29
+Gold | boat 1 | rank 9 | overall 46 | Q 22 + F 24
+Gold | boat 8 | rank 10 | overall 46.6 | Q 16.7 + F 29.9
+Gold | boat 10 | rank 11 | overall 46.6 | Q 18.6 + F 28
+Gold | boat 11 | rank 12 | overall 51.3 | Q 18 + F 33.3
+Gold | boat 2 | rank 13 | overall 53.3 | Q 16.3 + F 37
+seed 95: overall
+Gold | boat 1 | rank 1 | overall 7 | Q 2 + F 5
+Gold | boat 4 | rank 2 | overall 9 | Q 4 + F 5
+Gold | boat 7 | rank 3 | overall 9 | Q 2 + F 7
+Silver | boat 2 | rank 4 | overall 2 | Q 2 + F 0
+Silver | boat 5 | rank 5 | overall 3 | Q 3 + F 0
+Bronze | boat 3 | rank 6 | overall 5 | Q 3 + F 2
+Bronze | boat 6 | rank 7 | overall 5 | Q 2 + F 3
+seed 96: overall
+Gold | boat 7 | rank 1 | overall 15 | Q 7 + F 8
+Gold | boat 5 | rank 2 | overall 16 | Q 8 + F 8
+Gold | boat 1 | rank 3 | overall 17 | Q 10 + F 7
+Gold | boat 3 | rank 4 | overall 26 | Q 16 + F 10
+Silver | boat 6 | rank 5 | overall 11 | Q 10 + F 1
+Silver | boat 2 | rank 6 | overall 12 | Q 9 + F 3
+Silver | boat 4 | rank 7 | overall 13 | Q 8 + F 5
+seed 97: overall
+Gold | boat 8 | rank 1 | overall 9 | Q 3 + F 6
+Gold | boat 12 | rank 2 | overall 16 | Q 3 + F 13
+Gold | boat 13 | rank 3 | overall 21 | Q 6 + F 15
+Gold | boat 5 | rank 4 | overall 22.3 | Q 3 + F 19.3
+Gold | boat 9 | rank 5 | overall 23.4 | Q 3 + F 20.4
+Gold | boat 2 | rank 6 | overall 24 | Q 5 + F 19
+Gold | boat 3 | rank 7 | overall 25.5 | Q 3.5 + F 22
+Gold | boat 11 | rank 8 | overall 26 | Q 5 + F 21
+Gold | boat 1 | rank 9 | overall 26 | Q 5 + F 21
+Gold | boat 4 | rank 10 | overall 29 | Q 5 + F 24
+Gold | boat 10 | rank 11 | overall 29 | Q 6 + F 23
+Gold | boat 6 | rank 12 | overall 29 | Q 4 + F 25
+Gold | boat 7 | rank 13 | overall 33 | Q 4 + F 29
+seed 98: overall
+Gold | boat 7 | rank 1 | overall 4 | Q 1 + F 3
+Gold | boat 1 | rank 2 | overall 4.1 | Q 2 + F 2.1
+Gold | boat 4 | rank 3 | overall 12 | Q 7 + F 5
+Silver | boat 2 | rank 4 | overall 4 | Q 1 + F 3
+Silver | boat 5 | rank 5 | overall 6 | Q 2 + F 4
+Bronze | boat 6 | rank 6 | overall 7 | Q 2 + F 5
+Bronze | boat 3 | rank 7 | overall 11 | Q 7 + F 4
+seed 99: overall
+Qualifying | boat 1 | rank 1 | overall 1
+Qualifying | boat 6 | rank 1 | overall 1
+Qualifying | boat 7 | rank 1 | overall 1
+Qualifying | boat 8 | rank 1 | overall 1
+Qualifying | boat 2 | rank 5 | overall 2
+Qualifying | boat 3 | rank 5 | overall 2
+Qualifying | boat 4 | rank 5 | overall 2
+Qualifying | boat 5 | rank 5 | overall 2
+Qualifying | boat 9 | rank 9 | overall 4
+seed 100: overall
+Gold | boat 1 | rank 1 | overall 8.6 | Q 6.6 + F 2
+Gold | boat 4 | rank 2 | overall 11 | Q 8 + F 3
+Gold | boat 7 | rank 3 | overall 11.9 | Q 7 + F 4.9
+Silver | boat 5 | rank 4 | overall 7 | Q 7 + F 0
+Silver | boat 2 | rank 5 | overall 7 | Q 7 + F 0
+Silver | boat 8 | rank 6 | overall 10 | Q 10 + F 0
+Bronze | boat 3 | rank 7 | overall 14.2 | Q 6 + F 8.2
+Bronze | boat 9 | rank 8 | overall 15.8 | Q 5.8 + F 10
+Bronze | boat 6 | rank 9 | overall 18 | Q 7 + F 11"
+`;
+
+exports[`overall standings characterisation (150 seeded random events) events 101-125 rank exactly as recorded 1`] = `
+"seed 101: overall
+Gold | boat 7 | rank 1 | overall 7.3 | Q 3.3 + F 4
+Gold | boat 4 | rank 2 | overall 10 | Q 8 + F 2
+Gold | boat 1 | rank 3 | overall 10.3 | Q 6 + F 4.3
+Silver | boat 5 | rank 4 | overall 9 | Q 6 + F 3
+Silver | boat 8 | rank 5 | overall 12 | Q 7 + F 5
+Silver | boat 2 | rank 6 | overall 15 | Q 12 + F 3
+Bronze | boat 9 | rank 7 | overall 8.5 | Q 5 + F 3.5
+Bronze | boat 6 | rank 8 | overall 10 | Q 7 + F 3
+Bronze | boat 3 | rank 9 | overall 19 | Q 15 + F 4
+seed 102: overall
+Qualifying | boat 1 | rank 1 | overall 6
+Qualifying | boat 10 | rank 2 | overall 6
+Qualifying | boat 9 | rank 3 | overall 7
+Qualifying | boat 3 | rank 4 | overall 8
+Qualifying | boat 7 | rank 5 | overall 8
+Qualifying | boat 4 | rank 6 | overall 9
+Qualifying | boat 6 | rank 7 | overall 10
+Qualifying | boat 12 | rank 7 | overall 10
+Qualifying | boat 5 | rank 9 | overall 10
+Qualifying | boat 11 | rank 10 | overall 11
+Qualifying | boat 8 | rank 11 | overall 12
+Qualifying | boat 2 | rank 12 | overall 18
+seed 103: overall
+Qualifying | boat 2 | rank 1 | overall 4
+Qualifying | boat 1 | rank 2 | overall 4
+Qualifying | boat 4 | rank 3 | overall 4.1
+Qualifying | boat 5 | rank 4 | overall 5
+Qualifying | boat 3 | rank 5 | overall 5
+seed 104: overall
+Gold | boat 9 | rank 1 | overall 21 | Q 14 + F 7
+Gold | boat 5 | rank 2 | overall 25 | Q 16 + F 9
+Gold | boat 7 | rank 3 | overall 25 | Q 17 + F 8
+Gold | boat 11 | rank 4 | overall 37.7 | Q 31.7 + F 6
+Gold | boat 1 | rank 5 | overall 40 | Q 29 + F 11
+Gold | boat 3 | rank 6 | overall 45 | Q 26 + F 19
+Silver | boat 8 | rank 7 | overall 18 | Q 15 + F 3
+Silver | boat 4 | rank 8 | overall 20.7 | Q 16 + F 4.7
+Silver | boat 6 | rank 9 | overall 28 | Q 18 + F 10
+Silver | boat 2 | rank 10 | overall 28.8 | Q 26.8 + F 2
+Silver | boat 12 | rank 11 | overall 30 | Q 22 + F 8
+Silver | boat 10 | rank 12 | overall 45 | Q 33 + F 12
+seed 105: overall
+Gold | boat 11 | rank 1 | overall 9 | Q 8 + F 1
+Gold | boat 6 | rank 2 | overall 11.7 | Q 9.7 + F 2
+Gold | boat 10 | rank 3 | overall 12 | Q 10 + F 2
+Gold | boat 8 | rank 4 | overall 13 | Q 12 + F 1
+Gold | boat 3 | rank 5 | overall 13 | Q 12 + F 1
+Gold | boat 4 | rank 6 | overall 13 | Q 12 + F 1
+Gold | boat 9 | rank 7 | overall 13 | Q 11 + F 2
+Gold | boat 2 | rank 8 | overall 14 | Q 13 + F 1
+Gold | boat 14 | rank 9 | overall 15 | Q 13 + F 2
+Gold | boat 13 | rank 10 | overall 15.9 | Q 9.9 + F 6
+Gold | boat 5 | rank 11 | overall 20 | Q 12 + F 8
+Gold | boat 12 | rank 12 | overall 23 | Q 13 + F 10
+Gold | boat 7 | rank 13 | overall 23 | Q 15 + F 8
+Gold | boat 1 | rank 14 | overall 23 | Q 17 + F 6
+seed 106: overall
+Qualifying | boat 1 | rank 1 | overall 4
+Qualifying | boat 2 | rank 2 | overall 4
+Qualifying | boat 3 | rank 3 | overall 4.4
+Qualifying | boat 5 | rank 4 | overall 7
+Qualifying | boat 4 | rank 5 | overall 7
+seed 107: overall
+Gold | boat 1 | rank 1 | overall 21 | Q 21 + F 0
+Gold | boat 9 | rank 2 | overall 24 | Q 24 + F 0
+Gold | boat 7 | rank 3 | overall 28 | Q 28 + F 0
+Gold | boat 3 | rank 4 | overall 29.4 | Q 29.4 + F 0
+Gold | boat 11 | rank 5 | overall 30 | Q 30 + F 0
+Gold | boat 5 | rank 6 | overall 30 | Q 30 + F 0
+Silver | boat 2 | rank 7 | overall 26 | Q 23 + F 3
+Silver | boat 8 | rank 8 | overall 28 | Q 24 + F 4
+Silver | boat 4 | rank 9 | overall 34 | Q 26 + F 8
+Silver | boat 6 | rank 10 | overall 39 | Q 31 + F 8
+Silver | boat 10 | rank 11 | overall 40 | Q 31 + F 9
+seed 108: overall
+Qualifying | boat 1 | rank 1 | overall 3
+Qualifying | boat 6 | rank 2 | overall 3
+Qualifying | boat 9 | rank 3 | overall 3
+Qualifying | boat 7 | rank 4 | overall 3
+Qualifying | boat 5 | rank 5 | overall 4
+Qualifying | boat 2 | rank 6 | overall 4
+Qualifying | boat 8 | rank 6 | overall 4
+Qualifying | boat 4 | rank 8 | overall 4
+Qualifying | boat 11 | rank 9 | overall 4.2
+Qualifying | boat 12 | rank 10 | overall 4.5
+Qualifying | boat 3 | rank 11 | overall 5
+Qualifying | boat 10 | rank 12 | overall 9
+seed 109: overall
+Gold | boat 7 | rank 1 | overall 8 | Q 8 + F 0
+Gold | boat 3 | rank 2 | overall 9 | Q 9 + F 0
+Gold | boat 1 | rank 3 | overall 13 | Q 13 + F 0
+Gold | boat 9 | rank 4 | overall 15 | Q 15 + F 0
+Gold | boat 5 | rank 5 | overall 25 | Q 25 + F 0
+Silver | boat 10 | rank 6 | overall 9 | Q 5 + F 4
+Silver | boat 6 | rank 7 | overall 20 | Q 14 + F 6
+Silver | boat 8 | rank 8 | overall 23 | Q 16 + F 7
+Silver | boat 4 | rank 9 | overall 23 | Q 9 + F 14
+Silver | boat 2 | rank 10 | overall 26 | Q 19 + F 7
+seed 110: overall
+Gold | boat 13 | rank 1 | overall 13 | Q 5 + F 8
+Gold | boat 7 | rank 2 | overall 19 | Q 8 + F 11
+Gold | boat 1 | rank 3 | overall 20 | Q 9 + F 11
+Gold | boat 9 | rank 4 | overall 20 | Q 7 + F 13
+Gold | boat 11 | rank 5 | overall 24 | Q 14 + F 10
+Gold | boat 3 | rank 6 | overall 27 | Q 5 + F 22
+Gold | boat 5 | rank 7 | overall 28 | Q 12 + F 16
+Silver | boat 8 | rank 8 | overall 5 | Q 5 + F 0
+Silver | boat 10 | rank 8 | overall 5 | Q 5 + F 0
+Silver | boat 2 | rank 10 | overall 6 | Q 6 + F 0
+Silver | boat 12 | rank 11 | overall 7 | Q 7 + F 0
+Silver | boat 4 | rank 12 | overall 7 | Q 7 + F 0
+Silver | boat 6 | rank 13 | overall 14 | Q 14 + F 0
+seed 111: overall
+Qualifying | boat 3 | rank 1 | overall 14
+Qualifying | boat 1 | rank 2 | overall 15.4
+Qualifying | boat 4 | rank 3 | overall 19
+Qualifying | boat 2 | rank 4 | overall 20
+Qualifying | boat 5 | rank 5 | overall 22
+seed 112: overall
+Gold | boat 1 | rank 1 | overall 11 | Q 7 + F 4
+Gold | boat 7 | rank 2 | overall 13 | Q 7 + F 6
+Gold | boat 2 | rank 3 | overall 13 | Q 8 + F 5
+Gold | boat 10 | rank 4 | overall 18 | Q 15 + F 3
+Gold | boat 9 | rank 5 | overall 19.5 | Q 15.5 + F 4
+Gold | boat 4 | rank 6 | overall 20 | Q 13 + F 7
+Gold | boat 3 | rank 7 | overall 21.3 | Q 11.3 + F 10
+Gold | boat 6 | rank 8 | overall 25 | Q 16 + F 9
+Gold | boat 5 | rank 9 | overall 26 | Q 17 + F 9
+Gold | boat 8 | rank 10 | overall 28.4 | Q 17.4 + F 11
+seed 113: overall
+Gold | boat 4 | rank 1 | overall 9 | Q 5 + F 4
+Gold | boat 7 | rank 2 | overall 11 | Q 7 + F 4
+Gold | boat 1 | rank 3 | overall 14 | Q 9 + F 5
+Silver | boat 2 | rank 4 | overall 7.9 | Q 4.9 + F 3
+Silver | boat 5 | rank 5 | overall 8.5 | Q 5.5 + F 3
+Silver | boat 8 | rank 6 | overall 11 | Q 9 + F 2
+Bronze | boat 9 | rank 7 | overall 9 | Q 7 + F 2
+Bronze | boat 6 | rank 8 | overall 12 | Q 10 + F 2
+Bronze | boat 3 | rank 9 | overall 15 | Q 11 + F 4
+seed 114: overall
+Gold | boat 5 | rank 1 | overall 8 | Q 4 + F 4
+Gold | boat 1 | rank 2 | overall 8.1 | Q 4 + F 4.1
+Gold | boat 7 | rank 3 | overall 9 | Q 3 + F 6
+Gold | boat 9 | rank 4 | overall 9.1 | Q 4.1 + F 5
+Gold | boat 11 | rank 5 | overall 10 | Q 4 + F 6
+Gold | boat 3 | rank 6 | overall 14 | Q 8 + F 6
+Silver | boat 8 | rank 7 | overall 12.6 | Q 3 + F 9.6
+Silver | boat 10 | rank 8 | overall 15 | Q 7 + F 8
+Silver | boat 12 | rank 9 | overall 16 | Q 3 + F 13
+Silver | boat 6 | rank 10 | overall 16 | Q 5 + F 11
+Silver | boat 2 | rank 11 | overall 16.4 | Q 8 + F 8.4
+Silver | boat 4 | rank 12 | overall 18 | Q 11 + F 7
+seed 115: overall
+Qualifying | boat 2 | rank 1 | overall 7
+Qualifying | boat 13 | rank 2 | overall 15
+Qualifying | boat 8 | rank 3 | overall 20
+Qualifying | boat 9 | rank 4 | overall 23
+Qualifying | boat 3 | rank 5 | overall 23.2
+Qualifying | boat 14 | rank 6 | overall 26
+Qualifying | boat 5 | rank 7 | overall 28
+Qualifying | boat 7 | rank 8 | overall 33
+Qualifying | boat 6 | rank 9 | overall 33
+Qualifying | boat 1 | rank 10 | overall 34
+Qualifying | boat 10 | rank 11 | overall 34.2
+Qualifying | boat 12 | rank 12 | overall 35
+Qualifying | boat 4 | rank 13 | overall 38
+Qualifying | boat 11 | rank 14 | overall 49
+seed 116: overall
+Gold | boat 7 | rank 1 | overall 34 | Q 18 + F 16
+Gold | boat 1 | rank 2 | overall 36.6 | Q 16.6 + F 20
+Gold | boat 3 | rank 3 | overall 39 | Q 17 + F 22
+Gold | boat 5 | rank 4 | overall 39 | Q 21 + F 18
+Silver | boat 6 | rank 5 | overall 21 | Q 18 + F 3
+Silver | boat 2 | rank 6 | overall 24.4 | Q 19.4 + F 5
+Silver | boat 4 | rank 7 | overall 27.7 | Q 18.7 + F 9
+seed 117: overall
+Gold | boat 7 | rank 1 | overall 23 | Q 15 + F 8
+Gold | boat 13 | rank 2 | overall 36 | Q 29 + F 7
+Gold | boat 4 | rank 3 | overall 38 | Q 29 + F 9
+Gold | boat 10 | rank 4 | overall 44 | Q 36 + F 8
+Gold | boat 1 | rank 5 | overall 45 | Q 37 + F 8
+Silver | boat 5 | rank 6 | overall 22.2 | Q 19.2 + F 3
+Silver | boat 14 | rank 7 | overall 25 | Q 20 + F 5
+Silver | boat 8 | rank 8 | overall 26 | Q 16 + F 10
+Silver | boat 2 | rank 9 | overall 31.7 | Q 22.7 + F 9
+Silver | boat 11 | rank 10 | overall 42 | Q 39 + F 3
+Bronze | boat 3 | rank 11 | overall 33 | Q 24 + F 9
+Bronze | boat 6 | rank 12 | overall 36 | Q 30 + F 6
+Bronze | boat 12 | rank 13 | overall 40 | Q 33 + F 7
+Bronze | boat 9 | rank 14 | overall 46 | Q 40 + F 6
+seed 118: overall
+Qualifying | boat 2 | rank 1 | overall 3
+Qualifying | boat 4 | rank 2 | overall 4
+Qualifying | boat 1 | rank 3 | overall 5
+seed 119: overall
+Qualifying | boat 2 | rank 1 | overall 6
+Qualifying | boat 5 | rank 2 | overall 8
+Qualifying | boat 6 | rank 3 | overall 9
+Qualifying | boat 1 | rank 4 | overall 10
+Qualifying | boat 4 | rank 5 | overall 10
+Qualifying | boat 7 | rank 6 | overall 12
+Qualifying | boat 3 | rank 7 | overall 12
+seed 120: overall
+Gold | boat 5 | rank 1 | overall 28 | Q 20 + F 8
+Gold | boat 1 | rank 2 | overall 30 | Q 19 + F 11
+Gold | boat 9 | rank 3 | overall 39 | Q 29 + F 10
+Gold | boat 7 | rank 4 | overall 39.7 | Q 33.7 + F 6
+Gold | boat 3 | rank 5 | overall 52 | Q 40 + F 12
+Silver | boat 2 | rank 6 | overall 32 | Q 26 + F 6
+Silver | boat 4 | rank 7 | overall 34.5 | Q 30.5 + F 4
+Silver | boat 6 | rank 8 | overall 46.9 | Q 42.9 + F 4
+Silver | boat 8 | rank 9 | overall 53 | Q 48 + F 5
+seed 121: overall
+Gold | boat 4 | rank 1 | overall 15 | Q 8 + F 7
+Gold | boat 1 | rank 2 | overall 19.5 | Q 7 + F 12.5
+Gold | boat 6 | rank 3 | overall 21 | Q 17 + F 4
+Gold | boat 7 | rank 4 | overall 22 | Q 10 + F 12
+Gold | boat 10 | rank 5 | overall 23 | Q 12 + F 11
+Gold | boat 2 | rank 6 | overall 25 | Q 13 + F 12
+Gold | boat 3 | rank 7 | overall 28 | Q 19 + F 9
+Gold | boat 5 | rank 8 | overall 29 | Q 9 + F 20
+Gold | boat 11 | rank 9 | overall 30 | Q 18 + F 12
+Gold | boat 9 | rank 10 | overall 36 | Q 28 + F 8
+Gold | boat 8 | rank 11 | overall 36.9 | Q 22.9 + F 14
+Gold | boat 12 | rank 12 | overall 45 | Q 28 + F 17
+seed 122: overall
+Qualifying | boat 9 | rank 1 | overall 9
+Qualifying | boat 3 | rank 2 | overall 9.2
+Qualifying | boat 7 | rank 3 | overall 10
+Qualifying | boat 1 | rank 4 | overall 10.2
+Qualifying | boat 12 | rank 5 | overall 11
+Qualifying | boat 2 | rank 6 | overall 11
+Qualifying | boat 11 | rank 7 | overall 12
+Qualifying | boat 6 | rank 8 | overall 12
+Qualifying | boat 10 | rank 9 | overall 13
+Qualifying | boat 5 | rank 9 | overall 13
+Qualifying | boat 8 | rank 11 | overall 14
+Qualifying | boat 4 | rank 12 | overall 15
+seed 123: overall
+Qualifying | boat 9 | rank 1 | overall 6
+Qualifying | boat 5 | rank 2 | overall 7
+Qualifying | boat 6 | rank 3 | overall 7.1
+Qualifying | boat 3 | rank 4 | overall 9.1
+Qualifying | boat 2 | rank 5 | overall 10
+Qualifying | boat 1 | rank 6 | overall 15
+Qualifying | boat 4 | rank 7 | overall 15
+Qualifying | boat 8 | rank 8 | overall 16
+Qualifying | boat 7 | rank 9 | overall 21
+seed 124: overall
+Gold | boat 8 | rank 1 | overall 11 | Q 7 + F 4
+Gold | boat 1 | rank 2 | overall 15.1 | Q 5 + F 10.1
+Gold | boat 3 | rank 3 | overall 21 | Q 9 + F 12
+Gold | boat 4 | rank 4 | overall 21.9 | Q 7.9 + F 14
+Gold | boat 7 | rank 5 | overall 24 | Q 11 + F 13
+Gold | boat 6 | rank 6 | overall 24 | Q 6 + F 18
+Gold | boat 5 | rank 7 | overall 25 | Q 7 + F 18
+Gold | boat 2 | rank 8 | overall 27 | Q 11 + F 16
+seed 125: overall
+Qualifying | boat 4 | rank 1 | overall 14.6
+Qualifying | boat 1 | rank 2 | overall 21
+Qualifying | boat 8 | rank 3 | overall 21
+Qualifying | boat 7 | rank 4 | overall 25.2
+Qualifying | boat 2 | rank 5 | overall 29
+Qualifying | boat 3 | rank 6 | overall 29
+Qualifying | boat 5 | rank 7 | overall 38
+Qualifying | boat 9 | rank 8 | overall 38.8
+Qualifying | boat 6 | rank 9 | overall 43"
+`;
+
+exports[`overall standings characterisation (150 seeded random events) events 126-150 rank exactly as recorded 1`] = `
+"seed 126: overall
+Gold | boat 4 | rank 1 | overall 13 | Q 6 + F 7
+Gold | boat 1 | rank 2 | overall 18 | Q 11 + F 7
+Gold | boat 7 | rank 3 | overall 18 | Q 6 + F 12
+Silver | boat 5 | rank 4 | overall 7 | Q 5 + F 2
+Silver | boat 2 | rank 5 | overall 10 | Q 8 + F 2
+Bronze | boat 3 | rank 6 | overall 4 | Q 4 + F 0
+Bronze | boat 6 | rank 7 | overall 10 | Q 10 + F 0
+seed 127: overall
+Qualifying | boat 7 | rank 1 | overall 8.1
+Qualifying | boat 6 | rank 2 | overall 10
+Qualifying | boat 10 | rank 3 | overall 10.6
+Qualifying | boat 12 | rank 4 | overall 11
+Qualifying | boat 9 | rank 5 | overall 11
+Qualifying | boat 5 | rank 6 | overall 11.2
+Qualifying | boat 13 | rank 7 | overall 11.7
+Qualifying | boat 2 | rank 8 | overall 11.9
+Qualifying | boat 3 | rank 9 | overall 15.1
+Qualifying | boat 11 | rank 10 | overall 18
+Qualifying | boat 8 | rank 11 | overall 23
+Qualifying | boat 4 | rank 12 | overall 26
+Qualifying | boat 1 | rank 13 | overall 27
+seed 128: overall
+Qualifying | boat 13 | rank 1 | overall 1
+Qualifying | boat 6 | rank 2 | overall 1
+Qualifying | boat 7 | rank 3 | overall 1
+Qualifying | boat 3 | rank 4 | overall 1.6
+Qualifying | boat 12 | rank 5 | overall 2
+Qualifying | boat 4 | rank 6 | overall 3
+Qualifying | boat 1 | rank 6 | overall 3
+Qualifying | boat 10 | rank 8 | overall 3
+Qualifying | boat 9 | rank 9 | overall 3
+Qualifying | boat 8 | rank 10 | overall 3
+Qualifying | boat 5 | rank 10 | overall 3
+Qualifying | boat 11 | rank 10 | overall 3
+Qualifying | boat 2 | rank 13 | overall 4
+seed 129: overall
+Qualifying | boat 7 | rank 1 | overall 5
+Qualifying | boat 8 | rank 2 | overall 5
+Qualifying | boat 4 | rank 3 | overall 6.9
+Qualifying | boat 1 | rank 4 | overall 7
+Qualifying | boat 2 | rank 5 | overall 7.8
+Qualifying | boat 6 | rank 6 | overall 8
+Qualifying | boat 5 | rank 7 | overall 10
+Qualifying | boat 3 | rank 8 | overall 13
+Qualifying | boat 9 | rank 8 | overall 13
+seed 130: overall
+Qualifying | boat 2 | rank 1 | overall 3
+Qualifying | boat 5 | rank 2 | overall 8
+Qualifying | boat 1 | rank 3 | overall 9
+Qualifying | boat 7 | rank 4 | overall 10
+Qualifying | boat 6 | rank 5 | overall 10
+Qualifying | boat 4 | rank 6 | overall 11
+Qualifying | boat 3 | rank 7 | overall 12.5
+Qualifying | boat 9 | rank 8 | overall 13
+Qualifying | boat 11 | rank 9 | overall 14.4
+Qualifying | boat 8 | rank 10 | overall 15
+Qualifying | boat 10 | rank 11 | overall 22
+seed 131: overall
+Qualifying | boat 4 | rank 1 | overall 4
+Qualifying | boat 3 | rank 2 | overall 7
+Qualifying | boat 1 | rank 3 | overall 8
+Qualifying | boat 2 | rank 4 | overall 9
+Qualifying | boat 5 | rank 5 | overall 15
+seed 132: overall
+Qualifying | boat 9 | rank 1 | overall 7
+Qualifying | boat 2 | rank 2 | overall 9
+Qualifying | boat 3 | rank 3 | overall 9
+Qualifying | boat 1 | rank 4 | overall 10
+Qualifying | boat 10 | rank 5 | overall 11
+Qualifying | boat 5 | rank 6 | overall 11.6
+Qualifying | boat 8 | rank 7 | overall 13
+Qualifying | boat 11 | rank 8 | overall 13
+Qualifying | boat 7 | rank 9 | overall 14
+Qualifying | boat 4 | rank 10 | overall 15
+Qualifying | boat 6 | rank 11 | overall 15
+seed 133: overall
+Gold | boat 3 | rank 1 | overall 10 | Q 7 + F 3
+Gold | boat 5 | rank 2 | overall 11 | Q 10 + F 1
+Gold | boat 11 | rank 3 | overall 11 | Q 8 + F 3
+Gold | boat 1 | rank 4 | overall 11.4 | Q 8.4 + F 3
+Gold | boat 9 | rank 5 | overall 12.2 | Q 11.2 + F 1
+Gold | boat 7 | rank 6 | overall 15 | Q 10 + F 5
+Silver | boat 8 | rank 7 | overall 23.8 | Q 6 + F 17.8
+Silver | boat 10 | rank 8 | overall 23.9 | Q 9.1 + F 14.8
+Silver | boat 4 | rank 9 | overall 23.9 | Q 12 + F 11.9
+Silver | boat 2 | rank 10 | overall 26.8 | Q 11.1 + F 15.7
+Silver | boat 12 | rank 11 | overall 30.7 | Q 11.7 + F 19
+Silver | boat 6 | rank 12 | overall 34 | Q 19 + F 15
+seed 134: overall
+Gold | boat 5 | rank 1 | overall 4 | Q 2 + F 2
+Gold | boat 9 | rank 1 | overall 4 | Q 2 + F 2
+Gold | boat 11 | rank 1 | overall 4 | Q 2 + F 2
+Gold | boat 3 | rank 4 | overall 5 | Q 2 + F 3
+Gold | boat 7 | rank 5 | overall 6 | Q 3 + F 3
+Gold | boat 1 | rank 6 | overall 8 | Q 5 + F 3
+Silver | boat 2 | rank 7 | overall 5 | Q 4 + F 1
+Silver | boat 10 | rank 8 | overall 5.3 | Q 4 + F 1.3
+Silver | boat 8 | rank 9 | overall 6 | Q 2 + F 4
+Silver | boat 6 | rank 10 | overall 8 | Q 5 + F 3
+Silver | boat 4 | rank 11 | overall 10 | Q 3 + F 7
+seed 135: overall
+Gold | boat 9 | rank 1 | overall 5 | Q 2 + F 3
+Gold | boat 5 | rank 2 | overall 6 | Q 4 + F 2
+Gold | boat 3 | rank 3 | overall 7 | Q 2 + F 5
+Gold | boat 11 | rank 4 | overall 8 | Q 2 + F 6
+Gold | boat 7 | rank 5 | overall 9 | Q 3 + F 6
+Gold | boat 1 | rank 6 | overall 9.6 | Q 7 + F 2.6
+Silver | boat 10 | rank 7 | overall 8 | Q 3 + F 5
+Silver | boat 6 | rank 8 | overall 9 | Q 4 + F 5
+Silver | boat 12 | rank 9 | overall 10 | Q 2 + F 8
+Silver | boat 2 | rank 10 | overall 13 | Q 3 + F 10
+Silver | boat 4 | rank 11 | overall 14.4 | Q 1 + F 13.4
+Silver | boat 8 | rank 12 | overall 18 | Q 6 + F 12
+seed 136: overall
+Qualifying | boat 6 | rank 1 | overall 8
+Qualifying | boat 3 | rank 2 | overall 10
+Qualifying | boat 1 | rank 3 | overall 12
+Qualifying | boat 4 | rank 4 | overall 12
+Qualifying | boat 8 | rank 5 | overall 12.8
+Qualifying | boat 9 | rank 6 | overall 16
+Qualifying | boat 7 | rank 7 | overall 16.8
+Qualifying | boat 2 | rank 8 | overall 17
+Qualifying | boat 5 | rank 9 | overall 23
+seed 137: overall
+Gold | boat 1 | rank 1 | overall 13 | Q 7 + F 6
+Gold | boat 4 | rank 2 | overall 17.6 | Q 6 + F 11.6
+Silver | boat 2 | rank 3 | overall 20 | Q 12 + F 8
+Bronze | boat 3 | rank 4 | overall 18 | Q 10 + F 8
+seed 138: overall
+Gold | boat 3 | rank 1 | overall 12.7 | Q 7.7 + F 5
+Gold | boat 9 | rank 2 | overall 17.1 | Q 10 + F 7.1
+Gold | boat 11 | rank 3 | overall 19 | Q 12 + F 7
+Gold | boat 7 | rank 4 | overall 22 | Q 10 + F 12
+Gold | boat 5 | rank 5 | overall 22.1 | Q 16 + F 6.1
+Gold | boat 1 | rank 6 | overall 24.6 | Q 14.6 + F 10
+Silver | boat 2 | rank 7 | overall 10 | Q 10 + F 0
+Silver | boat 12 | rank 8 | overall 11.5 | Q 11.5 + F 0
+Silver | boat 4 | rank 9 | overall 12.1 | Q 12.1 + F 0
+Silver | boat 10 | rank 10 | overall 12.3 | Q 12.3 + F 0
+Silver | boat 6 | rank 11 | overall 15 | Q 15 + F 0
+Silver | boat 8 | rank 12 | overall 19 | Q 19 + F 0
+seed 139: overall
+Qualifying | boat 3 | rank 1 | overall 5
+Qualifying | boat 10 | rank 2 | overall 5
+Qualifying | boat 1 | rank 3 | overall 7
+Qualifying | boat 6 | rank 4 | overall 7.8
+Qualifying | boat 5 | rank 5 | overall 9
+Qualifying | boat 11 | rank 6 | overall 10
+Qualifying | boat 9 | rank 7 | overall 11
+Qualifying | boat 7 | rank 8 | overall 12
+Qualifying | boat 2 | rank 9 | overall 13
+Qualifying | boat 4 | rank 10 | overall 16
+Qualifying | boat 8 | rank 11 | overall 20
+Qualifying | boat 12 | rank 12 | overall 21
+seed 140: overall
+Gold | boat 1 | rank 1 | overall 8 | Q 6 + F 2
+Gold | boat 5 | rank 2 | overall 8 | Q 4 + F 4
+Gold | boat 3 | rank 3 | overall 11 | Q 8 + F 3
+Silver | boat 4 | rank 4 | overall 12 | Q 6 + F 6
+Silver | boat 6 | rank 5 | overall 13 | Q 6 + F 7
+Silver | boat 2 | rank 6 | overall 16 | Q 6 + F 10
+seed 141: overall
+Gold | boat 1 | rank 1 | overall 16 | Q 8 + F 8
+Gold | boat 7 | rank 2 | overall 17 | Q 10 + F 7
+Gold | boat 5 | rank 3 | overall 22 | Q 10 + F 12
+Gold | boat 3 | rank 4 | overall 24 | Q 15 + F 9
+Silver | boat 2 | rank 5 | overall 11 | Q 9 + F 2
+Silver | boat 6 | rank 6 | overall 14 | Q 11 + F 3
+Silver | boat 4 | rank 7 | overall 17 | Q 15 + F 2
+seed 142: overall
+Qualifying | boat 1 | rank 1 | overall 7
+Qualifying | boat 8 | rank 2 | overall 8
+Qualifying | boat 2 | rank 3 | overall 9
+Qualifying | boat 6 | rank 4 | overall 9
+Qualifying | boat 7 | rank 4 | overall 9
+Qualifying | boat 5 | rank 6 | overall 10
+Qualifying | boat 4 | rank 7 | overall 13
+Qualifying | boat 3 | rank 8 | overall 15
+seed 143: overall
+Qualifying | boat 3 | rank 1 | overall 7
+Qualifying | boat 7 | rank 2 | overall 8
+Qualifying | boat 5 | rank 3 | overall 8
+Qualifying | boat 2 | rank 4 | overall 9
+Qualifying | boat 4 | rank 5 | overall 9.7
+Qualifying | boat 1 | rank 6 | overall 10
+Qualifying | boat 6 | rank 7 | overall 11
+Qualifying | boat 8 | rank 8 | overall 11
+seed 144: overall
+Qualifying | boat 4 | rank 1 | overall 12
+Qualifying | boat 1 | rank 2 | overall 13.2
+Qualifying | boat 5 | rank 3 | overall 16
+Qualifying | boat 7 | rank 4 | overall 17
+Qualifying | boat 3 | rank 5 | overall 19
+Qualifying | boat 6 | rank 6 | overall 23
+Qualifying | boat 8 | rank 7 | overall 25.6
+Qualifying | boat 2 | rank 8 | overall 26
+seed 145: overall
+Gold | boat 5 | rank 1 | overall 12 | Q 4 + F 8
+Gold | boat 7 | rank 2 | overall 12.1 | Q 6.1 + F 6
+Gold | boat 11 | rank 3 | overall 16.9 | Q 8 + F 8.9
+Gold | boat 3 | rank 4 | overall 17 | Q 9 + F 8
+Gold | boat 1 | rank 5 | overall 17 | Q 11 + F 6
+Gold | boat 9 | rank 6 | overall 18.2 | Q 12 + F 6.2
+Gold | boat 13 | rank 7 | overall 20 | Q 14 + F 6
+Silver | boat 6 | rank 8 | overall 15.2 | Q 8 + F 7.2
+Silver | boat 4 | rank 9 | overall 16 | Q 8 + F 8
+Silver | boat 2 | rank 10 | overall 17.4 | Q 9 + F 8.4
+Silver | boat 12 | rank 11 | overall 18 | Q 11 + F 7
+Silver | boat 8 | rank 12 | overall 18.2 | Q 10 + F 8.2
+Silver | boat 10 | rank 13 | overall 25 | Q 11 + F 14
+seed 146: overall
+Gold | boat 1 | rank 1 | overall 15 | Q 11 + F 4
+Gold | boat 4 | rank 2 | overall 18 | Q 12 + F 6
+Silver | boat 5 | rank 3 | overall 12 | Q 7 + F 5
+Silver | boat 2 | rank 4 | overall 13 | Q 10 + F 3
+Bronze | boat 3 | rank 5 | overall 9 | Q 9 + F 0
+seed 147: overall
+Gold | boat 5 | rank 1 | overall 15 | Q 9 + F 6
+Gold | boat 3 | rank 2 | overall 18 | Q 12 + F 6
+Gold | boat 1 | rank 3 | overall 21 | Q 15 + F 6
+Silver | boat 6 | rank 4 | overall 16 | Q 9 + F 7
+Silver | boat 2 | rank 5 | overall 18.6 | Q 9.6 + F 9
+Silver | boat 4 | rank 6 | overall 21 | Q 12 + F 9
+seed 148: overall
+Gold | boat 7 | rank 1 | overall 12.1 | Q 2 + F 10.1
+Gold | boat 4 | rank 2 | overall 14 | Q 1 + F 13
+Gold | boat 10 | rank 3 | overall 16 | Q 2 + F 14
+Gold | boat 1 | rank 4 | overall 17 | Q 4 + F 13
+Silver | boat 8 | rank 5 | overall 4 | Q 1 + F 3
+Silver | boat 5 | rank 6 | overall 5 | Q 3 + F 2
+Silver | boat 2 | rank 7 | overall 7 | Q 4 + F 3
+Bronze | boat 3 | rank 8 | overall 12 | Q 2 + F 10
+Bronze | boat 9 | rank 9 | overall 13.8 | Q 2.8 + F 11
+Bronze | boat 6 | rank 10 | overall 23 | Q 11 + F 12
+seed 149: overall
+Qualifying | boat 1 | rank 1 | overall 3
+Qualifying | boat 3 | rank 2 | overall 3
+Qualifying | boat 2 | rank 3 | overall 4
+Qualifying | boat 4 | rank 4 | overall 4
+Qualifying | boat 11 | rank 5 | overall 4
+Qualifying | boat 6 | rank 6 | overall 4
+Qualifying | boat 13 | rank 7 | overall 4
+Qualifying | boat 9 | rank 8 | overall 5
+Qualifying | boat 12 | rank 9 | overall 5.7
+Qualifying | boat 7 | rank 10 | overall 6
+Qualifying | boat 5 | rank 11 | overall 8
+Qualifying | boat 10 | rank 12 | overall 8
+Qualifying | boat 8 | rank 13 | overall 10
+seed 150: overall
+Gold | boat 7 | rank 1 | overall 6.6 | Q 2 + F 4.6
+Gold | boat 13 | rank 2 | overall 7 | Q 3 + F 4
+Gold | boat 3 | rank 3 | overall 8 | Q 2 + F 6
+Gold | boat 9 | rank 4 | overall 10 | Q 3 + F 7
+Gold | boat 11 | rank 5 | overall 12 | Q 5 + F 7
+Gold | boat 1 | rank 6 | overall 14 | Q 4 + F 10
+Gold | boat 5 | rank 7 | overall 15 | Q 4 + F 11
+Silver | boat 12 | rank 8 | overall 2.8 | Q 2.8 + F 0
+Silver | boat 8 | rank 9 | overall 3 | Q 3 + F 0
+Silver | boat 6 | rank 10 | overall 3 | Q 3 + F 0
+Silver | boat 10 | rank 11 | overall 5 | Q 5 + F 0
+Silver | boat 2 | rank 12 | overall 7 | Q 7 + F 0
+Silver | boat 4 | rank 13 | overall 9 | Q 9 + F 0"
+`;
