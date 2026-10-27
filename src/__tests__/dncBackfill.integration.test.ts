@@ -97,7 +97,11 @@ function seed() {
        VALUES (${round}, ${EVENT_ID}, 'Heat A${round}', 'Qualifying');`,
     );
     db.exec(
-      `INSERT INTO Races (race_id, heat_id, race_number) VALUES (${round}, ${round}, ${round});`,
+      // race_number counts races WITHIN a heat, so a round's single race is
+      // race 1 of its heat — exactly what submitHeatRaceScoresAtomic writes.
+      // (This fixture used race_number = round, which production never
+      // produces, and so hid the backfill collapsing every round into one.)
+      `INSERT INTO Races (race_id, heat_id, race_number) VALUES (${round}, ${round}, 1);`,
     );
 
     // The late entrant appears in the final round's heat only.
@@ -138,11 +142,13 @@ function fleetLeaderboardRows(db: any) {
 function scoresFor(db: any, boat_id: number) {
   return db
     .prepare(
-      `SELECT r.race_number AS race_number, s.points AS points, s.status AS status
+      `SELECT CAST(substr(h.heat_name, 7) AS INTEGER) AS round,
+              s.points AS points, s.status AS status
        FROM Scores s
        JOIN Races r ON r.race_id = s.race_id
+       JOIN Heats h ON h.heat_id = r.heat_id
        WHERE s.boat_id = ?
-       ORDER BY r.race_number`,
+       ORDER BY r.race_id`,
     )
     .all(boat_id);
 }
@@ -163,10 +169,10 @@ describe('DNC backfill for races a boat missed (RRS A5.1 / SHRS 5.3)', () => {
 
     // Largest heat is round 4's five boats, so SHRS 5.2 puts DNC at 5 + 1.
     expect(scoresFor(db, LATE_ENTRANT)).toEqual([
-      { race_number: 1, points: 6, status: 'DNC' },
-      { race_number: 2, points: 6, status: 'DNC' },
-      { race_number: 3, points: 6, status: 'DNC' },
-      { race_number: 4, points: 5, status: 'FINISHED' },
+      { round: 1, points: 6, status: 'DNC' },
+      { round: 2, points: 6, status: 'DNC' },
+      { round: 3, points: 6, status: 'DNC' },
+      { round: 4, points: 5, status: 'FINISHED' },
     ]);
   });
 
@@ -174,10 +180,10 @@ describe('DNC backfill for races a boat missed (RRS A5.1 / SHRS 5.3)', () => {
     ensureDncScoresForMissedQualifyingRaces(EVENT_ID);
 
     expect(scoresFor(db, NEVER_SAILED)).toEqual([
-      { race_number: 1, points: 6, status: 'DNC' },
-      { race_number: 2, points: 6, status: 'DNC' },
-      { race_number: 3, points: 6, status: 'DNC' },
-      { race_number: 4, points: 6, status: 'DNC' },
+      { round: 1, points: 6, status: 'DNC' },
+      { round: 2, points: 6, status: 'DNC' },
+      { round: 3, points: 6, status: 'DNC' },
+      { round: 4, points: 6, status: 'DNC' },
     ]);
   });
 
@@ -185,10 +191,10 @@ describe('DNC backfill for races a boat missed (RRS A5.1 / SHRS 5.3)', () => {
     ensureDncScoresForMissedQualifyingRaces(EVENT_ID);
 
     expect(scoresFor(db, 1)).toEqual([
-      { race_number: 1, points: 1, status: 'FINISHED' },
-      { race_number: 2, points: 1, status: 'FINISHED' },
-      { race_number: 3, points: 1, status: 'FINISHED' },
-      { race_number: 4, points: 1, status: 'FINISHED' },
+      { round: 1, points: 1, status: 'FINISHED' },
+      { round: 2, points: 1, status: 'FINISHED' },
+      { round: 3, points: 1, status: 'FINISHED' },
+      { round: 4, points: 1, status: 'FINISHED' },
     ]);
   });
 
@@ -209,6 +215,84 @@ describe('DNC backfill for races a boat missed (RRS A5.1 / SHRS 5.3)', () => {
     ensureCompleteRaceScoresForEvent(EVENT_ID, 'Final');
 
     expect(scoresFor(db, LATE_ENTRANT)).toHaveLength(1);
+  });
+
+  describe('multi-heat rounds (every qualifying race is race 1 of its heat)', () => {
+    /**
+     * Two heats per round, boats 1-2 in Heat A<n>, 3-4 in Heat B<n>, boat 99
+     * entered but placed in no heat — the shape left behind when an entry is
+     * added after the heats were built.
+     */
+    function seedMultiHeat(rounds: number, scoredHeatsInLastRound: string[]) {
+      const multi = new DatabaseSync(':memory:');
+      multi.exec(`
+        CREATE TABLE Boat_Event (boat_event_id INTEGER PRIMARY KEY AUTOINCREMENT, boat_id INTEGER, event_id INTEGER);
+        CREATE TABLE Heats (heat_id INTEGER PRIMARY KEY, event_id INTEGER NOT NULL, heat_name TEXT NOT NULL, heat_type TEXT NOT NULL);
+        CREATE TABLE Races (race_id INTEGER PRIMARY KEY AUTOINCREMENT, heat_id INTEGER NOT NULL, race_number INTEGER NOT NULL);
+        CREATE TABLE Heat_Boat (heat_id INTEGER NOT NULL, boat_id INTEGER NOT NULL);
+        CREATE TABLE Scores (score_id INTEGER PRIMARY KEY AUTOINCREMENT, race_id INTEGER NOT NULL, boat_id INTEGER NOT NULL, position INTEGER NOT NULL, points REAL NOT NULL, status TEXT NOT NULL);
+      `);
+      [1, 2, 3, 4, 99].forEach((boat) =>
+        multi.exec(
+          `INSERT INTO Boat_Event (boat_id, event_id) VALUES (${boat}, ${EVENT_ID});`,
+        ),
+      );
+      let heatId = 0;
+      for (let round = 1; round <= rounds; round += 1) {
+        [
+          ['A', [1, 2]],
+          ['B', [3, 4]],
+        ].forEach(([letter, boats]) => {
+          heatId += 1;
+          multi.exec(
+            `INSERT INTO Heats VALUES (${heatId}, ${EVENT_ID}, 'Heat ${letter}${round}', 'Qualifying');`,
+          );
+          (boats as number[]).forEach((boat) =>
+            multi.exec(`INSERT INTO Heat_Boat VALUES (${heatId}, ${boat});`),
+          );
+          const sailed =
+            round < rounds || scoredHeatsInLastRound.includes(String(letter));
+          if (!sailed) return;
+          const { lastInsertRowid: raceId } = multi
+            .prepare('INSERT INTO Races (heat_id, race_number) VALUES (?, 1)')
+            .run(heatId);
+          (boats as number[]).forEach((boat, index) =>
+            multi.exec(
+              `INSERT INTO Scores (race_id, boat_id, position, points, status)
+               VALUES (${raceId}, ${boat}, ${index + 1}, ${index + 1}, 'FINISHED');`,
+            ),
+          );
+        });
+      }
+      mockDbHolder.current = multi;
+      return multi;
+    }
+
+    const statusesFor = (handle: any, boat: number) =>
+      handle
+        .prepare('SELECT status FROM Scores WHERE boat_id = ? ORDER BY race_id')
+        .all(boat)
+        .map((row: { status: string }) => row.status);
+
+    it('scores a boat in no heat DNC once per round, not once per event', () => {
+      const multi = seedMultiHeat(3, ['A', 'B']);
+
+      expect(ensureDncScoresForMissedQualifyingRaces(EVENT_ID)).toBe(3);
+      expect(statusesFor(multi, 99)).toEqual(['DNC', 'DNC', 'DNC']);
+      multi.close();
+    });
+
+    it('does not score a heat that has not sailed the current round yet', () => {
+      // Round 3: Heat A3 is in, Heat B3 has not raced. Boats 3 and 4 are not
+      // missing a race — their heat simply has not started — and boat 99 is
+      // only scored for the two COMPLETED rounds.
+      const multi = seedMultiHeat(3, ['A']);
+
+      expect(ensureDncScoresForMissedQualifyingRaces(EVENT_ID)).toBe(2);
+      expect(statusesFor(multi, 3)).toEqual(['FINISHED', 'FINISHED']);
+      expect(statusesFor(multi, 99)).toEqual(['DNC', 'DNC']);
+      multi.close();
+    });
   });
 
   describe('SHRS 4.2 fleet assignment', () => {

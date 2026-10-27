@@ -226,3 +226,18 @@ export function getHeatBaseFromName(heat_name: string): string {
   }
   return match[1];
 }
+
+/**
+ * The qualifying round a heat belongs to: the numeric suffix of its name
+ * ("Heat B3" -> 3). Every round of a progressive or pre-assigned series is a
+ * fresh set of heats, so this — not `Races.race_number`, which counts races
+ * WITHIN one heat and is therefore 1 for nearly every qualifying race — is what
+ * tells two rounds apart. Returns null for a name that is not a qualifying heat.
+ */
+export function getHeatRoundFromName(heat_name: string): number | null {
+  const match = String(heat_name).match(/Heat\s+([A-Z]+)(\d*)/);
+  if (!match) {
+    return null;
+  }
+  return match[2] ? parseInt(match[2], 10) : 0;
+}

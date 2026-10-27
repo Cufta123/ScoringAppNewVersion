@@ -129,7 +129,12 @@ const dbMock = {
     // fixtures supply the leaderboard rows directly, so every entered boat is
     // already scored for every round and the probe finds nothing to backfill.
     // The fleet split these tests assert on is unaffected either way.
-    if (sqlContains(sql, 'CROSS JOIN') && sqlContains(sql, 'FROM Boat_Event')) {
+    if (
+      sqlContains(
+        sql,
+        "SELECT heat_id, heat_name FROM Heats WHERE event_id = ? AND heat_type = 'Qualifying'",
+      )
+    ) {
       return { all: jest.fn(() => []) };
     }
 

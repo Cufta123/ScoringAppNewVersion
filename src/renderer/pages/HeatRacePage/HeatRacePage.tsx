@@ -254,40 +254,43 @@ function HeatRacePage() {
 
   // Contextual action: invoked from inside the selected heat card.
   const undoLastScoredRace = async (heat: ScoringHeat) => {
-    // If a later round was already built from this round's results, the user
-    // must know the redistribution will NOT be undone with the race.
-    let laterRoundWarning = '';
+    // If a later round was already built from this round's results, undoing
+    // this race would leave that round seeded from results that no longer
+    // exist (SHRS 3.1(2)). The main process refuses it; say so up front
+    // instead of asking for a confirmation that can only fail.
     if (event) {
+      let laterRoundNames: string[] = [];
       try {
         const allHeats = await heatRaceDB.readAllHeats(event.event_id);
         const nameMatch = heat.heat_name.match(/Heat ([A-Z]+)(\d+)/);
         if (nameMatch) {
           const [, base, suffixText] = nameMatch;
           const suffix = parseInt(suffixText, 10);
-          const hasLaterRound = (allHeats || []).some((other) => {
-            const otherMatch = other.heat_name.match(/Heat ([A-Z]+)(\d+)/);
-            return (
-              otherMatch != null &&
-              otherMatch[1] === base &&
-              parseInt(otherMatch[2], 10) > suffix
-            );
-          });
-          if (hasLaterRound) {
-            laterRoundWarning =
-              '\n\nWarning: a later round of heats was already created from ' +
-              "this round's results. Undoing this race does NOT undo that " +
-              'redistribution, so the next round will no longer match the ' +
-              'results it was seeded from. Consider "Undo Heat ' +
-              'Redistribution" first.';
-          }
+          laterRoundNames = (allHeats || [])
+            .filter((other) => {
+              const otherMatch = other.heat_name.match(/Heat ([A-Z]+)(\d+)/);
+              return (
+                otherMatch != null &&
+                otherMatch[1] === base &&
+                parseInt(otherMatch[2], 10) > suffix
+              );
+            })
+            .map((other) => other.heat_name);
         }
       } catch (_error) {
-        // Best-effort warning only — the confirm below still protects.
+        // Best-effort pre-check only — the main process enforces the rule.
+      }
+      if (laterRoundNames.length > 0) {
+        reportInfo(
+          `The next round (${laterRoundNames.join(', ')}) was already built from this round's results, so this race can't be undone on its own.\n\nUse "Undo Heat Redistribution" first, then undo the race.`,
+          'Undo not possible yet',
+        );
+        return;
       }
     }
 
     const confirmed = await confirmAction(
-      `Undo the last scored race in "${heat.heat_name}"?\n\nThis will permanently delete that race's scores.${laterRoundWarning}`,
+      `Undo the last scored race in "${heat.heat_name}"?\n\nThis will permanently delete that race's scores.`,
       'Undo Last Race',
       { confirmLabel: 'Undo race', confirmClassName: 'btn-danger' },
     );

@@ -14,6 +14,7 @@ import {
 } from './leaderboardRecompute';
 import { unshieldBoatFromAssignmentSnapshot } from './raceAssignmentSnapshot';
 import {
+  getHeatRoundFromName,
   getScoringPenaltyPoints,
   isNonScoringPenalty,
   normalizeScoreStatus,
@@ -110,15 +111,29 @@ export function seedRaceWithDefaultDnsScores(
  * DNC score for it. Backfilling those makes the cap unreachable rather than
  * load-bearing.
  *
- * A round is one `race_number` across that round's heats. A boat who sailed
- * none of them was in no heat, so there is no heat whose race is naturally
+ * What counts as one race of the series. Each qualifying round is a fresh set
+ * of heats ("Heat A3", "Heat B3", …) and `Races.race_number` counts races
+ * WITHIN a heat, so in a multi-heat event every qualifying race is stored with
+ * race_number 1. A race of the series is therefore identified by the heat's
+ * round (its name suffix) AND the race_number inside it:
+ *   - multi-heat:  A1/B1 race 1, A2/B2 race 1, … -> rounds (1,1), (2,1), …
+ *   - single heat: A1 race 1, A1 race 2, …       -> rounds (1,1), (1,2), …
+ * Keying on race_number alone (as this used to) collapsed every round of a
+ * multi-heat event into one, so a boat who missed three rounds got one DNC.
+ *
+ * A round is only backfilled once EVERY heat of that round has sailed it.
+ * Mid-round (Heat A3 scored, Heat B3 not yet) the B3 boats simply have not
+ * raced; scoring them DNC would be wrong and would leave them with two scores
+ * for the round once B3 is entered.
+ *
+ * A boat who sailed in no heat of a round has no heat whose race is naturally
  * hers; the row is anchored to the round's first race purely because Scores
  * needs a race_id. Nothing reads it that way: heat assignment ranks boats from
  * Heat_Boat rather than Scores (`getRankedBoatsInHeatForRace`), the RRS A7 place
- * walk skips every non-finisher (`raceTieScoring`), and the leaderboard groups
- * a boat's scores by `race_number`. Points are re-derived against the current
- * largest heat on every recompute (`renormalizeNonFinisherScores`), so the
- * anchor cannot freeze a stale value either.
+ * walk skips every non-finisher (`raceTieScoring`), and the leaderboard orders
+ * a boat's scores by race. Points are re-derived against the current largest
+ * heat on every recompute (`renormalizeNonFinisherScores`), so the anchor
+ * cannot freeze a stale value either.
  *
  * Qualifying only. In the Final Series a boat races in exactly one fleet
  * (SHRS 4.1) and fleets may sail different numbers of races (4.5), so a Gold
@@ -126,33 +141,105 @@ export function seedRaceWithDefaultDnsScores(
  * already covered by the DNS repair above, which walks Heat_Boat.
  */
 export function ensureDncScoresForMissedQualifyingRaces(event_id: any): number {
-  const missingRounds = db
+  const heats = db
     .prepare(
-      `SELECT DISTINCT be.boat_id AS boat_id, rounds.anchor_race_id AS race_id
-       FROM Boat_Event be
-       CROSS JOIN (
-         SELECT r.race_number AS race_number, MIN(r.race_id) AS anchor_race_id
-         FROM Races r
-         JOIN Heats h ON h.heat_id = r.heat_id
-         WHERE h.event_id = ? AND h.heat_type = 'Qualifying'
-         GROUP BY r.race_number
-       ) rounds
-       WHERE be.event_id = ?
-         AND NOT EXISTS (
-           SELECT 1
-           FROM Scores s
-           JOIN Races r2 ON r2.race_id = s.race_id
-           JOIN Heats h2 ON h2.heat_id = r2.heat_id
-           WHERE h2.event_id = ?
-             AND h2.heat_type = 'Qualifying'
-             AND r2.race_number = rounds.race_number
-             AND s.boat_id = be.boat_id
-         )`,
+      `SELECT heat_id, heat_name FROM Heats
+       WHERE event_id = ? AND heat_type = 'Qualifying'`,
     )
-    .all(event_id, event_id, event_id) as {
-    boat_id: number;
+    .all(event_id) as { heat_id: number; heat_name: string }[];
+
+  if (heats.length === 0) {
+    return 0;
+  }
+
+  const roundOfHeat = new Map<number, number>();
+  const heatsInRound = new Map<number, number>();
+  heats.forEach((heat) => {
+    const round = getHeatRoundFromName(heat.heat_name);
+    if (round === null) return;
+    roundOfHeat.set(Number(heat.heat_id), round);
+    heatsInRound.set(round, (heatsInRound.get(round) ?? 0) + 1);
+  });
+
+  const races = db
+    .prepare(
+      `SELECT r.race_id, r.race_number, r.heat_id
+       FROM Races r
+       JOIN Heats h ON h.heat_id = r.heat_id
+       WHERE h.event_id = ? AND h.heat_type = 'Qualifying'
+       ORDER BY r.race_id ASC`,
+    )
+    .all(event_id) as {
     race_id: number;
+    race_number: number;
+    heat_id: number;
   }[];
+
+  // Series race key -> its races; race_id -> series race key.
+  const seriesRaces = new Map<
+    string,
+    { anchorRaceId: number; round: number; heatIds: Set<number> }
+  >();
+  const keyOfRace = new Map<number, string>();
+  races.forEach((race) => {
+    const round = roundOfHeat.get(Number(race.heat_id));
+    if (round === undefined) return;
+    const key = `${round}:${race.race_number}`;
+    keyOfRace.set(Number(race.race_id), key);
+    const entry = seriesRaces.get(key);
+    if (entry) {
+      entry.heatIds.add(Number(race.heat_id));
+    } else {
+      seriesRaces.set(key, {
+        anchorRaceId: Number(race.race_id),
+        round,
+        heatIds: new Set([Number(race.heat_id)]),
+      });
+    }
+  });
+
+  const completedKeys = [...seriesRaces.entries()]
+    .filter(([, entry]) => entry.heatIds.size === heatsInRound.get(entry.round))
+    .map(([key]) => key);
+  if (completedKeys.length === 0) {
+    return 0;
+  }
+
+  const scoredKeysByBoat = new Map<string, Set<string>>();
+  (
+    db
+      .prepare(
+        `SELECT s.boat_id, s.race_id
+         FROM Scores s
+         JOIN Races r ON r.race_id = s.race_id
+         JOIN Heats h ON h.heat_id = r.heat_id
+         WHERE h.event_id = ? AND h.heat_type = 'Qualifying'`,
+      )
+      .all(event_id) as { boat_id: number; race_id: number }[]
+  ).forEach((row) => {
+    const key = keyOfRace.get(Number(row.race_id));
+    if (!key) return;
+    const boatKey = String(row.boat_id);
+    if (!scoredKeysByBoat.has(boatKey))
+      scoredKeysByBoat.set(boatKey, new Set());
+    scoredKeysByBoat.get(boatKey)!.add(key);
+  });
+
+  const enteredBoats = db
+    .prepare('SELECT DISTINCT boat_id FROM Boat_Event WHERE event_id = ?')
+    .all(event_id) as { boat_id: number }[];
+
+  const missingRounds: { boat_id: number; race_id: number }[] = [];
+  enteredBoats.forEach(({ boat_id }) => {
+    const scored = scoredKeysByBoat.get(String(boat_id));
+    completedKeys.forEach((key) => {
+      if (scored?.has(key)) return;
+      missingRounds.push({
+        boat_id,
+        race_id: seriesRaces.get(key)!.anchorRaceId,
+      });
+    });
+  });
 
   if (missingRounds.length === 0) {
     return 0;

@@ -76,7 +76,9 @@ jest.mock('../renderer/utils/userFeedback', () => ({
 }));
 
 const event = { event_id: 1, event_name: 'Test Event' };
-const heat = { heat_id: 10, heat_name: 'Heat A2', heat_type: 'Qualifying' };
+// The heat the mocked HeatComponent's undo button acts on. It is the latest
+// round here; the 'later round' test below adds Heat A2 on top of it.
+const heat = { heat_id: 10, heat_name: 'Heat A1', heat_type: 'Qualifying' };
 
 // These actions each chain a confirm dialog and one or more DB round-trips with
 // no visible progress, and every one of them is destructive or builds a round.
@@ -209,5 +211,32 @@ describe('HeatRacePage round-level actions', () => {
 
     gate.resolve({ raceNumber: 1, heatName: 'Heat A1', removedScores: 4 });
     await waitFor(() => expect(undoRace).toBeEnabled());
+  });
+
+  it('explains instead of undoing when the next round was built from this one', async () => {
+    api.readAllHeats.mockResolvedValue([
+      heat,
+      { heat_id: 11, heat_name: 'Heat A2', heat_type: 'Qualifying' },
+    ]);
+    renderPage();
+    const undoRace = await findButton('Undo Race 1');
+
+    await act(async () => {
+      fireEvent.click(undoRace);
+    });
+
+    // eslint-disable-next-line global-require
+    const {
+      reportInfo,
+      confirmAction,
+    } = require('../renderer/utils/userFeedback');
+    await waitFor(() =>
+      expect(reportInfo).toHaveBeenCalledWith(
+        expect.stringContaining('Undo Heat Redistribution'),
+        'Undo not possible yet',
+      ),
+    );
+    expect(confirmAction).not.toHaveBeenCalled();
+    expect(api.undoLastScoredRaceForHeat).not.toHaveBeenCalled();
   });
 });

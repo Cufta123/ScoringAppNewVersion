@@ -59,6 +59,10 @@ import {
 } from '../functions/raceSeeding';
 import { getAssignmentRowsForHeatRace } from '../functions/assignmentShield';
 import {
+  assertQualifyingHeatIsOpen,
+  hasFinalSeriesStarted,
+} from '../functions/seriesGuards';
+import {
   applyRaceResultUpdate,
   applyRaceTieScoring,
   ensureCompleteRaceScoresForEvent,
@@ -572,8 +576,12 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
 
   try {
     const heatRow = db
-      .prepare('SELECT event_id, heat_type FROM Heats WHERE heat_id = ?')
-      .get(heat_id) as { event_id: number; heat_type: string } | undefined;
+      .prepare(
+        'SELECT event_id, heat_type, heat_name FROM Heats WHERE heat_id = ?',
+      )
+      .get(heat_id) as
+      | { event_id: number; heat_type: string; heat_name: string }
+      | undefined;
     if (!heatRow) {
       throw new Error('Heat not found.');
     }
@@ -585,6 +593,15 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
       );
     }
     const isFinalHeat = heatRow.heat_type === 'Final';
+    assertQualifyingHeatIsOpen(
+      {
+        heat_id: Number(heat_id),
+        heat_name: heatRow.heat_name,
+        event_id,
+        heat_type: heatRow.heat_type,
+      },
+      'score a race',
+    );
 
     const boats = db
       .prepare(
@@ -730,6 +747,10 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
           );
         }
         if (allHeatsEqual) {
+          // The round is complete: score boats that sailed in none of its
+          // heats DNC (RRS A5.1 / SHRS 5.3) before the standings are rebuilt,
+          // rather than leaving that to the next leaderboard read.
+          ensureCompleteRaceScoresForEvent(event_id, 'Qualifying');
           recomputeEventLeaderboard(event_id);
         }
       }
@@ -895,7 +916,12 @@ handle(
 
       // Repair any missing score rows as DNS first so boats without scores
       // are ranked last instead of being dropped by the leaderboard join.
-      ensureCompleteRaceScoresForEvent(event_id, 'Qualifying');
+      // The fleet split below reads its boat list from Leaderboard, so a
+      // repair must be followed by a recompute or a boat whose only scores
+      // were just backfilled is left out of every final fleet.
+      if (ensureCompleteRaceScoresForEvent(event_id, 'Qualifying') > 0) {
+        recomputeEventLeaderboard(event_id);
+      }
 
       const leaderboard = db
         .prepare(
@@ -1211,23 +1237,31 @@ handle('undoLastScoredRaceForHeat', async (event, heat_id) => {
     );
   }
 
+  assertQualifyingHeatIsOpen(heatRow, 'undo the last race');
+
   const deleteScores = db.prepare('DELETE FROM Scores WHERE race_id = ?');
   const deleteRace = db.prepare('DELETE FROM Races  WHERE race_id = ?');
 
+  // One transaction for the delete AND the recompute, so a failure can never
+  // leave the race gone with the standings still counting it.
   const transaction = db.transaction(() => {
+    // The SHRS 3.1.5 snapshot references the race, and foreign keys are
+    // enforced with no ON DELETE CASCADE: it has to go first, or any race
+    // carrying a protest decision cannot be undone at all ("FOREIGN KEY
+    // constraint failed" — the bug deleteEvent once had).
+    clearAssignmentSnapshot(lastRace.race_id);
     const removedScores = deleteScores.run(lastRace.race_id).changes;
     deleteRace.run(lastRace.race_id);
+    recomputeEventLeaderboard(heatRow.event_id);
+    // Undoing a FINAL race must refresh the final standings too — the event
+    // leaderboard alone leaves FinalLeaderboard reflecting the deleted race.
+    if (heatRow.heat_type === 'Final') {
+      recomputeFinalLeaderboard(heatRow.event_id);
+    }
     return removedScores;
   });
 
   const removedScores = transaction();
-  clearAssignmentSnapshot(lastRace.race_id);
-  recomputeEventLeaderboard(heatRow.event_id);
-  // Undoing a FINAL race must refresh the final standings too — the event
-  // leaderboard alone leaves FinalLeaderboard reflecting the deleted race.
-  if (heatRow.heat_type === 'Final') {
-    recomputeFinalLeaderboard(heatRow.event_id);
-  }
 
   return {
     success: true,
@@ -1238,6 +1272,11 @@ handle('undoLastScoredRaceForHeat', async (event, heat_id) => {
 });
 
 handle('undoLastScoredRace', async (event, event_id) => {
+  if (hasFinalSeriesStarted(Number(event_id))) {
+    throw new Error(
+      'Cannot undo a qualifying race: the Final Series has already started, so the qualifying series is closed.',
+    );
+  }
   const latestHeats = getLatestQualifyingHeats(event_id);
   checkRaceCountForLatestHeats(latestHeats, db);
 
@@ -1273,16 +1312,18 @@ handle('undoLastScoredRace', async (event, event_id) => {
     let removedRaces = 0;
 
     raceIds.forEach((raceId) => {
+      // Snapshot rows reference the race (FK enforced, no cascade): clear
+      // them before the race, inside the same transaction.
+      clearAssignmentSnapshot(raceId);
       removedScores += deleteScoresByRace.run(raceId).changes;
       removedRaces += deleteRaceById.run(raceId).changes;
     });
 
+    recomputeEventLeaderboard(event_id);
     return { removedScores, removedRaces };
   });
 
   const result = transaction();
-  raceIds.forEach((raceId) => clearAssignmentSnapshot(raceId));
-  recomputeEventLeaderboard(event_id);
 
   return {
     success: true,

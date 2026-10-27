@@ -95,6 +95,28 @@ const dbMock = {
         },
       };
     }
+    if (sql.startsWith('SELECT event_id, heat_type, heat_name FROM Heats')) {
+      return {
+        get: (heatId: number) => ({
+          event_id: 1,
+          heat_type: 'Qualifying',
+          heat_name: heatId === 20 ? 'Heat B1' : 'Heat A1',
+        }),
+      };
+    }
+    // seriesGuards: no final fleets yet, and round 1 is the latest round.
+    if (sql.includes("FROM Heats WHERE event_id = ? AND heat_type = 'Final'")) {
+      return { get: () => ({ count: 0 }) };
+    }
+    if (
+      sql.startsWith(
+        "SELECT heat_name FROM Heats WHERE event_id = ? AND heat_type = 'Qualifying'",
+      )
+    ) {
+      return {
+        all: () => [{ heat_name: 'Heat A1' }, { heat_name: 'Heat B1' }],
+      };
+    }
     if (sql.startsWith('SELECT event_id, heat_type FROM Heats')) {
       return { get: () => ({ event_id: 1, heat_type: 'Qualifying' }) };
     }

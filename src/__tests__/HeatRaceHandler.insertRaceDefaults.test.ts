@@ -152,10 +152,15 @@ const dbMock = {
       return { all: jest.fn(() => []) };
     }
 
-    // RRS A5.1 / SHRS 5.3 DNC backfill: this fixture's boat sailed every round,
-    // so the "entered but unscored for this round" probe finds nothing. Present
-    // only so the repair path can run; the DNS repair is what this file asserts.
-    if (sqlContains(sql, 'CROSS JOIN') && sqlContains(sql, 'FROM Boat_Event')) {
+    // RRS A5.1 / SHRS 5.3 DNC backfill: answering "no qualifying heats" makes
+    // it a no-op. Present only so the repair path can run; the DNS repair is
+    // what this file asserts (dncBackfill.integration covers the backfill).
+    if (
+      sqlContains(
+        sql,
+        "SELECT heat_id, heat_name FROM Heats WHERE event_id = ? AND heat_type = 'Qualifying'",
+      )
+    ) {
       return { all: jest.fn(() => []) };
     }
 
