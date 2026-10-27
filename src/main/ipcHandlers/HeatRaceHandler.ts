@@ -14,8 +14,10 @@ import { getEventDiscardConfig } from '../functions/discardConfig';
 import {
   OverallTiePacket,
   buildOverallTiePacket,
+  compareOverallTiePackets,
   resolveOverallTieGroupSequentially,
 } from '../functions/overallTieBreak';
+import { findUnbrokenTies } from '../functions/scoringUtils';
 import { fleetNameForIndex, fleetRank } from '../../shared/fleetNames';
 import { orderFinalLeaderboardRows } from '../functions/finalLeaderboardOrder';
 import explainTieBreak from '../functions/explainTieBreak';
@@ -936,7 +938,10 @@ handle(
         WHERE lb.event_id = ? AND h.event_id = ? AND h.heat_type = 'Qualifying'
           AND sc.race_id IS NOT NULL
         GROUP BY lb.boat_id
-        ORDER BY lb.place ASC`,
+        -- Boats that remain tied share a place. No rule orders them for the
+        -- fleet split, so fall back to boat_id purely to make the split
+        -- repeatable (the same data always gives the same fleets).
+        ORDER BY lb.place ASC, lb.boat_id ASC`,
         )
         .all(event_id, event_id) as Array<{
         boat_id: number;
@@ -1828,6 +1833,8 @@ handle('readOverallLeaderboard', async (event, event_id) => {
   });
 
   const groupedAndResolved: any[] = [];
+  // Boats still level after the full overall tie-break share a rank.
+  const tiedWithAbove = new Set<string>();
   for (let i = 0; i < results.length; ) {
     const fleet = results[i].placement_group;
     const points = results[i].overall_points;
@@ -1845,19 +1852,36 @@ handle('readOverallLeaderboard', async (event, event_id) => {
     if (tieGroup.length <= 1) {
       groupedAndResolved.push(...tieGroup);
     } else {
-      groupedAndResolved.push(
-        ...resolveOverallTieGroupSequentially(tieGroup, getTiePacket),
+      const resolved = resolveOverallTieGroupSequentially(
+        tieGroup,
+        getTiePacket,
       );
+      findUnbrokenTies(resolved, (left: any, right: any) =>
+        compareOverallTiePackets(
+          left.boat_id,
+          right.boat_id,
+          getTiePacket(left.boat_id),
+          getTiePacket(right.boat_id),
+        ),
+      ).forEach((id) => tiedWithAbove.add(id));
+      groupedAndResolved.push(...resolved);
     }
   }
 
   results.splice(0, results.length, ...groupedAndResolved);
 
-  // Assign overall rank: Gold before Silver before Bronze before Copper
-  let rank = 1;
-  results.forEach((row: any) => {
-    row.overall_rank = rank;
-    rank += 1;
+  // Assign overall rank: Gold before Silver before Bronze before Copper. A
+  // boat still tied with the one above (same fleet, same points, tie-break
+  // undecided) shares its rank: 1, 2, 2, 4.
+  results.forEach((row: any, index: number) => {
+    const above = results[index - 1];
+    row.overall_rank =
+      above &&
+      above.placement_group === row.placement_group &&
+      above.overall_points === row.overall_points &&
+      tiedWithAbove.has(String(row.boat_id))
+        ? above.overall_rank
+        : index + 1;
   });
 
   console.log(

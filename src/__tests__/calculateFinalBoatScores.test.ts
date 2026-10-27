@@ -260,11 +260,10 @@ describe('Tie-breaking A82 within final group', () => {
   });
 
   // LB-12 / RULE-M8: when neither A8.1 nor A8.2 can separate two boats they
-  // stay tied and MUST NOT be reordered by internal boat_id. The comparator
-  // returns 0, so the stable input order survives. Here boatZ is listed before
-  // boatA; the old `localeCompare(boat_id)` fallback would have pulled boatA to
-  // 1st. A `return 0` fallback keeps boatZ first (input order preserved).
-  it('leaves a perfectly-tied final group in stable order (no boat_id fallback)', () => {
+  // stay tied and MUST NOT be reordered by internal boat_id. They share the
+  // place. The row order keeps the input order (boatZ listed first), so the
+  // old `localeCompare(boat_id)` fallback is still visibly absent.
+  it('leaves a perfectly-tied final group tied, in input order (no boat_id fallback)', () => {
     setupMockDb(
       { boatZ: [3, 1], boatA: [3, 1] },
       { boatZ: [3, 1], boatA: [3, 1] },
@@ -276,7 +275,8 @@ describe('Tie-breaking A82 within final group', () => {
     const gold = groupTables.get('Gold')!;
     const byBoat = Object.fromEntries(gold.map((b) => [b.boat_id, b.place]));
     expect(byBoat.boatZ).toBe(1);
-    expect(byBoat.boatA).toBe(2);
+    expect(byBoat.boatA).toBe(1);
+    expect(gold.map((b) => b.boat_id)).toEqual(['boatZ', 'boatA']);
   });
 });
 

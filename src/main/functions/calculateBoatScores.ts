@@ -4,8 +4,10 @@ import {
   getExcludeCountForConfig,
 } from './discardConfig';
 import {
+  assignPlaces,
   capExcludeCountForBoat,
   compareScoreArrays,
+  findUnbrokenTies,
   getKeptScores,
   resolveTiesSequentially,
 } from './scoringUtils';
@@ -403,6 +405,9 @@ export default function calculateBoatScores(
     {} as Record<number, string[]>,
   );
 
+  // Boats still level after the full SHRS 5.7 / RRS A8 tie-break.
+  const tiedWithAbove = new Set<string>();
+
   // Fetch and display all scores for boats with the same total points
   Object.entries(boatsWithSamePoints).forEach(([totalPoints, boatIds]) => {
     if (boatIds.length > 1) {
@@ -428,14 +433,17 @@ export default function calculateBoatScores(
       });
 
       // SHRS 2026 5.7(ii)(3): resolve higher-place tie before lower ties.
-      const resolvedOrder = resolveTiesSequentially(sortedScores, (a, b) =>
+      const compareTied = (a: TieCandidate, b: TieCandidate) =>
         compareQualifyingTieCandidates(
           event_id,
           a,
           b,
           isSingleHeatEvent,
           cache,
-        ),
+        );
+      const resolvedOrder = resolveTiesSequentially(sortedScores, compareTied);
+      findUnbrokenTies(resolvedOrder, compareTied).forEach((id) =>
+        tiedWithAbove.add(id),
       );
 
       resolvedOrder.forEach((boat, index) => {
@@ -464,6 +472,10 @@ export default function calculateBoatScores(
       );
     }
   });
+
+  // Boats that remain tied share a place (1, 2, 2, 4) instead of being split
+  // by whichever happened to be read first.
+  assignPlaces(temporaryTable, tiedWithAbove);
 
   // Log the temporary table with places after tie-breaking
   console.log(

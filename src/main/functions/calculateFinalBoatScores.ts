@@ -5,9 +5,11 @@ import {
   getExcludeCountForConfig,
 } from './discardConfig';
 import {
+  assignPlaces,
   capExcludeCountForBoat,
   compareScoreArrays,
   getKeptScores,
+  findUnbrokenTies,
   resolveTiesSequentially,
 } from './scoringUtils';
 
@@ -165,6 +167,9 @@ export default function calculateFinalBoatScores(
       boat.place = index + 1;
     });
 
+    // Boats still level after the full tie-break share a place.
+    const tiedWithAbove = new Set<string>();
+
     const boatsWithSamePoints = table.reduce(
       (acc, boat) => {
         if (!acc[boat.totalPoints]) {
@@ -228,6 +233,9 @@ export default function calculateFinalBoatScores(
           sortedScores,
           compareTieCandidates,
         );
+        findUnbrokenTies(resolvedOrder, compareTieCandidates).forEach((id) =>
+          tiedWithAbove.add(id),
+        );
 
         resolvedOrder.forEach((boat, index) => {
           const boatIndex = table.findIndex((b) => b.boat_id === boat.boat_id);
@@ -248,6 +256,8 @@ export default function calculateFinalBoatScores(
         });
       }
     });
+
+    assignPlaces(table, tiedWithAbove);
   });
 
   return groupTables;
