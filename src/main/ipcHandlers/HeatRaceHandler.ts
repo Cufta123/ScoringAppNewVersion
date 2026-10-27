@@ -42,6 +42,7 @@ import {
 } from '../functions/leaderboardRecompute';
 import {
   getHeatBaseFromName,
+  getHeatRoundFromName,
   getScoringPenaltyPoints,
   normalizeScoreStatus,
   rdgStatuses,
@@ -154,14 +155,61 @@ handle('insertHeat', async (event, event_id, heat_name, heat_type) => {
 handle('insertHeatBoat', async (event, heat_id, boat_id) => {
   const heatRow = db
     .prepare(
-      `SELECT h.event_id
+      `SELECT h.heat_id, h.heat_name, h.heat_type, h.event_id
        FROM Heats h
        WHERE h.heat_id = ?`,
     )
-    .get(heat_id) as { event_id: number } | undefined;
+    .get(heat_id) as
+    | {
+        heat_id: number;
+        heat_name: string;
+        heat_type: string;
+        event_id: number;
+      }
+    | undefined;
 
   if (!heatRow) {
     throw new Error('Heat not found.');
+  }
+
+  // Used to place a late entry (UnassignedEntriesNotice). Only safe where it
+  // cannot rewrite a result: an entered boat, into a qualifying heat of the
+  // current round that has not raced, and not already in that round.
+  if (heatRow.heat_type === 'Final') {
+    throw new Error(
+      'Boats cannot be added to a Final Series fleet: fleets are fixed once the Final Series starts (SHRS 4.1).',
+    );
+  }
+  assertQualifyingHeatIsOpen(heatRow, 'add a boat');
+  const entered = db
+    .prepare('SELECT 1 FROM Boat_Event WHERE boat_id = ? AND event_id = ?')
+    .get(boat_id, heatRow.event_id);
+  if (!entered) {
+    throw new Error('That boat is not entered in this event.');
+  }
+  if (getRaceCountForHeat(Number(heat_id)) > 0) {
+    throw new Error(
+      `"${heatRow.heat_name}" has already raced, so a boat cannot join it. Add her to a heat that has not raced yet.`,
+    );
+  }
+  const round = getHeatRoundFromName(heatRow.heat_name);
+  const alreadyInRound = (
+    db
+      .prepare(
+        `SELECT h.heat_name FROM Heat_Boat hb
+         JOIN Heats h ON h.heat_id = hb.heat_id
+         WHERE hb.boat_id = ? AND h.event_id = ? AND h.heat_type = 'Qualifying'`,
+      )
+      .all(boat_id, heatRow.event_id) as { heat_name: string }[]
+  ).find(
+    (row) =>
+      getHeatRoundFromName(row.heat_name) === round &&
+      row.heat_name !== heatRow.heat_name,
+  );
+  if (alreadyInRound) {
+    throw new Error(
+      `That boat is already in ${alreadyInRound.heat_name} this round.`,
+    );
   }
 
   const boatsInHeat = db
