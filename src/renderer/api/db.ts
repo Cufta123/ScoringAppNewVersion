@@ -16,6 +16,7 @@
 // genuinely dynamic / not yet modelled, it is typed `unknown` so callers must
 // narrow rather than silently inheriting `any`.
 
+import type { BoatScoreExplanation } from '../../shared/scoring/explain';
 import type {
   CategoryRow,
   ClubRow,
@@ -137,6 +138,10 @@ export interface HeatRaceDB {
     boatBId: number,
     finalSeries: boolean,
   ): Promise<TieBreakResult | null>;
+  explainBoatScore(
+    eventId: number,
+    boatId: number,
+  ): Promise<BoatScoreExplanation>;
   getFinalSeriesEligibility(eventId: number): Promise<unknown>;
   exportEventSnapshotToFile(...args: unknown[]): Promise<unknown>;
   restoreEventSnapshotFromFile(...args: unknown[]): Promise<unknown>;

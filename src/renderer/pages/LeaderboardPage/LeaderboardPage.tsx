@@ -12,6 +12,9 @@ import SectionDivider from '../../components/leaderboard/SectionDivider';
 import QualifyingTable from '../../components/leaderboard/QualifyingTable';
 import FinalFleetTable from '../../components/leaderboard/FinalFleetTable';
 import RdgLegend from '../../components/leaderboard/RdgLegend';
+import ScoreExplanationDialog, {
+  type ExplainTarget,
+} from '../../components/leaderboard/ScoreExplanationDialog';
 import Breadcrumbs from '../../components/shared/Breadcrumbs';
 import EmptyState from '../../components/shared/EmptyState';
 import LoadingState from '../../components/shared/LoadingState';
@@ -22,7 +25,7 @@ import {
 } from '../../utils/userFeedback';
 import './LeaderboardPage.css';
 import { eventDB } from '../../api/db';
-import type { EventRow } from '../../types';
+import type { EventRow, LeaderboardEntry } from '../../types';
 
 interface LeaderboardContentProps {
   eventId: number;
@@ -64,6 +67,24 @@ function LeaderboardContent({
     getFlagCode,
   } = useLeaderboard(eventId);
   const [liveMessage, setLiveMessage] = useState('Leaderboard loaded.');
+  const [explainTarget, setExplainTarget] = useState<ExplainTarget | null>(
+    null,
+  );
+  const closeExplanation = React.useCallback(() => setExplainTarget(null), []);
+  // A boat's total explains itself on click, except while editing (the
+  // numbers are unsaved) or comparing (a row click selects the boat).
+  const onExplain =
+    editMode || compareMode
+      ? undefined
+      : (entry: LeaderboardEntry) =>
+          setExplainTarget({
+            boatId: entry.boat_id,
+            sail: `${entry.country ?? ''} ${entry.boat_number ?? ''}`.trim(),
+            name: `${entry.name ?? ''} ${entry.surname ?? ''}`.trim(),
+            place: finalSeriesStarted
+              ? (entry.overall_rank ?? null)
+              : (entry.place ?? null),
+          });
 
   useEffect(() => {
     if (onUnsavedChange) {
@@ -170,6 +191,7 @@ function LeaderboardContent({
           onRaceChange={handleRaceChange}
           confirmRdg2={confirmRdg2}
           getFlagCode={getFlagCode}
+          onExplain={onExplain}
         />
       )}
 
@@ -197,6 +219,7 @@ function LeaderboardContent({
                 onRaceChange={handleRaceChange}
                 confirmRdg2={confirmRdg2}
                 getFlagCode={getFlagCode}
+                onExplain={onExplain}
               />
             </>
           ) : (
@@ -216,6 +239,7 @@ function LeaderboardContent({
                 onRaceChange={handleRaceChange}
                 confirmRdg2={confirmRdg2}
                 getFlagCode={getFlagCode}
+                onExplain={onExplain}
               />
             ))
           )}
@@ -246,6 +270,12 @@ function LeaderboardContent({
           />
         );
       })()}
+
+      <ScoreExplanationDialog
+        eventId={eventId}
+        target={explainTarget}
+        onClose={closeExplanation}
+      />
     </div>
   );
 }

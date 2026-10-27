@@ -2,6 +2,7 @@ import React from 'react';
 import Flag from 'react-world-flags';
 import ScoreCell from './ScoreCell';
 import ComparePanel from './ComparePanel';
+import { sumPoints } from '../../../shared/points';
 import type {
   CompareInfo,
   LeaderboardEntry,
@@ -29,6 +30,8 @@ interface QualifyingTableProps {
   onRaceChange: RaceChangeHandler;
   confirmRdg2: () => void;
   getFlagCode: (iocCode: string) => string;
+  /** Opens the score explanation; omitted while editing or comparing. */
+  onExplain?: (entry: LeaderboardEntry) => void;
 }
 
 /**
@@ -47,8 +50,31 @@ function QualifyingTable({
   onRaceChange,
   confirmRdg2,
   getFlagCode,
+  onExplain = undefined,
 }: QualifyingTableProps) {
   if (!leaderboard.length) return null;
+
+  const explainable = (
+    value: number | null | undefined,
+    entry: LeaderboardEntry,
+  ) => {
+    if (value == null || Number.isNaN(value)) return '–';
+    if (!onExplain) return value;
+    return (
+      <button
+        type="button"
+        className="score-explain-btn"
+        aria-label={`How ${value} points was calculated for sail ${entry.boat_number}`}
+        title="How was this calculated?"
+        onClick={(event) => {
+          event.stopPropagation();
+          onExplain(entry);
+        }}
+      >
+        {value}
+      </button>
+    );
+  };
 
   const identityHeaders = ['Rank', 'Name', 'Country', 'Sail #', 'Type'];
   const raceCount = leaderboard[0]?.races?.length || 0;
@@ -216,10 +242,12 @@ function QualifyingTable({
             {leaderboard.map((entry, index) => {
               const isSelected = selectedBoatIds.includes(entry.boat_id);
               const grossSource = entry.race_points || entry.races || [];
-              const grossTotal = grossSource.reduce((sum, r) => {
-                const v = parseFloat(String(r).replace(/[()]/g, ''));
-                return sum + (Number.isNaN(v) ? 0 : v);
-              }, 0);
+              const grossTotal = sumPoints(
+                grossSource.map((r) => {
+                  const v = parseFloat(String(r).replace(/[()]/g, ''));
+                  return Number.isNaN(v) ? 0 : v;
+                }),
+              );
               const overallNet =
                 entry.computed_total ?? entry.total_points_event;
               const stripeBackground =
@@ -313,9 +341,7 @@ function QualifyingTable({
                       borderRight: '2px solid rgba(42,157,143,0.3)',
                     }}
                   >
-                    {overallNet != null && !Number.isNaN(overallNet)
-                      ? overallNet
-                      : '–'}
+                    {explainable(overallNet, entry)}
                   </td>
 
                   {/* Race score cells */}

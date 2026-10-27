@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Flag from 'react-world-flags';
 import ScoreCell from './ScoreCell';
+import { sumPoints } from '../../../shared/points';
 import ComparePanel from './ComparePanel';
 import { FLEET_COLORS } from '../../utils/leaderboardUtils';
 import type {
@@ -26,6 +27,8 @@ interface FinalFleetTableProps {
   onRaceChange: RaceChangeHandler;
   confirmRdg2: () => void;
   getFlagCode: (iocCode: string) => string;
+  /** Opens the score explanation; omitted while editing or comparing. */
+  onExplain?: (entry: LeaderboardEntry) => void;
 }
 
 /**
@@ -48,7 +51,29 @@ function FinalFleetTable({
   onRaceChange,
   confirmRdg2,
   getFlagCode,
+  onExplain = undefined,
 }: FinalFleetTableProps) {
+  const explainable = (
+    value: number | null | undefined,
+    entry: LeaderboardEntry,
+  ) => {
+    if (value == null || Number.isNaN(value)) return '–';
+    if (!onExplain) return value;
+    return (
+      <button
+        type="button"
+        className="score-explain-btn"
+        aria-label={`How ${value} points was calculated for sail ${entry.boat_number}`}
+        title="How was this calculated?"
+        onClick={(event) => {
+          event.stopPropagation();
+          onExplain(entry);
+        }}
+      >
+        {value}
+      </button>
+    );
+  };
   const [showTotals, setShowTotals] = useState(false);
 
   if (!entries?.length) return null;
@@ -394,19 +419,19 @@ function FinalFleetTable({
                       qualifyingEntry?.race_points ||
                       qualifyingEntry?.races ||
                       []
-                    ).reduce((sum, r) => {
+                    ).map((r) => {
                       const v = parseFloat(String(r).replace(/[()]/g, ''));
-                      return sum + (Number.isNaN(v) ? 0 : v);
-                    }, 0);
+                      return Number.isNaN(v) ? 0 : v;
+                    });
                     const finalGross = (
                       entry.race_points ||
                       entry.races ||
                       []
-                    ).reduce((sum, r) => {
+                    ).map((r) => {
                       const v = parseFloat(String(r).replace(/[()]/g, ''));
-                      return sum + (Number.isNaN(v) ? 0 : v);
-                    }, 0);
-                    const grossTotal = qualGross + finalGross;
+                      return Number.isNaN(v) ? 0 : v;
+                    });
+                    const grossTotal = sumPoints([...qualGross, ...finalGross]);
                     return (
                       <td
                         style={{
@@ -437,10 +462,7 @@ function FinalFleetTable({
                       borderRight: '2px solid rgba(42,157,143,0.3)',
                     }}
                   >
-                    {entry.total_points_combined != null &&
-                    !Number.isNaN(entry.total_points_combined)
-                      ? entry.total_points_combined
-                      : '–'}
+                    {explainable(entry.total_points_combined, entry)}
                   </td>
 
                   {/* Qualifying race cells — always read-only */}
