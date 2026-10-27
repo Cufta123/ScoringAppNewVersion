@@ -7,6 +7,8 @@
 // --- Scoring vocabulary -----------------------------------------------------
 
 /** Penalty / redress status codes a score can carry (SHRS + RRS Appendix A). */
+import type { PendingRace } from '../shared/raceProgress';
+
 export type ScoreStatus =
   | 'FINISHED'
   | 'DNF'
@@ -216,6 +218,8 @@ export interface RawLeaderboardEntry {
   race_statuses?: string | null;
   total_points_final?: number | null;
   total_points_event?: number | null;
+  /** Results of a qualifying round still being sailed (not counted). */
+  pending_races?: PendingRace[];
   [key: string]: unknown;
 }
 
@@ -245,6 +249,8 @@ export interface LeaderboardEntry {
   total_points_combined?: number | null;
   qualifying_points?: number | null;
   overall_rank?: number | null;
+  /** Results of a qualifying round still being sailed (not counted). */
+  pending_races?: PendingRace[];
   [key: string]: unknown;
 }
 

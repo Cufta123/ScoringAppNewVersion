@@ -124,6 +124,7 @@ function getSeriesRaceDisplay(
        FROM Scores s
        JOIN Races r ON s.race_id = r.race_id
        JOIN Heats h ON r.heat_id = h.heat_id
+       JOIN CountedRaces cr ON cr.race_id = s.race_id
        WHERE h.event_id = ? AND s.boat_id = ? AND h.heat_type = ?
        ORDER BY r.race_number ASC, s.race_id ASC`,
     )
@@ -163,6 +164,7 @@ function getAllQualifyingBoatIds(event_id: any): string[] {
        FROM Scores s
        JOIN Races r ON s.race_id = r.race_id
        JOIN Heats h ON r.heat_id = h.heat_id
+       JOIN CountedRaces cr ON cr.race_id = s.race_id
        WHERE h.event_id = ? AND h.heat_type = 'Qualifying'`,
     )
     .all(event_id) as { boat_id: any }[];

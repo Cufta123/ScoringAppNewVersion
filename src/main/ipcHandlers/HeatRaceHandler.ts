@@ -17,9 +17,11 @@ import {
   rankOverallStandings,
 } from '../functions/overallTieBreak';
 import { fleetNameForIndex } from '../../shared/fleetNames';
+import type { PendingRace } from '../../shared/raceProgress';
 import { orderFinalLeaderboardRows } from '../functions/finalLeaderboardOrder';
 import explainTieBreak from '../functions/explainTieBreak';
 import explainBoatScore from '../functions/explainScore';
+import refreshStandings from '../functions/standings';
 import {
   buildEventSnapshot,
   restoreEventSnapshot,
@@ -590,9 +592,10 @@ handle(
 
 // "How was this score calculated?" for one boat: every race's points with the
 // rule behind them, the discards, and how ties with other boats were broken.
-handle('explainBoatScore', async (_event, event_id, boat_id) =>
-  explainBoatScore(Number(event_id), Number(boat_id)),
-);
+handle('explainBoatScore', async (_event, event_id, boat_id) => {
+  refreshStandings(Number(event_id));
+  return explainBoatScore(Number(event_id), Number(boat_id));
+});
 
 // SHRS validation of whether the Final Series can start. The renderer renders
 // prompts/messages from the returned reason; all the rule logic stays here.
@@ -787,27 +790,12 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
       if (isFinalHeat) {
         recomputeFinalLeaderboard(event_id);
       } else {
-        let allHeatsEqual = false;
-        try {
-          const latestHeats = getLatestQualifyingHeats(event_id);
-          const raceCounts = latestHeats.map((heat: { heat_id: number }) =>
-            getRaceCountForHeat(heat.heat_id),
-          );
-          allHeatsEqual = raceCounts.every((count) => count === raceCounts[0]);
-        } catch (countError) {
-          allHeatsEqual = false;
-          console.error(
-            `BK-2: could not verify equal heat race counts for event ${event_id}; skipping qualifying leaderboard recompute (standings may be stale until the next scored race). Cause:`,
-            (countError as Error).message,
-          );
-        }
-        if (allHeatsEqual) {
-          // The round is complete: score boats that sailed in none of its
-          // heats DNC (RRS A5.1 / SHRS 5.3) before the standings are rebuilt,
-          // rather than leaving that to the next leaderboard read.
-          ensureCompleteRaceScoresForEvent(event_id, 'Qualifying');
-          recomputeEventLeaderboard(event_id);
-        }
+        // Score boats that sailed in none of a completed round's heats DNC
+        // (RRS A5.1 / SHRS 5.3), then rebuild the standings. Only races every
+        // heat of their round has sailed count (CountedRaces), so a round
+        // still being sailed leaves the standings as after the last full one.
+        ensureCompleteRaceScoresForEvent(event_id, 'Qualifying');
+        recomputeEventLeaderboard(event_id);
       }
     });
 
@@ -974,9 +962,7 @@ handle(
       // The fleet split below reads its boat list from Leaderboard, so a
       // repair must be followed by a recompute or a boat whose only scores
       // were just backfilled is left out of every final fleet.
-      if (ensureCompleteRaceScoresForEvent(event_id, 'Qualifying') > 0) {
-        recomputeEventLeaderboard(event_id);
-      }
+      refreshStandings(Number(event_id));
 
       const leaderboard = db
         .prepare(
@@ -988,6 +974,7 @@ handle(
         LEFT JOIN Scores sc ON sc.boat_id = lb.boat_id
         LEFT JOIN Races r ON sc.race_id = r.race_id
         LEFT JOIN Heats h ON r.heat_id = h.heat_id
+        JOIN CountedRaces cr ON cr.race_id = sc.race_id
         WHERE lb.event_id = ? AND h.event_id = ? AND h.heat_type = 'Qualifying'
           AND sc.race_id IS NOT NULL
         GROUP BY lb.boat_id
@@ -1674,11 +1661,40 @@ handle(
   },
 );
 
+/**
+ * Qualifying results of a round still being sailed: heats that have sailed a
+ * race other heats of the round have not (see CountedRaces). Shown on the
+ * leaderboard, greyed, and not counted until the round is complete.
+ */
+function readRacesInProgress(event_id: any) {
+  const rows = db
+    .prepare(
+      `SELECT sc.boat_id, sc.race_id, sc.position, sc.points,
+              COALESCE(sc.status, 'DNS') AS status, h.heat_name, r.race_number
+       FROM Scores sc
+       JOIN Races r ON r.race_id = sc.race_id
+       JOIN Heats h ON h.heat_id = r.heat_id
+       LEFT JOIN CountedRaces cr ON cr.race_id = sc.race_id
+       WHERE h.event_id = ? AND h.heat_type = 'Qualifying' AND cr.race_id IS NULL
+       ORDER BY r.race_number, r.race_id`,
+    )
+    .all(event_id) as PendingRace[];
+  const byBoat = new Map<number, PendingRace[]>();
+  rows.forEach((row) => {
+    const list = byBoat.get(Number(row.boat_id)) ?? [];
+    list.push(row);
+    byBoat.set(Number(row.boat_id), list);
+  });
+  return { rows, byBoat };
+}
+
 handle('readLeaderboard', async (event, event_id) => {
-  const repairedRows = ensureCompleteRaceScoresForEvent(event_id, 'Qualifying');
-  if (repairedRows > 0) {
+  // The stored standings are only a cache: rebuild them from the scores on
+  // every read, so the screen can never show stale places (cheap: one event).
+  db.transaction(() => {
+    ensureCompleteRaceScoresForEvent(event_id, 'Qualifying');
     recomputeEventLeaderboard(event_id);
-  }
+  })();
 
   const query =
     'SELECT ' +
@@ -1700,12 +1716,18 @@ handle('readLeaderboard', async (event, event_id) => {
     'LEFT JOIN Scores sc ON sc.boat_id = b.boat_id ' +
     'LEFT JOIN Races r ON sc.race_id = r.race_id ' +
     'LEFT JOIN Heats h ON r.heat_id = h.heat_id ' +
+    // Only races every heat of the round has sailed (SHRS 1.1).
+    'JOIN CountedRaces cr ON cr.race_id = sc.race_id ' +
     "WHERE lb.event_id = ? AND h.event_id = ? AND h.heat_type = 'Qualifying' " +
     'AND sc.race_id IS NOT NULL ' +
     'GROUP BY lb.boat_id ' +
     'ORDER BY lb.place ASC';
   const readQuery = db.prepare(query);
-  const results = readQuery.all(event_id, event_id);
+  const pending = readRacesInProgress(event_id);
+  const results = (readQuery.all(event_id, event_id) as any[]).map((row) => ({
+    ...row,
+    pending_races: pending.byBoat.get(Number(row.boat_id)) ?? [],
+  }));
   console.log(
     `[IPC -> Renderer] readLeaderboard (event_id=${event_id}): ${
       results.length
@@ -1721,10 +1743,11 @@ handle('updateFinalLeaderboard', async (event, event_id) => {
 });
 
 handle('readFinalLeaderboard', async (event, event_id) => {
-  const repairedRows = ensureCompleteRaceScoresForEvent(event_id, 'Final');
-  if (repairedRows > 0) {
+  // Rebuilt on every read, like readLeaderboard: never a stale table.
+  db.transaction(() => {
+    ensureCompleteRaceScoresForEvent(event_id, 'Final');
     recomputeFinalLeaderboard(event_id);
-  }
+  })();
 
   // The final-score join is a LEFT JOIN onto a pre-filtered subquery so that
   // boats in fleets that have not raced yet (SHRS 4.5) still return a row —
@@ -1788,6 +1811,7 @@ handle('readFinalLeaderboard', async (event, event_id) => {
  * according to their series score in the Qualifying Series.
  */
 handle('readOverallLeaderboard', async (event, event_id) => {
+  refreshStandings(Number(event_id));
   // SHRS 1.5: "If no races are completed in the Final Series boats will be
   // ranked according to their series score in the Qualifying Series." A final
   // race is "completed" once it has been SAILED — i.e. once ANY boat has a
