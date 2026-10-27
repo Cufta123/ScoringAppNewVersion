@@ -1,4 +1,4 @@
-import { assignPlaces, findUnbrokenTies } from '../main/functions/scoringUtils';
+import { assignPlaces, findUnbrokenTies } from '../shared/scoring/ranking';
 
 // RRS A8 breaks a series tie only where the boats' scores differ. Boats whose
 // scores never differ remain tied and share the place (1, 2, 2, 4).

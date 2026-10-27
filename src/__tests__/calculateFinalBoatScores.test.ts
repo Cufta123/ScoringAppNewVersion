@@ -7,6 +7,7 @@
  */
 import calculateFinalBoatScores from '../main/functions/calculateFinalBoatScores';
 import { db } from '../../public/Database/DBManager';
+import { boatRaces, worstFirstRows } from './fixtures/scoresTableMock';
 
 // ─── Mock DB ──────────────────────────────────────────────────────────────────
 
@@ -53,25 +54,9 @@ function setupMockDb(
     },
     all: (_eventId: unknown, boatId: string) => {
       if (sql.includes('ORDER BY points DESC')) {
-        return (scoresA81[boatId] ?? []).map((row, index) => {
-          if (typeof row === 'number') {
-            return {
-              points: row,
-              status: 'FINISHED',
-              race_id: index + 1,
-              race_number: index + 1,
-            };
-          }
-          return {
-            points: row.points,
-            status: row.status ?? 'FINISHED',
-            race_id: row.race_id ?? index + 1,
-            race_number: row.race_number ?? index + 1,
-          };
-        });
-      }
-      if (sql.includes('ORDER BY r.race_number DESC')) {
-        return (scoresA82[boatId] ?? []).map((points) => ({ points }));
+        return worstFirstRows(
+          boatRaces(scoresA81[boatId], scoresA82[boatId], undefined),
+        );
       }
       return [];
     },
@@ -289,7 +274,7 @@ describe('A8.1 regression in final group', () => {
       },
       {
         boatA: [1, 1, 1, 2, 2, 3, 10, 10],
-        boatB: [2, 1, 1, 2, 2, 3, 4, 4],
+        boatB: [1, 1, 1, 2, 2, 3, 4, 4],
       },
     );
 
@@ -314,9 +299,10 @@ describe('A8.1 regression in final group', () => {
         boatB: [6, 5, 3, 2, 2, 1, 1, 1],
       },
       {
-        // Keep A82 identical so this test isolates A8.1 behavior only.
-        boatA: [1, 1, 1, 2, 2, 3, 4, 4],
-        boatB: [1, 1, 1, 2, 2, 3, 4, 4],
+        // Same races in the same order apart from the two discards, so only
+        // the excluded scores can separate them.
+        boatA: [1, 1, 1, 2, 2, 3, 7, 8],
+        boatB: [1, 1, 1, 2, 2, 3, 5, 6],
       },
     );
 

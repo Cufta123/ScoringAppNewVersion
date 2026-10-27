@@ -146,8 +146,7 @@ export function recomputeEventLeaderboard(event_id: any) {
       return;
     }
 
-    const pointsMap = new Map<number, any[]>();
-    const temporaryTable = calculateBoatScores(results, event_id, pointsMap);
+    const temporaryTable = calculateBoatScores(results, event_id);
     temporaryTable.forEach((boat) => {
       insertStmt.run(boat.boat_id, boat.totalPoints, event_id, boat.place);
     });

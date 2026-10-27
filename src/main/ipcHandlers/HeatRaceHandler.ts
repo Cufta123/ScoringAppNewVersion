@@ -17,7 +17,7 @@ import {
   compareOverallTiePackets,
   resolveOverallTieGroupSequentially,
 } from '../functions/overallTieBreak';
-import { findUnbrokenTies } from '../functions/scoringUtils';
+import { findUnbrokenTies } from '../../shared/scoring/ranking';
 import { fleetNameForIndex, fleetRank } from '../../shared/fleetNames';
 import { orderFinalLeaderboardRows } from '../functions/finalLeaderboardOrder';
 import explainTieBreak from '../functions/explainTieBreak';

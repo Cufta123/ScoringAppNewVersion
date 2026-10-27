@@ -1,8 +1,12 @@
 import IOC_NATIONS from '../constants/iocNations';
 import { fleetRank } from '../../shared/fleetNames';
 import { getExcludeCountForProfile } from '../../shared/discardProfile';
-import { roundPoints, sumPoints } from '../../shared/points';
+import { sumPoints } from '../../shared/points';
 import { averageRedressPoints } from '../../shared/redress';
+import {
+  capExcludeCountForBoat,
+  getExcludedIndexes,
+} from '../../shared/scoring/discards';
 import type { LeaderboardEntry, RawLeaderboardEntry } from '../types';
 
 export const PENALTY_CODES = [
@@ -30,7 +34,6 @@ export const PENALTY_CODES = [
 ];
 
 export const RDG_TYPES = ['RDG1', 'RDG2', 'RDG3'];
-const NON_EXCLUDABLE_STATUSES = new Set(['DNE', 'DGM']);
 
 export type { RawLeaderboardEntry };
 
@@ -94,62 +97,47 @@ export const getExcludeCount = (
 /**
  * Apply score exclusions per SHRS 5.4: mark worst scores with parentheses,
  * return marked races array and the net total (sum of non-excluded scores).
+ *
+ * The choice of races is the scoring core's (src/shared/scoring/discards.ts),
+ * the same code the stored leaderboard uses. Races arrive in race order, so
+ * equal worst scores fall on the earliest race in both places.
  */
 export const applyExclusions = (
   rawPositions: Array<string | number>,
   raceStatuses: string[] = [],
   scoreValues: Array<string | number> = rawPositions,
   discardProfile: string | null = 'standard',
-  // MEGA M-NEW-1 / SHRS 5.4: the discard count keys off races completed IN THE
-  // SERIES, not the boat's own race count. Callers that know the series-wide
-  // count pass it here so the renderer agrees with the backend
-  // (calculateBoatScores). Omitting it falls back to per-boat (legacy behavior,
-  // used by unit tests and any single-entry caller).
+  // SHRS 5.4: the discard count keys off races completed IN THE SERIES, not
+  // the boat's own race count. Callers that know the series-wide count pass
+  // it here; omitting it falls back to the boat's own count (single-entry
+  // callers and unit tests).
   seriesRaceCount: number | undefined = undefined,
 ): { markedRaces: string[]; total: number } => {
-  const n = rawPositions.length;
-  const raceCountForDiscards = seriesRaceCount ?? n;
-  const seriesExcludeCount = getExcludeCount(
-    raceCountForDiscards,
-    discardProfile,
-  );
-  // LB-11: never discard ALL of a boat's scores (a boat with fewer races than
-  // the series-wide discard count must keep at least one), mirroring the backend
-  // cap in calculateBoatScores.ts.
-  const excludeCount = Math.min(seriesExcludeCount, Math.max(0, n - 1));
-  const points = scoreValues.map((r) => {
-    const v = parseFloat(String(r).replace(/[()]/g, ''));
+  const strip = (value: string | number) => String(value).replace(/[()]/g, '');
+  const points = scoreValues.map((value) => {
+    const v = parseFloat(strip(value));
     return Number.isNaN(v) ? 0 : v;
   });
-  if (excludeCount === 0) {
-    return {
-      markedRaces: rawPositions.map((r) => String(r).replace(/[()]/g, '')),
-      total: sumPoints(points),
-    };
-  }
-  const candidates = points
-    .map((point, index) => ({ point, index }))
-    .filter(
-      ({ index }) =>
-        !NON_EXCLUDABLE_STATUSES.has(
-          String(raceStatuses[index] || 'FINISHED').toUpperCase(),
-        ),
-    )
-    .sort((a, b) => b.point - a.point || a.index - b.index);
-  const excludedIndices = new Set(
-    candidates.slice(0, excludeCount).map(({ index }) => index),
+  // Never discard all of a boat's scores (same cap as the stored scores).
+  const excludeCount = capExcludeCountForBoat(
+    getExcludeCount(seriesRaceCount ?? rawPositions.length, discardProfile),
+    rawPositions.length,
+  );
+  const excluded = getExcludedIndexes(
+    rawPositions.map((_race, index) => ({
+      points: points[index],
+      status: raceStatuses[index] || 'FINISHED',
+      race_number: index,
+    })),
+    excludeCount,
   );
 
-  let total = 0;
-  const markedRaces = rawPositions.map((race, i) => {
-    if (excludedIndices.has(i)) {
-      return `(${String(race).replace(/[()]/g, '')})`;
-    }
-    const p = points[i];
-    total += p;
-    return String(race).replace(/[()]/g, '');
-  });
-  return { markedRaces, total: roundPoints(total) };
+  return {
+    markedRaces: rawPositions.map((race, i) =>
+      excluded.has(i) ? `(${strip(race)})` : strip(race),
+    ),
+    total: sumPoints(points.filter((_point, i) => !excluded.has(i))),
+  };
 };
 
 /**

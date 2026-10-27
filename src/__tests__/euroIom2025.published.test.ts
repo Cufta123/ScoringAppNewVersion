@@ -30,7 +30,7 @@ import {
   resolveOverallTieGroupSequentially,
   OverallTiePacket,
 } from '../main/functions/overallTieBreak';
-import { getExcludedIndexes } from '../main/functions/scoringUtils';
+import { getExcludedIndexes } from '../shared/scoring/discards';
 import { fleetRank } from '../shared/fleetNames';
 import { db } from '../../public/Database/DBManager';
 import { createReplayDb } from './fixtures/replayScoringDb';
@@ -66,7 +66,7 @@ function runQualifying(): Map<string, number> {
     total_points_event: 0,
     number_of_races: racesInSeries(boat.competitor, 'Qualifying').length,
   }));
-  const table = calculateBoatScores(results, EVENT_ID, new Map());
+  const table = calculateBoatScores(results, EVENT_ID);
   return new Map(table.map((row) => [row.boat_id, row.totalPoints]));
 }
 
@@ -533,7 +533,6 @@ describe('the qualifying races the sheet does not record', () => {
               .length,
           })),
           EVENT_ID,
-          new Map(),
         ).map((row) => [row.boat_id, row.totalPoints]),
       );
       const finals = new Map<string, number>();

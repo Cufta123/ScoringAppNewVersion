@@ -182,7 +182,7 @@ describe('recomputeEventLeaderboard (Qualifying)', () => {
     ]);
   });
 
-  it('reads Qualifying scores and forwards results, event_id and a Map to the calculator', () => {
+  it('reads Qualifying scores and forwards results and event_id to the calculator', () => {
     const rows = [{ boat_id: 'A', total_points_event: 5, number_of_races: 3 }];
     installDb(rows);
     mockCalcBoat.mockReturnValue([{ boat_id: 'A', totalPoints: 5, place: 1 }]);
@@ -190,11 +190,9 @@ describe('recomputeEventLeaderboard (Qualifying)', () => {
     recomputeEventLeaderboard(42);
 
     expect(mockCalcBoat).toHaveBeenCalledTimes(1);
-    const [passedResults, passedEventId, passedMap] =
-      mockCalcBoat.mock.calls[0];
+    const [passedResults, passedEventId] = mockCalcBoat.mock.calls[0];
     expect(passedResults).toEqual(rows);
     expect(passedEventId).toBe(42);
-    expect(passedMap).toBeInstanceOf(Map);
   });
 
   it('clears the existing leaderboard before inserting, all inside one transaction', () => {
