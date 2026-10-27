@@ -1,3 +1,6 @@
+import { roundPoints } from './points';
+import { roundToTenthHalfUp } from './redress';
+
 // Scoring-penalty math shared by the main process (score persistence) and the
 // renderer (edit-mode preview). Kept here so the RRS 44.3(c)/Appendix T1 rule
 // has a single source of truth — the two processes must score these penalties
@@ -47,22 +50,23 @@ export function promotesBoatsBehind(
   );
 }
 
-export function roundHalfUp(value: number): number {
-  return Math.floor(value + 0.5 + Number.EPSILON);
-}
-
+/**
+ * RRS 44.3(c) (2025–2028): a Scoring Penalty worsens the score by a
+ * percentage of the score for Did Not Finish, "rounded to the nearest tenth
+ * of a point (0.05 rounded upward)", and never past the DNF score. ZFP is a
+ * 20% penalty (rule 30.2), SCP 20% unless the notice of race says otherwise,
+ * and a Post-Race Penalty 30% (Appendix T1(b)). Under SHRS 5.2 the DNF score
+ * is the largest heat + 1.
+ *
+ * The 2021–2024 rules rounded the penalty to a whole number; this used to as
+ * well, so a 16-boat heat added 3 points instead of 3.4.
+ */
 export function getScoringPenaltyPoints(
   finishingPosition: number,
   maxBoats: number,
   status?: string,
 ): number {
-  // RRS 44.3(c): ZFP/SCP worsen the score by 20% of the score for DNF, rounded
-  // to the nearest whole number (0.5 up). RRS Appendix T1 = 30%, same method.
-  // Under SHRS 5.2 the score for DNF is (boats in the largest heat) + 1, so the
-  // percentage base is maxBoats + 1 — NOT maxBoats. The cap below already uses
-  // maxBoats + 1 as the DNF score; the base must match it.
-  const penaltyRate = status === 'T1' ? 0.3 : 0.2;
   const dnfScore = maxBoats + 1;
-  const penaltyPlaces = roundHalfUp(dnfScore * penaltyRate);
-  return Math.min(finishingPosition + penaltyPlaces, dnfScore);
+  const penalty = roundToTenthHalfUp(dnfScore * (status === 'T1' ? 0.3 : 0.2));
+  return Math.min(roundPoints(finishingPosition + penalty), dnfScore);
 }

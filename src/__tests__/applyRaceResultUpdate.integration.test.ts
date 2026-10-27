@@ -342,31 +342,31 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
     // Ported from the SQL-asserting updateRaceResult suite, which checked the
     // arguments of an UPDATE statement that no longer exists.
     it('scores ZFP as place + 20% of the DNF score', () => {
-      // largest heat 10 => DNF score 11 => 20% = 2 places => 3 + 2 = 5
+      // largest heat 10 => DNF score 11 => 20% = 2.2 => 3 + 2.2 = 5.2
       db = seed(finishers(3), 10);
       applyRaceResultUpdate(EVENT_ID, RACE_ID, 3, 3, false, 'ZFP');
-      expect(readRace(db)[3]).toEqual([3, 5, 'ZFP']);
+      expect(readRace(db)[3]).toEqual([3, 5.2, 'ZFP']);
     });
 
     it('caps SCP at the DNF score', () => {
-      // largest heat 5 => 20% = 1 place => 5 + 1 = 6, which is the cap.
+      // largest heat 5 => 20% of 6 = 1.2 => 5 + 1.2 = 6.2, capped at 6.
       db = seed(finishers(5), 5);
       applyRaceResultUpdate(EVENT_ID, RACE_ID, 5, 5, false, 'SCP');
       expect(readRace(db)[5]).toEqual([5, 6, 'SCP']);
     });
 
     it('applies no artificial minimum in a small heat', () => {
-      // largest heat 5 => 20% = 1 place (not floored to 2) => 2 + 1 = 3
+      // largest heat 5 => 20% of 6 = 1.2 (no minimum) => 2 + 1.2 = 3.2
       db = seed(finishers(5), 5);
       applyRaceResultUpdate(EVENT_ID, RACE_ID, 2, 2, false, 'ZFP');
-      expect(readRace(db)[2]).toEqual([2, 3, 'ZFP']);
+      expect(readRace(db)[2]).toEqual([2, 3.2, 'ZFP']);
     });
 
     it('scores T1 as place + 30% of the DNF score', () => {
-      // largest heat 10 => 30% = 3 places => 4 + 3 = 7
+      // largest heat 10 => 30% of 11 = 3.3 => 4 + 3.3 = 7.3
       db = seed(finishers(5), 10);
       applyRaceResultUpdate(EVENT_ID, RACE_ID, 4, 4, false, 'T1');
-      expect(readRace(db)[4]).toEqual([4, 7, 'T1']);
+      expect(readRace(db)[4]).toEqual([4, 7.3, 'T1']);
     });
   });
 

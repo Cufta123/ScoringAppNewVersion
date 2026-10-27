@@ -9,7 +9,6 @@
 import {
   scoringPenaltyStatuses,
   mandatoryDisplaceStatuses,
-  roundHalfUp,
   getScoringPenaltyPoints,
   promotesBoatsBehind,
 } from '../../shared/scoringPenalty';
@@ -18,7 +17,6 @@ import { compareNationalSail } from '../../shared/sailOrder';
 export {
   scoringPenaltyStatuses,
   mandatoryDisplaceStatuses,
-  roundHalfUp,
   getScoringPenaltyPoints,
   promotesBoatsBehind,
 };

@@ -293,8 +293,8 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
       ),
     );
     expect(updateMain).toBeDefined();
-    // maxBoats=10 -> 20% = 2 places, ZFP points = 3 + 2 = 5
-    expect(updateMain?.args.slice(0, 3)).toEqual([3, 5, 'ZFP']);
+    // maxBoats=10 -> DNF 11, 20% = 2.2 (RRS 44.3(c), nearest tenth) -> 5.2
+    expect(updateMain?.args.slice(0, 3)).toEqual([3, 5.2, 'ZFP']);
   });
 
   it('caps SCP score at maxBoats+1', async () => {
@@ -308,7 +308,7 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
         'UPDATE Scores SET position = ?, points = ?, status = ?',
       ),
     );
-    // maxBoats=5 -> 20% = 1 place => 5+1=6, equals cap maxBoats+1
+    // maxBoats=5 -> DNF 6, 20% = 1.2 => 5 + 1.2 = 6.2, capped at 6
     expect(updateMain?.args.slice(0, 3)).toEqual([5, 6, 'SCP']);
   });
 
@@ -323,8 +323,8 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
         'UPDATE Scores SET position = ?, points = ?, status = ?',
       ),
     );
-    // maxBoats=5 -> 20% = 1 place (no min-2 floor), ZFP points = 2 + 1 = 3
-    expect(updateMain?.args.slice(0, 3)).toEqual([2, 3, 'ZFP']);
+    // maxBoats=5 -> DNF 6, 20% = 1.2 (no minimum) -> 2 + 1.2 = 3.2
+    expect(updateMain?.args.slice(0, 3)).toEqual([2, 3.2, 'ZFP']);
   });
 
   it('scores T1 as finishingPosition + 30% (RRS Appendix T1) with cap at maxBoats+1', async () => {
@@ -337,8 +337,8 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
         'UPDATE Scores SET position = ?, points = ?, status = ?',
       ),
     );
-    // maxBoats=10 -> 30% = 3 places, T1 points = 4 + 3 = 7
-    expect(updateMain?.args.slice(0, 3)).toEqual([4, 7, 'T1']);
+    // maxBoats=10 -> DNF 11, 30% = 3.3 -> 4 + 3.3 = 7.3
+    expect(updateMain?.args.slice(0, 3)).toEqual([4, 7.3, 'T1']);
   });
 
   it('normalizes RAF to RET penalty scoring', async () => {

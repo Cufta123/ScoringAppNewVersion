@@ -399,7 +399,7 @@ describe('renormalizeNonFinisherScores (SHRS 5.2 stale-points fix)', () => {
     const scoreRows = [
       { score_id: 1, position: 5, status: 'FINISHED' }, // untouched
       { score_id: 2, position: 21, status: 'DNS' }, // stale 21 -> 22
-      { score_id: 3, position: 3, status: 'ZFP' }, // 3 + roundHalfUp(0.2*22)=3+4=7
+      { score_id: 3, position: 3, status: 'ZFP' }, // 3 + 20% of 22 = 3 + 4.4
       { score_id: 4, position: 8, status: 'RDG2' }, // redress -> untouched
     ];
     const updates: Array<{ points: number; score_id: number }> = [];
@@ -426,7 +426,7 @@ describe('renormalizeNonFinisherScores (SHRS 5.2 stale-points fix)', () => {
     // FINISHED (score 1) and RDG2 (score 4) are left alone; DNS and ZFP rewritten.
     expect(updates).toEqual([
       { points: 22, score_id: 2 }, // largest heat 21 + 1
-      { points: 7, score_id: 3 }, // 3 + 20% of DNF score (22) = 3 + 4
+      { points: 7.4, score_id: 3 }, // 3 + 20% of DNF score (22) = 3 + 4.4
     ]);
   });
 
@@ -526,8 +526,8 @@ describe('renormalizeNonFinisherScores — additional edge cases', () => {
 
     renormalizeNonFinisherScores(1, 'Qualifying');
 
-    // dnfScore = 20. ZFP/SCP: 20% -> roundHalfUp(4.0)=4 -> 5+4=9.
-    // T1: 30% -> roundHalfUp(6.0)=6 -> 5+6=11.
+    // dnfScore = 20. ZFP/SCP: 20% = 4 -> 5+4=9.
+    // T1: 30% = 6 -> 5+6=11.
     expect(updates).toEqual([
       { points: 9, score_id: 1 },
       { points: 9, score_id: 2 },

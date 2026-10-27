@@ -1,5 +1,5 @@
 /**
- * Average-points redress (RRS A9 in the 2021–24 rules, A10 in 2025–28),
+ * Average-points redress (RRS 2025–2028 A9, "Guidance on redress"),
  * shared by the main-process recompute and the renderer's edit preview so the
  * two can never disagree.
  *

@@ -16,7 +16,6 @@ import {
   normalizeScoreStatus,
   normalizeStatus,
   promotesBoatsBehind,
-  roundHalfUp,
   shrsPrimaryStatusOrder,
   statusOrder,
 } from '../main/functions/scoreStatus';
@@ -98,36 +97,23 @@ describe('normalizeStatus', () => {
   });
 });
 
-describe('roundHalfUp', () => {
-  it('rounds a clean half upward', () => {
-    expect(roundHalfUp(2.5)).toBe(3);
-    expect(roundHalfUp(3.5)).toBe(4);
-  });
-
-  it('rounds normally otherwise', () => {
-    expect(roundHalfUp(2.4)).toBe(2);
-    expect(roundHalfUp(2.6)).toBe(3);
-    expect(roundHalfUp(4)).toBe(4);
-  });
-});
-
 describe('getScoringPenaltyPoints', () => {
-  it('applies 20% of the fleet for ZFP/SCP (RRS 44.3c)', () => {
-    // 20% of 20 = 4 places added.
-    expect(getScoringPenaltyPoints(5, 20, 'ZFP')).toBe(9);
-    expect(getScoringPenaltyPoints(5, 20, 'SCP')).toBe(9);
-    expect(getScoringPenaltyPoints(5, 20)).toBe(9);
+  it('adds 20% of the DNF score for ZFP/SCP (RRS 44.3(c))', () => {
+    // Largest heat 20 -> DNF score 21 -> 20% = 4.2.
+    expect(getScoringPenaltyPoints(5, 20, 'ZFP')).toBe(9.2);
+    expect(getScoringPenaltyPoints(5, 20, 'SCP')).toBe(9.2);
+    expect(getScoringPenaltyPoints(5, 20)).toBe(9.2);
   });
 
-  it('applies 30% of the fleet for T1', () => {
-    // 30% of 20 = 6 places added.
-    expect(getScoringPenaltyPoints(5, 20, 'T1')).toBe(11);
+  it('adds 30% of the DNF score for T1', () => {
+    // 30% of 21 = 6.3.
+    expect(getScoringPenaltyPoints(5, 20, 'T1')).toBe(11.3);
   });
 
-  it('rounds the penalty places half-up', () => {
-    // 20% of 15 = 3.0; 20% of 13 = 2.6 -> 3.
-    expect(getScoringPenaltyPoints(1, 15, 'ZFP')).toBe(4);
-    expect(getScoringPenaltyPoints(1, 13, 'ZFP')).toBe(4);
+  it('keeps the penalty to the nearest tenth (RRS 2025-2028)', () => {
+    // 20% of 16 = 3.2; 20% of 14 = 2.8 (the 2021-2024 rule rounded to 3).
+    expect(getScoringPenaltyPoints(1, 15, 'ZFP')).toBe(4.2);
+    expect(getScoringPenaltyPoints(1, 13, 'ZFP')).toBe(3.8);
   });
 
   it('never exceeds maxBoats + 1', () => {
@@ -136,12 +122,12 @@ describe('getScoringPenaltyPoints', () => {
   });
 
   it('bases the penalty on the DNF score (largest heat + 1), not the heat size', () => {
-    // RRS 44.3(c) via SHRS 5.2: DNF score = 12 + 1 = 13; 20% of 13 = 2.6 -> 3.
-    // A base of maxBoats (12) would give 20% of 12 = 2.4 -> 2 and score 7.
-    expect(getScoringPenaltyPoints(5, 12, 'ZFP')).toBe(8);
-    // T1: DNF score = 11 + 1 = 12; 30% of 12 = 3.6 -> 4; 5 + 4 = 9.
-    // A base of 11 would give 30% of 11 = 3.3 -> 3 and score 8.
-    expect(getScoringPenaltyPoints(5, 11, 'T1')).toBe(9);
+    // RRS 44.3(c) via SHRS 5.2: DNF score = 12 + 1 = 13; 20% of 13 = 2.6.
+    // A base of maxBoats (12) would give 2.4 and score 7.4.
+    expect(getScoringPenaltyPoints(5, 12, 'ZFP')).toBe(7.6);
+    // T1: DNF score = 11 + 1 = 12; 30% of 12 = 3.6; 5 + 3.6 = 8.6.
+    // A base of 11 would give 3.3 and score 8.3.
+    expect(getScoringPenaltyPoints(5, 11, 'T1')).toBe(8.6);
   });
 });
 
@@ -165,11 +151,11 @@ describe('deriveNonFinisherPoints (SHRS 5.2 re-derivation)', () => {
   );
 
   it('scores ZFP/SCP/T1 from the finishing place and the DNF-score base', () => {
-    // 3 + roundHalfUp(0.2 * (20 + 1)) = 3 + 4 = 7.
-    expect(deriveNonFinisherPoints('ZFP', 3, 20)).toBe(7);
-    expect(deriveNonFinisherPoints('SCP', 3, 20)).toBe(7);
-    // 3 + roundHalfUp(0.3 * 21) = 3 + 6 = 9.
-    expect(deriveNonFinisherPoints('T1', 3, 20)).toBe(9);
+    // 3 + 20% of (20 + 1) = 3 + 4.2.
+    expect(deriveNonFinisherPoints('ZFP', 3, 20)).toBe(7.2);
+    expect(deriveNonFinisherPoints('SCP', 3, 20)).toBe(7.2);
+    // 3 + 30% of 21 = 3 + 6.3.
+    expect(deriveNonFinisherPoints('T1', 3, 20)).toBe(9.3);
   });
 
   it('leaves FINISHED and RDG scores alone (returns null)', () => {
