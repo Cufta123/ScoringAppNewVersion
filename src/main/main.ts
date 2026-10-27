@@ -87,8 +87,11 @@ const createWindow = async () => {
     return path.join(RESOURCES_PATH, ...paths);
   };
 
-  // Automated GUI tests run the real app without ever showing it, so a test
-  // run does not pop windows up and steal focus (e2e/helpers.ts sets this).
+  // Automated GUI tests run the real app in a window that is shown (so the
+  // page renders and animates normally) but fully transparent, never takes
+  // focus and lets clicks through, so a local test run does not get in the
+  // way. A truly hidden window does not run animation frames, and the toasts
+  // then never finish leaving and cover the buttons. e2e/helpers.ts sets this.
   const hidden = process.env.SCORING_APP_HIDDEN === '1';
   if (hidden) app.dock?.hide();
 
@@ -102,8 +105,7 @@ const createWindow = async () => {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      // A window that is never shown must still render and run timers at
-      // full speed, or the tests would wait on a throttled page.
+      // An unfocused window must still run timers at full speed.
       backgroundThrottling: !hidden,
     },
   });
@@ -114,7 +116,12 @@ const createWindow = async () => {
     if (!mainWindow) {
       throw new Error('"mainWindow" is not defined');
     }
-    if (hidden) return;
+    if (hidden) {
+      mainWindow.setOpacity(0);
+      mainWindow.setIgnoreMouseEvents(true);
+      mainWindow.showInactive();
+      return;
+    }
     if (process.env.START_MINIMIZED) {
       mainWindow.minimize();
     } else {
