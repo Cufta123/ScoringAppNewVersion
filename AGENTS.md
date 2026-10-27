@@ -117,10 +117,11 @@ Important migration details:
   adding either; `DBManager.performanceIndexes.test.ts` records the numbers.
 - Migration 4 adds the **change journal** (`public/Database/journal.js`):
   SQLite triggers on `Events`, `Boat_Event`, `Heats`, `Heat_Boat`, `Races` and
-  `Scores` append one `ChangeLog` row per inserted/updated/deleted row (whole
-  row before and after as JSON, plus readable labels in `context`). An update
-  that changes nothing is not logged. Derived tables (`Leaderboard`,
-  `FinalLeaderboard`, `RaceAssignmentSnapshots`) are not journalled. Deleting
+  `Scores` (and `RaceAssignmentSnapshots`, hidden in the history) append one
+  `ChangeLog` row per inserted/updated/deleted row (whole row before and after
+  as JSON, plus readable labels in `context`). An update that changes nothing
+  is not logged. The standings (`Leaderboard`, `FinalLeaderboard`) are not
+  journalled. Deleting
   an event deletes its history. The triggers list the columns as they were
   when installed: a migration that adds a column to a journalled table must
   call `installJournalTriggers(db)` again. The IPC wrapper (`handle.ts`) groups
@@ -130,8 +131,22 @@ Important migration details:
   turns rows into sentences and nets out a row written several times by one
   action (scoring first enters DNS for every boat). The Navbar's History button
   (`EventHistoryDialog`) shows it on the event, scoring and leaderboard pages.
+  **Undo from the history** (`revertHistoryAction`, IPC of the same name):
+  only result changes (`updateRaceResult`, leaderboard edits, `updateScore`,
+  `insertScore`, `deleteScore`, and an earlier undo) — scoring a race, heats
+  and entries feed later heats and keep their scoring-page Undo with its
+  guards. Rules in `shared/history/revert.ts`: every row the action changed is
+  put back as it was, in one transaction with the standings rebuild, and only
+  if no later action changed it (else the error names that action). Points the
+  rebuild re-derives (RDG1/RDG2 averages, non-finisher and 44.3(c) points) are
+  neither checked nor restored; discard locks stay set. The undo is recorded
+  with `ChangeActions.reverts_action_id`, so it can be undone too. After an
+  undo the dialog fires `notifyEventDataChanged`; the leaderboard (unless
+  editing) and scoring pages reload via `useEventDataChanged`.
   Covered by `changeJournal.integration.test.ts` (real migrations and
-  handlers), `historyDescribe.test.ts` and `EventHistoryDialog.test.jsx`.
+  handlers; an undo restores results, SHRS 3.1.5 rows and standings exactly),
+  `historyDescribe.test.ts`, `historyRevert.test.ts` and
+  `EventHistoryDialog.test.jsx`.
 
 DB file paths:
 

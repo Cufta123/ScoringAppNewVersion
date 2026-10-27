@@ -296,3 +296,26 @@ test('the event history lists what was done, newest first, and filters by boat',
   await dialog.getByRole('button', { name: 'Close' }).click();
   await expect(dialog).toBeHidden();
 });
+
+test('the ZFP edit can be undone from the history, and the leaderboard follows', async () => {
+  await expect(grossCell(/Bob/)).toHaveText('9');
+  await window.getByRole('button', { name: 'Open event history' }).click();
+  const dialog = window.getByRole('dialog', { name: 'Event history' });
+  await dialog
+    .getByRole('button', { name: /^Undo: Results edited on the leaderboard/ })
+    .click();
+  await expect(dialog.getByRole('status')).toContainText(
+    'Undone: Results edited on the leaderboard.',
+  );
+  await expect(
+    dialog.getByText('Undid “Results edited on the leaderboard”'),
+  ).toBeVisible();
+  await dialog.getByRole('button', { name: 'Close' }).click();
+
+  // Bob is back to 2, 2, 2, 2 without reopening the page.
+  await expect(grossCell(/Bob/)).toHaveText('8');
+  await expect(overallCell(/Bob/)).toHaveText('6');
+  await expect(
+    window.getByRole('row', { name: /Bob/ }).getByLabel('Race cell: (ZFP)'),
+  ).toHaveCount(0);
+});

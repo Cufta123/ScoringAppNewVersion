@@ -24,6 +24,10 @@ export interface HistoryAction {
   /** ISO time (UTC) the action finished. */
   at: string;
   changes: HistoryChange[];
+  /** Set when this action undid an earlier one from the history. */
+  reverts_action_id?: number | null;
+  /** What the undone action was. */
+  reverts_channel?: string | null;
 }
 
 /** What a user action was, by the IPC channel that made it. */
@@ -55,7 +59,11 @@ const ACTION_LABELS: Record<string, string> = {
   updateEventLeaderboard: 'Standings recalculated',
   updateFinalLeaderboard: 'Standings recalculated',
   restoreEventSnapshotFromFile: 'Event restored from a backup file',
+  revertHistoryAction: 'Undone from the history',
 };
+
+/** Rows kept for exact undo but not worth a line in the history. */
+const HIDDEN_TABLES = ['RaceAssignmentSnapshots'];
 
 export function actionLabel(channel: string | null): string {
   if (channel == null) return 'Automatic change';
@@ -207,8 +215,14 @@ export function summarizeAction(action: HistoryAction): {
   label: string;
   lines: string[];
 } {
+  const label =
+    action.reverts_action_id != null
+      ? `Undid “${actionLabel(action.reverts_channel ?? null)}”`
+      : actionLabel(action.channel);
   return {
-    label: actionLabel(action.channel),
-    lines: netChanges(action.changes).map(describeChange),
+    label,
+    lines: netChanges(action.changes)
+      .filter((change) => !HIDDEN_TABLES.includes(change.table_name))
+      .map(describeChange),
   };
 }

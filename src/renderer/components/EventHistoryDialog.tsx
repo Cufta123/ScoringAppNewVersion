@@ -1,6 +1,14 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { eventDB } from '../api/db';
 import { HistoryAction, summarizeAction } from '../../shared/history/describe';
+import { undoneActionIds, whyNotRevertable } from '../../shared/history/revert';
+import { notifyEventDataChanged } from '../utils/eventDataChanged';
 
 interface EventHistoryDialogProps {
   eventId: number;
@@ -25,18 +33,41 @@ function HistoryEntry({
   label,
   at,
   lines,
+  undone,
+  onUndo = undefined,
+  busy,
 }: {
   label: string;
   at: string;
   lines: string[];
+  undone: boolean;
+  /** Present when this action can be undone from here. */
+  onUndo?: () => void;
+  busy: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const shown = expanded ? lines : lines.slice(0, PREVIEW_LINES);
   return (
-    <li className="history-entry">
+    <li className={`history-entry${undone ? ' history-undone' : ''}`}>
       <div className="history-entry-head">
-        <strong>{label}</strong>
-        <time dateTime={at}>{formatTime(at)}</time>
+        <strong>
+          {label}
+          {undone && <span className="history-undone-tag">Undone</span>}
+        </strong>
+        <span className="history-entry-side">
+          <time dateTime={at}>{formatTime(at)}</time>
+          {onUndo && !undone && (
+            <button
+              type="button"
+              className="btn-ghost history-undo"
+              onClick={onUndo}
+              disabled={busy}
+              aria-label={`Undo: ${label}, ${formatTime(at)}`}
+            >
+              <i className="fa fa-rotate-left" aria-hidden="true" /> Undo
+            </button>
+          )}
+        </span>
       </div>
       <ul className="history-lines">
         {shown.map((line, index) => (
@@ -59,8 +90,10 @@ function HistoryEntry({
 }
 
 /**
- * Everything that changed in an event, newest first: who-did-what as the app
- * recorded it (scores, protest decisions, heats, undo, settings). Read-only.
+ * Everything that changed in an event, newest first, as the app recorded it
+ * (scores, protest decisions, heats, undo, settings). A result change can be
+ * undone from here; the main process refuses it if a later change touched the
+ * same results (src/shared/history/revert.ts).
  */
 function EventHistoryDialog({
   eventId,
@@ -72,26 +105,57 @@ function EventHistoryDialog({
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
 
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [undoError, setUndoError] = useState<string | null>(null);
+
+  const load = useCallback(
+    (isActive: () => boolean = () => true) =>
+      Promise.resolve()
+        .then(() => eventDB.readEventHistory(eventId))
+        .then((result) => {
+          if (isActive()) setActions(result);
+          return null;
+        })
+        .catch((err: unknown) => {
+          if (isActive()) {
+            setError(err instanceof Error ? err.message : String(err));
+          }
+        }),
+    [eventId],
+  );
+
   useEffect(() => {
     if (!open) return undefined;
     let cancelled = false;
     setActions(null);
     setError(null);
-    Promise.resolve()
-      .then(() => eventDB.readEventHistory(eventId))
-      .then((result) => {
-        if (!cancelled) setActions(result);
-        return null;
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err));
-        }
-      });
+    setNotice(null);
+    setUndoError(null);
+    setFilter('');
+    load(() => !cancelled);
     return () => {
       cancelled = true;
     };
-  }, [eventId, open]);
+  }, [open, load]);
+
+  const undo = async (actionId: number, label: string) => {
+    setBusy(true);
+    setNotice(null);
+    setUndoError(null);
+    try {
+      await eventDB.revertHistoryAction(eventId, actionId);
+      setNotice(
+        `Undone: ${label}. The standings were recalculated. The undo is in the history and can be undone too.`,
+      );
+      notifyEventDataChanged(eventId);
+      await load();
+    } catch (err) {
+      setUndoError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (!open) return undefined;
@@ -112,10 +176,14 @@ function EventHistoryDialog({
 
   const entries = useMemo(() => {
     const needle = filter.trim().toLowerCase();
+    const undone = undoneActionIds(actions ?? []);
     return (actions ?? [])
       .map((action) => ({
         key: `${action.action_id ?? 'auto'}-${action.changes[0]?.change_id}`,
         at: action.at,
+        actionId: action.action_id,
+        undoable: action.action_id != null && !whyNotRevertable(action),
+        undone: action.action_id != null && undone.has(action.action_id),
         ...summarizeAction(action),
       }))
       .map((entry) => ({
@@ -151,6 +219,13 @@ function EventHistoryDialog({
               label={entry.label}
               at={entry.at}
               lines={entry.lines}
+              undone={entry.undone}
+              busy={busy}
+              onUndo={
+                entry.undoable && entry.actionId != null
+                  ? () => undo(entry.actionId as number, entry.label)
+                  : undefined
+              }
             />
           ))}
         </ol>
@@ -183,6 +258,16 @@ function EventHistoryDialog({
             placeholder="e.g. CRO 12 or Heat B2"
           />
         </label>
+        {notice && (
+          <p className="history-notice" role="status">
+            {notice}
+          </p>
+        )}
+        {undoError && (
+          <p className="history-error" role="alert">
+            {undoError}
+          </p>
+        )}
         <div className="help-modal-body">{body}</div>
         <div className="feedback-modal-actions">
           <button
