@@ -363,6 +363,9 @@ export function applyRaceTieScoring(race_id: number): void {
   });
 }
 
+/** Protest-committee points (RDG3, DPI) above this are a typing mistake. */
+const MAX_PROVIDED_POINTS = 99;
+
 export function applyRaceResultUpdate(
   event_id: any,
   race_id: any,
@@ -482,6 +485,26 @@ export function applyRaceResultUpdate(
     points: number;
     status: string;
   }[];
+
+  // A finishing place cannot be past the last boat of the largest heat (it
+  // used to accept any positive number: 5000 was stored and scored 5000
+  // points). The leaderboard checks the exact boats in the race; this is the
+  // last line of defence for any caller.
+  const placeLimit = Math.max(raceRows.length, maxBoats);
+  if (
+    !isNonScoringPenaltyStatus &&
+    !keepsProvidedPoints &&
+    finalPosition > placeLimit
+  ) {
+    throw new Error(
+      `${positionContext} must be 1 to ${placeLimit} (received ${finalPosition}).`,
+    );
+  }
+  if (keepsProvidedPoints && finalPosition > MAX_PROVIDED_POINTS) {
+    throw new Error(
+      `${positionContext} cannot be more than ${MAX_PROVIDED_POINTS} points (received ${finalPosition}).`,
+    );
+  }
 
   const editedIndex = raceRows.findIndex(
     (row) => String(row.boat_id) === String(boat_id),

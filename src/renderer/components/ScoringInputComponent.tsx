@@ -77,32 +77,45 @@ function FinishPlaceInput({
   const value = draft ?? String(place);
 
   const commit = () => {
-    if (draft !== null && draft !== '') {
-      const parsed = parseInt(draft, 10);
-      if (!Number.isNaN(parsed)) {
-        // Warn if the parsed value differs from what the user typed (e.g.
-        // decimal "3.5" silently truncated to 3, or scientific "2e1"→2).
-        if (String(parsed) !== draft.trim()) {
-          reportWarning(
-            `"${draft}" was interpreted as place ${parsed}. Type a whole number.`,
-            'Place adjusted',
-          );
-        }
-        onCommit(parsed);
-      }
-    }
+    const typed = draft?.trim() ?? '';
     setDraft(null);
+    if (draft === null || typed === '' || typed === String(place)) return;
+    // Never guess: 2.5, 0 or a place past the last boat would move the boat
+    // somewhere the scorer did not ask for, so the order stays as it was.
+    if (!/^\d+$/.test(typed)) {
+      reportWarning(
+        `"${typed}" is not a place. Type a whole number from 1 to ${max}.`,
+        'Place not changed',
+      );
+      return;
+    }
+    const parsed = Number(typed);
+    if (parsed < 1 || parsed > max) {
+      reportWarning(
+        `There are ${max} boats in the finish order, so the place must be 1 to ${max}. Sail ${sail} stays at place ${place}.`,
+        'Place not changed',
+      );
+      return;
+    }
+    onCommit(parsed);
   };
 
   return (
+    // A text field, not type="number": a number field changes on the mouse
+    // wheel and the arrow keys, which moved boats by accident.
     <input
       className="finish-place-input"
-      type="number"
-      min={1}
-      max={max}
+      type="text"
+      inputMode="numeric"
+      autoComplete="off"
+      maxLength={3}
+      role="spinbutton"
+      aria-valuemin={1}
+      aria-valuemax={max}
+      aria-valuenow={place}
       value={value}
       aria-label={`Finishing place for sail ${sail} (currently ${place})`}
-      title="Type a place and press Enter to move this boat there"
+      title={`Type a place from 1 to ${max} and press Enter to move this boat there`}
       onFocus={(e) => e.target.select()}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
@@ -110,6 +123,9 @@ function FinishPlaceInput({
         if (e.key === 'Enter') {
           e.preventDefault();
           (e.target as HTMLInputElement).blur();
+        }
+        if (e.key === 'Escape') {
+          setDraft(null);
         }
       }}
     />
@@ -709,7 +725,18 @@ function ScoringInputComponent({
                   />
                 )}
                 <span className="finish-label">
-                  Sail #{number}
+                  <span className="finish-sail">Sail #{number}</span>
+                  {(() => {
+                    const boat = heat.boats.find(
+                      (b) => String(b.sail_number) === String(number),
+                    );
+                    const name = boat
+                      ? `${boat.name ?? ''} ${boat.surname ?? ''}`.trim()
+                      : '';
+                    return name ? (
+                      <span className="finish-name">{name}</span>
+                    ) : null;
+                  })()}
                   {isInvalidSail(number) && (
                     <span className="finish-not-in-heat">Not in this heat</span>
                   )}

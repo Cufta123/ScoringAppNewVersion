@@ -12,6 +12,7 @@ import SectionDivider from '../../components/leaderboard/SectionDivider';
 import QualifyingTable from '../../components/leaderboard/QualifyingTable';
 import FinalFleetTable from '../../components/leaderboard/FinalFleetTable';
 import RdgLegend from '../../components/leaderboard/RdgLegend';
+import { EditValidityProvider } from '../../components/leaderboard/editValidity';
 import ScoreExplanationDialog, {
   type ExplainTarget,
 } from '../../components/leaderboard/ScoreExplanationDialog';
@@ -63,9 +64,12 @@ function LeaderboardContent({
     handleRaceChange,
     confirmRdg2,
     handleCompareRowClick,
+    reportInvalidCell,
+    invalidCells,
     exportAs,
     getFlagCode,
   } = useLeaderboard(eventId);
+  const invalidCount = Object.keys(invalidCells).length;
   const [liveMessage, setLiveMessage] = useState('Leaderboard loaded.');
   const [explainTarget, setExplainTarget] = useState<ExplainTarget | null>(
     null,
@@ -156,127 +160,152 @@ function LeaderboardContent({
   }
 
   return (
-    <div className="leaderboard">
-      <div className="sr-only" aria-live="polite" aria-atomic="true">
-        {liveMessage}
-      </div>
+    <EditValidityProvider value={reportInvalidCell}>
+      <div className="leaderboard">
+        <div className="sr-only" aria-live="polite" aria-atomic="true">
+          {liveMessage}
+        </div>
 
-      <LeaderboardToolbar
-        finalSeriesStarted={finalSeriesStarted}
-        editMode={editMode}
-        saving={saving}
-        compareMode={compareMode}
-        shiftPositions={shiftPositions}
-        editDisabled={finalSeriesStarted && !hasFinalData}
-        onToggleEdit={toggleEditMode}
-        onSave={handleSave}
-        onShiftChange={(e) => setShiftPositions(e.target.checked)}
-        onToggleCompare={() => {
-          setCompareMode((m) => !m);
-          setSelectedBoatIds([]);
-        }}
-        onExport={exportAs}
-      />
-
-      {hasEventData && !finalSeriesStarted && (
-        <QualifyingTable
-          leaderboard={editMode ? editableLeaderboard : eventLeaderboard}
+        <LeaderboardToolbar
+          finalSeriesStarted={finalSeriesStarted}
           editMode={editMode}
+          saving={saving}
           compareMode={compareMode}
-          selectedBoatIds={selectedBoatIds}
-          compareInfo={compareInfo}
-          rdg2Picker={rdg2Picker}
-          setRdg2Picker={setRdg2Picker}
-          onCompareRowClick={handleCompareRowClick}
-          onRaceChange={handleRaceChange}
-          confirmRdg2={confirmRdg2}
-          getFlagCode={getFlagCode}
-          onExplain={onExplain}
+          shiftPositions={shiftPositions}
+          editDisabled={finalSeriesStarted && !hasFinalData}
+          onToggleEdit={toggleEditMode}
+          onSave={handleSave}
+          onShiftChange={(e) => setShiftPositions(e.target.checked)}
+          onToggleCompare={() => {
+            setCompareMode((m) => !m);
+            setSelectedBoatIds([]);
+          }}
+          onExport={exportAs}
         />
-      )}
 
-      {finalSeriesStarted && (
-        <>
-          <SectionDivider label="Final Series" marginTop="20px" />
+        {editMode && (
+          <div className="edit-mode-banner" role="status">
+            <i className="fa fa-pen-to-square" aria-hidden="true" />
+            <div>
+              <strong>Editing results.</strong> Type the finishing place, or
+              pick a code such as DNF or DSQ under it. Nothing is saved until
+              you press <strong>Save Changes</strong>;{' '}
+              <strong>Cancel Editing</strong> throws the edits away.
+              <br />
+              <strong>Shift other boats</strong> off: only the boat you change
+              moves. On: the other boats in that race move up or down to make
+              room.
+              {invalidCount > 0 && (
+                <div className="edit-mode-banner-error">
+                  {invalidCount === 1
+                    ? '1 result is marked in red and must be fixed before saving.'
+                    : `${invalidCount} results are marked in red and must be fixed before saving.`}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
-          {!hasFinalData ? (
-            <>
-              <EmptyState
-                title="Final series ready"
-                description="The final series is created, but no final races have been scored yet."
-              />
+        {hasEventData && !finalSeriesStarted && (
+          <QualifyingTable
+            leaderboard={editMode ? editableLeaderboard : eventLeaderboard}
+            editMode={editMode}
+            compareMode={compareMode}
+            selectedBoatIds={selectedBoatIds}
+            compareInfo={compareInfo}
+            rdg2Picker={rdg2Picker}
+            setRdg2Picker={setRdg2Picker}
+            onCompareRowClick={handleCompareRowClick}
+            onRaceChange={handleRaceChange}
+            confirmRdg2={confirmRdg2}
+            getFlagCode={getFlagCode}
+            onExplain={onExplain}
+          />
+        )}
 
-              {/* Keep qualifying standings visible until first final race exists. */}
-              <QualifyingTable
-                leaderboard={eventLeaderboard}
-                editMode={false}
-                compareMode={false}
-                selectedBoatIds={[]}
-                compareInfo={null}
-                rdg2Picker={null}
-                setRdg2Picker={setRdg2Picker}
-                onCompareRowClick={() => {}}
-                onRaceChange={handleRaceChange}
-                confirmRdg2={confirmRdg2}
-                getFlagCode={getFlagCode}
-                onExplain={onExplain}
-              />
-            </>
-          ) : (
-            sortedGroups.map((group) => (
-              <FinalFleetTable
-                key={group}
-                group={group}
-                entries={groupedLeaderboard[group]}
-                editMode={editMode}
-                compareMode={compareMode}
-                selectedBoatIds={selectedBoatIds}
-                eventLeaderboard={eventLeaderboard}
-                compareInfo={compareInfo}
-                rdg2Picker={rdg2Picker}
-                setRdg2Picker={setRdg2Picker}
-                onCompareRowClick={handleCompareRowClick}
-                onRaceChange={handleRaceChange}
-                confirmRdg2={confirmRdg2}
-                getFlagCode={getFlagCode}
-                onExplain={onExplain}
-              />
-            ))
-          )}
-        </>
-      )}
+        {finalSeriesStarted && (
+          <>
+            <SectionDivider label="Final Series" marginTop="20px" />
 
-      {/* The RDG legend explains what RDG(x.x) cells mean. It must be visible in
+            {!hasFinalData ? (
+              <>
+                <EmptyState
+                  title="Final series ready"
+                  description="The final series is created, but no final races have been scored yet."
+                />
+
+                {/* Keep qualifying standings visible until first final race exists. */}
+                <QualifyingTable
+                  leaderboard={eventLeaderboard}
+                  editMode={false}
+                  compareMode={false}
+                  selectedBoatIds={[]}
+                  compareInfo={null}
+                  rdg2Picker={null}
+                  setRdg2Picker={setRdg2Picker}
+                  onCompareRowClick={() => {}}
+                  onRaceChange={handleRaceChange}
+                  confirmRdg2={confirmRdg2}
+                  getFlagCode={getFlagCode}
+                  onExplain={onExplain}
+                />
+              </>
+            ) : (
+              sortedGroups.map((group) => (
+                <FinalFleetTable
+                  key={group}
+                  group={group}
+                  entries={groupedLeaderboard[group]}
+                  editMode={editMode}
+                  compareMode={compareMode}
+                  selectedBoatIds={selectedBoatIds}
+                  eventLeaderboard={eventLeaderboard}
+                  compareInfo={compareInfo}
+                  rdg2Picker={rdg2Picker}
+                  setRdg2Picker={setRdg2Picker}
+                  onCompareRowClick={handleCompareRowClick}
+                  onRaceChange={handleRaceChange}
+                  confirmRdg2={confirmRdg2}
+                  getFlagCode={getFlagCode}
+                  onExplain={onExplain}
+                />
+              ))
+            )}
+          </>
+        )}
+
+        {/* The RDG legend explains what RDG(x.x) cells mean. It must be visible in
           read mode too — that's the view most people (officials posting
           results, sailors checking standings) actually use, and a bare
           "RDG (3.4)" cell is otherwise only explained on hover. In read mode
           the RDG2 "selected races" labels aren't available (that detail is
           edit-only state), so it degrades to the general description. */}
-      {(() => {
-        const showingFinalData = finalSeriesStarted && hasFinalData;
-        let legendSource = eventLeaderboard;
-        if (editMode) {
-          legendSource = editableLeaderboard;
-        } else if (showingFinalData) {
-          legendSource = sortedGroups.flatMap(
-            (group) => groupedLeaderboard[group] || [],
+        {(() => {
+          const showingFinalData = finalSeriesStarted && hasFinalData;
+          let legendSource = eventLeaderboard;
+          if (editMode) {
+            legendSource = editableLeaderboard;
+          } else if (showingFinalData) {
+            legendSource = sortedGroups.flatMap(
+              (group) => groupedLeaderboard[group] || [],
+            );
+          }
+          return (
+            <RdgLegend
+              editableLeaderboard={legendSource}
+              rdgMeta={rdgMeta}
+              racePrefix={showingFinalData ? 'F' : 'Q'}
+            />
           );
-        }
-        return (
-          <RdgLegend
-            editableLeaderboard={legendSource}
-            rdgMeta={rdgMeta}
-            racePrefix={showingFinalData ? 'F' : 'Q'}
-          />
-        );
-      })()}
+        })()}
 
-      <ScoreExplanationDialog
-        eventId={eventId}
-        target={explainTarget}
-        onClose={closeExplanation}
-      />
-    </div>
+        <ScoreExplanationDialog
+          eventId={eventId}
+          target={explainTarget}
+          onClose={closeExplanation}
+        />
+      </div>
+    </EditValidityProvider>
   );
 }
 

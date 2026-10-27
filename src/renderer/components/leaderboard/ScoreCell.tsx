@@ -7,6 +7,11 @@ import {
 import { scoringPenaltyStatuses } from '../../../shared/scoringPenalty';
 import { penaltyLabel } from '../../constants/penaltyLabels';
 import Rdg2Picker from './Rdg2Picker';
+import { useReportInvalidCell } from './editValidity';
+import {
+  checkRaceCellInput,
+  type RaceCellInputKind,
+} from '../../utils/raceCellInput';
 import type {
   LeaderboardEntry,
   RaceChangeHandler,
@@ -71,11 +76,10 @@ function ScoreCell({
   // Anchor the RDG2 popover to the status select so it can re-track it on scroll.
   const statusSelectRef = React.useRef<HTMLSelectElement>(null);
 
-  // Local draft of the numeric input so the user can freely clear and retype a
-  // place even when the cell already shows the heat's maximum. Without it the
-  // field is fully controlled by `race`: an empty value snaps back and an
-  // appended digit (7 -> 75) clamps straight back to the max, so the cell looks
-  // frozen. `draft === null` means "mirror the derived value".
+  // Local draft of the typed text. `draft === null` means "show the stored
+  // value". Typed text is never corrected on the fly: an impossible place
+  // (0, 15 in a 10-boat heat, 2.5) stays visible in red with the reason, is
+  // not applied to the preview, and blocks Save until it is fixed.
   const rawNumeric =
     typeof race === 'string' ? race.replace(/[()]/g, '') : String(race);
   const [draft, setDraft] = React.useState<string | null>(null);
@@ -91,45 +95,40 @@ function ScoreCell({
   // (RDG3, DPI) stay typeable.
   const keepsFinishingPlace = scoringPenaltyStatuses.has(raceStatus);
   const isInputLocked = isPenalty && !keepsFinishingPlace && !isManualPoints;
+  const inputKind: RaceCellInputKind = isManualPoints ? 'points' : 'place';
 
-  // Manual-points cells cap at 2 digits (99); a normal finish caps at heat size.
-  let numericMax: number | undefined;
-  if (isManualPoints) {
-    numericMax = 99;
-  } else if (maxPosition > 0) {
-    numericMax = maxPosition;
-  }
+  const check =
+    draft === null || isInputLocked || !editMode || !isEditable
+      ? null
+      : checkRaceCellInput(draft, inputKind, maxPosition);
+  const invalid = check && !check.ok ? check : null;
+  const placeRange = maxPosition > 0 ? ` (1–${maxPosition})` : '';
+  const inputHint = isManualPoints
+    ? 'Points set by the protest committee (more than 0, up to 99)'
+    : `Finishing place${placeRange}`;
 
-  // Manual-points cells (RDG3, DPI) skip the heat-size clamp, so cap the typed
-  // value at two integer digits (max 99) to stop runaway entries. Decimals kept.
-  const capManualRdg = (value: string): string => {
-    if (!isManualPoints) return value;
-    const dot = value.indexOf('.');
-    const intPart = (dot === -1 ? value : value.slice(0, dot)).replace(
-      /\D/g,
-      '',
-    );
-    const cappedInt = intPart.slice(0, 2);
-    if (dot === -1) return cappedInt;
-    return `${cappedInt}.${value.slice(dot + 1).replace(/\D/g, '')}`;
-  };
+  // Tell the leaderboard which cells cannot be saved, by sail and race.
+  const reportInvalid = useReportInvalidCell();
+  const cellKey = `${boatId}-${raceIndex}`;
+  const cellName = `Sail ${entry.boat_number ?? boatId}, ${seriesPrefix}${raceIndex + 1}`;
+  const invalidMessage = invalid ? `${cellName}: ${invalid.message}` : null;
+  React.useEffect(() => {
+    reportInvalid(cellKey, invalidMessage);
+  }, [reportInvalid, cellKey, invalidMessage]);
+  React.useEffect(
+    () => () => reportInvalid(cellKey, null),
+    [reportInvalid, cellKey],
+  );
 
-  // Keep the visible draft in step with the value the backend will actually
-  // store. A normal finishing place is clamped to [1, heat size] on save
-  // (useLeaderboard.handleRaceChange); mirroring that clamp here stops the box
-  // from showing e.g. "15" in a 10-boat heat while 10 is what gets saved, then
-  // silently snapping to 10 on blur. Empty stays empty so the field can be
-  // cleared and retyped; manual-points cells (RDG3/DPI) keep their 2-digit cap.
-  const clampTypedValue = (value: string): string => {
-    if (isManualPoints) return capManualRdg(value);
-    if (value === '') return '';
-    const rounded = Math.round(Number(value));
-    if (!Number.isFinite(rounded)) return '';
-    const lowerBounded = Math.max(rounded, 1);
-    return String(
-      numericMax ? Math.min(lowerBounded, numericMax) : lowerBounded,
-    );
-  };
+  // A status that locks the number (DNS, DSQ, RDG1…) makes a half-typed
+  // place irrelevant: drop it.
+  React.useEffect(() => {
+    if (isInputLocked) setDraft(null);
+  }, [isInputLocked]);
+  // Leaving edit mode (Save or Cancel) forgets whatever was typed.
+  React.useEffect(() => {
+    if (!editMode) setDraft(null);
+  }, [editMode]);
 
   const tdStyle: React.CSSProperties = {
     padding: '8px 12px',
@@ -191,18 +190,22 @@ function ScoreCell({
           position: 'relative',
         }}
       >
-        {/* Numeric input */}
+        {/* Typed place or points. A text field, not type="number": a number
+            field changes its value on the mouse wheel and the arrow keys, so
+            scrolling the table could silently change a result. */}
         <input
-          type="number"
-          min={1}
-          max={numericMax}
-          step={1}
+          type="text"
+          inputMode={isManualPoints ? 'decimal' : 'numeric'}
+          autoComplete="off"
+          maxLength={5}
           value={inputValue}
           disabled={isInputLocked}
           onFocus={(e) => e.target.select()}
           onChange={(e) => {
-            const nextValue = clampTypedValue(e.target.value);
-            setDraft(nextValue);
+            const text = e.target.value;
+            setDraft(text);
+            const typed = checkRaceCellInput(text, inputKind, maxPosition);
+            if (!typed.ok) return;
             let statusForChange = 'FINISHED';
             if (isManualRdg) {
               statusForChange = 'RDG3';
@@ -213,19 +216,27 @@ function ScoreCell({
               // Typing a new place must not clear the ZFP/SCP/T1 penalty.
               statusForChange = raceStatus;
             }
-            onRaceChange(boatId, raceIndex, nextValue, statusForChange);
+            onRaceChange(
+              boatId,
+              raceIndex,
+              String(typed.value),
+              statusForChange,
+            );
           }}
-          onBlur={() => setDraft(null)}
+          onBlur={() => {
+            // Keep wrong input on screen until it is fixed.
+            if (!invalid) setDraft(null);
+          }}
           aria-label={`Race ${raceIndex + 1} value`}
-          style={{
-            width: '70px',
-            padding: '6px 8px',
-            borderRadius: '4px',
-            border: '1px solid var(--border,#dde3ea)',
-            opacity: isInputLocked ? 0.35 : 1,
-            fontSize: '0.88rem',
-          }}
+          aria-invalid={invalid ? true : undefined}
+          title={invalid ? invalid.message : inputHint}
+          className={`race-cell-input${invalid ? ' is-invalid' : ''}`}
         />
+        {invalid && (
+          <span className="race-cell-error" role="alert">
+            {invalid.short}
+          </span>
+        )}
 
         {/* Status selector */}
         <select
@@ -249,12 +260,8 @@ function ScoreCell({
             }
           }}
           aria-label={`Race ${raceIndex + 1} status`}
+          className="race-cell-status"
           style={{
-            width: '100px',
-            fontSize: '0.88rem',
-            borderRadius: '4px',
-            border: '1px solid var(--border,#dde3ea)',
-            padding: '4px 6px',
             // eslint-disable-next-line no-nested-ternary
             color: isRdgCell
               ? 'var(--teal-hover,#0B7A63)'

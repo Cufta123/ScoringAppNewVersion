@@ -14,3 +14,67 @@
 .leaderboard-row:hover td {
   background-color: rgba(26, 111, 191, 0.1);
 }
+
+/* ── Editing results ──────────────────────────────────────── */
+.edit-mode-banner {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin: 0 0 14px;
+  padding: 12px 16px;
+  border: 2px solid var(--teal);
+  border-left-width: 6px;
+  border-radius: var(--radius-sm);
+  background: var(--teal-light);
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+.edit-mode-banner > .fa {
+  margin-top: 4px;
+  color: var(--teal-hover);
+}
+.edit-mode-banner-error {
+  margin-top: 6px;
+  font-weight: 700;
+  color: var(--danger-hover);
+}
+
+.race-cell-input {
+  width: 64px;
+  min-height: 38px;
+  padding: 4px 6px;
+  border: 2px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--text);
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.race-cell-input:disabled {
+  opacity: 0.45;
+  background: var(--bg-subtle);
+}
+.race-cell-input.is-invalid {
+  border-color: var(--danger);
+  background: var(--danger-light);
+  color: var(--danger-hover);
+  box-shadow: 0 0 0 3px rgba(214, 59, 47, 0.25);
+}
+.race-cell-error {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--danger-hover);
+  white-space: nowrap;
+}
+select.race-cell-status {
+  width: 110px;
+  min-height: 34px;
+  padding: 3px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
