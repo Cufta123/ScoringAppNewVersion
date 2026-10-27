@@ -253,13 +253,15 @@ handle(
         );
       }
 
+      // shrs_version is deliberately NOT written here: an event keeps the rule
+      // version it was created under. Rewriting it on every edit would make a
+      // future rule version silently re-label (and re-score) old events.
       db.prepare(
         `UPDATE Events
          SET event_name = ?,
              event_location = ?,
              start_date = ?,
              end_date = ?,
-             shrs_version = '2026-1',
              shrs_qualifying_assignment_mode = ?,
              shrs_discard_profile_qualifying = ?,
              shrs_discard_profile_final = ?,
