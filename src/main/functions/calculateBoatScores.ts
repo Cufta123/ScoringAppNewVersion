@@ -9,6 +9,7 @@ import {
   getKeptScores,
   resolveTiesSequentially,
 } from './scoringUtils';
+import { sumPoints } from '../../shared/points';
 
 interface Result {
   boat_id: any;
@@ -345,7 +346,9 @@ export default function calculateBoatScores(
       0,
     );
     const scoresToInclude = getKeptScores(scoreEntries, excludeCount);
-    const totalPoints = scoresToInclude.reduce((acc, score) => acc + score, 0);
+    // roundPoints: equal totals must compare equal or the SHRS 5.7 tie-break
+    // is skipped (tenth-point RDG scores leave float noise in a plain sum).
+    const totalPoints = sumPoints(scoresToInclude);
     console.log(
       `Boat ID: ${boat_id}, Number of Races: ${number_of_races}, Initial Total Points: ${initialTotalPoints}, Included Scores: ${scoresToInclude}`,
     );

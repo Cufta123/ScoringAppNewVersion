@@ -1,6 +1,7 @@
 import IOC_NATIONS from '../constants/iocNations';
 import { fleetRank } from '../../shared/fleetNames';
 import { getExcludeCountForProfile } from '../../shared/discardProfile';
+import { roundPoints, sumPoints } from '../../shared/points';
 import type { LeaderboardEntry, RawLeaderboardEntry } from '../types';
 
 export const PENALTY_CODES = [
@@ -120,7 +121,7 @@ export const applyExclusions = (
   if (excludeCount === 0) {
     return {
       markedRaces: rawPositions.map((r) => String(r).replace(/[()]/g, '')),
-      total: points.reduce((a, b) => a + b, 0),
+      total: sumPoints(points),
     };
   }
   const candidates = points
@@ -145,7 +146,7 @@ export const applyExclusions = (
     total += p;
     return String(race).replace(/[()]/g, '');
   });
-  return { markedRaces, total };
+  return { markedRaces, total: roundPoints(total) };
 };
 
 /**

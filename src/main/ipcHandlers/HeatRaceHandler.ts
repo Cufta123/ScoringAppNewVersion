@@ -46,6 +46,7 @@ import {
   scoringPenaltyStatuses,
 } from '../functions/scoreStatus';
 import handle from './handle';
+import { roundPoints } from '../../shared/points';
 import {
   SHRS_MAX_BOATS_PER_HEAT,
   getEventHeatOverflowPolicy,
@@ -1753,7 +1754,12 @@ handle('readOverallLeaderboard', async (event, event_id) => {
     ORDER BY overall_points ASC, fl.place ASC`,
   );
 
-  const results = overallQuery.all(event_id);
+  // Normalise the SQL sums so equal overall totals compare equal (see
+  // shared/points.ts) — otherwise a tie group below can be split by noise.
+  const results = (overallQuery.all(event_id) as any[]).map((row) => ({
+    ...row,
+    overall_points: roundPoints(Number(row.overall_points)),
+  }));
 
   const tiePacketCache = new Map<any, OverallTiePacket>();
   const getTiePacket = (boatId: any) => {
