@@ -6,6 +6,7 @@ import './ipcHandlers/SailorHandler';
 import './ipcHandlers/EventHandler';
 import './ipcHandlers/HeatRaceHandler';
 import handle from './ipcHandlers/handle';
+import { autoBackup } from '../../public/Database/DBManager';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -116,7 +117,9 @@ const createWindow = async () => {
     mainWindow = null;
   });
 
-  const menuBuilder = new MenuBuilder(mainWindow);
+  const menuBuilder = new MenuBuilder(mainWindow, {
+    backupsDir: autoBackup.dir,
+  });
   menuBuilder.buildMenu();
 
   mainWindow.webContents.setWindowOpenHandler((edata) => {
@@ -130,6 +133,12 @@ handle('dialog:openFile', async (event, options) => {
   return dialog.showOpenDialog(mainWindow!, options);
 });
 
+// Final safety copy of anything scored since the last periodic backup.
+app.on('before-quit', () => {
+  autoBackup.stop();
+  autoBackup.backupIfChanged();
+});
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
@@ -140,6 +149,9 @@ app
   .whenReady()
   .then(() => {
     applyContentSecurityPolicy();
+    // Start-up copy, then rolling copies while results are being entered.
+    autoBackup.backupNow();
+    autoBackup.start();
     createWindow();
     app.on('activate', () => {
       if (mainWindow === null) createWindow();

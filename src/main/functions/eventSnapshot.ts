@@ -162,8 +162,10 @@ export function restoreEventSnapshot(
       event_id,
     );
 
+    // OR IGNORE: a snapshot taken before entries were made unique (schema
+    // migration 2) can list a boat twice; keep one entry instead of aborting.
     const insertBoatEvent = db.prepare(
-      'INSERT INTO Boat_Event (boat_event_id, boat_id, event_id) VALUES (?, ?, ?)',
+      'INSERT OR IGNORE INTO Boat_Event (boat_event_id, boat_id, event_id) VALUES (?, ?, ?)',
     );
     (tables.Boat_Event || []).forEach((row) => {
       insertBoatEvent.run(row.boat_event_id, row.boat_id, row.event_id);

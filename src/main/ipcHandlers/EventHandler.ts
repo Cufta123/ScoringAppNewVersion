@@ -106,7 +106,11 @@ handle(
 
 handle('associateBoatWithEvent', async (event, boat_id, event_id) => {
   const result = db
-    .prepare('INSERT INTO Boat_Event (boat_id, event_id) VALUES (?, ?)')
+    // OR IGNORE: one entry per boat per event (schema migration 2). Entering
+    // a boat that is already entered is a no-op, not an error.
+    .prepare(
+      'INSERT OR IGNORE INTO Boat_Event (boat_id, event_id) VALUES (?, ?)',
+    )
     .run(boat_id, event_id);
   return { lastInsertRowid: result.lastInsertRowid };
 });
