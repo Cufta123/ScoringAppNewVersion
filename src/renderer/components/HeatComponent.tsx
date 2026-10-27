@@ -786,11 +786,21 @@ function HeatComponent({
               onDrop={(e) => handleDrop(e, heat.heat_id)}
               onDragOver={handleDragOver}
             >
-              <h4>
-                {heat.heat_name}{' '}
-                {heat.raceNumber > 0
-                  ? `(Race ${heat.raceNumber})`
-                  : '(no races yet)'}
+              <h4 className="heat-card-title">
+                <span>{heat.heat_name}</span>
+                {/* Whether this heat still has to sail, readable at a glance. */}
+                {heat.raceNumber > 0 ? (
+                  <span className="heat-status heat-status-done">
+                    <i className="fa fa-check" aria-hidden="true" />{' '}
+                    {heat.raceNumber === 1
+                      ? 'Scored'
+                      : `${heat.raceNumber} races scored`}
+                  </span>
+                ) : (
+                  <span className="heat-status heat-status-waiting">
+                    Not scored yet
+                  </span>
+                )}
               </h4>
               <table>
                 <thead>
@@ -831,7 +841,10 @@ function HeatComponent({
                           />
                           {boat.country}
                         </td>
-                        <td style={boatNumberColumnStyle}>
+                        <td
+                          style={boatNumberColumnStyle}
+                          className="heat-sail-number"
+                        >
                           {boat.sail_number}
                         </td>
                       </tr>

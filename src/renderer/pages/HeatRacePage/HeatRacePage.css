@@ -23,7 +23,7 @@
   flex: 1 1 280px;
   max-width: 400px;
   background: #fff;
-  border: 1.5px solid #c8dff2;
+  border: 2px solid var(--border);
   border-radius: 14px;
   padding: 16px;
   box-shadow: 0 2px 8px rgba(15, 45, 74, 0.1);

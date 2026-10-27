@@ -57,8 +57,8 @@ function App() {
         </Routes>
       </ErrorBoundary>
       <ToastContainer
-        position="bottom-right"
-        autoClose={3500}
+        position="top-center"
+        autoClose={5000}
         hideProgressBar={false}
         newestOnTop
         closeOnClick
