@@ -1,6 +1,7 @@
 import { db } from '../../../public/Database/DBManager';
 import { normalizeDiscardConfigString } from '../functions/discardConfig';
 import handle from './handle';
+import { readEventHistory } from '../functions/changeJournal';
 
 interface SqliteError extends Error {
   code: string;
@@ -36,6 +37,10 @@ const normalizeHeatOverflowPolicy = (value: unknown): string => {
 };
 
 console.log('EventHandler.ts loaded');
+
+handle('readEventHistory', async (event, event_id) =>
+  readEventHistory(Number(event_id)),
+);
 
 handle('readAllEvents', async () => {
   const events = await db.prepare('SELECT * FROM Events').all();

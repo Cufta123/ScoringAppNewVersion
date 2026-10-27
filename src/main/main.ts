@@ -5,8 +5,12 @@ import { resolveHtmlPath, resolvePreloadPath } from './util';
 import './ipcHandlers/SailorHandler';
 import './ipcHandlers/EventHandler';
 import './ipcHandlers/HeatRaceHandler';
-import handle from './ipcHandlers/handle';
+import handle, { setCallObserver } from './ipcHandlers/handle';
 import { autoBackup } from '../../public/Database/DBManager';
+import { journalObserver } from './functions/changeJournal';
+
+// Group what each IPC call writes into one entry of the event history.
+setCallObserver(journalObserver);
 
 let mainWindow: BrowserWindow | null = null;
 

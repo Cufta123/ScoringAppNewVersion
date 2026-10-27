@@ -24,16 +24,43 @@ import { ipcMain, IpcMainInvokeEvent } from 'electron';
  * their own inner try/catch and register through this wrapper as well, so the
  * rethrow path stays uniform for everything they choose to propagate.
  */
+export interface CallObserver<Mark = unknown> {
+  before: (channel: string) => Mark;
+  after: (mark: Mark, channel: string) => void;
+}
+
+let observer: CallObserver<any> | null = null;
+
+/**
+ * Watch every IPC call: `before` runs as a call starts and `after` once it has
+ * finished, failed or not. The app uses it to group what each call wrote in
+ * the change journal (src/main/functions/changeJournal.ts). Unit tests leave
+ * it unset, so their mocked databases are never asked about the journal.
+ */
+export function setCallObserver<Mark>(next: CallObserver<Mark> | null): void {
+  observer = next;
+}
+
 export default function handle(
   channel: string,
   listener: (event: IpcMainInvokeEvent, ...args: any[]) => unknown,
 ): void {
   ipcMain.handle(channel, async (event: IpcMainInvokeEvent, ...args: any[]) => {
+    const watching = observer;
+    const mark = watching?.before(channel);
     try {
       return await listener(event, ...args);
     } catch (error) {
       console.error(`IPC "${channel}" failed:`, error);
       throw error;
+    } finally {
+      try {
+        watching?.after(mark, channel);
+      } catch (error) {
+        // The call itself went through; a failure to group its history must
+        // not turn it into an error for the user.
+        console.error(`Journal grouping for "${channel}" failed:`, error);
+      }
     }
   });
 }

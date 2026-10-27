@@ -272,3 +272,27 @@ test('a boat’s total explains itself, race by race, with the rule behind each 
   await dialog.getByRole('button', { name: 'Close' }).click();
   await expect(dialog).toBeHidden();
 });
+
+test('the event history lists what was done, newest first, and filters by boat', async () => {
+  await window.getByRole('button', { name: 'Open event history' }).click();
+  const dialog = window.getByRole('dialog', { name: 'Event history' });
+  await expect(dialog).toBeVisible();
+
+  // The ZFP edit above is the newest action; the races were scored before it.
+  await expect(dialog.locator('.history-entry strong').first()).toHaveText(
+    'Results edited on the leaderboard',
+  );
+  await expect(
+    dialog.getByText('Race scored', { exact: true }).first(),
+  ).toBeVisible();
+
+  await dialog.getByLabel('Filter by sail, heat or result').fill('ZFP');
+  await expect(
+    dialog.getByText(
+      /102, Heat \w+ race 1: 2 \(2 points\) → 2 ZFP \(3 points\)/,
+    ),
+  ).toBeVisible();
+
+  await dialog.getByRole('button', { name: 'Close' }).click();
+  await expect(dialog).toBeHidden();
+});

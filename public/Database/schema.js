@@ -21,6 +21,8 @@
  * some or all of it.
  */
 
+const { installJournal } = require('./journal');
+
 const readColumns = (db, table) =>
   new Set(
     db
@@ -385,6 +387,15 @@ const MIGRATIONS = [
           sql: 'ALTER TABLE Scores ADD COLUMN rdg_race_ids TEXT;',
         },
       ]);
+    },
+  },
+  {
+    version: 4,
+    name: 'change journal (history of every change to an event)',
+    // Append-only history written by triggers; see journal.js. History starts
+    // when a database reaches this version: earlier changes were never kept.
+    up(db) {
+      installJournal(db);
     },
   },
 ];

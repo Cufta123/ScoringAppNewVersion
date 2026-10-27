@@ -2119,3 +2119,64 @@ button.submit-scores-btn.is-unavailable:hover {
   list-style: disc;
   margin-bottom: 4px;
 }
+
+/* ── Event history dialog ─── */
+.history-modal .help-modal-body {
+  max-height: 60vh;
+}
+
+.history-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.history-filter input {
+  max-width: 320px;
+}
+
+/* The help modal numbers its lists; the history is not a numbered list. */
+.help-modal-body .history-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.help-modal-body .history-entry {
+  list-style: none;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.history-entry-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  color: var(--navy);
+}
+
+.history-entry-head time {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.history-lines {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 0.9rem;
+}
+
+.help-modal-body .history-lines li {
+  list-style: disc;
+}
+
+.history-more {
+  margin-top: 4px;
+  padding: 2px 8px;
+  font-size: 0.85rem;
+}
