@@ -59,6 +59,9 @@ export async function launchApp(): Promise<LaunchedApp> {
       ...process.env,
       NODE_ENV: 'production',
       SCORING_APP_DB_PATH: freshDatabasePath(),
+      // Keep the window hidden so a test run works in the background without
+      // stealing focus. E2E_SHOW_WINDOW=1 shows it, to watch a test.
+      SCORING_APP_HIDDEN: process.env.E2E_SHOW_WINDOW === '1' ? '' : '1',
     },
   });
   const window = await app.firstWindow();

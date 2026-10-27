@@ -87,6 +87,11 @@ const createWindow = async () => {
     return path.join(RESOURCES_PATH, ...paths);
   };
 
+  // Automated GUI tests run the real app without ever showing it, so a test
+  // run does not pop windows up and steal focus (e2e/helpers.ts sets this).
+  const hidden = process.env.SCORING_APP_HIDDEN === '1';
+  if (hidden) app.dock?.hide();
+
   mainWindow = new BrowserWindow({
     show: false,
     width: 1024,
@@ -97,6 +102,9 @@ const createWindow = async () => {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // A window that is never shown must still render and run timers at
+      // full speed, or the tests would wait on a throttled page.
+      backgroundThrottling: !hidden,
     },
   });
 
@@ -106,6 +114,7 @@ const createWindow = async () => {
     if (!mainWindow) {
       throw new Error('"mainWindow" is not defined');
     }
+    if (hidden) return;
     if (process.env.START_MINIMIZED) {
       mainWindow.minimize();
     } else {
