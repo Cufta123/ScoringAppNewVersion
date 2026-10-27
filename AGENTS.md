@@ -24,7 +24,9 @@ Use this document first. Only search the repo when this file does not answer the
 - Renderer DB access wrapper: `src/renderer/api/db` (re-exports `eventDB`,
   `heatRaceDB`, etc. over `window.electron.sqlite.*`).
 - Renderer routes: `src/renderer/App.tsx`
-- Database schema and migration logic: `public/Database/DBManager.js`
+- Database open + startup: `public/Database/DBManager.js`; versioned schema
+  migrations: `public/Database/schema.js`; automatic backups:
+  `public/Database/backup.js`
 - App menu: `src/main/menu.ts`
 - Unit test config: `jest.unit.config.ts`
 
@@ -55,7 +57,20 @@ Use this document first. Only search the repo when this file does not answer the
 
 ## 4. Database Model (SQLite)
 
-Database initialization and schema creation are in `public/Database/DBManager.js`.
+The schema is built by numbered migrations in `public/Database/schema.js`.
+`PRAGMA user_version` records how far a database has been migrated; on open,
+every newer migration runs once, in order. To change the schema, APPEND a
+migration — never edit a shipped one. `DBManager.js` takes a
+`pre-migration-*` backup before any pending migration, and refuses to start
+(error dialog, exit) if a migration fails or the database comes from a newer
+app version, rather than running on a half-migrated file.
+`schema.migrations.test.ts` runs the real migrations against node:sqlite.
+
+Backups (`backup.js`) go to `<db folder>/backups`: on start-up, every 5 min
+while data changes, and on quit, via `VACUUM INTO`. The newest 24 `auto-*`
+copies are kept plus the last one of each earlier day; `pre-migration-*` are
+never pruned. Help → Open Backups Folder opens the folder. To restore: quit,
+copy a backup over `scoring_app.db`.
 
 Key tables:
 
@@ -87,7 +102,9 @@ Important migration details:
   event with a protest decision undeletable. Covered by
   `eventLifecycle.integration.test.ts`, which asserts `PRAGMA foreign_key_check`
   is clean afterwards.
-- `ensurePerformanceIndexes()` adds `idx_races_heat_id` and `idx_heats_event_id`
+- Migration 2 makes `Boat_Event (boat_id, event_id)` unique;
+  `associateBoatWithEvent` is `INSERT OR IGNORE`.
+- Migration 1 adds `idx_races_heat_id` and `idx_heats_event_id`
   (298 ms -> 3 ms for the DNC backfill probe on a four-season database).
   `Scores(boat_id)` and `ANALYZE` are deliberately excluded — both help one
   query on the leaderboard click and hurt the other more. Re-measure before
@@ -268,7 +285,10 @@ Scoring (`calculateBoatScores.ts`, `scoreStatus.ts`)
   `assignBoatToHeat`, or entered and never started) is scored **DNC** at
   (largest heat + 1), not left without a row
   (`ensureDncScoresForMissedQualifyingRaces` in `raceScoring.ts`, run as part of
-  `ensureCompleteRaceScoresForEvent`). Qualifying only: in the Final Series a
+  `ensureCompleteRaceScoresForEvent`, and on round completion inside
+  `submitHeatRaceScoresAtomic`). A series race is keyed by (heat round from the
+  name suffix, `race_number`), and only backfilled once EVERY heat of that
+  round has sailed it. Qualifying only: in the Final Series a
   boat races one fleet (4.1) and fleets may sail different numbers of races
   (4.5), so a Gold boat must not collect DNCs for Silver's races. Without this,
   a short score vector makes `calculateBoatScores` (capped) and
@@ -375,10 +395,13 @@ Handler / integration:
 - `explainTieBreak.test.ts`, `compareUtils.test.ts`
 - `ScoringInputComponent.test.jsx`, `useLeaderboard.scoring.test.jsx`
 
-`npm run test:unit` targets the explicit list in `jest.unit.config.ts`; when you
-add a test, also add it there or it only runs under `test:full`. Tests avoid the
-native `better-sqlite3` build — they mock `db` from `DBManager` (SQL-sniffing or
-op-log mocks), so no real SQLite is needed.
+`npm run test:unit` runs every `src/__tests__/**/*.test.*` except the
+template's `App.test.tsx` (needs a build). CI runs typecheck, lint and
+`test:unit` on Node 22 and will not publish a release if they fail. Tests avoid
+the native `better-sqlite3` build. Prefer real SQLite via node:sqlite
+(Node >= 22.5) and `createSqliteDbMock` in `fixtures/eventLifecycleSchema.ts`
+over SQL-sniffing mocks: a hand-built fixture whose shape production never
+writes (race_number = round) hid the DNC backfill bug for a release.
 
 ## 9. Fast Change Workflow
 
@@ -435,6 +458,19 @@ For most feature/fix requests, do this in order:
   on hold. The `GlobalLeaderboard` table is deliberately KEPT in `DBManager.js`,
   and `deleteEvent` still clears its rows, so reviving the feature needs no
   migration.
+
+- `Races.race_number` counts races WITHIN one heat, so nearly every
+  qualifying race is `race_number = 1` (each round is a new set of heats).
+  Never group qualifying races by `race_number` alone; the round is the heat
+  name suffix (`getHeatRoundFromName`, "Heat B3" -> 3).
+- Qualifying writes are guarded server-side (`functions/seriesGuards.ts`): no
+  scoring or undoing a qualifying heat once the Final Series has started, or
+  once the next round was built from it (undo the redistribution first).
+- Undo deletes a race's `RaceAssignmentSnapshots` rows INSIDE its transaction,
+  before the race (FKs enforced, no cascade).
+- Point totals go through `sumPoints`/`roundPoints` (`shared/points.ts`). A
+  plain sum of tenth-point RDG scores carries float noise, equal totals stop
+  comparing equal, and the SHRS 5.7 tie-break is skipped.
 
 ## 11. What To Search Only If Needed
 
