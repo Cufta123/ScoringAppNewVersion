@@ -283,8 +283,7 @@ describe('Property-based backend/UI tie-break parity', () => {
         backend.scoresA82Map,
         backend.raceScoresMap,
       );
-      const pointsMap = new Map();
-      const backendTable = calculateBoatScores(backend.results, 1, pointsMap);
+      const backendTable = calculateBoatScores(backend.results, 1);
       const backendWinner = backendTable.find(
         (row) => row.place === 1,
       )?.boat_id;

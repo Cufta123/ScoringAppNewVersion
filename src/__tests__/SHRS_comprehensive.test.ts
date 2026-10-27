@@ -48,6 +48,8 @@ jest.mock('../../public/Database/DBManager', () => ({
 // eslint-disable-next-line
 const { db } = require('../../public/Database/DBManager');
 const mockPrepare = db.prepare as jest.Mock;
+// eslint-disable-next-line import/first, import/order
+import { boatRaces, worstFirstRows } from './fixtures/scoresTableMock';
 
 /**
  * Configure the mock DB for qualifying-series tests.
@@ -83,20 +85,10 @@ function setupQualifyingMockDb(
       return undefined;
     },
     all: (_eventId: unknown, boatId: string) => {
-      if (sql.includes('SELECT s.race_id, r.race_number, s.points')) {
-        if (raceScores[boatId]) return raceScores[boatId];
-        const desc = scoresA82[boatId] ?? [];
-        return desc.map((points, idx) => ({
-          race_id: idx + 1,
-          race_number: desc.length - idx,
-          points,
-        }));
-      }
       if (sql.includes('ORDER BY points DESC')) {
-        return (scoresA81[boatId] ?? []).map((points) => ({ points }));
-      }
-      if (sql.includes('ORDER BY r.race_number DESC')) {
-        return (scoresA82[boatId] ?? []).map((points) => ({ points }));
+        return worstFirstRows(
+          boatRaces(scoresA81[boatId], scoresA82[boatId], raceScores[boatId]),
+        );
       }
       return [];
     },
@@ -130,10 +122,9 @@ function setupFinalMockDb(
     },
     all: (_eventId: unknown, boatId: string) => {
       if (sql.includes('ORDER BY points DESC')) {
-        return (scoresA81[boatId] ?? []).map((p) => ({ points: p }));
-      }
-      if (sql.includes('ORDER BY r.race_number DESC')) {
-        return (scoresA82[boatId] ?? []).map((p) => ({ points: p }));
+        return worstFirstRows(
+          boatRaces(scoresA81[boatId], scoresA82[boatId], undefined),
+        );
       }
       return [];
     },
@@ -158,8 +149,7 @@ function runQualifying(
   results: ReturnType<typeof makeQResult>[],
   event_id = 1,
 ): Record<string, { totalPoints: number; place: number }> {
-  const pointsMap = new Map<number, string[]>();
-  const table = calculateBoatScores(results, event_id, pointsMap);
+  const table = calculateBoatScores(results, event_id);
   return Object.fromEntries(
     table.map((r) => [
       r.boat_id,
@@ -572,24 +562,31 @@ describe('SHRS 5.6(ii)(a) – Shared-heat tie-breaking', () => {
   });
 
   it('non-shared races are ignored for tie-breaking', () => {
+    // Both 16 after one discard. Shared races: a [3, 7] vs b [4, 6] -> a.
+    // Counting every race would give b the win (her kept scores include a 1).
     setupQualifyingMockDb(
-      { a: [10, 10], b: [10, 10] },
-      { a: [10, 10], b: [10, 10] },
+      {},
+      {},
       {
         a: [
           { race_id: 1, race_number: 1, points: 3 }, // shared
-          { race_id: 2, race_number: 2, points: 7 }, // shared
-          { race_id: 99, race_number: 99, points: 100 }, // non-shared: very bad
+          { race_id: 2, race_number: 1, points: 7 }, // shared
+          { race_id: 101, race_number: 1, points: 2 },
+          { race_id: 102, race_number: 1, points: 4 },
+          { race_id: 103, race_number: 1, points: 20 },
         ],
         b: [
           { race_id: 1, race_number: 1, points: 4 }, // shared
-          { race_id: 2, race_number: 2, points: 6 }, // shared
-          { race_id: 100, race_number: 99, points: 1 }, // non-shared: very good
+          { race_id: 2, race_number: 1, points: 6 }, // shared
+          { race_id: 201, race_number: 1, points: 1 },
+          { race_id: 202, race_number: 1, points: 5 },
+          { race_id: 203, race_number: 1, points: 20 },
         ],
       },
     );
-    const r = runQualifying([makeQResult('a', 2), makeQResult('b', 2)]);
-    // Shared: a sorted [3,7] vs b sorted [4,6] → 3<4 → a wins
+    const r = runQualifying([makeQResult('a', 5), makeQResult('b', 5)]);
+    expect(r.a.totalPoints).toBe(16);
+    expect(r.b.totalPoints).toBe(16);
     expect(r.a.place).toBe(1);
     expect(r.b.place).toBe(2);
   });
@@ -878,7 +875,7 @@ describe('Complex scenario – 20-boat qualifying with discards and ties', () =>
     a81.tieA = [20, 15, 3, 3, 3, 3, 3, 3]; // exclude 2 worst (20,15) → kept total = 18
     a81.tieB = [20, 15, 3, 3, 3, 3, 3, 3];
     a82.tieA = [3, 3, 3, 3, 3, 3, 15, 20]; // latest races first
-    a82.tieB = [3, 3, 3, 3, 3, 2, 16, 20]; // race 2 = 2 < 3 → tieB wins
+    a82.tieB = [3, 3, 3, 3, 3, 3, 20, 15]; // race 2: 15 < 20 → tieA wins
     results.push(makeQResult('tieA', 8));
     results.push(makeQResult('tieB', 8));
 

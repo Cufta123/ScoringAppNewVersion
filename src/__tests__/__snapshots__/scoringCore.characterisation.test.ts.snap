@@ -1,0 +1,2462 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`scoring pipeline characterisation (150 seeded random events) events 1-25 score exactly as recorded 1`] = `
+"seed 1: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 9 | place 1 | total 6 | ui 6 | 1 1 1 1 (2) (0) 1 (3) 1
+boat 6 | place 2 | total 7 | ui 7 | 1 (2) 1 1 (0) 1 (0) 1 2
+boat 2 | place 3 | total 8.1 | ui 8.1 | 1 1.1 (3) (2) 1 (2) 2 1 2
+boat 8 | place 4 | total 8.8 | ui 8.8 | (2) 1.8 1 1 (4) 1 2 (4) 2
+boat 1 | place 5 | total 9 | ui 9 | (2) 1 1 (2) 2 (0) 2 1 2
+boat 3 | place 6 | total 10 | ui 10 | (4) 2 1 2 (4) 1 2 2 (4)
+boat 5 | place 7 | total 11 | ui 11 | 3 2 2 (0) 2 (4) 1 (0) 1
+boat 4 | place 8 | total 12 | ui 12 | (3) 0 (2) 1 (2) 1 1 1 0
+boat 7 | place 9 | total 12 | ui 12 | (3) 1 (0) 1 0 2 3 1 (4)
+seed 2: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 6 | place 1 | total 8 | ui 8 | (2) (3) 1 1 2 1 2 1
+boat 3 | place 2 | total 9.2 | ui 9.2 | 2 1 1.2 2 (0) 2 1 (2.6)
+boat 1 | place 3 | total 10 | ui 10 | 1 1 (2) 2 2 2 2 (3)
+boat 2 | place 4 | total 10 | ui 10 | 1 1 0 1 1 (5) 1 (3)
+boat 4 | place 5 | total 10 | ui 10 | (5) (3) 1 1 3 2 2 1
+boat 5 | place 6 | total 10.2 | ui 10.2 | (0) 2 2 2 1.2 1 (5) 2
+boat 7 | place 7 | total 15 | ui 15 | (5) (5) 2 1 0 0 1 1
+seed 2: final (standard)
+Gold | boat 1 | place 1 | total 3.5 | ui 3.5 | 1.5 2
+Gold | boat 4 | place 2 | total 4 | ui 4 | 2 2
+Gold | boat 7 | place 3 | total 5 | ui 5 | 0 1
+Silver | boat 2 | place 1 | total 1 | ui 1 | 1
+Silver | boat 5 | place 1 | total 1 | ui 1 | 1
+Bronze | boat 3 | place 2 | total 6 | ui 6 | (1) 1 1 0
+Bronze | boat 6 | place 1 | total 6 | ui 6 | (1) 0 1 1
+seed 3: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 1 | place 1 | total 12 | ui 12 | 3 1 2 (0) 2 (5) 4
+boat 7 | place 2 | total 13 | ui 13 | 3 2 (10) 2 3 (4) 3
+boat 2 | place 3 | total 13.1 | ui 13.1 | 1 7 2.1 1 2 (0) (8)
+boat 9 | place 4 | total 17 | ui 17 | 2 (8) 1 2 4 (10) 8
+boat 5 | place 5 | total 18 | ui 18 | 1 (7) 3 (0) 4 3 7
+boat 3 | place 6 | total 19 | ui 19 | 3 (8) 4 (10) 4 4 4
+boat 8 | place 7 | total 20 | ui 20 | (0) (7) 5 2 4 5 4
+boat 6 | place 8 | total 20 | ui 20 | (10) (8) 4 4 3 5 4
+boat 4 | place 9 | total 21 | ui 21 | 4 (8) (4.7) 4 2 0 1
+seed 3: final (standard)
+Gold | boat 5 | place 1 | total 7 | ui 7 | 1 1 3 (0) 1 1
+Gold | boat 1 | place 2 | total 10 | ui 10 | 3 (4) 1 2 2 2
+Gold | boat 3 | place 3 | total 15 | ui 15 | 0 (2) 1 1 1 0
+Gold | boat 7 | place 5 | total 18 | ui 18 | 2 4 (0) 5 0 1
+Gold | boat 9 | place 4 | total 18 | ui 18 | 3 (4) 2 1 0 0
+Silver | boat 8 | place 1 | total 6 | ui 6 | 1 1 (2) 1 2 1
+Silver | boat 6 | place 2 | total 9.4 | ui 9.4 | 3 2 1.4 (0) 2 1
+Silver | boat 2 | place 4 | total 10 | ui 10 | 3 2 2 1 2 (0)
+Silver | boat 4 | place 3 | total 10 | ui 10 | 3 2 (0) 2 2 1
+seed 4: qualifying ({"thresholds":[]})
+boat 6 | place 1 | total 9 | ui 9 | 4 3 2
+boat 3 | place 2 | total 9 | ui 9 | 4 2 3
+boat 2 | place 3 | total 10.1 | ui 10.1 | 2 0 1.1
+boat 4 | place 4 | total 11 | ui 11 | 0 1 3
+boat 1 | place 5 | total 11 | ui 11 | 3 5 3
+boat 5 | place 6 | total 15 | ui 15 | 3 5 0
+seed 4: final (standard)
+Gold | boat 1 | place 1 | total 0 | ui 0
+Gold | boat 4 | place 1 | total 0 | ui 0
+Silver | boat 2 | place 1 | total 8 | ui 8 | 1 (2) 2 1 1 1 2
+Silver | boat 5 | place 2 | total 8.7 | ui 8.7 | (2) 2 1.7 1 1 1 2
+Bronze | boat 6 | place 1 | total 3 | ui 3 | 1 1 1
+Bronze | boat 3 | place 2 | total 6 | ui 6 | 2 0 1
+seed 5: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 1 | place 1 | total 1 | ui 1 | 1
+boat 2 | place 1 | total 1 | ui 1 | 1
+boat 3 | place 1 | total 1 | ui 1 | 1
+boat 6 | place 1 | total 1 | ui 1 | 1
+boat 5 | place 5 | total 3 | ui 3 | 3
+boat 4 | place 6 | total 4 | ui 4 | 0
+seed 5: final ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+Gold | boat 5 | place 1 | total 1 | ui 1 | 1
+Gold | boat 1 | place 2 | total 3 | ui 3 | 3
+Gold | boat 3 | place 2 | total 3 | ui 3 | 3
+Silver | boat 2 | place 1 | total 6 | ui 6 | (3) 1 2 2 1
+Silver | boat 4 | place 2 | total 7 | ui 7 | 1 2 2 2 (3)
+Silver | boat 6 | place 3 | total 10 | ui 10 | 2 2 0 (0) 2
+seed 6: qualifying ({"thresholds":[2,5]})
+boat 10 | place 1 | total 5 | ui 5 | (3.1) 1 1 (4) 3
+boat 8 | place 2 | total 5.7 | ui 5.7 | (5) 1.7 (3) 3 1
+boat 4 | place 3 | total 6 | ui 6 | (5) 2 (0) 1 3
+boat 1 | place 4 | total 6 | ui 6 | 3 2 (5) 1 (7)
+boat 2 | place 5 | total 7 | ui 7 | (3) (3) 3 3 1
+boat 7 | place 6 | total 8 | ui 8 | 3 3 (4) 2 (7)
+boat 5 | place 7 | total 9 | ui 9 | (0) 3 3 3 (6)
+boat 3 | place 8 | total 9 | ui 9 | (6) 3 3 3 (7)
+boat 6 | place 9 | total 14 | ui 14 | (2) 1 (0) 0 1
+boat 11 | place 10 | total 16 | ui 16 | 0 1 (5) (4) 3
+boat 9 | place 11 | total 16.9 | ui 16.9 | (3) 2 (4) 0 2.9
+seed 6: final (standard)
+Gold | boat 4 | place 2 | total 3 | ui 3 | 1 2
+Gold | boat 7 | place 1 | total 3 | ui 3 | 2 1
+Gold | boat 1 | place 3 | total 5 | ui 5 | 3 2
+Gold | boat 10 | place 4 | total 7 | ui 7 | 0 2
+Silver | boat 11 | place 1 | total 8 | ui 8 | (3) 2 2 2 1 1
+Silver | boat 8 | place 2 | total 10 | ui 10 | 1 (4) 1 4 2 2
+Silver | boat 5 | place 3 | total 12 | ui 12 | (0) 1 3 2 2 4
+Silver | boat 2 | place 4 | total 14 | ui 14 | 3 3 3 3 2 (0)
+Bronze | boat 3 | place 1 | total 3 | ui 3 | 2 1
+Bronze | boat 9 | place 1 | total 3 | ui 3 | 2 1
+Bronze | boat 6 | place 3 | total 6 | ui 6 | 0 1
+seed 7: qualifying (standard)
+boat 4 | place 1 | total 5 | ui 5 | (0) 1 1 2 1
+boat 14 | place 1 | total 5 | ui 5 | 1 1 2 1 (4)
+boat 13 | place 3 | total 5.9 | ui 5.9 | (2.1) 1.9 2 1 1
+boat 2 | place 4 | total 7 | ui 7 | (3) 1 2 2 2
+boat 12 | place 5 | total 7 | ui 7 | 1 2 (4) 1 3
+boat 10 | place 6 | total 8 | ui 8 | 2 4 (5) 1 1
+boat 1 | place 7 | total 9 | ui 9 | 3 1 2 3 (6)
+boat 5 | place 8 | total 9.8 | ui 9.8 | (0) 5 1.8 1 2
+boat 3 | place 9 | total 10 | ui 10 | 3 (4) 2 3 2
+boat 9 | place 10 | total 10 | ui 10 | 3 4 1 (6) 2
+boat 8 | place 11 | total 10.8 | ui 10.8 | 3 2 3.8 2 (6)
+boat 7 | place 12 | total 12 | ui 12 | (6) 2 0 1 3
+boat 11 | place 13 | total 13 | ui 13 | 1 (6) 3 6 3
+boat 6 | place 14 | total 16 | ui 16 | 3 (0) 1 0 0
+seed 7: final (standard)
+Gold | boat 1 | place 1 | total 5 | ui 5 | 1 4
+Gold | boat 4 | place 1 | total 5 | ui 5 | 1 4
+Gold | boat 7 | place 3 | total 6 | ui 6 | 2 4
+Gold | boat 13 | place 3 | total 6 | ui 6 | 2 4
+Gold | boat 10 | place 5 | total 7 | ui 7 | 2 5
+Silver | boat 2 | place 1 | total 1 | ui 1 | 1
+Silver | boat 5 | place 1 | total 1 | ui 1 | 1
+Silver | boat 11 | place 1 | total 1 | ui 1 | 1
+Silver | boat 14 | place 1 | total 1 | ui 1 | 1
+Silver | boat 8 | place 5 | total 2 | ui 2 | 2
+Bronze | boat 9 | place 1 | total 4.3 | ui 4.3 | 1.3 (2) 1 1 1
+Bronze | boat 3 | place 2 | total 5 | ui 5 | 1 1 2 1 (3)
+Bronze | boat 6 | place 3 | total 6 | ui 6 | (3) 2 2 1 1
+Bronze | boat 12 | place 4 | total 7 | ui 7 | (3) 2 1 2 2
+seed 8: qualifying (standard)
+boat 5 | place 1 | total 6 | ui 6 | 1 (0) 1 1 2 1
+boat 3 | place 2 | total 6.7 | ui 6.7 | 1 (2) 1.7 2 1 1
+boat 1 | place 3 | total 7 | ui 7 | 1 2 2 (0) 1 1
+boat 6 | place 4 | total 7.9 | ui 7.9 | 1.9 (4) 2 1 1 2
+boat 4 | place 5 | total 8 | ui 8 | 2 1 2 1 2 (3)
+boat 7 | place 5 | total 8 | ui 8 | 2 1 2 2 1 (3)
+boat 2 | place 7 | total 11 | ui 11 | (4) 1 2 2 0 2
+seed 9: qualifying (standard)
+boat 2 | place 1 | total 9 | ui 9 | 2 2 2 2 (0) 1
+boat 5 | place 2 | total 9 | ui 9 | 1 1 1 (2) 2 2 2
+boat 1 | place 3 | total 10 | ui 10 | 2 1 1 (3) 2 2 2
+boat 3 | place 4 | total 11 | ui 11 | 2 (3) 1 2 2 1 0
+boat 4 | place 5 | total 12 | ui 12 | 1 (2) 2 2 2 0 2
+seed 9: final ({"thresholds":[]})
+Gold | boat 3 | place 1 | total 4 | ui 4 | 1 2 1
+Gold | boat 1 | place 2 | total 5 | ui 5 | 2 2 1
+Gold | boat 2 | place 3 | total 7 | ui 7 | 2 4 1
+Gold | boat 5 | place 3 | total 7 | ui 7 | 2 4 1
+Gold | boat 4 | place 5 | total 12 | ui 12 | 0 4 2
+seed 10: qualifying ({"thresholds":[2,5]})
+boat 6 | place 1 | total 3 | ui 3 | 1 1 1 (2) (3)
+boat 9 | place 2 | total 4 | ui 4 | 2 1 (2.7) (3) 1
+boat 10 | place 3 | total 4 | ui 4 | 1 (3) (2) 1 2
+boat 4 | place 4 | total 4 | ui 4 | (2) 1 2 (4) 1
+boat 7 | place 5 | total 4 | ui 4 | 1 (3) 2 1 (3)
+boat 8 | place 6 | total 4.4 | ui 4.4 | 1.4 1 (2) (2) 2
+boat 3 | place 7 | total 5 | ui 5 | 1 1 (3) (3) 3
+boat 2 | place 8 | total 5 | ui 5 | (2) 2 1 2 (3)
+boat 5 | place 9 | total 5 | ui 5 | (5) 2 (0) 1 2
+boat 11 | place 10 | total 5 | ui 5 | (4) 1 2 2 (0)
+boat 1 | place 11 | total 6.7 | ui 6.7 | (3) 2 (3) 1.7 3
+seed 11: qualifying ({"thresholds":[2,5]})
+boat 2 | place 1 | total 7 | ui 7 | 1 1 (3) 2 1 1 1 (3)
+boat 4 | place 2 | total 8 | ui 8 | 1 (2) (6) 1 2 1 1 2
+boat 6 | place 3 | total 10 | ui 10 | 3 1 2 2 (0) 1 1 (6)
+boat 7 | place 4 | total 11 | ui 11 | 1 (3) (6) 1 3 3 2 1
+boat 5 | place 5 | total 11.7 | ui 11.7 | 1 (4) 3 3.7 (4) 2 1 1
+boat 9 | place 6 | total 12 | ui 12 | 2 0 (0) 1 1 1 1 (3)
+boat 3 | place 7 | total 14.8 | ui 14.8 | 1 (4) 4 1 4 3 1.8 (0)
+boat 1 | place 8 | total 16 | ui 16 | 3 3 2 3 3 (0) 2 (4)
+boat 8 | place 9 | total 19 | ui 19 | 2 2 (0) 0 1 (0) 6 2
+boat 10 | place 10 | total 20 | ui 20 | (6) (0) 2 1 6 2 0 3
+seed 12: qualifying (standard)
+boat 4 | place 1 | total 2 | ui 2 | 1 1
+boat 3 | place 2 | total 2.9 | ui 2.9 | 1 1.9
+boat 6 | place 3 | total 3 | ui 3 | 2 1
+boat 10 | place 3 | total 3 | ui 3 | 2 1
+boat 7 | place 5 | total 4 | ui 4 | 1 3
+boat 2 | place 6 | total 5 | ui 5 | 0 1
+boat 8 | place 7 | total 5 | ui 5 | 1 4
+boat 9 | place 8 | total 5 | ui 5 | 4 1
+boat 1 | place 9 | total 6 | ui 6 | 2 4
+boat 5 | place 10 | total 6 | ui 6 | 0 2
+seed 12: final (standard)
+Gold | boat 9 | place 1 | total 7 | ui 7 | 2 (0) 1 1 2 1
+Gold | boat 3 | place 2 | total 9 | ui 9 | 1 1 (4) 2 3 2
+Gold | boat 1 | place 3 | total 12 | ui 12 | 1 (4) 1 3 3 4
+Gold | boat 6 | place 4 | total 15 | ui 15 | 2 5 3 (8) 4 1
+Gold | boat 7 | place 5 | total 16.4 | ui 16.4 | 1.4 4 4 3 (5) 4
+Gold | boat 8 | place 6 | total 18 | ui 18 | 1 0 3 (7) 1 2
+Gold | boat 5 | place 7 | total 19 | ui 19 | 1 2 0 (4) 3 2
+Gold | boat 10 | place 8 | total 20 | ui 20 | 1 3 4 6 6 (0)
+Gold | boat 2 | place 9 | total 20.3 | ui 20.3 | 2 1 2.3 0 (4) 4
+Gold | boat 4 | place 10 | total 27 | ui 27 | 1 0 0 3 (6) 1
+seed 13: qualifying ({"thresholds":[2,5]})
+boat 1 | place 1 | total 1 | ui 1 | 1
+boat 2 | place 1 | total 1 | ui 1 | 1
+boat 3 | place 3 | total 2 | ui 2 | 2
+boat 4 | place 3 | total 2 | ui 2 | 2
+seed 14: qualifying ({"thresholds":[2,5]})
+boat 4 | place 1 | total 1 | ui 1 | 1 (2)
+boat 2 | place 2 | total 1 | ui 1 | (2) 1
+boat 5 | place 3 | total 1 | ui 1 | 1 (3)
+boat 3 | place 4 | total 1 | ui 1 | 1 (4)
+boat 1 | place 5 | total 2 | ui 2 | (2) 2
+boat 6 | place 6 | total 2 | ui 2 | 2 (3)
+boat 9 | place 6 | total 2 | ui 2 | 2 (3)
+boat 8 | place 8 | total 4 | ui 4 | (6) 4
+boat 7 | place 9 | total 6 | ui 6 | (1) 0
+seed 14: final ({"thresholds":[2,5]})
+Gold | boat 2 | place 1 | total 0 | ui 0
+Gold | boat 3 | place 1 | total 0 | ui 0
+Gold | boat 4 | place 1 | total 0 | ui 0
+Gold | boat 5 | place 1 | total 0 | ui 0
+Gold | boat 1 | place 1 | total 0 | ui 0
+Gold | boat 6 | place 1 | total 0 | ui 0
+Gold | boat 9 | place 1 | total 0 | ui 0
+Gold | boat 8 | place 1 | total 0 | ui 0
+Gold | boat 7 | place 1 | total 0 | ui 0
+seed 15: qualifying (standard)
+boat 2 | place 1 | total 3 | ui 3 | 1 1 1
+boat 6 | place 2 | total 4 | ui 4 | 1 2 1
+boat 3 | place 3 | total 5 | ui 5 | 1 3 1
+boat 7 | place 4 | total 5 | ui 5 | 2 1 2
+boat 5 | place 5 | total 5.2 | ui 5.2 | 2.2 2 1
+boat 8 | place 6 | total 6 | ui 6 | 2 2 2
+boat 1 | place 7 | total 7 | ui 7 | 5 1 1
+boat 4 | place 8 | total 8 | ui 8 | 2 3 3
+seed 16: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 6 | place 1 | total 4 | ui 4 | 2 1 1 (3)
+boat 11 | place 2 | total 5 | ui 5 | 2 (0) 1 2
+boat 2 | place 3 | total 7 | ui 7 | 1 (4) 2 4
+boat 3 | place 4 | total 7 | ui 7 | 3 1 (7) 3
+boat 7 | place 4 | total 7 | ui 7 | 3 (6) 1 3
+boat 9 | place 6 | total 7.6 | ui 7.6 | 1 5 1.6 (7)
+boat 5 | place 7 | total 8 | ui 8 | (5) 1 4 3
+boat 4 | place 8 | total 8 | ui 8 | 2 3 3 (4)
+boat 8 | place 8 | total 8 | ui 8 | 2 3 3 (4)
+boat 1 | place 10 | total 9 | ui 9 | 5 1 3 (0)
+boat 10 | place 11 | total 9 | ui 9 | (5) 3 4 2
+boat 12 | place 12 | total 11 | ui 11 | (7) 2 2 7
+seed 16: final (standard)
+Gold | boat 4 | place 1 | total 10 | ui 10 | 3 (0) 2 5
+Gold | boat 1 | place 3 | total 12 | ui 12 | 2 (7) 6 4
+Gold | boat 12 | place 2 | total 12 | ui 12 | 6 1 5 (0)
+Gold | boat 8 | place 4 | total 13 | ui 13 | 1 (11) 8 4
+Gold | boat 3 | place 6 | total 14 | ui 14 | 5 4 (9) 5
+Gold | boat 10 | place 5 | total 14 | ui 14 | 2 (0) 4 8
+Gold | boat 6 | place 7 | total 16 | ui 16 | 2 4 10 (0)
+Gold | boat 9 | place 8 | total 17 | ui 17 | 2 (8) 0 2
+Gold | boat 11 | place 9 | total 17 | ui 17 | 5 6 6 (8)
+Gold | boat 7 | place 10 | total 18 | ui 18 | 6 5 7 (8)
+Gold | boat 5 | place 11 | total 20 | ui 20 | 4 (0) 12 4
+Gold | boat 2 | place 12 | total 23 | ui 23 | 0 6 (0) 4
+seed 17: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 2 | place 1 | total 1 | ui 1 | 1
+boat 7 | place 2 | total 2 | ui 2 | 2
+boat 8 | place 2 | total 2 | ui 2 | 2
+boat 5 | place 4 | total 5 | ui 5 | 5
+boat 4 | place 5 | total 5.8 | ui 5.8 | 5.8
+boat 1 | place 6 | total 7 | ui 7 | 7
+boat 3 | place 6 | total 7 | ui 7 | 0
+boat 6 | place 6 | total 7 | ui 7 | 7
+boat 9 | place 6 | total 7 | ui 7 | 7
+seed 18: qualifying (standard)
+boat 3 | place 1 | total 12 | ui 12 | 2 (6) 1 1 2 1 (6) 5
+boat 7 | place 2 | total 12 | ui 12 | 1 2 1 (7) 3 4 1 (10)
+boat 6 | place 3 | total 16 | ui 16 | 3 (4) 3 (6) 3 1 4 2
+boat 8 | place 4 | total 17 | ui 17 | (3) (2) 1 1 2 1 0 2
+boat 5 | place 5 | total 19 | ui 19 | 2 6 3 (7) 1 4 3 (0)
+boat 1 | place 6 | total 19 | ui 19 | 3 3 2 2 (10) (10) 5 4
+boat 4 | place 7 | total 20 | ui 20 | 3 (0) 2 2 2 1 0 (4)
+boat 9 | place 8 | total 20 | ui 20 | 3 (10) 3 (0) 1 4 5 4
+boat 2 | place 9 | total 23.4 | ui 23.4 | 1 (10) 1 4 (10) 3.4 4 10
+seed 19: qualifying (standard)
+boat 6 | place 1 | total 9 | ui 9 | 1 (3) 1 1 1 2 1 (3) 2
+boat 5 | place 2 | total 10 | ui 10 | 1 2 1 2 1 (3) (3) 1 2
+boat 2 | place 3 | total 10 | ui 10 | 1 (2) 1 (0) 1 2 2 2 1
+boat 4 | place 4 | total 11 | ui 11 | 2 1 (3) 2 1 1 3 (0) 1
+boat 7 | place 5 | total 11 | ui 11 | 1 1 2 1 2 1 3 (0) (4)
+boat 8 | place 6 | total 14 | ui 14 | 3 (0) 3 (0) 2 2 2 1 1
+boat 3 | place 7 | total 14 | ui 14 | 2 (0) 2 2 (3) 3 1 3 1
+boat 1 | place 8 | total 15 | ui 15 | 3 1 2 (4) 0 1 (4) 2 2
+seed 19: final (standard)
+Gold | boat 6 | place 1 | total 7 | ui 7 | (3) 3 1 1 2
+Gold | boat 8 | place 2 | total 9 | ui 9 | 5 2 (0) 1 1
+Gold | boat 1 | place 4 | total 10 | ui 10 | 2 (6) 2 3 3
+Gold | boat 7 | place 3 | total 10 | ui 10 | 3 (4) 1 2 4
+Gold | boat 2 | place 5 | total 12 | ui 12 | 4 (5) 2 1 5
+Gold | boat 5 | place 6 | total 13 | ui 13 | 5 5 1 2 (6)
+Gold | boat 3 | place 7 | total 14 | ui 14 | 1 0 1 3 (6)
+Gold | boat 4 | place 8 | total 17 | ui 17 | 4 (6) 0 2 2
+seed 20: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 10 | place 1 | total 5 | ui 5 | (9) 2 2 1
+boat 6 | place 2 | total 11 | ui 11 | 3 (10) 1 7
+boat 2 | place 3 | total 11 | ui 11 | 2 (8) 5 4
+boat 9 | place 4 | total 14 | ui 14 | 5 3 (6) 6
+boat 3 | place 5 | total 15 | ui 15 | 5 5 5 (7)
+boat 7 | place 6 | total 16 | ui 16 | (0) 8 2 6
+boat 5 | place 7 | total 17 | ui 17 | 6 10 (0) 1
+boat 4 | place 8 | total 17 | ui 17 | (0) 9 6 2
+boat 1 | place 9 | total 17.4 | ui 17.4 | 4 2.4 0 (11)
+boat 8 | place 10 | total 21 | ui 21 | (8) 0 3 7
+seed 21: qualifying ({"thresholds":[2,5]})
+boat 2 | place 1 | total 3 | ui 3 | (2) 1 1 1 (2)
+boat 5 | place 2 | total 3.9 | ui 3.9 | 1.7 1.2 (2) 1 (2)
+boat 4 | place 3 | total 4 | ui 4 | (2) (5) 2 1 1
+boat 7 | place 4 | total 5 | ui 5 | (2) 2 1 2 (5)
+boat 1 | place 5 | total 5 | ui 5 | (5) 2 1 (0) 2
+boat 3 | place 6 | total 5.3 | ui 5.3 | (2) (2) 2 1.3 2
+boat 6 | place 7 | total 7 | ui 7 | 1 0 (5) 1 (2)
+seed 22: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 4 | place 1 | total 4 | ui 4 | 1 2 (0) 1
+boat 5 | place 2 | total 4 | ui 4 | 1 (7) 1 2
+boat 3 | place 3 | total 5 | ui 5 | 1 (7) 1 3
+boat 2 | place 4 | total 5 | ui 5 | 2 1 2 (3)
+boat 6 | place 5 | total 5.5 | ui 5.5 | (0) 1.5 3 1
+boat 1 | place 6 | total 11 | ui 11 | 3 1 (7) 0
+seed 22: final (standard)
+Gold | boat 4 | place 1 | total 0 | ui 0
+Gold | boat 5 | place 1 | total 0 | ui 0
+Gold | boat 2 | place 1 | total 0 | ui 0
+Gold | boat 3 | place 1 | total 0 | ui 0
+Gold | boat 6 | place 1 | total 0 | ui 0
+Gold | boat 1 | place 1 | total 0 | ui 0
+seed 23: qualifying (standard)
+boat 10 | place 1 | total 11 | ui 11 | 7 2 2
+boat 2 | place 2 | total 13 | ui 13 | 3 5 5
+boat 4 | place 3 | total 15 | ui 15 | 7 1 7
+boat 9 | place 4 | total 16 | ui 16 | 7 1 8
+boat 3 | place 5 | total 16.1 | ui 16.1 | 5 5 6.1
+boat 5 | place 6 | total 17 | ui 17 | 6 6 5
+boat 7 | place 7 | total 20 | ui 20 | 0 5 4
+boat 8 | place 8 | total 20 | ui 20 | 8 5 7
+boat 6 | place 9 | total 21 | ui 21 | 2 11 8
+boat 1 | place 10 | total 21 | ui 21 | 3 7 11
+seed 24: qualifying (standard)
+boat 6 | place 1 | total 8 | ui 8 | 1 (5.7) 1 2 4
+boat 5 | place 2 | total 9 | ui 9 | 5 1 2 (6) 1
+boat 4 | place 3 | total 11 | ui 11 | (5) 3 2 5 1
+boat 3 | place 4 | total 12 | ui 12 | 1 6 2 3 (7)
+boat 1 | place 5 | total 12 | ui 12 | 3 3 2 (5) 4
+boat 2 | place 6 | total 16 | ui 16 | 4 (8) 0 1 3
+boat 7 | place 7 | total 18 | ui 18 | 1 6 (8) 4 7
+seed 24: final ({"thresholds":[]})
+Gold | boat 1 | place 1 | total 12 | ui 12 | 1 3 1 3 2 1 1
+Gold | boat 2 | place 2 | total 18.3 | ui 18.3 | 1.3 3 4 1 5 3 1
+Gold | boat 3 | place 3 | total 19 | ui 19 | 1 4 3 3 4 1 3
+Gold | boat 4 | place 4 | total 25.7 | ui 25.7 | 2 3 2.7 6 1 0 3
+Gold | boat 6 | place 5 | total 26 | ui 26 | 2 3 0 0 2 2 1
+Gold | boat 5 | place 6 | total 32.7 | ui 32.7 | 1 3 1.7 0 3 0 0
+Gold | boat 7 | place 7 | total 34 | ui 34 | 2 0 3 0 4 1 0
+seed 25: qualifying ({"thresholds":[2,5]})
+boat 9 | place 1 | total 2 | ui 2 | (1) 1 1
+boat 3 | place 2 | total 2 | ui 2 | (2) 1 1
+boat 6 | place 3 | total 2 | ui 2 | 1 (2) 1
+boat 4 | place 4 | total 2 | ui 2 | (2) 1 1
+boat 8 | place 5 | total 2 | ui 2 | 1 (2) 1
+boat 2 | place 6 | total 2 | ui 2 | 1 1 (2)
+boat 5 | place 6 | total 2 | ui 2 | 1 1 (0)
+boat 10 | place 8 | total 3 | ui 3 | 2 (3) 1
+boat 7 | place 9 | total 3.2 | ui 3.2 | (3) 1.2 2
+boat 1 | place 10 | total 4 | ui 4 | 2 2 (3)
+seed 25: final ({"thresholds":[]})
+Gold | boat 5 | place 1 | total 2 | ui 2 | 1 1
+Gold | boat 1 | place 2 | total 2.1 | ui 2.1 | 1.1 1
+Gold | boat 9 | place 3 | total 4.8 | ui 4.8 | 1.8 3
+Gold | boat 3 | place 4 | total 5 | ui 5 | 2 3
+Gold | boat 7 | place 5 | total 9 | ui 9 | 0 3
+Silver | boat 4 | place 1 | total 1 | ui 1 | 1
+Silver | boat 10 | place 2 | total 1.9 | ui 1.9 | 1.9
+Silver | boat 2 | place 3 | total 2 | ui 2 | 2
+Silver | boat 8 | place 4 | total 2.2 | ui 2.2 | 2.2
+Silver | boat 6 | place 5 | total 3 | ui 3 | 3"
+`;
+
+exports[`scoring pipeline characterisation (150 seeded random events) events 26-50 score exactly as recorded 1`] = `
+"seed 26: qualifying ({"thresholds":[2,5]})
+boat 6 | place 1 | total 9 | ui 9 | (7) 2 1 2 (7) 2 1 1
+boat 1 | place 2 | total 12 | ui 12 | (4) (4) 2 2 2 3 2 1
+boat 4 | place 3 | total 13 | ui 13 | (7) (4) 3 2 1 2 2 3
+boat 8 | place 4 | total 15 | ui 15 | (4) 3 2 2 4 3 1 (0)
+boat 5 | place 5 | total 16.3 | ui 16.3 | (6) 3 3 1.3 6 (10) 2 1
+boat 9 | place 6 | total 18 | ui 18 | 2 (5) (0) 2 5 5 2 2
+boat 7 | place 7 | total 20 | ui 20 | 2 4 2 0 (5) 1 1 (0)
+boat 3 | place 8 | total 20 | ui 20 | 0 4 1 2 (5) 1 2 (10)
+boat 2 | place 9 | total 34.3 | ui 34.3 | (0) (10) 10 2 7 10 1.3 4
+seed 26: final ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+Gold | boat 1 | place 2 | total 2 | ui 2 | 1 1 (2)
+Gold | boat 5 | place 1 | total 2 | ui 2 | (2) 1 1
+Gold | boat 3 | place 3 | total 3 | ui 3 | 1 (3) 2
+Gold | boat 7 | place 5 | total 4 | ui 4 | 2 (5) 2
+Gold | boat 9 | place 4 | total 4 | ui 4 | 3 (5) 1
+Silver | boat 8 | place 1 | total 1 | ui 1 | 1
+Silver | boat 2 | place 2 | total 2 | ui 2 | 2
+Silver | boat 6 | place 2 | total 2 | ui 2 | 2
+Silver | boat 4 | place 4 | total 6 | ui 6 | 0
+seed 27: qualifying ({"thresholds":[2,5]})
+boat 1 | place 1 | total 8 | ui 8 | (3) 2 1 1 1 2 1 (5)
+boat 4 | place 2 | total 9 | ui 9 | 1 (2) (2) 1 2 2 2 1
+boat 3 | place 3 | total 12 | ui 12 | (0) 1 1 0 1 1 3 (0)
+boat 2 | place 4 | total 14 | ui 14 | 2 2 (0) 2 (3) 2 3 3
+seed 28: qualifying ({"thresholds":[2,5]})
+boat 10 | place 1 | total 2 | ui 2 | (1) 1 1
+boat 4 | place 2 | total 2 | ui 2 | 1 (3) 1
+boat 3 | place 3 | total 2 | ui 2 | (5) 1 1
+boat 1 | place 4 | total 2 | ui 2 | 1 1 (2)
+boat 7 | place 5 | total 3 | ui 3 | 2 (3) 1
+boat 11 | place 5 | total 3 | ui 3 | (2) 2 1
+boat 2 | place 7 | total 3 | ui 3 | 2 (5) 1
+boat 6 | place 8 | total 3 | ui 3 | (2) 1 2
+boat 8 | place 9 | total 3 | ui 3 | (3) 2 1
+boat 5 | place 10 | total 3 | ui 3 | 1 (3) 2
+boat 9 | place 11 | total 6 | ui 6 | 0 1 (2)
+boat 12 | place 12 | total 6 | ui 6 | (2) 0 1
+seed 28: final ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+Gold | boat 12 | place 1 | total 2 | ui 2 | (5) 1 1
+Gold | boat 5 | place 2 | total 2.7 | ui 2.7 | (7) 1.7 1
+Gold | boat 8 | place 3 | total 3 | ui 3 | 1 (3) 2
+Gold | boat 10 | place 4 | total 4 | ui 4 | (4) 1 3
+Gold | boat 11 | place 5 | total 4 | ui 4 | (7) 3 1
+Gold | boat 4 | place 6 | total 5 | ui 5 | (3) 2 3
+Gold | boat 6 | place 7 | total 5 | ui 5 | 2 (0) 3
+Gold | boat 1 | place 8 | total 6 | ui 6 | (3) 3 3
+Gold | boat 3 | place 9 | total 7 | ui 7 | 5 2 (0)
+Gold | boat 9 | place 10 | total 8 | ui 8 | 5 (0) 3
+Gold | boat 7 | place 11 | total 9 | ui 9 | 7 (0) 2
+Gold | boat 2 | place 12 | total 16 | ui 16 | (0) 3 0
+seed 29: qualifying (standard)
+boat 5 | place 1 | total 4 | ui 4 | 1 (4) 2 1
+boat 6 | place 2 | total 6 | ui 6 | 1 (5) 1 4
+boat 2 | place 3 | total 9 | ui 9 | 1 1 7 (0)
+boat 3 | place 4 | total 9 | ui 9 | 1 5 3 (6)
+boat 1 | place 5 | total 9 | ui 9 | 2 3 (5) 4
+boat 7 | place 6 | total 11 | ui 11 | (8) 5 4 2
+boat 4 | place 7 | total 16 | ui 16 | 0 3 5 (6)
+seed 29: final (standard)
+Gold | boat 4 | place 1 | total 2 | ui 2 | 1 1
+Gold | boat 5 | place 2 | total 4 | ui 4 | 1 3
+Gold | boat 1 | place 4 | total 6 | ui 6 | 3 3
+Gold | boat 7 | place 3 | total 6 | ui 6 | 4 2
+Gold | boat 2 | place 5 | total 7 | ui 7 | 5 2
+Gold | boat 3 | place 6 | total 7 | ui 7 | 4 3
+Gold | boat 6 | place 6 | total 7 | ui 7 | 4 3
+seed 30: qualifying ({"thresholds":[]})
+boat 5 | place 1 | total 5 | ui 5 | 3 2
+boat 3 | place 2 | total 5 | ui 5 | 2 3
+boat 6 | place 3 | total 6 | ui 6 | 4 2
+boat 2 | place 4 | total 7 | ui 7 | 4 3
+boat 1 | place 5 | total 8 | ui 8 | 3 5
+boat 4 | place 6 | total 9 | ui 9 | 4 5
+boat 7 | place 7 | total 11 | ui 11 | 0 2
+boat 8 | place 8 | total 11.8 | ui 11.8 | 9 2.8
+seed 31: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 7 | place 1 | total 3 | ui 3 | (2) 1 1 1
+boat 11 | place 1 | total 3 | ui 3 | (2) 1 1 1
+boat 4 | place 3 | total 3.9 | ui 3.9 | (2) 1 1.9 1
+boat 12 | place 4 | total 4 | ui 4 | (2) 1 2 1
+boat 3 | place 5 | total 4 | ui 4 | 2 1 1 (5)
+boat 1 | place 6 | total 4 | ui 4 | 2 1 1 (12)
+boat 2 | place 7 | total 4 | ui 4 | 1 1 2 (12)
+boat 10 | place 8 | total 5 | ui 5 | 1 2 2 (0)
+boat 9 | place 9 | total 7 | ui 7 | (12) 2 1 4
+boat 8 | place 10 | total 9 | ui 9 | 2 1 (12) 6
+boat 6 | place 11 | total 11 | ui 11 | (12) 1 2 8
+boat 5 | place 12 | total 17 | ui 17 | 2 (12) 3 0
+seed 31: final ({"thresholds":[]})
+Gold | boat 12 | place 1 | total 17 | ui 17 | 1 4 3 7 1 1
+Gold | boat 4 | place 2 | total 21 | ui 21 | 3 4 2 6 5 1
+Gold | boat 9 | place 3 | total 23.5 | ui 23.5 | 3 3 6 7 2 2.5
+Gold | boat 10 | place 4 | total 25.8 | ui 25.8 | 7 5 4 4.8 3 2
+Gold | boat 2 | place 5 | total 27.4 | ui 27.4 | 2 4.4 0 3 4 1
+Gold | boat 1 | place 6 | total 28 | ui 28 | 2 7 3 1 2 0
+Gold | boat 3 | place 7 | total 30 | ui 30 | 2 8 1 0 5 1
+Gold | boat 8 | place 8 | total 32 | ui 32 | 5 4 3 3 4 0
+Gold | boat 6 | place 9 | total 34 | ui 34 | 0 9 3 3 5 1
+Gold | boat 5 | place 11 | total 35 | ui 35 | 7 0 6 3 3 3
+Gold | boat 7 | place 10 | total 35 | ui 35 | 1 6 5 7 0 3
+Gold | boat 11 | place 12 | total 38 | ui 38 | 0 8 6 4 5 2
+seed 32: qualifying (standard)
+boat 3 | place 1 | total 6 | ui 6 | 1 1 (2) 2 1 1
+boat 1 | place 2 | total 8 | ui 8 | 2 1 2 (0) 1 2
+boat 2 | place 3 | total 9 | ui 9 | (2) 2 2 2 2 1
+boat 4 | place 3 | total 9 | ui 9 | 2 2 (0) 3 1 1
+boat 6 | place 5 | total 9.3 | ui 9.3 | (2) 1.9 0 2 1 1.4
+boat 5 | place 6 | total 11 | ui 11 | (2) 2 2 2 0 2
+seed 32: final ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+Gold | boat 3 | place 1 | total 6 | ui 6 | 1 (4) 4 1
+Gold | boat 4 | place 2 | total 7 | ui 7 | (6) 4 2 1
+Gold | boat 6 | place 3 | total 7.3 | ui 7.3 | 3 (5) 3.3 1
+Gold | boat 1 | place 4 | total 9 | ui 9 | (0) 3 5 1
+Gold | boat 2 | place 6 | total 11 | ui 11 | (0) 5 3 3
+Gold | boat 5 | place 5 | total 11 | ui 11 | (0) 5 1 5
+seed 33: qualifying ({"thresholds":[2,5]})
+boat 7 | place 1 | total 3.7 | ui 3.7 | 1 (4) 1 (4) 1.7
+boat 1 | place 2 | total 5 | ui 5 | 1 (0) (0) 3 1
+boat 3 | place 3 | total 5 | ui 5 | 2 (5) 1 (5) 2
+boat 10 | place 4 | total 6 | ui 6 | (3) (5) 3 2 1
+boat 9 | place 5 | total 6 | ui 6 | (6) (3) 2 3 1
+boat 2 | place 6 | total 6 | ui 6 | 2 (0) 2 (4) 2
+boat 6 | place 7 | total 7 | ui 7 | (6) (5) 2 3 2
+boat 5 | place 8 | total 12 | ui 12 | 6 (11) 4 (11) 2
+boat 8 | place 9 | total 14 | ui 14 | (6) 2 0 1 (0)
+boat 4 | place 10 | total 24 | ui 24 | 0 (5) 0 (11) 2
+seed 34: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 1 | place 1 | total 3 | ui 3 | 2 1
+boat 2 | place 2 | total 3 | ui 3 | 1 2
+boat 5 | place 3 | total 5 | ui 5 | 0 1
+boat 3 | place 4 | total 6 | ui 6 | 4 2
+boat 4 | place 4 | total 6 | ui 6 | 4 2
+seed 34: final ({"thresholds":[]})
+Gold | boat 1 | place 1 | total 2 | ui 2 | 1 1
+Gold | boat 3 | place 2 | total 3 | ui 3 | 1 2
+Gold | boat 5 | place 3 | total 6 | ui 6 | 0 2
+Silver | boat 2 | place 1 | total 8.8 | ui 8.8 | 1 1.8 1 2 2 1
+Silver | boat 4 | place 2 | total 14 | ui 14 | 2 2 0 2 2 2
+seed 35: qualifying (standard)
+boat 3 | place 1 | total 3 | ui 3 | (2) 1 1 1
+boat 10 | place 2 | total 3 | ui 3 | (0) 1 1 1
+boat 7 | place 3 | total 3 | ui 3 | 1 (5) 1 1
+boat 11 | place 4 | total 4 | ui 4 | 1 1 2 (3)
+boat 5 | place 5 | total 4 | ui 4 | 1 2 1 (5)
+boat 9 | place 6 | total 5 | ui 5 | (0) 2 1 2
+boat 2 | place 7 | total 6 | ui 6 | 3 (0) 2 1
+boat 4 | place 7 | total 6 | ui 6 | 2 2 2 (0)
+boat 6 | place 9 | total 7 | ui 7 | (3) 2 3 2
+boat 1 | place 10 | total 7 | ui 7 | (5) 2 4 1
+boat 8 | place 11 | total 8 | ui 8 | (3) 2 0 1
+seed 35: final ({"thresholds":[2,5]})
+Gold | boat 3 | place 1 | total 0 | ui 0
+Gold | boat 7 | place 1 | total 0 | ui 0
+Gold | boat 5 | place 1 | total 0 | ui 0
+Gold | boat 11 | place 1 | total 0 | ui 0
+Gold | boat 9 | place 1 | total 0 | ui 0
+Gold | boat 1 | place 1 | total 0 | ui 0
+Silver | boat 2 | place 2 | total 6 | ui 6 | 1 (5) 2 2 1 (0)
+Silver | boat 10 | place 1 | total 6 | ui 6 | 1 (3) 1 (3) 3 1
+Silver | boat 4 | place 3 | total 6.8 | ui 6.8 | 1 (3) 1 (3) 3 1.8
+Silver | boat 6 | place 4 | total 8 | ui 8 | (2) 2 (0) 2 2 2
+Silver | boat 8 | place 5 | total 13 | ui 13 | (0) (4) 0 3 2 1
+seed 36: qualifying ({"thresholds":[]})
+boat 4 | place 1 | total 17 | ui 17 | 1 2 1 3 1 2 3 4
+boat 1 | place 2 | total 18 | ui 18 | 1 3 1 2 5 2 2 2
+boat 6 | place 3 | total 24 | ui 24 | 1 2 2 4 4 7 2 2
+boat 5 | place 4 | total 28.2 | ui 28.2 | 4.4 2 2 5 0 1.5 4 2.3
+boat 2 | place 5 | total 31 | ui 31 | 1 4 2 5 7 2 0 3
+boat 3 | place 6 | total 32 | ui 32 | 6 4 1 0 3 0 3 1
+seed 36: final ({"thresholds":[]})
+Gold | boat 5 | place 1 | total 15 | ui 15 | 2 3 3 2 2 1 2
+Gold | boat 3 | place 2 | total 15.9 | ui 15.9 | 1 0 3 2.9 2 2 1
+Gold | boat 1 | place 3 | total 16 | ui 16 | 2 0 3 3 1 1 2
+Silver | boat 4 | place 1 | total 0 | ui 0
+Silver | boat 6 | place 1 | total 0 | ui 0
+Silver | boat 2 | place 1 | total 0 | ui 0
+seed 37: qualifying ({"thresholds":[2,5]})
+boat 2 | place 1 | total 1 | ui 1 | (1) 1
+boat 1 | place 2 | total 1 | ui 1 | (2) 1
+boat 4 | place 3 | total 1 | ui 1 | 1 (2)
+boat 3 | place 4 | total 2 | ui 2 | (2) 2
+seed 38: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 2 | place 1 | total 8 | ui 8 | 1 2 (0) (0) 2 1 2
+boat 3 | place 2 | total 9 | ui 9 | (2) (2) 1 2 1 1 2 2
+boat 1 | place 3 | total 9 | ui 9 | 1 (2) (2) 1 2 1 2 2
+boat 4 | place 4 | total 9.7 | ui 9.7 | 1.7 1 1 (2) (0) 2 2 2
+seed 38: final ({"thresholds":[]})
+Gold | boat 1 | place 1 | total 9.9 | ui 9.9 | 1.9 2 1 1 1 1 2
+Gold | boat 3 | place 2 | total 12 | ui 12 | 2 2 2 2 2 1 1
+Silver | boat 4 | place 1 | total 7 | ui 7 | 1 1 2 1 2
+Silver | boat 2 | place 2 | total 9 | ui 9 | 1 2 0 2 1
+seed 39: qualifying (standard)
+boat 8 | place 1 | total 13 | ui 13 | 3 2 (7) 1 2 2 (0) 3
+boat 9 | place 2 | total 13 | ui 13 | (3) 2 2 (3.1) 2 2 3 2
+boat 6 | place 3 | total 15 | ui 15 | (6) 1 1 (7) 3 1 6 3
+boat 2 | place 4 | total 18 | ui 18 | 1 1 (7) 6 5 (9) 4 1
+boat 5 | place 5 | total 19 | ui 19 | (10) 1 1 (10) 4 2 0 1
+boat 4 | place 6 | total 19 | ui 19 | 2 1 (0) (6.4) 6 2 2 6
+boat 7 | place 7 | total 21 | ui 21 | 4 (0) 3 (7) 3 6 2 3
+boat 3 | place 8 | total 23 | ui 23 | (0) 1 1 6 5 6 4 (0)
+boat 1 | place 9 | total 24 | ui 24 | 4 1 (0) 6 5 2 (10) 6
+seed 39: final ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+Gold | boat 4 | place 1 | total 5 | ui 5 | 1 (2) (2) 1 2 1
+Gold | boat 7 | place 2 | total 5 | ui 5 | (3) (0) 1 1 2 1
+Gold | boat 1 | place 3 | total 6 | ui 6 | (0) (2) 2 1 2 1
+Silver | boat 5 | place 1 | total 7 | ui 7 | 1 (3) 2 2 2
+Silver | boat 2 | place 2 | total 8 | ui 8 | (3) 3 1 2 2
+Silver | boat 8 | place 3 | total 8.6 | ui 8.6 | (3) 3 2 1.6 2
+Bronze | boat 9 | place 1 | total 0 | ui 0
+Bronze | boat 6 | place 1 | total 0 | ui 0
+Bronze | boat 3 | place 1 | total 0 | ui 0
+seed 40: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 1 | place 1 | total 2 | ui 2 | 1 (2) 1
+boat 3 | place 1 | total 2 | ui 2 | 1 1 (2)
+boat 4 | place 3 | total 5 | ui 5 | (2) 2 1 2
+boat 2 | place 4 | total 7 | ui 7 | (2) 2 0 2
+seed 40: final ({"thresholds":[]})
+Gold | boat 1 | place 1 | total 6 | ui 6 | 1 0 2
+Gold | boat 4 | place 2 | total 7 | ui 7 | 0 2 2
+Silver | boat 2 | place 1 | total 7 | ui 7 | 1 2 1 2 1
+Bronze | boat 3 | place 1 | total 1 | ui 1 | 1
+seed 41: qualifying ({"thresholds":[]})
+boat 9 | place 1 | total 17.3 | ui 17.3 | 3 1 1.3 3 1 2 3 3
+boat 1 | place 2 | total 19.9 | ui 19.9 | 2 1 6 3 2 1 1.9 3
+boat 3 | place 3 | total 20.1 | ui 20.1 | 3 1 2 3 1 6 2.1 2
+boat 2 | place 4 | total 21 | ui 21 | 1 0 2 3 3 1 2 3
+boat 7 | place 5 | total 23 | ui 23 | 6 1 2 3 6 1 3 1
+boat 4 | place 6 | total 23 | ui 23 | 3 3 2 6 1 1 6 1
+boat 8 | place 7 | total 25 | ui 25 | 1 4 6 1 6 2 1 4
+boat 10 | place 8 | total 27 | ui 27 | 6 3 6 2 2 6 1 1
+boat 5 | place 9 | total 27 | ui 27 | 1 2 2 3 3 6 4 6
+boat 6 | place 10 | total 28 | ui 28 | 0 4 2 2 2 6 3 3
+seed 42: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 6 | place 1 | total 2 | ui 2 | 1 1
+boat 11 | place 2 | total 3 | ui 3 | 2 1
+boat 10 | place 3 | total 3 | ui 3 | 1 2
+boat 1 | place 4 | total 4 | ui 4 | 3 1
+boat 2 | place 5 | total 5 | ui 5 | 1 4
+boat 5 | place 5 | total 5 | ui 5 | 1 4
+boat 3 | place 7 | total 5 | ui 5 | 3 2
+boat 4 | place 7 | total 5 | ui 5 | 3 2
+boat 7 | place 7 | total 5 | ui 5 | 3 2
+boat 12 | place 10 | total 6 | ui 6 | 1 5
+boat 13 | place 11 | total 6 | ui 6 | 3 3
+boat 9 | place 12 | total 8 | ui 8 | 0 2
+boat 8 | place 13 | total 8 | ui 8 | 2 6
+seed 43: qualifying ({"thresholds":[]})
+boat 3 | place 1 | total 1 | ui 1 | 1
+boat 8 | place 2 | total 2 | ui 2 | 2
+boat 6 | place 3 | total 4 | ui 4 | 4
+boat 9 | place 3 | total 4 | ui 4 | 4
+boat 2 | place 5 | total 6 | ui 6 | 6
+boat 4 | place 5 | total 6 | ui 6 | 6
+boat 7 | place 5 | total 6 | ui 6 | 6
+boat 1 | place 8 | total 7 | ui 7 | 7
+boat 5 | place 9 | total 9 | ui 9 | 9
+seed 43: final (standard)
+Gold | boat 4 | place 1 | total 0 | ui 0
+Gold | boat 7 | place 1 | total 0 | ui 0
+Gold | boat 1 | place 1 | total 0 | ui 0
+Silver | boat 5 | place 1 | total 8 | ui 8 | 1 (2) 2 1 1 1 2
+Silver | boat 8 | place 2 | total 10 | ui 10 | 1 1 (2) 1 2 1 0
+Silver | boat 2 | place 3 | total 12 | ui 12 | 0 (2) 2 1 1 2 2
+Bronze | boat 3 | place 1 | total 4 | ui 4 | 2 1 1
+Bronze | boat 6 | place 2 | total 4.1 | ui 4.1 | 1 1.1 2
+Bronze | boat 9 | place 3 | total 5.5 | ui 5.5 | 2 1.5 2
+seed 44: qualifying ({"thresholds":[]})
+boat 3 | place 1 | total 9 | ui 9 | 2 1 2 0 1
+boat 1 | place 2 | total 10 | ui 10 | 1 0 2 2 1 1
+boat 4 | place 3 | total 10 | ui 10 | 1 1 2 2 2 2
+boat 2 | place 4 | total 11 | ui 11 | 3 1 0 2 1 1
+seed 44: final (standard)
+Gold | boat 3 | place 1 | total 8 | ui 8 | 1 (2) 1 2 2 2
+Gold | boat 1 | place 2 | total 11 | ui 11 | 1 0 0 1 0 (2)
+Silver | boat 4 | place 1 | total 3 | ui 3 | 1 1 1
+Silver | boat 2 | place 2 | total 6 | ui 6 | 2 0 1
+seed 45: qualifying (standard)
+boat 9 | place 1 | total 4 | ui 4 | (7) 1 1 1 1
+boat 1 | place 2 | total 5 | ui 5 | 1 2 (4) 1 1
+boat 10 | place 3 | total 7 | ui 7 | (0) 2 3 1 1
+boat 12 | place 4 | total 7 | ui 7 | 2 3 1 (4) 1
+boat 11 | place 5 | total 7 | ui 7 | 2 2 1 (4) 2
+boat 2 | place 6 | total 8 | ui 8 | 1 3 3 (0) 1
+boat 5 | place 7 | total 8.5 | ui 8.5 | (0) 2 1 1.5 4
+boat 7 | place 8 | total 11 | ui 11 | 2 3 (0) 2 4
+boat 3 | place 9 | total 11.4 | ui 11.4 | (3.2) 1.4 1 0 2
+boat 4 | place 10 | total 14.5 | ui 14.5 | 3 1.5 (7) 3 7
+boat 6 | place 11 | total 19 | ui 19 | 2 (0) 0 7 3
+boat 8 | place 12 | total 21 | ui 21 | 4 (7) 7 7 3
+seed 45: final ({"thresholds":[]})
+Gold | boat 7 | place 1 | total 13 | ui 13 | 1 1 2 2 5 2
+Gold | boat 3 | place 2 | total 15 | ui 15 | 2 2 3 4 2 2
+Gold | boat 1 | place 3 | total 18 | ui 18 | 2 0 1 1 6 1
+Gold | boat 5 | place 4 | total 20 | ui 20 | 0 2 1 4 4 2
+Gold | boat 9 | place 5 | total 21 | ui 21 | 2 0 3 4 3 2
+Gold | boat 11 | place 6 | total 23 | ui 23 | 2 3 2 3 6 0
+Silver | boat 2 | place 1 | total 1 | ui 1 | 1
+Silver | boat 6 | place 1 | total 1 | ui 1 | 1
+Silver | boat 8 | place 1 | total 1 | ui 1 | 1
+Silver | boat 10 | place 1 | total 1 | ui 1 | 1
+Silver | boat 4 | place 5 | total 2 | ui 2 | 2
+Silver | boat 12 | place 5 | total 2 | ui 2 | 2
+seed 46: qualifying (standard)
+boat 7 | place 1 | total 3 | ui 3 | 1 1 1
+boat 4 | place 2 | total 4 | ui 4 | 2 1 1
+boat 6 | place 3 | total 4 | ui 4 | 1 2 1
+boat 3 | place 4 | total 4.6 | ui 4.6 | 1 2 1.6
+boat 8 | place 5 | total 5 | ui 5 | 2 1 2
+boat 2 | place 6 | total 5 | ui 5 | 1 2 2
+boat 5 | place 7 | total 7 | ui 7 | 2 1 4
+boat 1 | place 8 | total 8 | ui 8 | 2 4 2
+seed 47: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 5 | place 1 | total 5 | ui 5 | (3) 1 1 1 2
+boat 3 | place 2 | total 5 | ui 5 | 1 1 (4) 2 1
+boat 8 | place 3 | total 6.5 | ui 6.5 | 1.5 2 2 (0) 1
+boat 9 | place 4 | total 8 | ui 8 | (0) 2 1 4 1
+boat 6 | place 5 | total 9 | ui 9 | 1 4 (6) 2 2
+boat 1 | place 6 | total 10 | ui 10 | 2 (4) 1 1 0
+boat 4 | place 7 | total 10.9 | ui 10.9 | (6) 2 1 1.9 0
+boat 7 | place 8 | total 14 | ui 14 | 3 1 4 (6) 6
+boat 2 | place 9 | total 14 | ui 14 | (0) 6 2 3 3
+seed 48: qualifying ({"thresholds":[]})
+boat 5 | place 1 | total 8 | ui 8 | 1.3 1 1.7 2 2
+boat 6 | place 2 | total 11 | ui 11 | 2 1 2 4 2
+boat 2 | place 3 | total 14 | ui 14 | 2 1 1 3 0
+boat 3 | place 4 | total 17 | ui 17 | 2 5 4 3 3
+boat 1 | place 5 | total 20 | ui 20 | 2 1 6 4 7
+boat 4 | place 6 | total 24 | ui 24 | 1 0 0 7 2
+seed 49: qualifying (standard)
+boat 1 | place 1 | total 6 | ui 6 | 3 1 (7) 1 1
+boat 9 | place 2 | total 13 | ui 13 | 4 (9) 2 5 2
+boat 10 | place 3 | total 14 | ui 14 | 3 3 6 (8) 2
+boat 4 | place 4 | total 15 | ui 15 | (0) 1 1 11 2
+boat 6 | place 5 | total 16 | ui 16 | 6 1 7 (12) 2
+boat 3 | place 6 | total 16.2 | ui 16.2 | 6 (8) 1.2 7 2
+boat 5 | place 7 | total 19 | ui 19 | 1 10 4 4 (13)
+boat 12 | place 8 | total 20 | ui 20 | 3 4 2 11 (13)
+boat 7 | place 9 | total 20 | ui 20 | 7 (0) 4 7 2
+boat 11 | place 10 | total 27 | ui 27 | 4 10 (0) 12 1
+boat 2 | place 11 | total 29 | ui 29 | 8 6 4 11 (13)
+boat 8 | place 12 | total 30 | ui 30 | (13) 10 4 3 13
+seed 50: qualifying ({"thresholds":[2,5]})
+boat 7 | place 1 | total 2 | ui 2 | 2
+boat 6 | place 2 | total 2.2 | ui 2.2 | 2.2
+boat 3 | place 3 | total 2.3 | ui 2.3 | 2.3
+boat 1 | place 4 | total 3 | ui 3 | 3
+boat 4 | place 4 | total 3 | ui 3 | 3
+boat 2 | place 6 | total 4 | ui 4 | 4
+boat 5 | place 6 | total 4 | ui 4 | 4"
+`;
+
+exports[`scoring pipeline characterisation (150 seeded random events) events 51-75 score exactly as recorded 1`] = `
+"seed 51: qualifying (standard)
+boat 4 | place 1 | total 10 | ui 10 | 6 3 1
+boat 3 | place 2 | total 10.3 | ui 10.3 | 5.3 3 2
+boat 8 | place 3 | total 12 | ui 12 | 1 9 2
+boat 1 | place 4 | total 13 | ui 13 | 2 0 2
+boat 7 | place 5 | total 15 | ui 15 | 3 0 3
+boat 6 | place 6 | total 15 | ui 15 | 3 3 9
+boat 2 | place 7 | total 16 | ui 16 | 4 0 3
+boat 5 | place 8 | total 16.3 | ui 16.3 | 5 0 2.3
+seed 51: final (standard)
+Gold | boat 1 | place 2 | total 3 | ui 3 | 1 2
+Gold | boat 4 | place 1 | total 3 | ui 3 | 2 1
+Gold | boat 7 | place 2 | total 3 | ui 3 | 1 2
+Silver | boat 8 | place 1 | total 8 | ui 8 | 2 (3) 1 2 2 1
+Silver | boat 5 | place 2 | total 9 | ui 9 | (2) 2 1 2 2 2
+Silver | boat 2 | place 3 | total 10 | ui 10 | 3 3 2 1 1 (0)
+Bronze | boat 3 | place 1 | total 7 | ui 7 | 1 1 1 (2) 2 1 1
+Bronze | boat 6 | place 2 | total 10 | ui 10 | 2 2 (0) 2 2 1 1
+seed 52: qualifying (standard)
+boat 6 | place 1 | total 5 | ui 5 | 1 (3) 2 1 1
+boat 1 | place 2 | total 6 | ui 6 | 2 2 (0) 1 1
+boat 7 | place 3 | total 6.2 | ui 6.2 | 1.2 2 2 1 (4)
+boat 5 | place 4 | total 6.8 | ui 6.8 | (2) 1.8 1 2 2
+boat 2 | place 5 | total 7 | ui 7 | (4) 1 1 4 1
+boat 3 | place 6 | total 7 | ui 7 | (0) 3 1 2 1
+boat 8 | place 7 | total 7 | ui 7 | (4) 2 2 2 1
+boat 4 | place 8 | total 8 | ui 8 | 2 2 (4) 2 2
+seed 52: final (standard)
+Gold | boat 1 | place 1 | total 0 | ui 0
+Gold | boat 7 | place 1 | total 0 | ui 0
+Gold | boat 5 | place 1 | total 0 | ui 0
+Gold | boat 3 | place 1 | total 0 | ui 0
+Silver | boat 4 | place 1 | total 3 | ui 3 | 1 2
+Silver | boat 8 | place 1 | total 3 | ui 3 | 1 2
+Silver | boat 2 | place 4 | total 5 | ui 5 | 2 3
+Silver | boat 6 | place 3 | total 5 | ui 5 | 1 4
+seed 53: qualifying (standard)
+boat 2 | place 1 | total 1 | ui 1 | 1
+boat 3 | place 1 | total 1 | ui 1 | 1
+boat 4 | place 1 | total 1 | ui 1 | 1
+boat 1 | place 4 | total 2 | ui 2 | 2
+seed 54: qualifying (standard)
+boat 4 | place 1 | total 4 | ui 4 | 1 1 2
+boat 2 | place 2 | total 5 | ui 5 | 1 1 3
+boat 6 | place 3 | total 6.8 | ui 6.8 | 2 3.8 1
+boat 5 | place 4 | total 7 | ui 7 | 2 3 2
+boat 3 | place 5 | total 8 | ui 8 | 2 3 3
+boat 1 | place 6 | total 8.6 | ui 8.6 | 3 1.6 4
+boat 7 | place 7 | total 10 | ui 10 | 2 3 0
+seed 55: qualifying ({"thresholds":[2,5]})
+boat 1 | place 1 | total 1 | ui 1 | 1
+boat 2 | place 1 | total 1 | ui 1 | 1
+boat 4 | place 1 | total 1 | ui 1 | 1
+boat 5 | place 1 | total 1 | ui 1 | 1
+boat 9 | place 1 | total 1 | ui 1 | 1
+boat 6 | place 6 | total 2 | ui 2 | 2
+boat 7 | place 6 | total 2 | ui 2 | 2
+boat 8 | place 6 | total 2 | ui 2 | 2
+boat 11 | place 6 | total 2 | ui 2 | 2
+boat 3 | place 10 | total 5 | ui 5 | 5
+boat 10 | place 10 | total 5 | ui 5 | 5
+seed 55: final ({"thresholds":[]})
+Gold | boat 6 | place 2 | total 9 | ui 9 | 3 2 2 2
+Gold | boat 9 | place 1 | total 9 | ui 9 | 2 1 2 4
+Gold | boat 2 | place 3 | total 14 | ui 14 | 7 2 1 4
+Gold | boat 7 | place 4 | total 14 | ui 14 | 5 1 4 4
+Gold | boat 11 | place 5 | total 15 | ui 15 | 8 1 3 3
+Gold | boat 3 | place 6 | total 20 | ui 20 | 0 1 4 3
+Gold | boat 10 | place 7 | total 24 | ui 24 | 10 2 1 11
+Gold | boat 5 | place 8 | total 25 | ui 25 | 9 2 4 10
+Gold | boat 4 | place 9 | total 27 | ui 27 | 7 2 0 6
+Gold | boat 1 | place 10 | total 30 | ui 30 | 9 2 0 7
+Gold | boat 8 | place 11 | total 37 | ui 37 | 9 0 4 0
+seed 56: qualifying (standard)
+boat 5 | place 1 | total 6 | ui 6 | 3 2 (0) 1
+boat 4 | place 2 | total 6 | ui 6 | 1 (9) 3 2
+boat 10 | place 3 | total 7 | ui 7 | (12) 3 1 3
+boat 8 | place 4 | total 8 | ui 8 | 2 3 3 (12)
+boat 6 | place 5 | total 9 | ui 9 | (8) 1 4 4
+boat 11 | place 6 | total 10 | ui 10 | 1 (9) 7 2
+boat 9 | place 7 | total 10.9 | ui 10.9 | (9) 4 2.9 4
+boat 3 | place 8 | total 11 | ui 11 | (7) 4 6 1
+boat 7 | place 9 | total 13 | ui 13 | 5 5 (6) 3
+boat 2 | place 10 | total 16 | ui 16 | 9 4 (12) 3
+boat 1 | place 11 | total 23 | ui 23 | 3 8 (0) 12
+seed 56: final ({"thresholds":[2,5]})
+Gold | boat 1 | place 1 | total 1 | ui 1 | 1
+Gold | boat 5 | place 2 | total 2 | ui 2 | 2
+Gold | boat 9 | place 2 | total 2 | ui 2 | 2
+Gold | boat 7 | place 4 | total 3 | ui 3 | 3
+Gold | boat 11 | place 4 | total 3 | ui 3 | 3
+Gold | boat 3 | place 6 | total 7 | ui 7 | 0
+Silver | boat 2 | place 2 | total 1 | ui 1 | 1 (3)
+Silver | boat 6 | place 3 | total 1 | ui 1 | (4) 1
+Silver | boat 8 | place 1 | total 1 | ui 1 | (3) 1
+Silver | boat 4 | place 4 | total 2 | ui 2 | (2) 2
+Silver | boat 10 | place 5 | total 3 | ui 3 | (3) 3
+seed 57: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 1 | place 1 | total 5 | ui 5 | 1 1 1 (3) 2
+boat 4 | place 2 | total 6.5 | ui 6.5 | 1 (2) 1.5 2 2
+boat 2 | place 3 | total 8 | ui 8 | (3) 1 0 1 2
+boat 3 | place 4 | total 9 | ui 9 | (4) 2 2 2 3
+boat 5 | place 5 | total 10 | ui 10 | 3 2 2 3 (4)
+seed 57: final (standard)
+Gold | boat 1 | place 1 | total 3 | ui 3 | 1 1 (2) 1
+Gold | boat 4 | place 2 | total 4 | ui 4 | (2) 2 1 1
+Silver | boat 2 | place 1 | total 1 | ui 1 | 1
+Silver | boat 5 | place 1 | total 1 | ui 1 | 1
+Bronze | boat 3 | place 1 | total 7.1 | ui 7.1 | 1 2 0 1.1 (0)
+seed 58: qualifying ({"thresholds":[2,5]})
+boat 2 | place 1 | total 14.1 | ui 14.1 | 4 1 (0) 2 5 (6) 1 1.1
+boat 8 | place 2 | total 14.9 | ui 14.9 | 3 1 3 2.9 1 (6) (7) 4
+boat 10 | place 3 | total 15.1 | ui 15.1 | (8) 4 3 1 1.1 4 (9) 2
+boat 11 | place 4 | total 19 | ui 19 | 1 2 4 (5) (7) 3 5 4
+boat 3 | place 5 | total 20 | ui 20 | 6 1 2 (12) (8) 4 2 5
+boat 6 | place 6 | total 20 | ui 20 | 5 4 2 (9) 1 4 4 (12)
+boat 5 | place 7 | total 21 | ui 21 | (5) 1 2 (8) 5 5 3 5
+boat 7 | place 8 | total 22 | ui 22 | 2 4 3 (8) 4 4 (9) 5
+boat 9 | place 9 | total 27.1 | ui 27.1 | 4 2 6.1 5 8 (0) (0) 2
+boat 4 | place 10 | total 31 | ui 31 | 4 0 5 4 1 (12) 5 (6)
+boat 1 | place 11 | total 33 | ui 33 | (9) 2 7 (7.2) 6 6 6 6
+seed 58: final ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+Gold | boat 11 | place 1 | total 5 | ui 5 | 1 2 1 1 (3)
+Gold | boat 9 | place 2 | total 7.3 | ui 7.3 | 2 1 (4) 2.3 2
+Gold | boat 7 | place 3 | total 9 | ui 9 | 1 (0) 3 2 3
+Gold | boat 3 | place 4 | total 10 | ui 10 | (5) 2 4 2 2
+Gold | boat 5 | place 5 | total 12 | ui 12 | (3) 2 2 1 0
+Gold | boat 1 | place 6 | total 16 | ui 16 | (4) 2 4 0 3
+Silver | boat 8 | place 1 | total 4.5 | ui 4.5 | 2.5 (4) 1 1
+Silver | boat 2 | place 3 | total 5 | ui 5 | (3) 1 3 1
+Silver | boat 4 | place 2 | total 5 | ui 5 | (3) 3 1 1
+Silver | boat 10 | place 4 | total 6 | ui 6 | (3) 2 2 2
+Silver | boat 6 | place 5 | total 7 | ui 7 | (0) 2 4 1
+seed 59: qualifying (standard)
+boat 1 | place 1 | total 3.4 | ui 3.4 | 2 1.4
+boat 6 | place 2 | total 4 | ui 4 | 3 1
+boat 5 | place 3 | total 5 | ui 5 | 3 2
+boat 3 | place 4 | total 5 | ui 5 | 2 3
+boat 4 | place 5 | total 8 | ui 8 | 0 1
+boat 2 | place 6 | total 8 | ui 8 | 3 5
+seed 60: qualifying (standard)
+boat 3 | place 1 | total 8 | ui 8 | 2 (4) 1 2 1 2
+boat 2 | place 2 | total 10 | ui 10 | 3 1 (0) 2 1 3
+boat 5 | place 3 | total 10 | ui 10 | (2) 1 2 0 2 1
+boat 1 | place 4 | total 11 | ui 11 | 2 1 (4) 2 4 2
+boat 4 | place 5 | total 11 | ui 11 | 2 1 2 (3) 0 2
+boat 6 | place 6 | total 14 | ui 14 | 3 2 (0) 2 4 3
+seed 60: final (standard)
+Gold | boat 3 | place 1 | total 9 | ui 9 | 1 1 (0) 3 1 3
+Gold | boat 5 | place 2 | total 9 | ui 9 | 1 1 (3) 3 2 2
+Gold | boat 1 | place 3 | total 13 | ui 13 | 2 (0) 3 0 1 3
+Silver | boat 6 | place 1 | total 10 | ui 10 | 1 2 (3) 1 2 3 1
+Silver | boat 4 | place 2 | total 12 | ui 12 | 2 2 (3) 2 1 3 2
+Silver | boat 2 | place 3 | total 13 | ui 13 | 2 1 2 0 (3) 2 2
+seed 61: qualifying ({"thresholds":[2,5]})
+boat 4 | place 1 | total 1 | ui 1 | 1
+boat 5 | place 1 | total 1 | ui 1 | 1
+boat 10 | place 1 | total 1 | ui 1 | 1
+boat 2 | place 4 | total 2 | ui 2 | 2
+boat 7 | place 4 | total 2 | ui 2 | 2
+boat 8 | place 4 | total 2 | ui 2 | 2
+boat 11 | place 4 | total 2 | ui 2 | 2
+boat 12 | place 4 | total 2 | ui 2 | 2
+boat 6 | place 9 | total 3 | ui 3 | 3
+boat 1 | place 10 | total 4 | ui 4 | 4
+boat 3 | place 11 | total 6 | ui 6 | 0
+boat 9 | place 11 | total 6 | ui 6 | 6
+boat 13 | place 11 | total 6 | ui 6 | 0
+seed 61: final ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+Gold | boat 4 | place 1 | total 1 | ui 1 | 1
+Gold | boat 7 | place 1 | total 1 | ui 1 | 1
+Gold | boat 1 | place 3 | total 2 | ui 2 | 2
+Gold | boat 10 | place 3 | total 2 | ui 2 | 2
+Gold | boat 13 | place 5 | total 3 | ui 3 | 3
+Silver | boat 2 | place 1 | total 1 | ui 1 | 1
+Silver | boat 5 | place 1 | total 1 | ui 1 | 1
+Silver | boat 8 | place 3 | total 2 | ui 2 | 2
+Silver | boat 11 | place 4 | total 6 | ui 6 | 0
+Bronze | boat 9 | place 1 | total 2 | ui 2 | 1 (2) 1
+Bronze | boat 12 | place 1 | total 2 | ui 2 | 1 (2) 1
+Bronze | boat 3 | place 3 | total 2.6 | ui 2.6 | (2) 1 1.6
+Bronze | boat 6 | place 4 | total 2.8 | ui 2.8 | (0) 1 1.8
+seed 62: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 4 | place 1 | total 1 | ui 1 | 1
+boat 1 | place 2 | total 1.8 | ui 1.8 | 1.8
+boat 2 | place 3 | total 3 | ui 3 | 3
+boat 3 | place 3 | total 3 | ui 3 | 3
+boat 5 | place 5 | total 4 | ui 4 | 0
+seed 63: qualifying (standard)
+boat 7 | place 1 | total 6 | ui 6 | 2 2 2 (5)
+boat 6 | place 2 | total 7 | ui 7 | 1 2 (5) 4
+boat 2 | place 3 | total 8 | ui 8 | 2 (5) 5 1
+boat 5 | place 4 | total 8 | ui 8 | 2 1 5 (8)
+boat 4 | place 5 | total 8 | ui 8 | 2 3 3 (4)
+boat 3 | place 6 | total 9 | ui 9 | 1 5 3 (6)
+boat 1 | place 7 | total 17 | ui 17 | (8) 0 0 1
+seed 63: final (standard)
+Gold | boat 5 | place 1 | total 3 | ui 3 | 1 1 1
+Gold | boat 7 | place 2 | total 6 | ui 6 | 2 1 3
+Gold | boat 1 | place 3 | total 8 | ui 8 | 0 2 1
+Gold | boat 3 | place 4 | total 8 | ui 8 | 4 1 3
+Silver | boat 2 | place 1 | total 5 | ui 5 | 2 1 2
+Silver | boat 6 | place 2 | total 5.6 | ui 5.6 | 1 1.6 3
+Silver | boat 4 | place 3 | total 7 | ui 7 | 1 0 1
+seed 64: qualifying ({"thresholds":[]})
+boat 8 | place 1 | total 23.7 | ui 23.7 | 4 1 4 1 2 3.7 4 2 2
+boat 6 | place 2 | total 33 | ui 33 | 1 6 2 2 1 9 7 1 4
+boat 5 | place 3 | total 34 | ui 34 | 1 1 4 2 2 8 0 2 2
+boat 9 | place 4 | total 36 | ui 36 | 12 5 3 2 2 1 4 1 6
+boat 11 | place 5 | total 37 | ui 37 | 3 4 1 2 1 3 10 1 12
+boat 3 | place 6 | total 43.1 | ui 43.1 | 2 2 3 2 1.1 9 7 12 5
+boat 2 | place 7 | total 45.8 | ui 45.8 | 2 0 4 1 2 8.7 0 2.1 2
+boat 1 | place 8 | total 49 | ui 49 | 4 5 2 12 2 5 0 1 6
+boat 4 | place 9 | total 55.4 | ui 55.4 | 1.6 4 1 12 0 7 4.8 12 1
+boat 10 | place 10 | total 58 | ui 58 | 1 3 0 2 0 6 8 2 12
+boat 7 | place 11 | total 64.3 | ui 64.3 | 2 12 0 2 1 12 8.3 3 12
+seed 65: qualifying (standard)
+boat 10 | place 1 | total 4 | ui 4 | 1 2 1 (3)
+boat 5 | place 2 | total 5 | ui 5 | (2) 1 2 2
+boat 2 | place 3 | total 5 | ui 5 | (5) 1 1 3
+boat 9 | place 4 | total 5 | ui 5 | (3) 2 2 1
+boat 1 | place 5 | total 5 | ui 5 | 1 (3) 2 2
+boat 8 | place 6 | total 5 | ui 5 | 2 (5) 2 1
+boat 4 | place 7 | total 7 | ui 7 | 1 2 (5) 4
+boat 6 | place 8 | total 7.8 | ui 7.8 | 1.8 (2) 1 0
+boat 3 | place 9 | total 9 | ui 9 | (3) 2 2 0
+boat 7 | place 10 | total 10 | ui 10 | (0) 3 0 2
+seed 66: qualifying (standard)
+boat 4 | place 1 | total 5 | ui 5 | 1 (2) 1 1 1 1
+boat 5 | place 2 | total 6 | ui 6 | 1 1 (2) 1 1 2
+boat 2 | place 3 | total 6 | ui 6 | 1.3 1 (2) 2 1.7
+boat 6 | place 4 | total 7 | ui 7 | 1 1 (0) 0 2
+boat 1 | place 5 | total 7 | ui 7 | (0) 1 1 2 2 1
+boat 3 | place 6 | total 8 | ui 8 | (2) 2 2 2 1 1
+seed 66: final (standard)
+Gold | boat 1 | place 1 | total 1 | ui 1 | 1
+Gold | boat 3 | place 2 | total 2 | ui 2 | 2
+Gold | boat 5 | place 2 | total 2 | ui 2 | 2
+Silver | boat 2 | place 1 | total 1 | ui 1 | 1
+Silver | boat 4 | place 1 | total 1 | ui 1 | 1
+Silver | boat 6 | place 3 | total 4 | ui 4 | 0
+seed 67: qualifying ({"thresholds":[]})
+boat 1 | place 1 | total 3 | ui 3 | 1 1 1
+boat 3 | place 2 | total 4 | ui 4 | 1 2 1
+boat 10 | place 3 | total 5 | ui 5 | 2 1 2
+boat 5 | place 4 | total 8 | ui 8 | 4 2 2
+boat 8 | place 5 | total 9 | ui 9 | 1 6 2
+boat 6 | place 6 | total 9 | ui 9 | 2 1 0
+boat 2 | place 7 | total 10 | ui 10 | 6 3 1
+boat 4 | place 8 | total 12 | ui 12 | 4 0 2
+boat 9 | place 9 | total 13 | ui 13 | 0 1 0
+boat 7 | place 10 | total 18 | ui 18 | 6 6 6
+seed 67: final ({"thresholds":[2,5]})
+Gold | boat 1 | place 1 | total 4 | ui 4 | 1 (3) 2 1
+Gold | boat 7 | place 2 | total 6 | ui 6 | 3 2 1 (4)
+Gold | boat 5 | place 3 | total 9 | ui 9 | 2 (0) 4 3
+Gold | boat 3 | place 4 | total 11 | ui 11 | 3 4 (0) 4
+Gold | boat 9 | place 5 | total 12.5 | ui 12.5 | 0 3.5 (5) 3
+Silver | boat 6 | place 1 | total 2 | ui 2 | (1) 1 1
+Silver | boat 10 | place 2 | total 3 | ui 3 | 2 1 (3)
+Silver | boat 8 | place 3 | total 3.3 | ui 3.3 | (3) 1.3 2
+Silver | boat 2 | place 4 | total 4 | ui 4 | (3) 2 2
+Silver | boat 4 | place 5 | total 8 | ui 8 | (4) 2 0
+seed 68: qualifying (standard)
+boat 1 | place 1 | total 4 | ui 4 | 1 0
+boat 4 | place 1 | total 4 | ui 4 | 1 0
+boat 2 | place 3 | total 4 | ui 4 | 2 2
+boat 3 | place 3 | total 4 | ui 4 | 2 2
+boat 5 | place 5 | total 6 | ui 6 | 0 0
+seed 68: final (standard)
+Gold | boat 3 | place 1 | total 8 | ui 8 | 1 2 1 2 (3) 2
+Gold | boat 4 | place 2 | total 8.8 | ui 8.8 | 1 (5) 1.8 1 2 3
+Gold | boat 1 | place 3 | total 9 | ui 9 | 2 (4) 1 1 2 3
+Gold | boat 5 | place 4 | total 11 | ui 11 | 2 3 2 (5) 1 3
+Gold | boat 2 | place 5 | total 12 | ui 12 | 2 (5) 3 4 2 1
+seed 69: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 11 | place 1 | total 6 | ui 6 | 1 (0) 1 (2) 1 1 1 1
+boat 5 | place 2 | total 7.3 | ui 7.3 | 1.3 (0) 1 (2) 2 1 1 1
+boat 8 | place 3 | total 8 | ui 8 | (3) 1 1 1 2 (4) 2 1
+boat 3 | place 4 | total 8 | ui 8 | (2) 2 2 1 1 1 1 (5)
+boat 12 | place 5 | total 8 | ui 8 | 1 (3) 1 2 (3) 1 1 2
+boat 6 | place 6 | total 9 | ui 9 | (2.4) 1 (3) 1 2 2 2 1
+boat 9 | place 7 | total 11 | ui 11 | (4) 2 2 2 1 2 (0) 2
+boat 4 | place 8 | total 11 | ui 11 | 1 2 (4) 2 1 3 2 (0)
+boat 1 | place 9 | total 12 | ui 12 | 1 (5) (5) 1 2 2 1 0
+boat 2 | place 10 | total 14 | ui 14 | 2 0 2 2 (5) (3) 1 2
+boat 7 | place 11 | total 15 | ui 15 | (5) 2 1 3 (0) 0 1 3
+boat 10 | place 12 | total 16 | ui 16 | (2) 1 1 2 0 0 2 (3)
+seed 70: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 1 | place 1 | total 7 | ui 7 | 1 (2) (3) (2) 1 1 1 1 2
+boat 4 | place 2 | total 9 | ui 9 | (3) 1 2 2 (5) 2 (3) 1 1
+boat 3 | place 3 | total 9.4 | ui 9.4 | (2) 2 (5) 1 2 1 (0) 2 1.4
+boat 7 | place 4 | total 11 | ui 11 | 1 1 0 (5) (2) (3) 2 1 1
+boat 5 | place 5 | total 11.8 | ui 11.8 | 1 1 (3) 1.8 (3) (3) 1 2 0
+boat 6 | place 6 | total 13 | ui 13 | 4 1 2 1 (0) 3 2 (5) (5)
+boat 2 | place 7 | total 20 | ui 20 | 0 (0) 0 0 (3) (2) 2 2 1
+seed 71: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 1 | place 1 | total 6 | ui 6 | (0) 1 3 1 1
+boat 9 | place 2 | total 6 | ui 6 | (2) 1 1 2 2
+boat 3 | place 3 | total 7 | ui 7 | 1 2 (3) 2 2
+boat 5 | place 4 | total 7 | ui 7 | 2 (4) 1 2 2
+boat 8 | place 5 | total 8 | ui 8 | 2 3 (0) 1 2
+boat 6 | place 6 | total 9 | ui 9 | 1 4 (5) 3 1
+boat 2 | place 7 | total 9 | ui 9 | 2 (3) 3 2 2
+boat 10 | place 8 | total 9 | ui 9 | 3 2 1 (5) 3
+boat 7 | place 9 | total 9 | ui 9 | 2 (3) 2 2 3
+boat 4 | place 10 | total 11 | ui 11 | (5) 1 2 0 3
+seed 71: final (standard)
+Gold | boat 4 | place 1 | total 13 | ui 13 | 4 5 (7) 1 1 1 1
+Gold | boat 5 | place 2 | total 15 | ui 15 | (5) 4 1 1 2 5 2
+Gold | boat 9 | place 3 | total 18 | ui 18 | 6 (7) 3 1 1 3 4
+Gold | boat 6 | place 4 | total 20 | ui 20 | 3 5 (7) 1 4 6 1
+Gold | boat 8 | place 5 | total 21 | ui 21 | 6 (0) 8 2 1 3 1
+Gold | boat 2 | place 6 | total 22 | ui 22 | 3 6 (9) 1 3 5 4
+Gold | boat 10 | place 7 | total 22.8 | ui 22.8 | 4 2.8 (0) 0 3 1 1
+Gold | boat 3 | place 8 | total 25 | ui 25 | 4 (9) 9 2 3 6 1
+Gold | boat 1 | place 9 | total 34 | ui 34 | 1 8 10 (0) 3 0 1
+Gold | boat 7 | place 10 | total 34.9 | ui 34.9 | 0 (7) 6 1.9 3 0 2
+seed 72: qualifying (standard)
+boat 1 | place 1 | total 1 | ui 1 | 1
+boat 2 | place 1 | total 1 | ui 1 | 1
+boat 5 | place 1 | total 1 | ui 1 | 1
+boat 6 | place 1 | total 1 | ui 1 | 1
+boat 3 | place 5 | total 2 | ui 2 | 2
+boat 4 | place 5 | total 2 | ui 2 | 2
+seed 72: final (standard)
+Gold | boat 3 | place 1 | total 6 | ui 6 | 3 3
+Gold | boat 5 | place 1 | total 6 | ui 6 | 3 3
+Gold | boat 1 | place 3 | total 7 | ui 7 | 0 3
+Silver | boat 4 | place 1 | total 6 | ui 6 | 2 (3) 1 2 1
+Silver | boat 2 | place 2 | total 6.5 | ui 6.5 | 2 (0) 1 1 2.5
+Silver | boat 6 | place 3 | total 8.4 | ui 8.4 | 1 (3) 2.4 2 3
+seed 73: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 4 | place 1 | total 9 | ui 9 | 1 (5) (0) 1 1 2 2 2
+boat 10 | place 2 | total 12 | ui 12 | 2 3 (15) 2 2 2 (0) 1
+boat 6 | place 3 | total 13 | ui 13 | 3 (6) (7) 2 1 2 3 2
+boat 5 | place 4 | total 14 | ui 14 | (5) (10) 3 1.7 3 2 3 1.3
+boat 11 | place 5 | total 15.4 | ui 15.4 | (15) 2.4 3 3 3 3 1 (0)
+boat 1 | place 6 | total 16 | ui 16 | 3 (8) (7) 3 3 1 5 1
+boat 2 | place 7 | total 16.9 | ui 16.9 | 3.9 (8) (4) 2 4 3 3 1
+boat 9 | place 8 | total 17 | ui 17 | 1 (15) 5 1 7 1 2 (0)
+boat 8 | place 9 | total 17 | ui 17 | 5 (6) 5 1 (0) 3 2 1
+boat 7 | place 10 | total 17 | ui 17 | 3 (15) (0) 2 3 2 6 1
+boat 13 | place 11 | total 17.8 | ui 17.8 | 1.8 3 (15) 3 (15) 3 6 1
+boat 3 | place 12 | total 18 | ui 18 | 2 4 5 (0) 2 3 (6) 2
+boat 12 | place 13 | total 19.8 | ui 19.8 | 2 3 6.8 3 (15) 3 (0) 2
+boat 14 | place 14 | total 37 | ui 37 | (0) 10 (0) 2 7 1 0 2
+seed 74: qualifying (standard)
+boat 9 | place 1 | total 10 | ui 10 | 3 2 2 2 (7) 1
+boat 13 | place 2 | total 12 | ui 12 | (4) 2 3 4 1 2
+boat 1 | place 3 | total 13 | ui 13 | (6) 4 3 3 1 2
+boat 10 | place 4 | total 14 | ui 14 | 2 1 5 3 (0) 3
+boat 4 | place 5 | total 14.8 | ui 14.8 | 2.8 5 4 (8) 1 2
+boat 8 | place 6 | total 15.5 | ui 15.5 | 3.9 1.6 0 1 1 (0)
+boat 6 | place 7 | total 16 | ui 16 | (0) 1 1 1 5 8
+boat 14 | place 8 | total 17.8 | ui 17.8 | 3 1 (8) 3.8 2 8
+boat 5 | place 9 | total 18 | ui 18 | 6 (0) 1 2 1 8
+boat 2 | place 10 | total 19 | ui 19 | (7) 4 3 1 7 4
+boat 3 | place 11 | total 21 | ui 21 | 6 (0) 2 2 8 3
+boat 12 | place 12 | total 21 | ui 21 | 2 3 (8) 0 7 1
+boat 11 | place 13 | total 21 | ui 21 | (0) 8 4 2 4 3
+boat 7 | place 14 | total 24 | ui 24 | 2 3 3 (8) 8 8
+seed 74: final ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+Gold | boat 4 | place 1 | total 1 | ui 1 | 1
+Gold | boat 10 | place 1 | total 1 | ui 1 | 1
+Gold | boat 13 | place 1 | total 1 | ui 1 | 1
+Gold | boat 1 | place 4 | total 2 | ui 2 | 2
+Gold | boat 7 | place 4 | total 2 | ui 2 | 2
+Silver | boat 8 | place 1 | total 0 | ui 0
+Silver | boat 14 | place 1 | total 0 | ui 0
+Silver | boat 5 | place 1 | total 0 | ui 0
+Silver | boat 2 | place 1 | total 0 | ui 0
+Silver | boat 11 | place 1 | total 0 | ui 0
+Bronze | boat 9 | place 1 | total 5 | ui 5 | 1 4
+Bronze | boat 3 | place 2 | total 8 | ui 8 | 4 4
+Bronze | boat 6 | place 2 | total 8 | ui 8 | 4 4
+Bronze | boat 12 | place 2 | total 8 | ui 8 | 4 4
+seed 75: qualifying (standard)
+boat 12 | place 1 | total 5 | ui 5 | 1 2 2 (11)
+boat 1 | place 2 | total 6 | ui 6 | 1 2 3 (13)
+boat 11 | place 3 | total 7 | ui 7 | 2 3 2 (11)
+boat 6 | place 4 | total 8 | ui 8 | (6) 5 1 2
+boat 3 | place 5 | total 8 | ui 8 | 2 4 2 (12)
+boat 9 | place 6 | total 8 | ui 8 | 3 2 3 (12)
+boat 8 | place 7 | total 11 | ui 11 | 2 5 4 (13)
+boat 10 | place 8 | total 11 | ui 11 | 5 (0) 3 3
+boat 7 | place 9 | total 11 | ui 11 | (6) 4 4 3
+boat 5 | place 10 | total 14 | ui 14 | 8 (14) 2 4
+boat 2 | place 11 | total 17 | ui 17 | 5 11 1 (12)
+boat 4 | place 12 | total 17 | ui 17 | 2 2 (0) 13
+boat 13 | place 13 | total 22 | ui 22 | 0 6 2 (8)
+seed 75: final (standard)
+Gold | boat 3 | place 1 | total 9 | ui 9 | 1 (3) 2 1 1 3 1
+Gold | boat 13 | place 2 | total 9 | ui 9 | 1 (7) 1 2 2 1 2
+Gold | boat 7 | place 3 | total 13 | ui 13 | (3) 2 3 1 3 2 2
+Gold | boat 1 | place 4 | total 13.1 | ui 13.1 | 3 1 (0) 3 1 3.1 2
+Gold | boat 11 | place 5 | total 15 | ui 15 | 3 4 2 1 4 (0) 1
+Gold | boat 5 | place 6 | total 17 | ui 17 | (3) 0 1 1 2 3 2
+Gold | boat 9 | place 7 | total 23 | ui 23 | 4 (5) 1 5 4 0 1
+Silver | boat 2 | place 1 | total 6 | ui 6 | 1 1 (4) 4
+Silver | boat 12 | place 2 | total 7 | ui 7 | 2 1 (5) 4
+Silver | boat 4 | place 5 | total 8 | ui 8 | 3 3 (5) 2
+Silver | boat 6 | place 4 | total 8 | ui 8 | (4) 3 3 2
+Silver | boat 10 | place 3 | total 8 | ui 8 | (3) 2 3 3
+Silver | boat 8 | place 6 | total 10 | ui 10 | 4 2 (5) 4"
+`;
+
+exports[`scoring pipeline characterisation (150 seeded random events) events 76-100 score exactly as recorded 1`] = `
+"seed 76: qualifying ({"thresholds":[2,5]})
+boat 11 | place 1 | total 17 | ui 17 | 1 (0) 3 5 2 2 (6) 1 3
+boat 9 | place 2 | total 18 | ui 18 | (6) 1 4 1 1 (0) 5 2 4
+boat 7 | place 3 | total 18 | ui 18 | (5) 2 (8) 5 2 1 2 3 3
+boat 2 | place 4 | total 19 | ui 19 | (13) (13) 2 4 2 3 4 1 3
+boat 4 | place 5 | total 20 | ui 20 | 1 4 (13) (5) 2 1 4 4 4
+boat 8 | place 6 | total 21 | ui 21 | (6) 5 5 5 2 1 1 (13) 2
+boat 12 | place 7 | total 21.5 | ui 21.5 | 1 3 5 4 (13) 2 5 1.5 (0)
+boat 6 | place 8 | total 26 | ui 26 | (13) 4 8 6 1 2 (13) 1 4
+boat 1 | place 9 | total 27 | ui 27 | 2 4 0 (5) 1 2 (13) 2 3
+boat 5 | place 10 | total 28.3 | ui 28.3 | (6) 2 0 3 2 3 4 1.3 (0)
+boat 10 | place 11 | total 29.8 | ui 29.8 | 3 4 (7) 5 1 1 0 (13) 2.8
+boat 3 | place 12 | total 30 | ui 30 | 3 (13) 2 (0) 0 2 5 3 2
+seed 77: qualifying ({"thresholds":[2,5]})
+boat 3 | place 1 | total 1 | ui 1 | (1) 1
+boat 5 | place 1 | total 1 | ui 1 | (1) 1
+boat 9 | place 3 | total 1 | ui 1 | (2) 1
+boat 11 | place 3 | total 1 | ui 1 | (2) 1
+boat 7 | place 5 | total 2 | ui 2 | (2) 2
+boat 8 | place 5 | total 2 | ui 2 | (2) 2
+boat 2 | place 7 | total 2 | ui 2 | (2.2) 2
+boat 1 | place 8 | total 2 | ui 2 | 2 (0)
+boat 4 | place 9 | total 3 | ui 3 | (3) 3
+boat 10 | place 10 | total 3 | ui 3 | (4) 3
+boat 6 | place 11 | total 7 | ui 7 | (4) 0
+seed 77: final (standard)
+Gold | boat 2 | place 1 | total 1 | ui 1 | 1
+Gold | boat 5 | place 1 | total 1 | ui 1 | 1
+Gold | boat 6 | place 3 | total 2 | ui 2 | 2
+Gold | boat 10 | place 3 | total 2 | ui 2 | 2
+Gold | boat 4 | place 5 | total 4 | ui 4 | 4
+Gold | boat 8 | place 6 | total 4.9 | ui 4.9 | 4.9
+Gold | boat 1 | place 7 | total 5 | ui 5 | 5
+Gold | boat 3 | place 7 | total 5 | ui 5 | 5
+Gold | boat 7 | place 7 | total 5 | ui 5 | 5
+Gold | boat 9 | place 7 | total 5 | ui 5 | 5
+Gold | boat 11 | place 11 | total 6 | ui 6 | 6
+seed 78: qualifying ({"thresholds":[2,5]})
+boat 5 | place 1 | total 10 | ui 10 | (4) 1 1 (3) 1 2 2 1 2
+boat 6 | place 2 | total 11 | ui 11 | 3 1 (0) 1 1 (0) 2 2 1
+boat 7 | place 3 | total 12 | ui 12 | 1 (0) 2 (3) 1 2 2 1 3
+boat 8 | place 4 | total 13 | ui 13 | 2 (5) 2 1 2 3 2 1 (5)
+boat 1 | place 5 | total 13.9 | ui 13.9 | (3) 1.9 1 (5) 2 1 0 2 1
+boat 3 | place 6 | total 16 | ui 16 | (3) 0 3 2 3 1 (0) 1 1
+boat 4 | place 7 | total 16.7 | ui 16.7 | 1 3 1.7 (5) 2 2 2 (5) 0
+boat 2 | place 8 | total 21 | ui 21 | 1 (5) (5) 0 5 2 2 3 3
+seed 78: final (standard)
+Gold | boat 6 | place 1 | total 3 | ui 3 | 1 (2) 1 1
+Gold | boat 1 | place 2 | total 5 | ui 5 | 1 1 (4) 3
+Gold | boat 2 | place 4 | total 5 | ui 5 | 1 2 2 (0)
+Gold | boat 8 | place 3 | total 5 | ui 5 | (4) 2 2 1
+Gold | boat 4 | place 5 | total 6 | ui 6 | (5) 1 4 1
+Gold | boat 7 | place 6 | total 6 | ui 6 | (0) 2 3 1
+Gold | boat 3 | place 7 | total 8 | ui 8 | 4 2 2 (0)
+Gold | boat 5 | place 8 | total 8.9 | ui 8.9 | (4) 1.9 4 3
+seed 79: qualifying (standard)
+boat 10 | place 1 | total 8.7 | ui 8.7 | 1.7 (0) 1 1 1 2 1 1 (3.6)
+boat 3 | place 2 | total 9.2 | ui 9.2 | (7) 1 2 1 (0) 1.2 1 2 1
+boat 4 | place 3 | total 11 | ui 11 | 2 2 1 3 1 (5) 1 1 (6)
+boat 9 | place 4 | total 13 | ui 13 | 1 (7) 1 4 3 2 1 1 (5)
+boat 7 | place 5 | total 13 | ui 13 | 1 2 2 1 (3) (5) 2 3 2
+boat 12 | place 6 | total 13 | ui 13 | 2 (4) 2 1 2 2 (5) 2 2
+boat 8 | place 7 | total 15 | ui 15 | 1 (6) 2 2 1 2 (4.3) 3 4
+boat 5 | place 8 | total 16 | ui 16 | 1 (4) 4 3 2 (7) 3 1 2
+boat 11 | place 9 | total 17 | ui 17 | 1 1 1 4 2 1 (5) 0 (5)
+boat 1 | place 10 | total 17 | ui 17 | 1 1 2 1 0 (7) 3 (7) 2
+boat 2 | place 11 | total 17 | ui 17 | (0) 1 (7) 4 1 3 2 1 5
+boat 6 | place 12 | total 20 | ui 20 | 2 (5) (5) 1 0 2 3 1 4
+seed 80: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 4 | place 1 | total 14 | ui 14 | (0) 1 (12) 3 1 4 5
+boat 3 | place 2 | total 15 | ui 15 | 2 (5) (9.1) 3 3 4 3
+boat 10 | place 3 | total 16 | ui 16 | 2 (0) 11 1 1 (13) 1
+boat 2 | place 4 | total 16 | ui 16 | 4 5 (11.6) 1 3 (9.7) 3
+boat 12 | place 5 | total 16.3 | ui 16.3 | 4 2 (8) (0) 3 3.3 4
+boat 6 | place 6 | total 18 | ui 18 | 1 5 (9) 2 (13) 6 4
+boat 1 | place 7 | total 19 | ui 19 | (13) 5 4 6 1 3 (0)
+boat 7 | place 8 | total 20 | ui 20 | 1 (0) 4 1 0 (13) 1
+boat 9 | place 9 | total 23 | ui 23 | (4) (4) 4 1 0 1 4
+boat 5 | place 10 | total 25 | ui 25 | 2 (13) (0) 4 4 10 5
+boat 11 | place 11 | total 26 | ui 26 | (0) 1 5 (13) 1 6 0
+boat 8 | place 12 | total 29 | ui 29 | 4 1 11 (13) 4 9 (13)
+seed 80: final ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+Gold | boat 7 | place 1 | total 3 | ui 3 | (2) 1 2
+Gold | boat 1 | place 2 | total 4 | ui 4 | 2 2 (3)
+Gold | boat 10 | place 2 | total 4 | ui 4 | 2 2 (3)
+Gold | boat 4 | place 4 | total 6 | ui 6 | 2 (0) 4
+Silver | boat 2 | place 1 | total 3 | ui 3 | (2) 2 1
+Silver | boat 8 | place 2 | total 3 | ui 3 | (2) 1 2
+Silver | boat 11 | place 3 | total 5 | ui 5 | (3) 3 2
+Silver | boat 5 | place 4 | total 10 | ui 10 | 0 (1) 0
+Bronze | boat 9 | place 2 | total 4 | ui 4 | 2 (0) 1 1
+Bronze | boat 12 | place 1 | total 4 | ui 4 | 1 2 1 (3)
+Bronze | boat 3 | place 3 | total 5 | ui 5 | 2 2 1 (3)
+Bronze | boat 6 | place 4 | total 6 | ui 6 | 2 2 2 (0)
+seed 81: qualifying ({"thresholds":[]})
+boat 8 | place 1 | total 1 | ui 1 | 1
+boat 3 | place 2 | total 2 | ui 2 | 2
+boat 4 | place 2 | total 2 | ui 2 | 2
+boat 6 | place 4 | total 2.9 | ui 2.9 | 2.9
+boat 2 | place 5 | total 3 | ui 3 | 3
+boat 7 | place 5 | total 3 | ui 3 | 3
+boat 5 | place 7 | total 4 | ui 4 | 4
+boat 1 | place 8 | total 5 | ui 5 | 0
+seed 81: final (standard)
+Gold | boat 3 | place 1 | total 6 | ui 6 | 1 2 3
+Gold | boat 7 | place 2 | total 9 | ui 9 | 2 3 4
+Gold | boat 1 | place 3 | total 10 | ui 10 | 3 3 4
+Gold | boat 5 | place 4 | total 10.3 | ui 10.3 | 0 2 3.3
+Silver | boat 2 | place 1 | total 2 | ui 2 | 1 1
+Silver | boat 4 | place 1 | total 2 | ui 2 | 1 1
+Silver | boat 8 | place 1 | total 2 | ui 2 | 1 1
+Silver | boat 6 | place 4 | total 3 | ui 3 | 1 2
+seed 82: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 2 | place 1 | total 5 | ui 5 | 1 (3) 1 1 2
+boat 8 | place 2 | total 5 | ui 5 | 1 2 1 1 (3)
+boat 3 | place 3 | total 6 | ui 6 | 1 (3) 1 2 2
+boat 6 | place 3 | total 6 | ui 6 | 1 2 1 (3) 2
+boat 9 | place 5 | total 7 | ui 7 | 2 (3) 2 2 1
+boat 4 | place 6 | total 7.6 | ui 7.6 | 2 1 2 (5) 2.6
+boat 1 | place 7 | total 8 | ui 8 | 2 1 3 (4) 2
+boat 7 | place 8 | total 9 | ui 9 | 1 3 3 (5) 2
+boat 5 | place 9 | total 15 | ui 15 | (6) 2 6 0 1
+seed 82: final ({"thresholds":[]})
+Gold | boat 1 | place 1 | total 13 | ui 13 | 2 1 3 3 4
+Gold | boat 8 | place 2 | total 16 | ui 16 | 2 1 3 1 9
+Gold | boat 9 | place 3 | total 17 | ui 17 | 1.4 2 2.6 1 0
+Gold | boat 5 | place 4 | total 18.6 | ui 18.6 | 4 1 3 6.6 4
+Gold | boat 7 | place 5 | total 20 | ui 20 | 2 1 1 6 0
+Gold | boat 2 | place 6 | total 22 | ui 22 | 4 2 2 4 0
+Gold | boat 4 | place 7 | total 22 | ui 22 | 4 2 3 9 4
+Gold | boat 6 | place 8 | total 25 | ui 25 | 4 1 0 7 3
+Gold | boat 3 | place 9 | total 31 | ui 31 | 2 0 4 6 9
+seed 83: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 9 | place 1 | total 6 | ui 6 | 1 1 (2) (3) 1 1 2
+boat 1 | place 2 | total 8 | ui 8 | (2) 1 2 1 2 (6) 2
+boat 6 | place 3 | total 8 | ui 8 | 1 2 2 1 (3) (3) 2
+boat 7 | place 4 | total 9 | ui 9 | (0) 1 (6) 1 3 2 2
+boat 10 | place 5 | total 9 | ui 9 | 2 2 1 1 (3) (0) 3
+boat 5 | place 6 | total 9 | ui 9 | 1 2 2 2 2 (3) (4)
+boat 3 | place 7 | total 11 | ui 11 | 2 (4) 3 3 1 2 (4)
+boat 2 | place 8 | total 12 | ui 12 | 1 4 (0) 3 1 (0) 3
+boat 8 | place 9 | total 13 | ui 13 | 1 (6) 1 2 0 (3) 3
+boat 4 | place 10 | total 13 | ui 13 | 0 (3) (4) 1 2 2 2
+seed 84: qualifying ({"thresholds":[2,5]})
+boat 1 | place 1 | total 6 | ui 6 | 1 1 1 1 (5) 1 1 (2)
+boat 4 | place 2 | total 7.1 | ui 7.1 | 1 (2) 1.1 1 1 (3.3) 1 2
+boat 3 | place 3 | total 8 | ui 8 | (4) 1 2 1 2 1 1 (4)
+boat 8 | place 4 | total 12 | ui 12 | 2 2 4 1 (0) 2 (0) 1
+boat 11 | place 5 | total 12.9 | ui 12.9 | 1 2 2.9 1 4 (6) (0) 2
+boat 13 | place 6 | total 13 | ui 13 | (5) 1 2 2 2 (0) 1 5
+boat 2 | place 7 | total 13 | ui 13 | 1 1 4 (0) 2 3 (8) 2
+boat 6 | place 8 | total 13 | ui 13 | (8) 2 2 2 3 3 1 (4)
+boat 10 | place 9 | total 13.9 | ui 13.9 | (4) 1 (8) 2 1 2.9 3 4
+boat 5 | place 10 | total 14.4 | ui 14.4 | 2.4 2 (0) 1 (5) 4 3 2
+boat 7 | place 11 | total 16 | ui 16 | (2) 0 2 2 (3) 1 1 2
+boat 12 | place 12 | total 23 | ui 23 | 4 2 (0) (0) 7 3 2 5
+boat 9 | place 13 | total 23 | ui 23 | 4 1 (0) (0) 0 5 3 2
+seed 85: qualifying ({"thresholds":[2,5]})
+boat 6 | place 1 | total 8 | ui 8 | (5) 2 3 (4) 1 2
+boat 2 | place 2 | total 9 | ui 9 | 3 3 (5) 1 (0) 2
+boat 10 | place 3 | total 10 | ui 10 | 1 (12) 2 (10) 6 1
+boat 3 | place 4 | total 11.7 | ui 11.7 | 2.7 (0) 2 (9) 6 1
+boat 9 | place 5 | total 12 | ui 12 | (7) 3 2 (7) 6 1
+boat 8 | place 6 | total 13.4 | ui 13.4 | 1.4 6 3 (10) (0) 3
+boat 5 | place 7 | total 14 | ui 14 | 4 4 (12) 4 (12) 2
+boat 7 | place 8 | total 16 | ui 16 | (5) 5 5 (9) 4 2
+boat 4 | place 9 | total 16 | ui 16 | (12) 6 4 (10) 3 3
+boat 11 | place 10 | total 25.6 | ui 25.6 | (6) 5.6 4 (8) 4 0
+boat 1 | place 11 | total 27 | ui 27 | (2) 2 0 0 (4) 1
+seed 86: qualifying (standard)
+boat 4 | place 1 | total 5 | ui 5 | (2) 1 1 2 1
+boat 12 | place 2 | total 5 | ui 5 | 1 1 2 1 (3)
+boat 2 | place 3 | total 5 | ui 5 | (2.4) 1 1 2 1
+boat 11 | place 4 | total 6 | ui 6 | 2 1 1 (3) 2
+boat 7 | place 5 | total 6.3 | ui 6.3 | (3) 1 1 1.3 3
+boat 6 | place 6 | total 7 | ui 7 | 1 2 3 (5) 1
+boat 3 | place 7 | total 7 | ui 7 | 1 2 3 1 (4)
+boat 9 | place 8 | total 7 | ui 7 | 2 (3) 1 1 3
+boat 10 | place 9 | total 8 | ui 8 | (3) 1 2 2 3
+boat 8 | place 10 | total 10 | ui 10 | (3) 2 3 2 3
+boat 1 | place 11 | total 11 | ui 11 | 3 1 (5) 2 0
+boat 5 | place 12 | total 11 | ui 11 | (2) 2 2 2 0
+seed 86: final ({"thresholds":[]})
+Gold | boat 1 | place 1 | total 10 | ui 10 | 3 2 1 1 3
+Gold | boat 4 | place 2 | total 13 | ui 13 | 1 0 1 0 1
+Gold | boat 10 | place 3 | total 15 | ui 15 | 0 3 4 1 2
+Gold | boat 7 | place 4 | total 16 | ui 16 | 4 3 4 2 3
+Silver | boat 5 | place 1 | total 2 | ui 2 | 1 1
+Silver | boat 8 | place 2 | total 3 | ui 3 | 1 2
+Silver | boat 11 | place 3 | total 4 | ui 4 | 3 1
+Silver | boat 2 | place 4 | total 7 | ui 7 | 0 2
+Bronze | boat 3 | place 1 | total 8 | ui 8 | 1 1 1 1 2 2
+Bronze | boat 9 | place 2 | total 10 | ui 10 | 2 2 2 1 2 1
+Bronze | boat 6 | place 3 | total 16 | ui 16 | 0 3 3 2 1 2
+Bronze | boat 12 | place 4 | total 18 | ui 18 | 1 4 0 1 2 0
+seed 87: qualifying (standard)
+boat 2 | place 1 | total 1 | ui 1 | 1
+boat 4 | place 1 | total 1 | ui 1 | 1
+boat 6 | place 1 | total 1 | ui 1 | 1
+boat 1 | place 4 | total 2 | ui 2 | 2
+boat 5 | place 4 | total 2 | ui 2 | 2
+boat 8 | place 4 | total 2 | ui 2 | 2
+boat 3 | place 7 | total 3 | ui 3 | 3
+boat 7 | place 8 | total 5 | ui 5 | 5
+seed 87: final ({"thresholds":[2,5]})
+Gold | boat 1 | place 1 | total 0 | ui 0
+Gold | boat 5 | place 1 | total 0 | ui 0
+Gold | boat 3 | place 1 | total 0 | ui 0
+Gold | boat 7 | place 1 | total 0 | ui 0
+Silver | boat 8 | place 1 | total 2 | ui 2 | (3) 1 1
+Silver | boat 6 | place 2 | total 3 | ui 3 | 1 (3) 2
+Silver | boat 4 | place 3 | total 4 | ui 4 | 1 (4) 3
+Silver | boat 2 | place 4 | total 5 | ui 5 | (4) 2 3
+seed 88: qualifying ({"thresholds":[]})
+boat 4 | place 1 | total 6 | ui 6 | 1 2 2 1
+boat 3 | place 2 | total 7 | ui 7 | 2 1 2 2
+boat 7 | place 3 | total 9 | ui 9 | 1 1 2 5
+boat 1 | place 4 | total 9 | ui 9 | 2 1 3 3
+boat 5 | place 5 | total 9 | ui 9 | 1 5 1 2
+boat 6 | place 6 | total 9 | ui 9 | 2 2 3 2
+boat 2 | place 7 | total 10 | ui 10 | 1 0 2 2
+boat 8 | place 8 | total 10 | ui 10 | 2 4 3 1
+seed 88: final ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+Gold | boat 3 | place 1 | total 1 | ui 1 | 1
+Gold | boat 2 | place 2 | total 2 | ui 2 | 2
+Gold | boat 8 | place 2 | total 2 | ui 2 | 2
+Gold | boat 1 | place 4 | total 3 | ui 3 | 3
+Gold | boat 4 | place 5 | total 3.2 | ui 3.2 | 3.2
+Gold | boat 5 | place 6 | total 4 | ui 4 | 4
+Gold | boat 6 | place 6 | total 4 | ui 4 | 4
+Gold | boat 7 | place 6 | total 4 | ui 4 | 4
+seed 89: qualifying ({"thresholds":[]})
+boat 1 | place 1 | total 2 | ui 2 | 1 1
+boat 5 | place 1 | total 2 | ui 2 | 1 1
+boat 11 | place 1 | total 2 | ui 2 | 1 1
+boat 6 | place 4 | total 3 | ui 3 | 2 1
+boat 4 | place 5 | total 3 | ui 3 | 1 2
+boat 10 | place 5 | total 3 | ui 3 | 1 2
+boat 3 | place 7 | total 4 | ui 4 | 2 2
+boat 8 | place 7 | total 4 | ui 4 | 2 2
+boat 9 | place 7 | total 4 | ui 4 | 2 2
+boat 12 | place 10 | total 7 | ui 7 | 1 0
+boat 2 | place 11 | total 7 | ui 7 | 4 3
+boat 13 | place 12 | total 7 | ui 7 | 1 0
+boat 7 | place 13 | total 8 | ui 8 | 6 2
+seed 89: final (standard)
+Gold | boat 3 | place 1 | total 1 | ui 1 | 1
+Gold | boat 11 | place 1 | total 1 | ui 1 | 1
+Gold | boat 1 | place 3 | total 2 | ui 2 | 2
+Gold | boat 5 | place 3 | total 2 | ui 2 | 2
+Gold | boat 9 | place 3 | total 2 | ui 2 | 2
+Gold | boat 13 | place 3 | total 2 | ui 2 | 2
+Gold | boat 7 | place 7 | total 8 | ui 8 | 0
+Silver | boat 2 | place 1 | total 10 | ui 10 | 2 1 2 (0) 1 3 1
+Silver | boat 12 | place 2 | total 14 | ui 14 | 1 4 1 (5) 1 4 3
+Silver | boat 10 | place 3 | total 17 | ui 17 | 2 1 2 3 1 0 (0)
+Silver | boat 6 | place 4 | total 19 | ui 19 | (0) 2 0 6 1 1 1
+Silver | boat 4 | place 5 | total 20 | ui 20 | 2 1 2 4 (0) 0 3
+Silver | boat 8 | place 6 | total 21 | ui 21 | 2 6 4 1 3 5 (0)
+seed 90: qualifying (standard)
+boat 4 | place 1 | total 7 | ui 7 | 1 1 (3) 1 1 2 1
+boat 1 | place 2 | total 11 | ui 11 | (5) 1 2 3 2 1 2
+boat 2 | place 3 | total 12 | ui 12 | 2 4 (5) 2 2 1 1
+boat 3 | place 4 | total 12 | ui 12 | 2 4 1 2 1 (0) 2
+boat 7 | place 5 | total 12 | ui 12 | 1 3 2 3 2 1 (0)
+boat 6 | place 6 | total 13 | ui 13 | 2 (4) 3 3 2 2 1
+boat 5 | place 7 | total 13 | ui 13 | 1 (5) 2 2 2 1 5
+seed 91: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 5 | place 1 | total 2 | ui 2 | (4) 1 1
+boat 12 | place 2 | total 2 | ui 2 | (0) 1 1
+boat 11 | place 3 | total 3 | ui 3 | (4) 2 1
+boat 13 | place 3 | total 3 | ui 3 | 2 (3) 1
+boat 2 | place 5 | total 4 | ui 4 | 3 (0) 1
+boat 4 | place 5 | total 4 | ui 4 | 3 1 (0)
+boat 1 | place 7 | total 4 | ui 4 | (8) 2 2
+boat 7 | place 8 | total 4 | ui 4 | 2 2 (6)
+boat 9 | place 9 | total 5 | ui 5 | (3) 3 2
+boat 6 | place 10 | total 5 | ui 5 | 3 2 (6)
+boat 14 | place 11 | total 5 | ui 5 | 3 (6) 2
+boat 8 | place 12 | total 6 | ui 6 | 1 5 (6)
+boat 3 | place 13 | total 7 | ui 7 | 4 (6) 3
+boat 10 | place 14 | total 9 | ui 9 | 1 (2) 0
+seed 91: final (standard)
+Gold | boat 10 | place 1 | total 1 | ui 1 | 1
+Gold | boat 4 | place 2 | total 2 | ui 2 | 2
+Gold | boat 13 | place 2 | total 2 | ui 2 | 2
+Gold | boat 1 | place 4 | total 3 | ui 3 | 3
+Gold | boat 7 | place 5 | total 6 | ui 6 | 0
+Silver | boat 5 | place 1 | total 0 | ui 0
+Silver | boat 11 | place 1 | total 0 | ui 0
+Silver | boat 2 | place 1 | total 0 | ui 0
+Silver | boat 14 | place 1 | total 0 | ui 0
+Silver | boat 8 | place 1 | total 0 | ui 0
+Bronze | boat 6 | place 1 | total 7 | ui 7 | 4 2 1
+Bronze | boat 9 | place 2 | total 7 | ui 7 | 2 3 2
+Bronze | boat 12 | place 3 | total 9 | ui 9 | 4 2 3
+Bronze | boat 3 | place 4 | total 11 | ui 11 | 4 1 0
+seed 92: qualifying ({"thresholds":[2,5]})
+boat 7 | place 1 | total 1 | ui 1 | 1
+boat 11 | place 2 | total 1.5 | ui 1.5 | 1.5
+boat 6 | place 3 | total 1.6 | ui 1.6 | 1.6
+boat 10 | place 4 | total 2 | ui 2 | 2
+boat 8 | place 5 | total 2.3 | ui 2.3 | 2.3
+boat 4 | place 6 | total 3 | ui 3 | 3
+boat 13 | place 6 | total 3 | ui 3 | 3
+boat 9 | place 8 | total 4 | ui 4 | 4
+boat 2 | place 9 | total 4.1 | ui 4.1 | 4.1
+boat 1 | place 10 | total 6 | ui 6 | 6
+boat 3 | place 11 | total 7 | ui 7 | 7
+boat 5 | place 11 | total 7 | ui 7 | 7
+boat 12 | place 11 | total 7 | ui 7 | 0
+seed 92: final ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+Gold | boat 3 | place 1 | total 2 | ui 2 | (2.3) 1 1
+Gold | boat 11 | place 2 | total 3 | ui 3 | (5) 2 1
+Gold | boat 1 | place 3 | total 5 | ui 5 | (4) 4 1
+Gold | boat 5 | place 4 | total 5 | ui 5 | (6) 4 1
+Gold | boat 6 | place 6 | total 5 | ui 5 | (0) 2 3
+Gold | boat 8 | place 5 | total 5 | ui 5 | 2 (7) 3
+Gold | boat 7 | place 7 | total 5.5 | ui 5.5 | 2.5 (7) 3
+Gold | boat 9 | place 9 | total 6 | ui 6 | 5 (7) 1
+Gold | boat 10 | place 10 | total 6 | ui 6 | 3 (4) 3
+Gold | boat 13 | place 8 | total 6 | ui 6 | (5) 5 1
+Gold | boat 4 | place 11 | total 7 | ui 7 | 6 (7) 1
+Gold | boat 12 | place 12 | total 7 | ui 7 | 4 (0) 3
+Gold | boat 2 | place 13 | total 9 | ui 9 | (6) 6 3
+seed 93: qualifying (standard)
+boat 10 | place 1 | total 6 | ui 6 | 1 1 1 1 (2) 1 1
+boat 2 | place 2 | total 7 | ui 7 | 2 1 1 1 1 1 (5)
+boat 8 | place 3 | total 8 | ui 8 | 1 1 (2) 2 1 2 1
+boat 4 | place 4 | total 11 | ui 11 | 2 (5) 1 1 1 0 1
+boat 5 | place 5 | total 11 | ui 11 | 2 2 2 1 (5) 2 2
+boat 9 | place 6 | total 12 | ui 12 | 1 (0) 1 1 2 2 5
+boat 6 | place 7 | total 13 | ui 13 | 1 (0) 2 1 0 1 3
+boat 3 | place 8 | total 15 | ui 15 | 3 2 2 2 3 (5) 3
+boat 1 | place 9 | total 16 | ui 16 | 3 2 (0) 2 2 2 0
+boat 7 | place 10 | total 17 | ui 17 | 2 (0) 5 1 3 1 5
+seed 93: final ({"thresholds":[2,5]})
+Gold | boat 7 | place 1 | total 4.6 | ui 4.6 | 1 1 1.6 (2) (0) 1
+Gold | boat 1 | place 3 | total 6 | ui 6 | 1 2 (0) (4) 2 1
+Gold | boat 4 | place 2 | total 6 | ui 6 | (3) 1 2 (0) 1 2
+Gold | boat 10 | place 4 | total 8 | ui 8 | 1 (0) (3) 3 1 3
+Silver | boat 2 | place 1 | total 0 | ui 0
+Silver | boat 8 | place 1 | total 0 | ui 0
+Silver | boat 5 | place 1 | total 0 | ui 0
+Bronze | boat 3 | place 1 | total 1 | ui 1 | (2) 1
+Bronze | boat 6 | place 2 | total 1 | ui 1 | (3) 1
+Bronze | boat 9 | place 3 | total 2 | ui 2 | 2 (0)
+seed 94: qualifying (standard)
+boat 6 | place 1 | total 9 | ui 9 | 1 1 2 2 1 1 (4) (4) 1
+boat 7 | place 2 | total 11 | ui 11 | 2 2 1 2 1 1 (5) (5) 2
+boat 3 | place 3 | total 14 | ui 14 | 3 1 (4) 2 (5) 2 2 3 1
+boat 13 | place 4 | total 14 | ui 14 | (3) 1 1 2 2 (0) 2 3 3
+boat 12 | place 5 | total 15 | ui 15 | 1 1 (5) 2 2 (8) 1 4 4
+boat 2 | place 6 | total 16.3 | ui 16.3 | (4) 2 1 2 3.3 2 3 (8) 3
+boat 8 | place 7 | total 16.7 | ui 16.7 | (7) (6) 3 1 1 1.7 4 3 3
+boat 5 | place 8 | total 17 | ui 17 | (5) (5) 2 1 5 2 3 1 3
+boat 11 | place 9 | total 18 | ui 18 | 2 1 0 1 (5) 1 (4) 4 1
+boat 9 | place 10 | total 18 | ui 18 | 2 2 (4) 0 1 2 2 (4) 1
+boat 4 | place 11 | total 18 | ui 18 | 4 (0) (6) 1 4 3 1 3 2
+boat 10 | place 12 | total 18.6 | ui 18.6 | 3 4 (5) 1 4 2 (5) 3 1.6
+boat 1 | place 13 | total 22 | ui 22 | 7 2 4 3 3 (0) 2 (0) 1
+seed 94: final (standard)
+Gold | boat 12 | place 1 | total 15 | ui 15 | 3 3 3 1 (10) 5
+Gold | boat 9 | place 2 | total 17 | ui 17 | 3 (0) 3 7 3 1
+Gold | boat 13 | place 3 | total 20 | ui 20 | 1.1 6 (0) 5 2 5.9
+Gold | boat 4 | place 4 | total 23 | ui 23 | 1 4 3 4 11 (0)
+Gold | boat 1 | place 6 | total 24 | ui 24 | (0) 1 9 2 6 6
+Gold | boat 6 | place 5 | total 24 | ui 24 | 1 6 8 1 (9) 8
+Gold | boat 7 | place 7 | total 26 | ui 26 | 4 7 (0) 3 9 3
+Gold | boat 10 | place 8 | total 28 | ui 28 | 1 8 9 7 (11) 3
+Gold | boat 5 | place 9 | total 29 | ui 29 | 3 2 (8) 7 3 0
+Gold | boat 8 | place 10 | total 29.9 | ui 29.9 | 2 7.9 8 5 (10) 7
+Gold | boat 3 | place 11 | total 30 | ui 30 | 3 0 (7) 1 5 7
+Gold | boat 11 | place 12 | total 33.3 | ui 33.3 | (0) 7 4 4.6 11 6.7
+Gold | boat 2 | place 13 | total 37 | ui 37 | 4 7 0 6 6 (8)
+seed 95: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 1 | place 1 | total 2 | ui 2 | (1) 1 1
+boat 2 | place 1 | total 2 | ui 2 | (1) 1 1
+boat 7 | place 1 | total 2 | ui 2 | (2) 1 1
+boat 6 | place 4 | total 2 | ui 2 | 1 1 (3)
+boat 3 | place 5 | total 3 | ui 3 | 1 (2) 2
+boat 5 | place 5 | total 3 | ui 3 | 1 (2) 2
+boat 4 | place 7 | total 4 | ui 4 | (2) 2 2
+seed 95: final ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+Gold | boat 1 | place 1 | total 5 | ui 5 | 1 (3) 1 2 1
+Gold | boat 4 | place 2 | total 5 | ui 5 | 1 2 1 (3) 1
+Gold | boat 7 | place 3 | total 7 | ui 7 | 2 (3) 2 1 2
+Silver | boat 2 | place 1 | total 0 | ui 0
+Silver | boat 5 | place 1 | total 0 | ui 0
+Bronze | boat 3 | place 1 | total 2 | ui 2 | 1 (2) 1
+Bronze | boat 6 | place 2 | total 3 | ui 3 | (2) 2 1
+seed 96: qualifying (standard)
+boat 7 | place 1 | total 7 | ui 7 | (2) 1 1 1 1 (4) 2 1
+boat 4 | place 2 | total 8 | ui 8 | (2) 1 1 1 (2) 2 2 1
+boat 5 | place 3 | total 8 | ui 8 | 1 (2) 1 1 2 (4) 1 2
+boat 2 | place 4 | total 9 | ui 9 | 1 (2) 1 2 2 (0) 1 2
+boat 1 | place 5 | total 10 | ui 10 | 1 (2) 1 (0) 0 1 2 1
+boat 6 | place 5 | total 10 | ui 10 | 1 (2) (2) 1 2 2 2 2
+boat 3 | place 7 | total 16 | ui 16 | (2) 2 (3) 2 2 0 2 0
+seed 96: final (standard)
+Gold | boat 1 | place 1 | total 7 | ui 7 | 1 1 2 1 1 (3) 1
+Gold | boat 5 | place 2 | total 8 | ui 8 | 1 (4) 2 1 1 2 1
+Gold | boat 7 | place 3 | total 8 | ui 8 | 1 2 2 (0) 1 1 1
+Gold | boat 3 | place 4 | total 10 | ui 10 | 2 1 1 (3) 2 2 2
+Silver | boat 6 | place 1 | total 1 | ui 1 | 1
+Silver | boat 2 | place 2 | total 3 | ui 3 | 3
+Silver | boat 4 | place 3 | total 5 | ui 5 | 0
+seed 97: qualifying ({"thresholds":[2,5]})
+boat 9 | place 1 | total 3 | ui 3 | (2) 2 1
+boat 8 | place 2 | total 3 | ui 3 | (3) 1 2
+boat 12 | place 3 | total 3 | ui 3 | (3) 2 1
+boat 5 | place 4 | total 3 | ui 3 | 2 1 (5)
+boat 3 | place 5 | total 3.5 | ui 3.5 | 1.5 (8) 2
+boat 6 | place 6 | total 4 | ui 4 | 3 1 (6)
+boat 7 | place 7 | total 4 | ui 4 | (2) 2 2
+boat 2 | place 8 | total 5 | ui 5 | 3 2 (4)
+boat 4 | place 9 | total 5 | ui 5 | 3 2 (8)
+boat 1 | place 10 | total 5 | ui 5 | 4 1 (6)
+boat 11 | place 11 | total 5 | ui 5 | 3 2 (0)
+boat 13 | place 12 | total 6 | ui 6 | 4 2 (5)
+boat 10 | place 13 | total 6 | ui 6 | 4 2 (8)
+seed 97: final (standard)
+Gold | boat 8 | place 1 | total 6 | ui 6 | 1 1 1 2 1 (4)
+Gold | boat 12 | place 2 | total 13 | ui 13 | 1 4 4 3 (0) 1
+Gold | boat 13 | place 3 | total 15 | ui 15 | (7) 3 3 2 2 5
+Gold | boat 2 | place 4 | total 19 | ui 19 | (10) 1 2 7 2 7
+Gold | boat 5 | place 5 | total 19.3 | ui 19.3 | (10) 2 2 4 2 9.3
+Gold | boat 9 | place 6 | total 20.4 | ui 20.4 | 6 4 4 (7) 2 4.4
+Gold | boat 1 | place 8 | total 21 | ui 21 | 7 3 3 7 1 (8)
+Gold | boat 11 | place 7 | total 21 | ui 21 | 0 1 1 4 1 (7)
+Gold | boat 3 | place 9 | total 22 | ui 22 | (3) 2 2 3 1 0
+Gold | boat 10 | place 10 | total 23 | ui 23 | 2 4 1 0 2 (9)
+Gold | boat 4 | place 11 | total 24 | ui 24 | 11 3 1 (0) 1 8
+Gold | boat 6 | place 12 | total 25 | ui 25 | 10 1 (0) 8 2 4
+Gold | boat 7 | place 13 | total 29 | ui 29 | (10) 4 4 9 2 10
+seed 98: qualifying ({"thresholds":[2,5]})
+boat 2 | place 1 | total 1 | ui 1 | 1
+boat 7 | place 1 | total 1 | ui 1 | 1
+boat 1 | place 3 | total 2 | ui 2 | 2
+boat 5 | place 3 | total 2 | ui 2 | 2
+boat 6 | place 3 | total 2 | ui 2 | 2
+boat 3 | place 6 | total 7 | ui 7 | 0
+boat 4 | place 6 | total 7 | ui 7 | 7
+seed 98: final (standard)
+Gold | boat 1 | place 1 | total 2.1 | ui 2.1 | 1.1 1
+Gold | boat 7 | place 2 | total 3 | ui 3 | 2 1
+Gold | boat 4 | place 3 | total 5 | ui 5 | 3 2
+Silver | boat 2 | place 1 | total 3 | ui 3 | 1 2
+Silver | boat 5 | place 2 | total 4 | ui 4 | 2 2
+Bronze | boat 3 | place 1 | total 4 | ui 4 | 2 1 1
+Bronze | boat 6 | place 2 | total 5 | ui 5 | 2 1 2
+seed 99: qualifying (standard)
+boat 1 | place 1 | total 1 | ui 1 | 1
+boat 6 | place 1 | total 1 | ui 1 | 1
+boat 7 | place 1 | total 1 | ui 1 | 1
+boat 8 | place 1 | total 1 | ui 1 | 1
+boat 2 | place 5 | total 2 | ui 2 | 2
+boat 3 | place 5 | total 2 | ui 2 | 2
+boat 4 | place 5 | total 2 | ui 2 | 2
+boat 5 | place 5 | total 2 | ui 2 | 2
+boat 9 | place 9 | total 4 | ui 4 | 4
+seed 100: qualifying (standard)
+boat 9 | place 1 | total 5.8 | ui 5.8 | 1 1.9 (2) 1.9 1
+boat 3 | place 2 | total 6 | ui 6 | 1 2 (3) 2 1
+boat 1 | place 3 | total 6.6 | ui 6.6 | 2 1 1.6 (0) 2
+boat 6 | place 4 | total 7 | ui 7 | 1 1 3 2 (4)
+boat 7 | place 4 | total 7 | ui 7 | 1 3 1 (0) 2
+boat 5 | place 6 | total 7 | ui 7 | 2 (0) 2 2 1
+boat 2 | place 7 | total 7 | ui 7 | (3) 1 3 1 2
+boat 4 | place 8 | total 8 | ui 8 | 2 1 3 2 (0)
+boat 8 | place 9 | total 10 | ui 10 | 3 0 2 (0) 1
+seed 100: final (standard)
+Gold | boat 1 | place 1 | total 2 | ui 2 | 1 1
+Gold | boat 4 | place 2 | total 3 | ui 3 | 2 1
+Gold | boat 7 | place 3 | total 4.9 | ui 4.9 | 1.9 3
+Silver | boat 2 | place 1 | total 0 | ui 0
+Silver | boat 5 | place 1 | total 0 | ui 0
+Silver | boat 8 | place 1 | total 0 | ui 0
+Bronze | boat 3 | place 1 | total 8.2 | ui 8.2 | 1 1 1 1.2 0 (2)
+Bronze | boat 9 | place 2 | total 10 | ui 10 | 2 3 (0) 3 1 1
+Bronze | boat 6 | place 3 | total 11 | ui 11 | 2 2 3 (0) 2 2"
+`;
+
+exports[`scoring pipeline characterisation (150 seeded random events) events 101-125 score exactly as recorded 1`] = `
+"seed 101: qualifying (standard)
+boat 7 | place 1 | total 3.3 | ui 3.3 | 1.3 (3.2) 1 1
+boat 9 | place 2 | total 5 | ui 5 | (2) 1 2 2
+boat 1 | place 3 | total 6 | ui 6 | (6) 3 1 2
+boat 5 | place 3 | total 6 | ui 6 | (0) 3 1 2
+boat 8 | place 5 | total 7 | ui 7 | (3) 2 2 3
+boat 6 | place 6 | total 7 | ui 7 | 2 (3.4) 3 2
+boat 4 | place 7 | total 8 | ui 8 | 0 1 1 (6)
+boat 2 | place 8 | total 12 | ui 12 | (6) 3 3 0
+boat 3 | place 9 | total 15 | ui 15 | (6) 3 6 0
+seed 101: final ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+Gold | boat 4 | place 1 | total 2 | ui 2 | (1) 1 1
+Gold | boat 7 | place 2 | total 4 | ui 4 | (3) 3 1
+Gold | boat 1 | place 3 | total 4.3 | ui 4.3 | (3) 2 2.3
+Silver | boat 2 | place 1 | total 3 | ui 3 | (2) 2 1
+Silver | boat 5 | place 1 | total 3 | ui 3 | (2) 2 1
+Silver | boat 8 | place 3 | total 5 | ui 5 | 0 1 (2)
+Bronze | boat 6 | place 1 | total 3 | ui 3 | 1 2
+Bronze | boat 9 | place 2 | total 3.5 | ui 3.5 | 2 1.5
+Bronze | boat 3 | place 3 | total 4 | ui 4 | 2 2
+seed 102: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 1 | place 1 | total 6 | ui 6 | 1 1 1 (3) (3) (2) 1 1 1
+boat 10 | place 2 | total 6 | ui 6 | 1 1 1 (2) 1 1 1 (2) (2.3)
+boat 9 | place 3 | total 7 | ui 7 | 1 1 (2) (3) (3) 1 1 1 2
+boat 3 | place 4 | total 8 | ui 8 | (2) 1 (2) 1 1 2 (3) 2 1
+boat 7 | place 5 | total 8 | ui 8 | 2 1 (5) 1 1 (0) (3) 1 2
+boat 4 | place 6 | total 9 | ui 9 | 1 (4) 1 (2) (2.8) 2 2 2 1
+boat 6 | place 7 | total 10 | ui 10 | 1 1 1 1 0 (2) 1 (3) (2)
+boat 12 | place 7 | total 10 | ui 10 | (2) 1 (2) 1 (0) 1 1 1 0
+boat 5 | place 9 | total 10 | ui 10 | (3) (4) (2) 2 1 2 2 1 2
+boat 11 | place 10 | total 11 | ui 11 | 2 2 1 2 2 (5) 2 (5) (4)
+boat 8 | place 11 | total 12 | ui 12 | (2) (3) 1 0 1 1 (0) 2 2
+boat 2 | place 12 | total 18 | ui 18 | (3) 3 0 3 3 2 2 (0) (4)
+seed 103: qualifying (standard)
+boat 2 | place 1 | total 4 | ui 4 | 2 1 1
+boat 1 | place 2 | total 4 | ui 4 | 1 1 2
+boat 4 | place 3 | total 4.1 | ui 4.1 | 2 1 1.1
+boat 5 | place 4 | total 5 | ui 5 | 0 1 1
+boat 3 | place 5 | total 5 | ui 5 | 1 2 2
+seed 104: qualifying ({"thresholds":[]})
+boat 9 | place 1 | total 14 | ui 14 | 1 6 4 3
+boat 8 | place 2 | total 15 | ui 15 | 6 5 1 3
+boat 4 | place 3 | total 16 | ui 16 | 1 1 0 1
+boat 5 | place 4 | total 16 | ui 16 | 1 10 3 2
+boat 7 | place 5 | total 17 | ui 17 | 5 5 4 3
+boat 6 | place 6 | total 18 | ui 18 | 1 13 3 1
+boat 12 | place 7 | total 22 | ui 22 | 7 2 10 3
+boat 3 | place 8 | total 26 | ui 26 | 0 1 9 3
+boat 2 | place 9 | total 26.8 | ui 26.8 | 5 6 0 2.8
+boat 1 | place 10 | total 29 | ui 29 | 2 1 13 13
+boat 11 | place 11 | total 31.7 | ui 31.7 | 6 10.7 0 2
+boat 10 | place 12 | total 33 | ui 33 | 0 9 9 2
+seed 104: final ({"thresholds":[]})
+Gold | boat 11 | place 1 | total 6 | ui 6 | 1 2 3
+Gold | boat 9 | place 2 | total 7 | ui 7 | 3 2 2
+Gold | boat 7 | place 3 | total 8 | ui 8 | 1 3 4
+Gold | boat 5 | place 4 | total 9 | ui 9 | 2 4 3
+Gold | boat 1 | place 5 | total 11 | ui 11 | 3 3 5
+Gold | boat 3 | place 6 | total 19 | ui 19 | 0 5 0
+Silver | boat 2 | place 1 | total 2 | ui 2 | 1 1
+Silver | boat 8 | place 2 | total 3 | ui 3 | 2 1
+Silver | boat 4 | place 3 | total 4.7 | ui 4.7 | 3.7 1
+Silver | boat 12 | place 4 | total 8 | ui 8 | 1 0
+Silver | boat 6 | place 5 | total 10 | ui 10 | 3 0
+Silver | boat 10 | place 6 | total 12 | ui 12 | 5 0
+seed 105: qualifying (standard)
+boat 11 | place 1 | total 8 | ui 8 | 1 2 (6) 2 2 1
+boat 6 | place 2 | total 9.7 | ui 9.7 | 3 1 1 2 (5) 2.7
+boat 13 | place 3 | total 9.9 | ui 9.9 | 2 1.9 3 2 1 (6)
+boat 10 | place 4 | total 10 | ui 10 | 2 2 2 1 3 (4)
+boat 9 | place 5 | total 11 | ui 11 | 3 1 2 (5) 2 3
+boat 3 | place 6 | total 12 | ui 12 | (2) 1 1 2 2 0
+boat 4 | place 7 | total 12 | ui 12 | 1 (4) 2 4 2 3
+boat 5 | place 8 | total 12 | ui 12 | 1 (4) 2 3 3 3
+boat 8 | place 9 | total 12 | ui 12 | 1 3 2 (5) 4 2
+boat 14 | place 10 | total 13 | ui 13 | 2 3 2 2 4 (0)
+boat 12 | place 11 | total 13 | ui 13 | (0) 2 2 0 2 1
+boat 2 | place 12 | total 13 | ui 13 | (3.4) 1 0 2 2 2
+boat 7 | place 13 | total 15 | ui 15 | 2 2 0 (4) 3 2
+boat 1 | place 14 | total 17 | ui 17 | (6) 2 4 0 2 3
+seed 105: final (standard)
+Gold | boat 2 | place 1 | total 1 | ui 1 | 1
+Gold | boat 3 | place 1 | total 1 | ui 1 | 1
+Gold | boat 4 | place 1 | total 1 | ui 1 | 1
+Gold | boat 8 | place 1 | total 1 | ui 1 | 1
+Gold | boat 11 | place 1 | total 1 | ui 1 | 1
+Gold | boat 6 | place 6 | total 2 | ui 2 | 2
+Gold | boat 9 | place 6 | total 2 | ui 2 | 2
+Gold | boat 10 | place 6 | total 2 | ui 2 | 2
+Gold | boat 14 | place 6 | total 2 | ui 2 | 2
+Gold | boat 1 | place 10 | total 6 | ui 6 | 6
+Gold | boat 13 | place 10 | total 6 | ui 6 | 6
+Gold | boat 5 | place 12 | total 8 | ui 8 | 8
+Gold | boat 7 | place 12 | total 8 | ui 8 | 8
+Gold | boat 12 | place 14 | total 10 | ui 10 | 10
+seed 106: qualifying (standard)
+boat 1 | place 1 | total 4 | ui 4 | 2 1 1
+boat 2 | place 2 | total 4 | ui 4 | 1 2 1
+boat 3 | place 3 | total 4.4 | ui 4.4 | 2 1 1.4
+boat 5 | place 4 | total 7 | ui 7 | 2 2 0
+boat 4 | place 5 | total 7 | ui 7 | 1 0 3
+seed 107: qualifying ({"thresholds":[]})
+boat 1 | place 1 | total 21 | ui 21 | 2 1 2 4 3 1 2 4 2
+boat 2 | place 2 | total 23 | ui 23 | 1 2 2 5 5 4 1 2 1
+boat 8 | place 3 | total 24 | ui 24 | 1 7 1 4 1 5 1 1 3
+boat 9 | place 4 | total 24 | ui 24 | 1 2 5 3 2 1 3 2 5
+boat 4 | place 5 | total 26 | ui 26 | 1 2 3 4 4 7 2 2 1
+boat 7 | place 6 | total 28 | ui 28 | 2 2 1 4 1 4 4 5 5
+boat 3 | place 7 | total 29.4 | ui 29.4 | 4 5 2 1 3.4 2 5 4 3
+boat 11 | place 8 | total 30 | ui 30 | 0 1 1 5 3 2 3 4 4
+boat 5 | place 9 | total 30 | ui 30 | 3 2 3 3 3 2 0 2 5
+boat 10 | place 10 | total 31 | ui 31 | 3 2 5 1 4 0 0 1 1
+boat 6 | place 11 | total 31 | ui 31 | 1 2 7 1 2 7 5 2 4
+seed 107: final (standard)
+Gold | boat 1 | place 1 | total 0 | ui 0
+Gold | boat 9 | place 1 | total 0 | ui 0
+Gold | boat 7 | place 1 | total 0 | ui 0
+Gold | boat 3 | place 1 | total 0 | ui 0
+Gold | boat 5 | place 1 | total 0 | ui 0
+Gold | boat 11 | place 1 | total 0 | ui 0
+Silver | boat 2 | place 1 | total 3 | ui 3 | 1 2
+Silver | boat 8 | place 2 | total 4 | ui 4 | 2 2
+Silver | boat 4 | place 4 | total 8 | ui 8 | 4 4
+Silver | boat 6 | place 3 | total 8 | ui 8 | 5 3
+Silver | boat 10 | place 5 | total 9 | ui 9 | 0 2
+seed 108: qualifying ({"thresholds":[2,5]})
+boat 1 | place 1 | total 3 | ui 3 | (1) 1 (2) 1 1
+boat 6 | place 2 | total 3 | ui 3 | (4) 1 1 1 (0)
+boat 9 | place 3 | total 3 | ui 3 | (1) 1 (3) 1 1
+boat 7 | place 4 | total 3 | ui 3 | 1 (2) 1 1 (5)
+boat 5 | place 5 | total 4 | ui 4 | (2) 1 1 (2) 2
+boat 2 | place 6 | total 4 | ui 4 | 1 (2) 2 (5) 1
+boat 8 | place 6 | total 4 | ui 4 | (0) (2) 2 1 1
+boat 4 | place 8 | total 4 | ui 4 | 1 1 (4) 2 (3.8)
+boat 11 | place 9 | total 4.2 | ui 4.2 | (0) (5) 1.2 2 1
+boat 12 | place 10 | total 4.5 | ui 4.5 | 2 1 (4) 1.5 (4)
+boat 3 | place 11 | total 5 | ui 5 | (3) 1 (2) 2 2
+boat 10 | place 12 | total 9 | ui 9 | (5) 2 2 (5) 0
+seed 109: qualifying ({"thresholds":[]})
+boat 10 | place 1 | total 5 | ui 5 | 1 2 2
+boat 7 | place 2 | total 8 | ui 8 | 3 2 3
+boat 4 | place 3 | total 9 | ui 9 | 3 4 2
+boat 3 | place 4 | total 9 | ui 9 | 3 3 3
+boat 1 | place 5 | total 13 | ui 13 | 1 11 1
+boat 6 | place 6 | total 14 | ui 14 | 2 1 11
+boat 9 | place 7 | total 15 | ui 15 | 2 0 2
+boat 8 | place 8 | total 16 | ui 16 | 2 3 0
+boat 2 | place 9 | total 19 | ui 19 | 4 4 11
+boat 5 | place 10 | total 25 | ui 25 | 0 11 3
+seed 109: final ({"thresholds":[]})
+Gold | boat 7 | place 1 | total 0 | ui 0
+Gold | boat 3 | place 1 | total 0 | ui 0
+Gold | boat 1 | place 1 | total 0 | ui 0
+Gold | boat 9 | place 1 | total 0 | ui 0
+Gold | boat 5 | place 1 | total 0 | ui 0
+Silver | boat 10 | place 1 | total 4 | ui 4 | 1 1 2
+Silver | boat 6 | place 2 | total 6 | ui 6 | 1 3 2
+Silver | boat 2 | place 3 | total 7 | ui 7 | 3 2 2
+Silver | boat 8 | place 3 | total 7 | ui 7 | 3 2 2
+Silver | boat 4 | place 5 | total 14 | ui 14 | 0 0 2
+seed 110: qualifying (standard)
+boat 13 | place 1 | total 5 | ui 5 | 3 1 1
+boat 3 | place 2 | total 5 | ui 5 | 1 1 3
+boat 8 | place 3 | total 5 | ui 5 | 1 2 2
+boat 10 | place 3 | total 5 | ui 5 | 1 2 2
+boat 2 | place 5 | total 6 | ui 6 | 1 2 3
+boat 12 | place 6 | total 7 | ui 7 | 3 1 3
+boat 9 | place 7 | total 7 | ui 7 | 4 2 1
+boat 4 | place 8 | total 7 | ui 7 | 1 3 3
+boat 7 | place 9 | total 8 | ui 8 | 6 1 1
+boat 1 | place 10 | total 9 | ui 9 | 3 4 2
+boat 5 | place 11 | total 12 | ui 12 | 2 4 6
+boat 6 | place 12 | total 14 | ui 14 | 2 6 0
+boat 11 | place 12 | total 14 | ui 14 | 6 6 2
+seed 110: final ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+Gold | boat 13 | place 1 | total 8 | ui 8 | 4 1 1 2 (0)
+Gold | boat 11 | place 2 | total 10 | ui 10 | 2 (0) 2 5 1
+Gold | boat 1 | place 3 | total 11 | ui 11 | (5) 2 2 5 2
+Gold | boat 7 | place 4 | total 11 | ui 11 | (6) 2 2 5 2
+Gold | boat 9 | place 5 | total 13 | ui 13 | 3 4 2 4 (0)
+Gold | boat 5 | place 6 | total 16 | ui 16 | 5 (0) 2 4 5
+Gold | boat 3 | place 7 | total 22 | ui 22 | 3 (5) 0 0 3
+Silver | boat 8 | place 1 | total 0 | ui 0
+Silver | boat 10 | place 1 | total 0 | ui 0
+Silver | boat 2 | place 1 | total 0 | ui 0
+Silver | boat 4 | place 1 | total 0 | ui 0
+Silver | boat 12 | place 1 | total 0 | ui 0
+Silver | boat 6 | place 1 | total 0 | ui 0
+seed 111: qualifying ({"thresholds":[]})
+boat 3 | place 1 | total 14 | ui 14 | 3 1 2 1 1 1 2 1 2
+boat 1 | place 2 | total 15.4 | ui 15.4 | 1.8 1.5 1 1 2 3 1.1 2 2
+boat 4 | place 3 | total 19 | ui 19 | 0 2 2 1 2 0 1 2 1
+boat 2 | place 4 | total 20 | ui 20 | 4 1 2 1 1 3 2 0 2
+boat 5 | place 5 | total 22 | ui 22 | 3 1 0 1 2 3 3 2 3
+seed 112: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 1 | place 1 | total 7 | ui 7 | 6 1
+boat 7 | place 2 | total 7 | ui 7 | 3 4
+boat 2 | place 3 | total 8 | ui 8 | 4 4
+boat 3 | place 4 | total 11.3 | ui 11.3 | 9 2.3
+boat 4 | place 5 | total 13 | ui 13 | 7 6
+boat 10 | place 6 | total 15 | ui 15 | 5 10
+boat 9 | place 7 | total 15.5 | ui 15.5 | 6 9.5
+boat 6 | place 8 | total 16 | ui 16 | 9 7
+boat 5 | place 9 | total 17 | ui 17 | 7 10
+boat 8 | place 10 | total 17.4 | ui 17.4 | 0 6.4
+seed 112: final ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+Gold | boat 10 | place 1 | total 3 | ui 3 | 3
+Gold | boat 1 | place 2 | total 4 | ui 4 | 4
+Gold | boat 9 | place 2 | total 4 | ui 4 | 4
+Gold | boat 2 | place 4 | total 5 | ui 5 | 5
+Gold | boat 7 | place 5 | total 6 | ui 6 | 6
+Gold | boat 4 | place 6 | total 7 | ui 7 | 7
+Gold | boat 5 | place 7 | total 9 | ui 9 | 9
+Gold | boat 6 | place 7 | total 9 | ui 9 | 9
+Gold | boat 3 | place 9 | total 10 | ui 10 | 10
+Gold | boat 8 | place 10 | total 11 | ui 11 | 0
+seed 113: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 2 | place 1 | total 4.9 | ui 4.9 | 1 (4) 2.9 1
+boat 4 | place 2 | total 5 | ui 5 | 2 1 2 (4)
+boat 5 | place 3 | total 5.5 | ui 5.5 | 2 2 (4) 1.5
+boat 9 | place 4 | total 7 | ui 7 | 4 2 (5) 1
+boat 7 | place 5 | total 7 | ui 7 | 3 (6) 3 1
+boat 8 | place 6 | total 9 | ui 9 | 1 2 (3) 0
+boat 1 | place 7 | total 9 | ui 9 | 1 (0) 6 2
+boat 6 | place 8 | total 10 | ui 10 | 0 (0) 3 1
+boat 3 | place 9 | total 11 | ui 11 | (4) 1 0 4
+seed 113: final ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+Gold | boat 4 | place 2 | total 4 | ui 4 | 2 1 1 (0)
+Gold | boat 7 | place 1 | total 4 | ui 4 | (2) 1 1 2
+Gold | boat 1 | place 3 | total 5 | ui 5 | (2) 1 2 2
+Silver | boat 8 | place 1 | total 2 | ui 2 | (0) 1 1
+Silver | boat 2 | place 3 | total 3 | ui 3 | 2 1 (3)
+Silver | boat 5 | place 2 | total 3 | ui 3 | (2) 1 2
+Bronze | boat 6 | place 1 | total 2 | ui 2 | 2
+Bronze | boat 9 | place 1 | total 2 | ui 2 | 2
+Bronze | boat 3 | place 3 | total 4 | ui 4 | 0
+seed 114: qualifying ({"thresholds":[2,5]})
+boat 12 | place 1 | total 3 | ui 3 | 1 (2) (0) 1 1
+boat 7 | place 2 | total 3 | ui 3 | (2) 1 (5) 1 1
+boat 8 | place 3 | total 3 | ui 3 | 1 (0) (3) 1 1
+boat 11 | place 4 | total 4 | ui 4 | (2) (2) 1 1 2
+boat 1 | place 5 | total 4 | ui 4 | 1 (5) 1 (2) 2
+boat 5 | place 6 | total 4 | ui 4 | 1 (5) (4) 2 1
+boat 9 | place 7 | total 4.1 | ui 4.1 | (3) (0) 2 1.1 1
+boat 6 | place 8 | total 5 | ui 5 | 2 2 (0) 1 (3)
+boat 10 | place 9 | total 7 | ui 7 | (5) 2 2 (5) 3
+boat 2 | place 10 | total 8 | ui 8 | 0 1 2 (2.6) (2.9)
+boat 3 | place 11 | total 8 | ui 8 | 0 (2) 1 (2) 2
+boat 4 | place 12 | total 11 | ui 11 | (2) (2) 1 0 0
+seed 114: final ({"thresholds":[2,5]})
+Gold | boat 5 | place 1 | total 4 | ui 4 | 1 (2) (3) 2 1
+Gold | boat 1 | place 2 | total 4.1 | ui 4.1 | (3) 1.1 2 1 (3)
+Gold | boat 9 | place 3 | total 5 | ui 5 | 2 1 (3) (3) 2
+Gold | boat 3 | place 4 | total 6 | ui 6 | (0) (3) 2 3 1
+Gold | boat 7 | place 6 | total 6 | ui 6 | (4) 2 2 2 (5)
+Gold | boat 11 | place 5 | total 6 | ui 6 | 2 (0) 1 (3) 3
+Silver | boat 4 | place 1 | total 7 | ui 7 | 1 1 1 1 (3) (0) 3
+Silver | boat 10 | place 2 | total 8 | ui 8 | (3) 1 (4) 3 2 1 1
+Silver | boat 2 | place 3 | total 8.4 | ui 8.4 | 1 1.4 (4) 3 (5) 1 2
+Silver | boat 8 | place 4 | total 9.6 | ui 9.6 | (3) 1.6 2 2 (0) 1 3
+Silver | boat 6 | place 5 | total 11 | ui 11 | 3 3 2 1 (5.7) 2 (0)
+Silver | boat 12 | place 6 | total 13 | ui 13 | (2) (3) 1 2 1 2 0
+seed 115: qualifying (standard)
+boat 2 | place 1 | total 7 | ui 7 | 1 1 2 1 2 (7)
+boat 13 | place 2 | total 15 | ui 15 | 1 3 3 2 6 (15)
+boat 8 | place 3 | total 20 | ui 20 | 1 11 (12) 1 6 1
+boat 9 | place 4 | total 23 | ui 23 | 2 6 6 6 3 (9)
+boat 3 | place 5 | total 23.2 | ui 23.2 | 6 5 6 5.2 (0) 1
+boat 14 | place 6 | total 26 | ui 26 | 3 1 0 (0) 6 1
+boat 5 | place 7 | total 28 | ui 28 | 3 4 (12) 7 7 7
+boat 7 | place 8 | total 33 | ui 33 | (15) 5 10 0 1 2
+boat 6 | place 9 | total 33 | ui 33 | 3 11 9 9 1 (15)
+boat 1 | place 10 | total 34 | ui 34 | 4 11 7 (15) 6 6
+boat 10 | place 11 | total 34.2 | ui 34.2 | 5.2 (11) 7 5 8 9
+boat 12 | place 12 | total 35 | ui 35 | 6 (0) 10 4 8 7
+boat 4 | place 13 | total 38 | ui 38 | 6 10 3 10 9 (15)
+boat 11 | place 14 | total 49 | ui 49 | 1 13 (15) 0 15 5
+seed 116: qualifying ({"thresholds":[]})
+boat 1 | place 1 | total 16.6 | ui 16.6 | 0 3 2 2 1.6 1 1 2
+boat 3 | place 2 | total 17 | ui 17 | 0 2 2 2 1 1 2 1 2
+boat 7 | place 3 | total 18 | ui 18 | 2 2 1 1 1 4 2 1 0
+boat 6 | place 4 | total 18 | ui 18 | 3 1 0 0 1 2 1 2
+boat 4 | place 5 | total 18.7 | ui 18.7 | 4 1.7 2 2 1 2 2 2 2
+boat 2 | place 6 | total 19.4 | ui 19.4 | 1 4 1 4 2.4 4 1 1 1
+boat 5 | place 7 | total 21 | ui 21 | 2 3 1 0 4 2 1 2 2
+seed 116: final ({"thresholds":[]})
+Gold | boat 7 | place 1 | total 16 | ui 16 | 3 3 3 1 1 3 2
+Gold | boat 5 | place 2 | total 18 | ui 18 | 1 3 4 3 2 4 1
+Gold | boat 1 | place 3 | total 20 | ui 20 | 0 2 3 3 2 3 2
+Gold | boat 3 | place 4 | total 22 | ui 22 | 2 1 3 0 0 4 2
+Silver | boat 6 | place 1 | total 3 | ui 3 | 1 1 1
+Silver | boat 2 | place 2 | total 5 | ui 5 | 2 1 2
+Silver | boat 4 | place 3 | total 9 | ui 9 | 2 2 0
+seed 117: qualifying (standard)
+boat 7 | place 1 | total 15 | ui 15 | 7 (10) 3 1 3 1
+boat 8 | place 2 | total 16 | ui 16 | 6 2 1 6 (11) 1
+boat 5 | place 3 | total 19.2 | ui 19.2 | 2 5.2 (15) 8 3 1
+boat 14 | place 4 | total 20 | ui 20 | 4 4 (6) 5 6 1
+boat 2 | place 5 | total 22.7 | ui 22.7 | 6 (9) 2 4 8.7 2
+boat 3 | place 6 | total 24 | ui 24 | 7 9 3 4 (11) 1
+boat 4 | place 7 | total 29 | ui 29 | 5 1 1 14 8 (0)
+boat 13 | place 8 | total 29 | ui 29 | 3 (15) 0 3 7 1
+boat 6 | place 9 | total 30 | ui 30 | (15) 4 3 3 5 0
+boat 12 | place 10 | total 33 | ui 33 | (8) 7 5 0 4 2
+boat 10 | place 11 | total 36 | ui 36 | 6 10 2 12 6 (0)
+boat 1 | place 12 | total 37 | ui 37 | 9 0 2 9 2 (15)
+boat 11 | place 13 | total 39 | ui 39 | 3 (15) 0 7 12 2
+boat 9 | place 14 | total 40 | ui 40 | 4 10 (15) 14 10 2
+seed 117: final ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+Gold | boat 13 | place 1 | total 7 | ui 7 | 2 (3) 2 2 1
+Gold | boat 1 | place 2 | total 8 | ui 8 | 2 2 1 3 (4)
+Gold | boat 7 | place 4 | total 8 | ui 8 | 2 2 (0) 1 3
+Gold | boat 10 | place 3 | total 8 | ui 8 | 2 2 1 3 (5)
+Gold | boat 4 | place 5 | total 9 | ui 9 | 2 3 1 3 (4.9)
+Silver | boat 5 | place 1 | total 3 | ui 3 | 1 2
+Silver | boat 11 | place 1 | total 3 | ui 3 | 1 2
+Silver | boat 14 | place 3 | total 5 | ui 5 | 2 3
+Silver | boat 2 | place 4 | total 9 | ui 9 | 0 3
+Silver | boat 8 | place 5 | total 10 | ui 10 | 0 4
+Bronze | boat 6 | place 1 | total 6 | ui 6 | 1 (4) (4) 3 1 1
+Bronze | boat 9 | place 2 | total 6 | ui 6 | (0) 1 (4) 3 1 1
+Bronze | boat 12 | place 3 | total 7 | ui 7 | (0) 1 (4) 1 2 3
+Bronze | boat 3 | place 4 | total 9 | ui 9 | (2) 0 1 1 (2) 1
+seed 118: qualifying (standard)
+boat 2 | place 1 | total 3 | ui 3 | 1 2
+boat 4 | place 2 | total 4 | ui 4 | 2 2
+boat 1 | place 3 | total 5 | ui 5 | 2 0
+seed 119: qualifying ({"thresholds":[]})
+boat 2 | place 1 | total 6 | ui 6 | 2 1 1 2
+boat 5 | place 2 | total 8 | ui 8 | 4 1 1 2
+boat 6 | place 3 | total 9 | ui 9 | 2 1 4 2
+boat 1 | place 4 | total 10 | ui 10 | 1 4 1 4
+boat 4 | place 5 | total 10 | ui 10 | 1 3 0 2
+boat 7 | place 6 | total 12 | ui 12 | 2 3 0 3
+boat 3 | place 7 | total 12 | ui 12 | 2 2 0 4
+seed 119: final ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+Gold | boat 2 | place 1 | total 0 | ui 0
+Gold | boat 5 | place 1 | total 0 | ui 0
+Gold | boat 6 | place 1 | total 0 | ui 0
+Gold | boat 1 | place 1 | total 0 | ui 0
+Gold | boat 4 | place 1 | total 0 | ui 0
+Gold | boat 3 | place 1 | total 0 | ui 0
+Gold | boat 7 | place 1 | total 0 | ui 0
+seed 120: qualifying ({"thresholds":[]})
+boat 1 | place 1 | total 19 | ui 19 | 1 4 1 4 3 1 2 1 2
+boat 5 | place 2 | total 20 | ui 20 | 3 3 1 1 2 1 4 2 3
+boat 2 | place 3 | total 26 | ui 26 | 3 3 10 2 1 3 1 2 1
+boat 9 | place 4 | total 29 | ui 29 | 4 4 1 7 1 1 2 2 7
+boat 4 | place 5 | total 30.5 | ui 30.5 | 1.5 5 10 4 2 1 2 1 4
+boat 7 | place 6 | total 33.7 | ui 33.7 | 5 3.7 1 4 3 3 3 1 10
+boat 3 | place 7 | total 40 | ui 40 | 0 4 1.5 5 2 3.5 10 1 3
+boat 6 | place 8 | total 42.9 | ui 42.9 | 5 3 2 2.9 0 10 4 2 4
+boat 8 | place 9 | total 48 | ui 48 | 0 3 2 4 3 10 10 1 5
+seed 120: final (standard)
+Gold | boat 7 | place 1 | total 6 | ui 6 | 2 1 2 1 (0)
+Gold | boat 5 | place 2 | total 8 | ui 8 | 2 (0) 1 2 3
+Gold | boat 9 | place 3 | total 10 | ui 10 | 2 1 (0) 3 4
+Gold | boat 1 | place 4 | total 11 | ui 11 | 1 1 0 (0) 3
+Gold | boat 3 | place 5 | total 12 | ui 12 | 0 2 2 2 (3)
+Silver | boat 4 | place 1 | total 4 | ui 4 | 2 1 1 (3)
+Silver | boat 6 | place 2 | total 4 | ui 4 | 1 (4) 2 1
+Silver | boat 8 | place 3 | total 5 | ui 5 | 2 (4) 1 2
+Silver | boat 2 | place 4 | total 6 | ui 6 | (4) 2 1 3
+seed 121: qualifying (standard)
+boat 1 | place 1 | total 7 | ui 7 | 3 2 2
+boat 4 | place 2 | total 8 | ui 8 | 2 1 5
+boat 5 | place 3 | total 9 | ui 9 | 2 1 6
+boat 7 | place 4 | total 10 | ui 10 | 2 4 4
+boat 10 | place 5 | total 12 | ui 12 | 3 2 7
+boat 2 | place 6 | total 13 | ui 13 | 1 9 3
+boat 6 | place 7 | total 17 | ui 17 | 1 9 7
+boat 11 | place 8 | total 18 | ui 18 | 3 9 6
+boat 3 | place 9 | total 19 | ui 19 | 4 11 4
+boat 8 | place 10 | total 22.9 | ui 22.9 | 13 2 7.9
+boat 12 | place 11 | total 28 | ui 28 | 13 9 6
+boat 9 | place 12 | total 28 | ui 28 | 13 8 7
+seed 121: final ({"thresholds":[]})
+Gold | boat 6 | place 1 | total 4 | ui 4 | 1 3
+Gold | boat 4 | place 2 | total 7 | ui 7 | 1 6
+Gold | boat 9 | place 3 | total 8 | ui 8 | 2 6
+Gold | boat 3 | place 4 | total 9 | ui 9 | 6 3
+Gold | boat 10 | place 5 | total 11 | ui 11 | 4 7
+Gold | boat 2 | place 8 | total 12 | ui 12 | 3 9
+Gold | boat 7 | place 6 | total 12 | ui 12 | 2 10
+Gold | boat 11 | place 7 | total 12 | ui 12 | 9 3
+Gold | boat 1 | place 9 | total 12.5 | ui 12.5 | 2.5 10
+Gold | boat 8 | place 10 | total 14 | ui 14 | 1 0
+Gold | boat 12 | place 11 | total 17 | ui 17 | 9 8
+Gold | boat 5 | place 12 | total 20 | ui 20 | 8 12
+seed 122: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 9 | place 1 | total 9 | ui 9 | 2 2 (3) 1 2 (3) 2
+boat 3 | place 2 | total 9.2 | ui 9.2 | 5 1 (0) (7) 1.2 1 1
+boat 7 | place 3 | total 10 | ui 10 | 2 2 (4) 2 2 2 (3)
+boat 1 | place 4 | total 10.2 | ui 10.2 | 2 (5) 2 (0) 1 2.2 3
+boat 12 | place 5 | total 11 | ui 11 | 2 (0) 3 4 (0) 1 1
+boat 2 | place 6 | total 11 | ui 11 | (5) 2 1 2 3 (0) 3
+boat 11 | place 7 | total 12 | ui 12 | (5) 2 (5) 2 1 5 2
+boat 6 | place 8 | total 12 | ui 12 | (4) (4) 4 2 3 2 1
+boat 5 | place 9 | total 13 | ui 13 | 2 (5) 1 4 3 (7) 3
+boat 10 | place 9 | total 13 | ui 13 | 1 (5) 1 1 (3) 0 3
+boat 8 | place 11 | total 14 | ui 14 | (3) 2 (3) 1 0 2 2
+boat 4 | place 12 | total 15 | ui 15 | (5) 5 (0) 2 2 3 3
+seed 123: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 9 | place 1 | total 6 | ui 6 | 2 (3) 2 2
+boat 5 | place 2 | total 7 | ui 7 | (4) 1 3 3
+boat 6 | place 3 | total 7.1 | ui 7.1 | (8) 5 1.1 1
+boat 3 | place 4 | total 9.1 | ui 9.1 | 5 (7) 2 2.1
+boat 2 | place 5 | total 10 | ui 10 | 4 4 (10) 2
+boat 1 | place 6 | total 15 | ui 15 | 0 (3) 2 3
+boat 4 | place 7 | total 15 | ui 15 | 3 (9) 2 0
+boat 8 | place 8 | total 16 | ui 16 | 4 (9) 2 0
+boat 7 | place 9 | total 21 | ui 21 | (10) 9 0 2
+seed 124: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 1 | place 1 | total 5 | ui 5 | (3) 2 1 1 1
+boat 6 | place 2 | total 6 | ui 6 | (5) 2 2 1 1
+boat 8 | place 3 | total 7 | ui 7 | (2) 2 2 2 1
+boat 5 | place 4 | total 7 | ui 7 | 2 (5) 1 2 2
+boat 4 | place 5 | total 7.9 | ui 7.9 | 1 2.9 (3) 2 2
+boat 3 | place 6 | total 9 | ui 9 | 2 1 3 3 (5)
+boat 7 | place 7 | total 11 | ui 11 | (2.1) 0 2 2 2
+boat 2 | place 8 | total 11 | ui 11 | 2 (5) 2 2 5
+seed 124: final (standard)
+Gold | boat 8 | place 1 | total 4 | ui 4 | 2 1 1
+Gold | boat 1 | place 2 | total 10.1 | ui 10.1 | 1.1 7 2
+Gold | boat 3 | place 3 | total 12 | ui 12 | 5 1 6
+Gold | boat 7 | place 4 | total 13 | ui 13 | 2 7 4
+Gold | boat 4 | place 5 | total 14 | ui 14 | 5 5 4
+Gold | boat 2 | place 6 | total 16 | ui 16 | 2 8 6
+Gold | boat 5 | place 7 | total 18 | ui 18 | 4 5 0
+Gold | boat 6 | place 8 | total 18 | ui 18 | 6 7 5
+seed 125: qualifying ({"thresholds":[]})
+boat 4 | place 1 | total 14.6 | ui 14.6 | 2 1 2 2 2 1.6 4
+boat 1 | place 2 | total 21 | ui 21 | 1 1 4 1 1 0 3
+boat 8 | place 3 | total 21 | ui 21 | 2 2 1 2 1 10 3
+boat 7 | place 4 | total 25.2 | ui 25.2 | 2 8 5 2 2 2.2 4
+boat 2 | place 5 | total 29 | ui 29 | 0 10 1 2 1 3 2
+boat 3 | place 6 | total 29 | ui 29 | 1 1 2 2 0 3 0
+boat 5 | place 7 | total 38 | ui 38 | 0 8 5 2 2 5 6
+boat 9 | place 8 | total 38.8 | ui 38.8 | 1 6 0 2 0 3.8 6
+boat 6 | place 9 | total 43 | ui 43 | 2 0 5 0 1 5 0"
+`;
+
+exports[`scoring pipeline characterisation (150 seeded random events) events 126-150 score exactly as recorded 1`] = `
+"seed 126: qualifying ({"thresholds":[2,5]})
+boat 3 | place 1 | total 4 | ui 4 | (8) 1 2 1
+boat 5 | place 2 | total 5 | ui 5 | 2 (6) 1 2
+boat 4 | place 3 | total 6 | ui 6 | 3 2 1 (8)
+boat 7 | place 4 | total 6 | ui 6 | 2 2 (3) 2
+boat 2 | place 5 | total 8 | ui 8 | 3 3 2 (0)
+boat 6 | place 6 | total 10 | ui 10 | 5 4 (8) 1
+boat 1 | place 7 | total 11 | ui 11 | 1 0 2 (8)
+seed 126: final ({"thresholds":[]})
+Gold | boat 1 | place 2 | total 7 | ui 7 | 1 2 2 1 1
+Gold | boat 4 | place 1 | total 7 | ui 7 | 2 2 1 1 1
+Gold | boat 7 | place 3 | total 12 | ui 12 | 3 2 2 0 1
+Silver | boat 2 | place 1 | total 2 | ui 2 | 2
+Silver | boat 5 | place 1 | total 2 | ui 2 | 2
+Bronze | boat 3 | place 1 | total 0 | ui 0
+Bronze | boat 6 | place 1 | total 0 | ui 0
+seed 127: qualifying (standard)
+boat 7 | place 1 | total 8.1 | ui 8.1 | 1 1 (6) 2 (3) 2 1 1.1
+boat 6 | place 2 | total 10 | ui 10 | 2 (4) 1 2 2 2 1 (4)
+boat 10 | place 3 | total 10.6 | ui 10.6 | 1.6 1 (5) 1 2 1 4 (8)
+boat 12 | place 4 | total 11 | ui 11 | 1 2 (3) (0) 3 2 1 2
+boat 9 | place 5 | total 11 | ui 11 | 2 2 2 2 (3) 2 (4.4) 1
+boat 5 | place 6 | total 11.2 | ui 11.2 | 2 (5) (6) 2 1.2 1 4 1
+boat 13 | place 7 | total 11.7 | ui 11.7 | 1.7 (5) 3 2 1 (4) 1 3
+boat 2 | place 8 | total 11.9 | ui 11.9 | (0) (0) 4 1 1 2 1.9 2
+boat 3 | place 9 | total 15.1 | ui 15.1 | 1 (0) 5 1.8 2.3 2 3 (6)
+boat 11 | place 10 | total 18 | ui 18 | 2 (5) (3) 2 3 1 0 2
+boat 8 | place 11 | total 23 | ui 23 | 5 5 5 1 (8) 5 (6) 2
+boat 4 | place 12 | total 26 | ui 26 | (5) 4 4 2 3 (0) 0 5
+boat 1 | place 13 | total 27 | ui 27 | (0) 4 5 2 3 5 (6) 0
+seed 128: qualifying ({"thresholds":[2,5]})
+boat 13 | place 1 | total 1 | ui 1 | (3) 1
+boat 6 | place 2 | total 1 | ui 1 | (5) 1
+boat 7 | place 3 | total 1 | ui 1 | 1 (2)
+boat 3 | place 4 | total 1.6 | ui 1.6 | (2) 1.6
+boat 12 | place 5 | total 2 | ui 2 | (4) 2
+boat 1 | place 6 | total 3 | ui 3 | 3 (4)
+boat 4 | place 6 | total 3 | ui 3 | (3) 3
+boat 10 | place 8 | total 3 | ui 3 | (4) 3
+boat 9 | place 9 | total 3 | ui 3 | (4.2) 3
+boat 5 | place 10 | total 3 | ui 3 | (8) 3
+boat 8 | place 10 | total 3 | ui 3 | (5) 3
+boat 11 | place 10 | total 3 | ui 3 | (8) 3
+boat 2 | place 13 | total 4 | ui 4 | 4 (8)
+seed 129: qualifying (standard)
+boat 7 | place 1 | total 5 | ui 5 | (4) 1 2 1 1
+boat 8 | place 2 | total 5 | ui 5 | 1 (2) 1 1 2
+boat 4 | place 3 | total 6.9 | ui 6.9 | (2) 2 2 1 1.9
+boat 1 | place 4 | total 7 | ui 7 | 2 1 1 3 (5)
+boat 2 | place 5 | total 7.8 | ui 7.8 | 1 2 1.8 (5) 3
+boat 6 | place 6 | total 8 | ui 8 | (5) 2 2 1 3
+boat 5 | place 7 | total 10 | ui 10 | 0 1 2 1 (6)
+boat 3 | place 8 | total 13 | ui 13 | 2 2 (0) 4 5
+boat 9 | place 8 | total 13 | ui 13 | 4 1 (0) 3 5
+seed 130: qualifying (standard)
+boat 2 | place 1 | total 3 | ui 3 | 1 1 (5) 1
+boat 5 | place 2 | total 8 | ui 8 | 1 4 (6) 3
+boat 1 | place 3 | total 9 | ui 9 | (12) 2 5 2
+boat 7 | place 4 | total 10 | ui 10 | (7) 7 2 1
+boat 6 | place 5 | total 10 | ui 10 | 3 1 6 (12)
+boat 4 | place 6 | total 11 | ui 11 | 7 3 1 (0)
+boat 3 | place 7 | total 12.5 | ui 12.5 | 6.5 (12) 2 4
+boat 9 | place 8 | total 13 | ui 13 | 4 3 (6) 6
+boat 11 | place 9 | total 14.4 | ui 14.4 | 8 3.4 3 (12)
+boat 8 | place 10 | total 15 | ui 15 | (12) 7 5 3
+boat 10 | place 11 | total 22 | ui 22 | 7 (0) 3 0
+seed 131: qualifying (standard)
+boat 4 | place 1 | total 4 | ui 4 | 1 1 2
+boat 3 | place 2 | total 7 | ui 7 | 1 4 2
+boat 1 | place 3 | total 8 | ui 8 | 2 2 4
+boat 2 | place 4 | total 9 | ui 9 | 1 0 2
+boat 5 | place 5 | total 15 | ui 15 | 0 6 3
+seed 132: qualifying (standard)
+boat 9 | place 1 | total 7 | ui 7 | 1 (2) 1 1 1 1 2
+boat 2 | place 2 | total 9 | ui 9 | 2 2 (5) 2 1 1 1
+boat 3 | place 3 | total 9 | ui 9 | 3 1 2 1 (0) 1 1
+boat 1 | place 4 | total 10 | ui 10 | 2 2 1 2 2 (5) 1
+boat 10 | place 5 | total 11 | ui 11 | 2 (5) 3 2 2 1 1
+boat 5 | place 6 | total 11.6 | ui 11.6 | 3 1 2 (5) 1 2.6 2
+boat 8 | place 7 | total 13 | ui 13 | 3 1 (5) 0 1 2 1
+boat 11 | place 8 | total 13 | ui 13 | 2 2 2 2 (0) 2 3
+boat 7 | place 9 | total 14 | ui 14 | 4 (0) 3 1 2 1 3
+boat 4 | place 10 | total 15 | ui 15 | 3 (0) 2 3 1 1 0
+boat 6 | place 11 | total 15 | ui 15 | 0 2 2 2 2 2 (3)
+seed 133: qualifying ({"thresholds":[2,5]})
+boat 8 | place 1 | total 6 | ui 6 | 1 (3) 1 1 1 1 (4) 1
+boat 3 | place 2 | total 7 | ui 7 | (5) 1 (3) 1 1 2 1 1
+boat 11 | place 3 | total 8 | ui 8 | (0) 1 2 1 1 1 2 (4)
+boat 1 | place 4 | total 8.4 | ui 8.4 | 1 1 1 1.4 (2) 2 (3) 2
+boat 10 | place 5 | total 9.1 | ui 9.1 | (3) 2 1 1 2 (3) 2 1.1
+boat 5 | place 6 | total 10 | ui 10 | (5) 2 1 1 1 2 3 (4)
+boat 7 | place 6 | total 10 | ui 10 | 1 (3) 2 1 1 3 2 (0)
+boat 2 | place 8 | total 11.1 | ui 11.1 | 0 1 1 1.1 1 (3) (2) 2
+boat 9 | place 9 | total 11.2 | ui 11.2 | (3) 2 1 0 1.2 1 1 (5)
+boat 12 | place 10 | total 11.7 | ui 11.7 | 3 2 (5) 2 1 2 (4) 1.7
+boat 4 | place 11 | total 12 | ui 12 | 2 (3) 1 2 (0) 3 2 2
+boat 6 | place 12 | total 19 | ui 19 | 2 2 (5) (0) 0 1 0 4
+seed 133: final ({"thresholds":[]})
+Gold | boat 5 | place 1 | total 1 | ui 1 | 1
+Gold | boat 9 | place 1 | total 1 | ui 1 | 1
+Gold | boat 1 | place 3 | total 3 | ui 3 | 3
+Gold | boat 3 | place 3 | total 3 | ui 3 | 3
+Gold | boat 11 | place 3 | total 3 | ui 3 | 3
+Gold | boat 7 | place 6 | total 5 | ui 5 | 5
+Silver | boat 4 | place 1 | total 11.9 | ui 11.9 | 1 2 4 1 1.9 1 1
+Silver | boat 10 | place 2 | total 14.8 | ui 14.8 | 1.9 1 1.9 1 1 0 1
+Silver | boat 6 | place 3 | total 15 | ui 15 | 2 1 2 4 2 2 2
+Silver | boat 2 | place 4 | total 15.7 | ui 15.7 | 1 2.7 0 1 1 1 2
+Silver | boat 8 | place 5 | total 17.8 | ui 17.8 | 1 1.8 4 0 2 1 1
+Silver | boat 12 | place 6 | total 19 | ui 19 | 1 2 0 4 2 2 1
+seed 134: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 3 | place 1 | total 2 | ui 2 | 2
+boat 5 | place 1 | total 2 | ui 2 | 2
+boat 8 | place 1 | total 2 | ui 2 | 2
+boat 9 | place 1 | total 2 | ui 2 | 2
+boat 11 | place 1 | total 2 | ui 2 | 2
+boat 4 | place 6 | total 3 | ui 3 | 3
+boat 7 | place 6 | total 3 | ui 3 | 3
+boat 2 | place 8 | total 4 | ui 4 | 4
+boat 10 | place 8 | total 4 | ui 4 | 4
+boat 1 | place 10 | total 5 | ui 5 | 0
+boat 6 | place 10 | total 5 | ui 5 | 0
+seed 134: final ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+Gold | boat 5 | place 1 | total 2 | ui 2 | 2
+Gold | boat 9 | place 1 | total 2 | ui 2 | 2
+Gold | boat 11 | place 1 | total 2 | ui 2 | 2
+Gold | boat 1 | place 4 | total 3 | ui 3 | 3
+Gold | boat 3 | place 4 | total 3 | ui 3 | 3
+Gold | boat 7 | place 4 | total 3 | ui 3 | 3
+Silver | boat 2 | place 1 | total 1 | ui 1 | 1
+Silver | boat 10 | place 2 | total 1.3 | ui 1.3 | 1.3
+Silver | boat 6 | place 3 | total 3 | ui 3 | 3
+Silver | boat 8 | place 4 | total 4 | ui 4 | 4
+Silver | boat 4 | place 5 | total 7 | ui 7 | 0
+seed 135: qualifying (standard)
+boat 4 | place 1 | total 1 | ui 1 | 1
+boat 3 | place 2 | total 2 | ui 2 | 2
+boat 9 | place 2 | total 2 | ui 2 | 2
+boat 11 | place 2 | total 2 | ui 2 | 2
+boat 12 | place 2 | total 2 | ui 2 | 2
+boat 2 | place 6 | total 3 | ui 3 | 3
+boat 7 | place 6 | total 3 | ui 3 | 3
+boat 10 | place 6 | total 3 | ui 3 | 3
+boat 5 | place 9 | total 4 | ui 4 | 4
+boat 6 | place 9 | total 4 | ui 4 | 4
+boat 8 | place 11 | total 6 | ui 6 | 6
+boat 1 | place 12 | total 7 | ui 7 | 7
+seed 135: final ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+Gold | boat 5 | place 1 | total 2 | ui 2 | 1 1 (4)
+Gold | boat 1 | place 2 | total 2.6 | ui 2.6 | 1.6 1 (4)
+Gold | boat 9 | place 3 | total 3 | ui 3 | (2) 2 1
+Gold | boat 3 | place 4 | total 5 | ui 5 | 2 (0) 3
+Gold | boat 7 | place 6 | total 6 | ui 6 | 3 (0) 3
+Gold | boat 11 | place 5 | total 6 | ui 6 | (6) 2 4
+Silver | boat 6 | place 1 | total 5 | ui 5 | 2 1 (3) 1 (3) 1
+Silver | boat 10 | place 2 | total 5 | ui 5 | 2 (0) (3) 1 1 1
+Silver | boat 12 | place 3 | total 8 | ui 8 | 2 (5) 3 1 2 (4)
+Silver | boat 2 | place 4 | total 10 | ui 10 | 2 (6) 3 (5) 1 4
+Silver | boat 8 | place 5 | total 12 | ui 12 | 2 (6) (5) 3 3 4
+Silver | boat 4 | place 6 | total 13.4 | ui 13.4 | 2 (5) (5) 2 2.4 0
+seed 136: qualifying (standard)
+boat 6 | place 1 | total 8 | ui 8 | 2 1 (5) 1 (0) 1 1 1 1
+boat 3 | place 2 | total 10 | ui 10 | (2) 1 1 1 2 2 2 (6) 1
+boat 1 | place 3 | total 12 | ui 12 | (4) (6) 1 2 2 1 1 2 3
+boat 4 | place 4 | total 12 | ui 12 | 1 2 2 (0) 2 1 2 2 (2.3)
+boat 8 | place 5 | total 12.8 | ui 12.8 | 1 (4) 3 2 2 1 1 (0) 2.8
+boat 9 | place 6 | total 16 | ui 16 | 2 3 5 1 1 2 (0) 2 (0)
+boat 7 | place 7 | total 16.8 | ui 16.8 | 1 2 0 1.8 (3) 3 (6) 1 2
+boat 2 | place 8 | total 17 | ui 17 | 0 2 (5) 1 2 (0) 1 1 4
+boat 5 | place 9 | total 23 | ui 23 | 0 2 (6) 3 1 3 (0) 2 0
+seed 137: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 4 | place 1 | total 6 | ui 6 | (2) 1 (0) 2 1 2
+boat 1 | place 2 | total 7 | ui 7 | (2) 2 1 2 (5) 2
+boat 3 | place 3 | total 10 | ui 10 | (2) 2 1 (5) 2 0
+boat 2 | place 4 | total 12 | ui 12 | (1) 1 1 0 0 (2)
+seed 137: final (standard)
+Gold | boat 1 | place 1 | total 6 | ui 6 | 1 1 1 (1.2) 1 1 1
+Gold | boat 4 | place 2 | total 11.6 | ui 11.6 | (2) 1 2 2 1.6 2 0
+Silver | boat 2 | place 1 | total 8 | ui 8 | 1 (2) 0 2 2
+Bronze | boat 3 | place 1 | total 8 | ui 8 | (2) 2 1 1 1 1 2
+seed 138: qualifying (standard)
+boat 3 | place 1 | total 7.7 | ui 7.7 | 1.6 1 1 (2) 1 (2) 1 1 1.1
+boat 2 | place 2 | total 10 | ui 10 | 2 1 (7) 2 2 (3) 1 1 1
+boat 9 | place 3 | total 10 | ui 10 | 1 (2) 2 1 2 2 (4) 1 1
+boat 7 | place 4 | total 10 | ui 10 | 2 1 (0) 1 1 2 2 1 (7)
+boat 12 | place 5 | total 11.5 | ui 11.5 | 1 1 2.5 2 (0) 2 (4) 2 1
+boat 11 | place 6 | total 12 | ui 12 | (4) 2 1 3 2 1 (0) 2 1
+boat 4 | place 7 | total 12.1 | ui 12.1 | 1.1 2 (5) (7) 1 1 2 3 2
+boat 10 | place 8 | total 12.3 | ui 12.3 | 1 (7) (4) 2 3 1 3 1.3 1
+boat 1 | place 9 | total 14.6 | ui 14.6 | 1.6 2 2 4 (0) 1 (0) 2 2
+boat 6 | place 10 | total 15 | ui 15 | 2 1 2 (4) 2 (0) 2 2 4
+boat 5 | place 11 | total 16 | ui 16 | 2 1 4 (7) 3 3 1 2 (7)
+boat 8 | place 12 | total 19 | ui 19 | 4 2 1 2 (7) (5) 3 3 4
+seed 138: final ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+Gold | boat 3 | place 1 | total 5 | ui 5 | 1 2 (0) 2
+Gold | boat 5 | place 2 | total 6.1 | ui 6.1 | 3 2.1 (0) 1
+Gold | boat 11 | place 3 | total 7 | ui 7 | 1 3 (0) 3
+Gold | boat 9 | place 4 | total 7.1 | ui 7.1 | 3 1 (4) 3.1
+Gold | boat 1 | place 5 | total 10 | ui 10 | (4) 3 4 3
+Gold | boat 7 | place 6 | total 12 | ui 12 | 4 0 (5) 1
+Silver | boat 2 | place 1 | total 0 | ui 0
+Silver | boat 12 | place 1 | total 0 | ui 0
+Silver | boat 4 | place 1 | total 0 | ui 0
+Silver | boat 10 | place 1 | total 0 | ui 0
+Silver | boat 6 | place 1 | total 0 | ui 0
+Silver | boat 8 | place 1 | total 0 | ui 0
+seed 139: qualifying ({"thresholds":[2,5]})
+boat 3 | place 1 | total 5 | ui 5 | (6) (2) 1 1 2 1
+boat 10 | place 2 | total 5 | ui 5 | 1 2 (6) 1 1 (7)
+boat 1 | place 3 | total 7 | ui 7 | (4) 4 1 1 1 (5)
+boat 6 | place 4 | total 7.8 | ui 7.8 | 2.8 1 (7) 1 3 (6)
+boat 5 | place 5 | total 9 | ui 9 | 2 3 (7) 2 2 (6)
+boat 11 | place 6 | total 10 | ui 10 | (0) (5) 2 2 1 5
+boat 9 | place 7 | total 11 | ui 11 | (6) (6) 1 2 4 4
+boat 7 | place 8 | total 12 | ui 12 | 2 5 3 (13) 2 (7)
+boat 2 | place 9 | total 13 | ui 13 | (0) 4 6 2 1 (7)
+boat 4 | place 10 | total 16 | ui 16 | 6 6 3 1 (13) (7)
+boat 8 | place 11 | total 20 | ui 20 | 0 3 2 (13) 2 (4)
+boat 12 | place 12 | total 21 | ui 21 | 11 (13) 5 1 4 (13)
+seed 140: qualifying (standard)
+boat 5 | place 1 | total 4 | ui 4 | (1) 1 1 1 1
+boat 1 | place 2 | total 6 | ui 6 | (2) 2 2 1 1
+boat 2 | place 3 | total 6 | ui 6 | 1 (2) 1 2 2
+boat 6 | place 4 | total 6 | ui 6 | 1 1.3 2 1.7 (0)
+boat 4 | place 5 | total 6 | ui 6 | 2 1 (3) 1 2
+boat 3 | place 6 | total 8 | ui 8 | 2 2 (3) 2 2
+seed 140: final (standard)
+Gold | boat 1 | place 1 | total 2 | ui 2 | 1 1
+Gold | boat 3 | place 2 | total 3 | ui 3 | 2 1
+Gold | boat 5 | place 3 | total 4 | ui 4 | 1 3
+Silver | boat 4 | place 1 | total 6 | ui 6 | 2 2 2
+Silver | boat 6 | place 2 | total 7 | ui 7 | 0 2 1
+Silver | boat 2 | place 3 | total 10 | ui 10 | 3 0 3
+seed 141: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 1 | place 1 | total 8 | ui 8 | 1 2 1 1 1 2 (0) (3)
+boat 2 | place 2 | total 9 | ui 9 | 2 (3) (3) 1 1 3 1 1
+boat 5 | place 3 | total 10 | ui 10 | 1 (3) (5) 1 3 1 2 2
+boat 7 | place 4 | total 10 | ui 10 | (0) 1 (4) 1 2 2 1 3
+boat 6 | place 5 | total 11 | ui 11 | 2 (4) 4 1 2 1 1 (0)
+boat 3 | place 6 | total 15 | ui 15 | (5) (0) 2 1 3 0 1 3
+boat 4 | place 7 | total 15 | ui 15 | (5) 2 2 1 (0) 2 5 3
+seed 141: final (standard)
+Gold | boat 7 | place 1 | total 7 | ui 7 | (2) 1 2 1 1 2
+Gold | boat 1 | place 2 | total 8 | ui 8 | 2 (0) 2 1 2 1
+Gold | boat 3 | place 3 | total 9 | ui 9 | 1 1 1 3 (0) 3
+Gold | boat 5 | place 4 | total 12 | ui 12 | 2 2 1 2 (3) 0
+Silver | boat 2 | place 1 | total 2 | ui 2 | 2
+Silver | boat 4 | place 1 | total 2 | ui 2 | 2
+Silver | boat 6 | place 3 | total 3 | ui 3 | 3
+seed 142: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 1 | place 1 | total 7 | ui 7 | 1 2 1 (0) (0) 1 1 1
+boat 8 | place 2 | total 8 | ui 8 | (4) 1 1 1 1 2 2 (4)
+boat 2 | place 3 | total 9 | ui 9 | (2) (2) 1 1 2 2 1 2
+boat 6 | place 4 | total 9 | ui 9 | 1 (2) (2) 2 1 2 2 1
+boat 7 | place 4 | total 9 | ui 9 | 1 (2) 1 2 2 2 (4) 1
+boat 5 | place 6 | total 10 | ui 10 | (3) (2) 1 2 2 2 1 2
+boat 4 | place 7 | total 13 | ui 13 | 2 0 1 2 2 (4) (4) 2
+boat 3 | place 8 | total 15 | ui 15 | 3 (4) 1 (4) 4 2 2 3
+seed 143: qualifying ({"thresholds":[]})
+boat 3 | place 1 | total 7 | ui 7 | 1 2 3 1
+boat 7 | place 2 | total 8 | ui 8 | 3 1 3 1
+boat 5 | place 3 | total 8 | ui 8 | 1 1 0 1
+boat 2 | place 4 | total 9 | ui 9 | 1 4 3 1
+boat 4 | place 5 | total 9.7 | ui 9.7 | 3 1.7 3 2
+boat 1 | place 6 | total 10 | ui 10 | 5 1 2 2
+boat 6 | place 7 | total 11 | ui 11 | 2 1 0 3
+boat 8 | place 8 | total 11 | ui 11 | 1 5 3 2
+seed 144: qualifying (standard)
+boat 4 | place 1 | total 12 | ui 12 | (5) (4) 1 2 1 1 3 2 2
+boat 1 | place 2 | total 13.2 | ui 13.2 | 1 (6) 1 1.2 2 (9) 5 2 1
+boat 5 | place 3 | total 16 | ui 16 | (5) 3 4 1 1 2 2 3 (9)
+boat 7 | place 4 | total 17 | ui 17 | 2 (4) (6) 1 3 2 4 3 2
+boat 3 | place 5 | total 19 | ui 19 | 4 (0) 6 1 2 1 (0) 3 2
+boat 6 | place 6 | total 23 | ui 23 | (3) (9) 3 1 2 3 3 0 2
+boat 8 | place 7 | total 25.6 | ui 25.6 | (9) 5 2 2 (9) 2.6 9 3 2
+boat 2 | place 8 | total 26 | ui 26 | 2 0 (6) 2 (0) 3 5 3 2
+seed 145: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 5 | place 1 | total 4 | ui 4 | (0) 1 1 1 1
+boat 7 | place 2 | total 6.1 | ui 6.1 | 1 (3) 2 2 1.1
+boat 4 | place 3 | total 8 | ui 8 | 2 1 (6) 4 1
+boat 11 | place 4 | total 8 | ui 8 | (3) 3 1 2 2
+boat 6 | place 5 | total 8 | ui 8 | 2 2 (6) 2 2
+boat 2 | place 6 | total 9 | ui 9 | 1 2 2 (4) 4
+boat 3 | place 6 | total 9 | ui 9 | 2 2 1 (4) 4
+boat 8 | place 8 | total 10 | ui 10 | 3 3 1 3 (6)
+boat 12 | place 9 | total 11 | ui 11 | (0) 1 2 2 0
+boat 10 | place 10 | total 11 | ui 11 | 2 (6) 3 4 2
+boat 1 | place 11 | total 11 | ui 11 | 3 3 (6) 2 3
+boat 9 | place 12 | total 12 | ui 12 | (6) 0 3 2 1
+boat 13 | place 13 | total 14 | ui 14 | 1 (6) 6 6 1
+seed 145: final ({"thresholds":[2,5]})
+Gold | boat 1 | place 3 | total 6 | ui 6 | 2 1 (6) (5) 3
+Gold | boat 7 | place 2 | total 6 | ui 6 | 3 2 1 (6) (4)
+Gold | boat 13 | place 1 | total 6 | ui 6 | 2 (3) (6) 1 3
+Gold | boat 9 | place 4 | total 6.2 | ui 6.2 | 1 3 (4) (6) 2.2
+Gold | boat 3 | place 5 | total 8 | ui 8 | 1 1 (6) (6) 6
+Gold | boat 5 | place 6 | total 8 | ui 8 | 4 2 2 (4.2) (5)
+Gold | boat 11 | place 7 | total 8.9 | ui 8.9 | 1 (4) 3.9 (6) 4
+Silver | boat 12 | place 1 | total 7 | ui 7 | 1 2 (4) 2 1 1 (0)
+Silver | boat 6 | place 2 | total 7.2 | ui 7.2 | 1 (4) (4) 1 1 1.2 3
+Silver | boat 4 | place 3 | total 8 | ui 8 | 3 1 (4) 2 1 1 (0)
+Silver | boat 8 | place 4 | total 8.2 | ui 8.2 | (2) (6) 2 1.2 2 1 2
+Silver | boat 2 | place 5 | total 8.4 | ui 8.4 | (0) (3) 1 2 1.4 1 3
+Silver | boat 10 | place 6 | total 14 | ui 14 | 2 (4) (4) 1 1 2 0
+seed 146: qualifying (standard)
+boat 5 | place 1 | total 7 | ui 7 | 1 (0) 1 1 1 1 (2) 2
+boat 3 | place 2 | total 9 | ui 9 | (2) (2) 1 2 1 2 2 1
+boat 2 | place 3 | total 10 | ui 10 | (2) 2 1 (0) 2 1 2 1 1
+boat 1 | place 4 | total 11 | ui 11 | 0 (2) 1 1 (2) 1 1 2 2
+boat 4 | place 5 | total 12 | ui 12 | 1 (2) 1 0 (2) 2 1 2 2
+seed 146: final (standard)
+Gold | boat 1 | place 1 | total 4 | ui 4 | 2 1 1
+Gold | boat 4 | place 2 | total 6 | ui 6 | 0 2 1
+Silver | boat 2 | place 1 | total 3 | ui 3 | (2) 1 1 1
+Silver | boat 5 | place 2 | total 5 | ui 5 | (2) 1 2 2
+Bronze | boat 3 | place 1 | total 0 | ui 0
+seed 147: qualifying (standard)
+boat 6 | place 1 | total 9 | ui 9 | (4) 2 2 2 1 (4) 1 1
+boat 5 | place 2 | total 9 | ui 9 | 2 (0) 1 1 (0) 1 3 1
+boat 2 | place 3 | total 9.6 | ui 9.6 | (0) (2) 1 2 1 1.6 2 2
+boat 4 | place 4 | total 12 | ui 12 | (2) 2 2 1 0 2 (3) 1
+boat 3 | place 5 | total 12 | ui 12 | 1 (2) 2 2 2 1 0 (0)
+boat 1 | place 6 | total 15 | ui 15 | 1 2 (4) 3 2 3 (0) 4
+seed 147: final (standard)
+Gold | boat 1 | place 3 | total 6 | ui 6 | 2 2 1 1 (0)
+Gold | boat 3 | place 2 | total 6 | ui 6 | (0) 2 1 1 2
+Gold | boat 5 | place 1 | total 6 | ui 6 | (0) 1 2 2 1
+Silver | boat 6 | place 1 | total 7 | ui 7 | (2) 1 1 2 2 1
+Silver | boat 2 | place 2 | total 9 | ui 9 | (3) 3 1 2 2 1
+Silver | boat 4 | place 3 | total 9 | ui 9 | (0) 1 1 2 2 3
+seed 148: qualifying ({"thresholds":[2,5]})
+boat 4 | place 1 | total 1 | ui 1 | 1
+boat 8 | place 1 | total 1 | ui 1 | 1
+boat 3 | place 3 | total 2 | ui 2 | 2
+boat 7 | place 3 | total 2 | ui 2 | 2
+boat 10 | place 3 | total 2 | ui 2 | 2
+boat 9 | place 6 | total 2.8 | ui 2.8 | 2.8
+boat 5 | place 7 | total 3 | ui 3 | 3
+boat 1 | place 8 | total 4 | ui 4 | 4
+boat 2 | place 8 | total 4 | ui 4 | 4
+boat 6 | place 10 | total 11 | ui 11 | 0
+seed 148: final ({"thresholds":[]})
+Gold | boat 7 | place 1 | total 10.1 | ui 10.1 | 2 3 2 1.1 2
+Gold | boat 1 | place 2 | total 13 | ui 13 | 0 2 2 1 3
+Gold | boat 4 | place 3 | total 13 | ui 13 | 4 3 3 2 1
+Gold | boat 10 | place 4 | total 14 | ui 14 | 2 0 3 1 3
+Silver | boat 5 | place 1 | total 2 | ui 2 | 1 1
+Silver | boat 2 | place 2 | total 3 | ui 3 | 1 2
+Silver | boat 8 | place 2 | total 3 | ui 3 | 1 2
+Bronze | boat 3 | place 1 | total 10 | ui 10 | 2 3 1 1 1 2
+Bronze | boat 9 | place 2 | total 11 | ui 11 | 1 1 2 1 0 1
+Bronze | boat 6 | place 3 | total 12 | ui 12 | 1 1 2 0 1 2
+seed 149: qualifying ({"thresholds":[2,5]})
+boat 1 | place 1 | total 3 | ui 3 | (6) 1 1 1 (2)
+boat 3 | place 2 | total 3 | ui 3 | 1 1 (2) 1 (6)
+boat 2 | place 3 | total 4 | ui 4 | 1 (2) (2) 2 1
+boat 4 | place 4 | total 4 | ui 4 | 1 2 (0) (2.1) 1
+boat 11 | place 5 | total 4 | ui 4 | (2) 1 1 (3) 2
+boat 6 | place 6 | total 4 | ui 4 | 1 (2) (3) 1 2
+boat 13 | place 7 | total 4 | ui 4 | 1 (2) (2) 2 1
+boat 9 | place 8 | total 5 | ui 5 | (3) 1 (4) 2 2
+boat 12 | place 9 | total 5.7 | ui 5.7 | (3) 1 (6) 3 1.7
+boat 7 | place 10 | total 6 | ui 6 | 2 2 (4) 2 (3)
+boat 5 | place 11 | total 8 | ui 8 | 1 1 (1.7) (3) 0
+boat 10 | place 12 | total 8 | ui 8 | 1 (0) (6) 6 1
+boat 8 | place 13 | total 10 | ui 10 | 0 2 (3) (6) 2
+seed 150: qualifying ({"firstDiscardAt":3,"secondDiscardAt":6,"additionalEvery":3})
+boat 3 | place 1 | total 2 | ui 2 | 1 1 (2)
+boat 7 | place 2 | total 2 | ui 2 | 1 1 (2.1)
+boat 12 | place 3 | total 2.8 | ui 2.8 | (2) 1 1.8
+boat 8 | place 4 | total 3 | ui 3 | (3) 1 2
+boat 6 | place 5 | total 3 | ui 3 | 1 (2) 2
+boat 13 | place 6 | total 3 | ui 3 | 2 1 (3)
+boat 9 | place 7 | total 3 | ui 3 | 1 2 (6)
+boat 1 | place 8 | total 4 | ui 4 | (3) 2 2
+boat 5 | place 9 | total 4 | ui 4 | (3) 3 1
+boat 10 | place 10 | total 5 | ui 5 | 1 4 (6)
+boat 11 | place 11 | total 5 | ui 5 | (6) 2 3
+boat 2 | place 12 | total 7 | ui 7 | 0 (1) 1
+boat 4 | place 13 | total 9 | ui 9 | 3 0 (0)
+seed 150: final (standard)
+Gold | boat 13 | place 1 | total 4 | ui 4 | 3 1
+Gold | boat 7 | place 2 | total 4.6 | ui 4.6 | 3.1 1.5
+Gold | boat 3 | place 3 | total 6 | ui 6 | 3 3
+Gold | boat 9 | place 4 | total 7 | ui 7 | 4 3
+Gold | boat 11 | place 4 | total 7 | ui 7 | 4 3
+Gold | boat 1 | place 6 | total 10 | ui 10 | 0 2
+Gold | boat 5 | place 7 | total 11 | ui 11 | 3 0
+Silver | boat 12 | place 1 | total 0 | ui 0
+Silver | boat 6 | place 1 | total 0 | ui 0
+Silver | boat 8 | place 1 | total 0 | ui 0
+Silver | boat 10 | place 1 | total 0 | ui 0
+Silver | boat 2 | place 1 | total 0 | ui 0
+Silver | boat 4 | place 1 | total 0 | ui 0"
+`;

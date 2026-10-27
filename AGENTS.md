@@ -19,7 +19,12 @@ Use this document first. Only search the repo when this file does not answer the
   - `src/main/ipcHandlers/HeatRaceHandler.ts`
 - Pure/domain logic (extracted out of the handlers): `src/main/functions/`
   (see §5 for the full module map).
-- Cross-process helpers: `src/shared/` (`fleetAssignment.js`, `subgroups.js`).
+- Scoring core and cross-process helpers: `src/shared/`. The series scoring
+  rules live in `src/shared/scoring/` (`series.ts`: discards, SHRS 5.7
+  tie-break and places for qualifying and final series; `discards.ts`;
+  `ranking.ts`). Code in `src/shared` takes data and returns results: it must
+  not import main-process, renderer, database, Electron, React or Node code
+  (an ESLint rule enforces this), so any future viewer can run it unchanged.
 - Preload bridge and exposed API: `src/main/preload.ts`
 - Renderer DB access wrapper: `src/renderer/api/db` (re-exports `eventDB`,
   `heatRaceDB`, etc. over `window.electron.sqlite.*`).
@@ -120,8 +125,10 @@ DB file paths:
 `HeatRaceHandler.ts` holds the IPC wiring; the actual logic has been extracted
 into focused modules under `src/main/functions/`. Map of that directory:
 
-- `calculateBoatScores.ts` — qualifying series scoring + SHRS 5.7 tie-break.
-- `calculateFinalBoatScores.ts` — final-fleet scoring (A8.1/A8.2 per group).
+- `calculateBoatScores.ts` / `calculateFinalBoatScores.ts` — load a series'
+  scores and hand them to the scoring core (`shared/scoring/series.ts`), which
+  holds the rules. `calculateBoatScores.ts` also wraps the core's qualifying
+  tie-break for the explain panel, so the panel and the ranking cannot differ.
 - `creatingNewHeatsUtls.ts` — Race 1 serpentine seeding + Heat Movement Tables
   (filename typo `Utls` is intentional, see §10).
 - `discardConfig.ts` — per-event discard profile lookup. The pure parsing/count
@@ -129,8 +136,6 @@ into focused modules under `src/main/functions/`. Map of that directory:
   renderer preview and the backend compute discards from one implementation.
 - `finalLeaderboardOrder.ts` — final-leaderboard ordering: SHRS 5.5 fleet
   precedence + the SHRS 1.5 qualifying-score fallback.
-- `scoringUtils.ts` — `getKeptScores`, `compareScoreArrays`, sequential tie
-  resolution.
 - `scoreStatus.ts` — status vocabulary, `normalizeScoreStatus`,
   `getScoringPenaltyPoints` (RRS 44.3c/T1), `compareSeededRows` (SHRS 5.3 order).
 - `overallTieBreak.ts` / `explainTieBreak.ts` — overall standings tie packets
@@ -326,7 +331,7 @@ Scoring (`calculateBoatScores.ts`, `scoreStatus.ts`)
   recompute re-derives them (`refreshRedressAverages`). The renderer preview
   uses the same function.
 - Series ties that A8 cannot break (identical scores) SHARE the place
-  (1, 2, 2, 4) — `findUnbrokenTies` + `assignPlaces` in `scoringUtils.ts`,
+  (1, 2, 2, 4) — `findUnbrokenTies` + `assignPlaces` in `shared/scoring/ranking.ts`,
   used by qualifying, final and overall standings.
 - 5.7 — **Event ties**:
   - (i) Single-heat events: RRS A8.1 then A8.2.
@@ -387,7 +392,14 @@ High-signal tests in `src/__tests__` include:
 
 Scoring engine / rules:
 
-- `calculateBoatScores.test.ts`, `calculateFinalBoatScores.test.ts`
+- `scoringCore.series.test.ts` (the core on plain data, and the leaderboard
+  screen agreeing with it on 2,000 random boats)
+- `scoringCore.characterisation.test.ts` (150 seeded random events through
+  real SQLite; its snapshot pins results, so a refactor must leave it unchanged
+  and a rule fix updates it in its own commit, with the reason)
+- `calculateBoatScores.test.ts`, `calculateFinalBoatScores.test.ts` (their
+  mocks describe each boat as ONE list of races —
+  `fixtures/scoresTableMock.ts` — as the database does)
 - `SHRS_comprehensive.test.ts` (exhaustive rule walk-through)
 - `scoreStatus.test.ts` (status normalization, penalty math, 5.3 order)
 - `leaderboardRecompute.test.ts` (recompute glue: query/persist/transaction)

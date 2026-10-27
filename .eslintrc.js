@@ -37,6 +37,40 @@ module.exports = {
   },
   overrides: [
     {
+      // src/shared is the scoring core: plain TypeScript that the main process
+      // and the renderer both run, and that a future results viewer can run
+      // too. It must not reach into either side or into the database, UI or
+      // Node APIs, or it stops being shareable.
+      files: ['src/shared/**/*.{js,ts}'],
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          {
+            patterns: [
+              {
+                group: ['**/main/**', '**/renderer/**', '**/public/**'],
+                message:
+                  'src/shared must stay free of main-process and renderer code; pass data in instead.',
+              },
+              {
+                group: [
+                  'electron',
+                  'react',
+                  'react-dom',
+                  'better-sqlite3',
+                  'fs',
+                  'path',
+                  'node:*',
+                ],
+                message:
+                  'src/shared must run anywhere: no Electron, React, database or Node APIs.',
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
       // Playwright specs drive the app step by step, so sequential `await` in a
       // loop is the correct shape rather than a mistake, and index counters are
       // idiomatic. Mirrors the unit-test override below; without it `npm run

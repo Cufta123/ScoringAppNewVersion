@@ -6,7 +6,10 @@ import {
   getSeriesDiscardRaceCount,
   DiscardConfig,
 } from './discardConfig';
-import { capExcludeCountForBoat, getExcludedIndexes } from './scoringUtils';
+import {
+  capExcludeCountForBoat,
+  getExcludedIndexes,
+} from '../../shared/scoring/discards';
 import {
   compareQualifyingTieCandidates,
   detectSingleHeatEvent,

@@ -7,10 +7,12 @@ import {
 } from './discardConfig';
 import {
   capExcludeCountForBoat,
-  compareScoreArrays,
   getKeptScores,
+} from '../../shared/scoring/discards';
+import {
+  compareScoreArrays,
   resolveTiesSequentially,
-} from './scoringUtils';
+} from '../../shared/scoring/ranking';
 
 // Combined (Qualifying + Final) tie-break used to rank the overall/final
 // leaderboard. Lives in its own module so it can be shared by the IPC handler

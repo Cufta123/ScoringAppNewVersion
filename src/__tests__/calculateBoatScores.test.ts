@@ -9,6 +9,7 @@
  */
 import calculateBoatScores from '../main/functions/calculateBoatScores';
 import { db } from '../../public/Database/DBManager';
+import { boatRaces, worstFirstRows } from './fixtures/scoresTableMock';
 
 // ─── Mock DB ──────────────────────────────────────────────────────────────────
 // jest.mock is hoisted; the factory runs before imports, so we expose a
@@ -70,37 +71,10 @@ function setupMockDb(
       return undefined;
     },
     all: (_eventId: unknown, boatId: string) => {
-      if (sql.includes('SELECT s.race_id, r.race_number, s.points')) {
-        if (raceScores[boatId]) {
-          return raceScores[boatId];
-        }
-        const descendingScores = scoresA82[boatId] ?? [];
-        return descendingScores.map((points, index) => ({
-          race_id: index + 1,
-          race_number: descendingScores.length - index,
-          points,
-        }));
-      }
       if (sql.includes('ORDER BY points DESC')) {
-        return (scoresA81[boatId] ?? []).map((row, index) => {
-          if (typeof row === 'number') {
-            return {
-              points: row,
-              status: 'FINISHED',
-              race_id: index + 1,
-              race_number: index + 1,
-            };
-          }
-          return {
-            points: row.points,
-            status: row.status ?? 'FINISHED',
-            race_id: row.race_id ?? index + 1,
-            race_number: row.race_number ?? index + 1,
-          };
-        });
-      }
-      if (sql.includes('ORDER BY r.race_number DESC')) {
-        return (scoresA82[boatId] ?? []).map((points) => ({ points }));
+        return worstFirstRows(
+          boatRaces(scoresA81[boatId], scoresA82[boatId], raceScores[boatId]),
+        );
       }
       return [];
     },
@@ -121,8 +95,7 @@ function run(
   results: ReturnType<typeof makeResult>[],
   event_id = 1,
 ): Record<string, { totalPoints: number; place: number }> {
-  const pointsMap = new Map<number, string[]>();
-  const table = calculateBoatScores(results, event_id, pointsMap);
+  const table = calculateBoatScores(results, event_id);
   return Object.fromEntries(
     table.map((row) => [
       row.boat_id,
@@ -573,44 +546,34 @@ describe('Multiple heat tie-break uses shared heats only', () => {
   });
 
   it('ignores non-shared races when breaking ties', () => {
+    // Tied on 16 (5 races, one discard each). They met in races 201-202:
+    // ESP47 [3, 7] vs USA55 [4, 6] -> ESP47 wins on the shared races. Their
+    // other races would favour USA55 (her kept scores include a 1), so the
+    // result shows those races were left out.
     setupMockDb(
-      {
-        ESP47: [10, 10],
-        USA55: [10, 10],
-      },
-      {
-        ESP47: [10, 10],
-        USA55: [10, 10],
-      },
+      {},
+      {},
       {
         ESP47: [
-          { race_id: 201, race_number: 1, points: 2 },
-          { race_id: 202, race_number: 4, points: 9 },
-          { race_id: 203, race_number: 5, points: 1 },
-          { race_id: 204, race_number: 13, points: 8 },
-          { race_id: 205, race_number: 14, points: 3 },
-          { race_id: 206, race_number: 15, points: 13 },
-          { race_id: 207, race_number: 16, points: 3 },
-          { race_id: 208, race_number: 17, points: 13 },
-          { race_id: 209, race_number: 18, points: 11 },
-          { race_id: 901, race_number: 30, points: 99 },
+          { race_id: 201, race_number: 1, points: 3 },
+          { race_id: 202, race_number: 1, points: 7 },
+          { race_id: 301, race_number: 1, points: 2 },
+          { race_id: 302, race_number: 1, points: 4 },
+          { race_id: 303, race_number: 1, points: 20 },
         ],
         USA55: [
-          { race_id: 201, race_number: 1, points: 3 },
-          { race_id: 202, race_number: 4, points: 4 },
-          { race_id: 203, race_number: 5, points: 12 },
-          { race_id: 204, race_number: 13, points: 19 },
-          { race_id: 205, race_number: 14, points: 6 },
-          { race_id: 206, race_number: 15, points: 6 },
-          { race_id: 207, race_number: 16, points: 1 },
-          { race_id: 208, race_number: 17, points: 7 },
-          { race_id: 209, race_number: 18, points: 16 },
-          { race_id: 902, race_number: 30, points: 0 },
+          { race_id: 201, race_number: 1, points: 4 },
+          { race_id: 202, race_number: 1, points: 6 },
+          { race_id: 401, race_number: 1, points: 1 },
+          { race_id: 402, race_number: 1, points: 5 },
+          { race_id: 403, race_number: 1, points: 20 },
         ],
       },
     );
 
-    const result = run([makeResult('ESP47', 2), makeResult('USA55', 2)]);
+    const result = run([makeResult('ESP47', 5), makeResult('USA55', 5)]);
+    expect(result.ESP47.totalPoints).toBe(16);
+    expect(result.USA55.totalPoints).toBe(16);
     expect(result.ESP47.place).toBe(1);
     expect(result.USA55.place).toBe(2);
   });
@@ -818,8 +781,7 @@ describe('Edge cases', () => {
       makeResult(id, 1),
     );
     const table = (() => {
-      const pointsMap = new Map<number, string[]>();
-      return calculateBoatScores(results, 1, pointsMap);
+      return calculateBoatScores(results, 1);
     })();
     expect(table).toHaveLength(5);
   });

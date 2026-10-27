@@ -29,7 +29,7 @@
  */
 import fs from 'fs';
 import path from 'path';
-import { getExcludedIndexes } from '../main/functions/scoringUtils';
+import { getExcludedIndexes } from '../shared/scoring/discards';
 import { getExcludeCountForProfile } from '../shared/discardProfile';
 import { sumPoints } from '../shared/points';
 import { applyExclusions } from '../renderer/utils/leaderboardUtils';

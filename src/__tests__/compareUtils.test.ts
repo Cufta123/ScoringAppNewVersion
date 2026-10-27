@@ -2,12 +2,11 @@ import {
   getOtherTiedCount,
   getNextCompareSelection,
 } from '../renderer/utils/compareUtils';
+import { getExcludedIndexes, getKeptScores } from '../shared/scoring/discards';
 import {
   compareScoreArrays,
-  getExcludedIndexes,
-  getKeptScores,
   resolveTiesSequentially,
-} from '../main/functions/scoringUtils';
+} from '../shared/scoring/ranking';
 
 describe('getOtherTiedCount', () => {
   it('does not count boats from different final fleets when totals match', () => {
