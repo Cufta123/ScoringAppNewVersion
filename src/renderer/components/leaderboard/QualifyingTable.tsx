@@ -3,6 +3,7 @@ import Flag from 'react-world-flags';
 import ScoreCell from './ScoreCell';
 import ComparePanel from './ComparePanel';
 import { sumPoints } from '../../../shared/points';
+import { hasMixedBoatTypes } from '../../utils/leaderboardUtils';
 import type {
   CompareInfo,
   LeaderboardEntry,
@@ -76,7 +77,10 @@ function QualifyingTable({
     );
   };
 
-  const identityHeaders = ['Rank', 'Name', 'Country', 'Sail #', 'Type'];
+  const showType = hasMixedBoatTypes(leaderboard);
+  const identityHeaders = ['Rank', 'Name', 'Country', 'Sail #'].concat(
+    showType ? ['Type'] : [],
+  );
   const raceCount = leaderboard[0]?.races?.length || 0;
   // SHRS 1.1: a race consists of all its heats. Results of a round some heats
   // have not sailed yet are shown after the counted races, greyed, and are
@@ -175,10 +179,10 @@ function QualifyingTable({
                 </th>
               ))}
 
-              {/* Gross column */}
+              {/* Total column */}
               <th
                 scope="col"
-                title="Gross: total points before discards (the sum of every race score)."
+                title="Total: all race points added up, before any score is excluded (SHRS 5.4)."
                 style={{
                   textAlign: 'center',
                   padding: '7px 10px',
@@ -192,13 +196,13 @@ function QualifyingTable({
                   cursor: 'help',
                 }}
               >
-                Gross
+                Total
               </th>
 
-              {/* Overall column */}
+              {/* Net column */}
               <th
                 scope="col"
-                title="Overall: net series score after discards — this is what decides the ranking."
+                title="Net: points after excluding the worst score(s) (SHRS 5.4). This decides the ranking."
                 style={{
                   textAlign: 'center',
                   padding: '7px 10px',
@@ -211,7 +215,7 @@ function QualifyingTable({
                   cursor: 'help',
                 }}
               >
-                Overall
+                Net
               </th>
 
               {/* Race headers */}
@@ -335,13 +339,16 @@ function QualifyingTable({
                     {entry.boat_number}
                   </td>
 
-                  {/* Boat type */}
-                  <td style={{ padding: '8px 12px', color: '#555' }}>
-                    {entry.boat_type}
-                  </td>
+                  {/* Boat type: only when more than one model sails */}
+                  {showType && (
+                    <td style={{ padding: '8px 12px', color: '#555' }}>
+                      {entry.boat_type}
+                    </td>
+                  )}
 
-                  {/* Gross */}
+                  {/* Total */}
                   <td
+                    data-col="total"
                     style={{
                       padding: '8px 10px',
                       textAlign: 'center',
@@ -356,8 +363,9 @@ function QualifyingTable({
                     {grossTotal > 0 ? grossTotal : '–'}
                   </td>
 
-                  {/* Overall */}
+                  {/* Net */}
                   <td
+                    data-col="net"
                     style={{
                       padding: '8px 10px',
                       textAlign: 'center',

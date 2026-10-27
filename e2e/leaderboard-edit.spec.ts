@@ -84,10 +84,12 @@ async function openLeaderboard(): Promise<void> {
   await expect(window.getByText(/Qualifying Series/i)).toBeVisible();
 }
 
-// The Overall (net) column is the 7th cell in each data row:
-// Rank | Name | Country | Sail # | Type | Gross | Overall | R1 | R2 | R3
-function overallCell(rowName: RegExp) {
-  return window.getByRole('row', { name: rowName }).getByRole('cell').nth(6);
+// The Net column of a boat's row (points after exclusions), found by column
+// rather than position: the Type column only shows with mixed models.
+function netCell(rowName: RegExp) {
+  return window
+    .getByRole('row', { name: rowName })
+    .locator('td[data-col="net"]');
 }
 
 test.beforeAll(async () => {
@@ -120,8 +122,8 @@ test('read-mode leaderboard shows the expected ranks and net totals', async () =
   // Alice is first with three 1st places (net 3); Dan last with three 4ths (12).
   const aliceRow = window.getByRole('row', { name: /Alice/ });
   await expect(aliceRow.getByLabel('Race cell: 1')).toHaveCount(3);
-  await expect(overallCell(/Alice/)).toHaveText('3');
-  await expect(overallCell(/Dan/)).toHaveText('12');
+  await expect(netCell(/Alice/)).toHaveText('3');
+  await expect(netCell(/Dan/)).toHaveText('12');
 });
 
 test('entering edit mode reveals per-race inputs and the save controls', async () => {
@@ -161,7 +163,7 @@ test('a penalty edit updates the live total and Cancel discards it', async () =>
   // The race input is disabled for a non-position-keeping penalty.
   await expect(caraRow.getByLabel('Race 1 value')).toBeDisabled();
   // Live preview total reflects the edit immediately (before saving).
-  await expect(overallCell(/Cara/)).toHaveText('11');
+  await expect(netCell(/Cara/)).toHaveText('11');
 
   // Cancel editing ⇒ discard confirmation ⇒ the edit is thrown away.
   await window.getByRole('button', { name: 'Cancel Editing' }).click();
@@ -177,7 +179,7 @@ test('a penalty edit updates the live total and Cancel discards it', async () =>
   await expect(
     window.getByRole('row', { name: /Cara/ }).getByText('DNS'),
   ).toHaveCount(0);
-  await expect(overallCell(/Cara/)).toHaveText('9');
+  await expect(netCell(/Cara/)).toHaveText('9');
 });
 
 test('numeric and penalty edits persist through Save and recompute', async () => {
@@ -198,7 +200,7 @@ test('numeric and penalty edits persist through Save and recompute', async () =>
   await expect(
     window.getByRole('row', { name: /Bob/ }).getByRole('alert'),
   ).toHaveText('1–4');
-  await expect(overallCell(/Bob/)).toHaveText('6');
+  await expect(netCell(/Bob/)).toHaveText('6');
 
   // Fixed to last place (4): Bob's net updates to 2 + 2 + 4 = 8. Cara and Dan
   // are left untouched (Dan keeps his 4, so the race now has two boats on 4 —
@@ -207,7 +209,7 @@ test('numeric and penalty edits persist through Save and recompute', async () =>
   await bobR3.blur();
   await expect(bobR3).toHaveValue('4');
   await expect(bobR3).not.toHaveAttribute('aria-invalid', 'true');
-  await expect(overallCell(/Bob/)).toHaveText('8');
+  await expect(netCell(/Bob/)).toHaveText('8');
 
   // Penalty edit: Cara's Race 1 → DNS. The input disables for a hard penalty.
   // With shifting off only Cara changes, so her net is 5 + 3 + 3 = 11 (her other
@@ -219,7 +221,7 @@ test('numeric and penalty edits persist through Save and recompute', async () =>
   await expect(
     window.getByRole('row', { name: /Cara/ }).getByLabel('Race 1 value'),
   ).toBeDisabled();
-  await expect(overallCell(/Cara/)).toHaveText('11');
+  await expect(netCell(/Cara/)).toHaveText('11');
 
   // Save. The duplicate-place guard flags the deliberate Bob/Dan tie on
   // place 4; keep the tie ("Save anyway") — RRS A7 point-splitting is the
@@ -245,11 +247,11 @@ test('numeric and penalty edits persist through Save and recompute', async () =>
   await expect(
     window.getByRole('row', { name: /Bob/ }).getByLabel('Race cell: 4'),
   ).toHaveCount(1);
-  await expect(overallCell(/Bob/)).toHaveText('8');
+  await expect(netCell(/Bob/)).toHaveText('8');
   await expect(
     window.getByRole('row', { name: /Cara/ }).getByLabel('Race cell: DNS'),
   ).toHaveCount(1);
-  await expect(overallCell(/Cara/)).toHaveText('11');
+  await expect(netCell(/Cara/)).toHaveText('11');
 });
 
 test('leaving the page with unsaved edits is guarded', async () => {

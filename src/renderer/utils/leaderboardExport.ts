@@ -17,6 +17,7 @@ import {
   compareFleetGroups,
   escapeCsvCell,
   getRaceCellDisplay,
+  hasMixedBoatTypes,
 } from './leaderboardUtils';
 import escapeHtml from './escapeHtml';
 import { reportError, reportInfo } from './userFeedback';
@@ -114,10 +115,26 @@ export const toPdfText = (value: unknown): string => {
  *   { header: string[], sections: Array<{ title: string|null, rows: any[][] }> }
  *
  * When the final series has started the layout mirrors FinalFleetTable:
- *   Rank | Name | Country | Sail# | Type | Gross | Overall | Q1…Qn | F1…Fn
+ *   Rank | Name | Country | Sail# | Type | Total | Net | Q1…Qn | F1…Fn
  * When qualifying only the layout mirrors QualifyingTable:
- *   Rank | Name | Country | Sail# | Type | R1…Rn | Total
+ *   Rank | Name | Country | Sail# | Type | Total | Net | Q1…Qn
+ * Type is left out when every boat sails the same model, as on screen.
  */
+const TYPE_COLUMN = 4;
+const withoutUniformType = (
+  data: ExportData,
+  sources: LeaderboardEntry[][],
+): ExportData => {
+  if (hasMixedBoatTypes(sources.flat())) return data;
+  const drop = <T>(row: T[]) => row.filter((_, i) => i !== TYPE_COLUMN);
+  return {
+    header: drop(data.header),
+    sections: data.sections.map((section) => ({
+      ...section,
+      rows: section.rows.map(drop),
+    })),
+  };
+};
 // Format a race value the same way ScoreCell / getRaceCellDisplay does.
 const formatCell = (race: string, status: string | undefined): string =>
   getRaceCellDisplay(race, status || 'FINISHED').displayText;
@@ -138,8 +155,8 @@ export const buildExportData = (ctx: LeaderboardExportContext): ExportData => {
       'Country',
       'Sail #',
       'Type',
-      'Gross',
-      'Overall',
+      'Total',
+      'Net',
       ...Array.from({ length: raceCount }, (_, i) => `Q${i + 1}`),
     ];
     const rows = (eventLeaderboard ?? []).map((e, i) => {
@@ -159,7 +176,9 @@ export const buildExportData = (ctx: LeaderboardExportContext): ExportData => {
         ...(e.races ?? []).map((r, ri) => formatCell(r, e.race_statuses?.[ri])),
       ];
     });
-    return { header, sections: [{ title: null, rows }] };
+    return withoutUniformType({ header, sections: [{ title: null, rows }] }, [
+      eventLeaderboard ?? [],
+    ]);
   }
 
   // ── Final-series view ───────────────────────────────────────────────────
@@ -175,8 +194,8 @@ export const buildExportData = (ctx: LeaderboardExportContext): ExportData => {
     'Country',
     'Sail #',
     'Type',
-    'Gross',
-    'Overall',
+    'Total',
+    'Net',
     ...Array.from({ length: qualRaceCount }, (_, i) => `Q${i + 1}`),
     ...Array.from({ length: finalRaceCount }, (_, i) => `F${i + 1}`),
   ];
@@ -229,7 +248,10 @@ export const buildExportData = (ctx: LeaderboardExportContext): ExportData => {
     }),
   }));
 
-  return { header, sections };
+  return withoutUniformType({ header, sections }, [
+    eventLeaderboard ?? [],
+    leaderboard ?? [],
+  ]);
 };
 
 // ─── Excel export ────────────────────────────────────────────────────────────

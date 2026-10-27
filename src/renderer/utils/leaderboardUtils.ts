@@ -184,6 +184,24 @@ export const processLeaderboardEntry = (
 /**
  * Map an IOC country code to a react-world-flags code.
  */
+/**
+ * Whether the boat-type column says anything: only when the entries sail more
+ * than one model. In a one-design event (every boat an IOM) it is a column of
+ * identical words that takes space from the race columns.
+ */
+export const hasMixedBoatTypes = (
+  entries: ReadonlyArray<{ boat_type?: string | null }>,
+): boolean =>
+  new Set(
+    entries
+      .map((entry) =>
+        String(entry.boat_type ?? '')
+          .trim()
+          .toUpperCase(),
+      )
+      .filter(Boolean),
+  ).size > 1;
+
 export const getFlagCode = (iocCode: string): string =>
   IOC_NATIONS[iocCode]?.flag || iocCode;
 

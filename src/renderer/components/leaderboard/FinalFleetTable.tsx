@@ -5,7 +5,7 @@ import Flag from 'react-world-flags';
 import ScoreCell from './ScoreCell';
 import { sumPoints } from '../../../shared/points';
 import ComparePanel from './ComparePanel';
-import { FLEET_COLORS } from '../../utils/leaderboardUtils';
+import { FLEET_COLORS, hasMixedBoatTypes } from '../../utils/leaderboardUtils';
 import type {
   CompareInfo,
   LeaderboardEntry,
@@ -87,6 +87,10 @@ function FinalFleetTable({
   const qualRaceCount = Math.max(
     0,
     ...eventLeaderboard.map((e) => e.races?.length || 0),
+  );
+  // Decided over the whole event, so every fleet table has the same columns.
+  const showType = hasMixedBoatTypes(
+    eventLeaderboard.length > 0 ? eventLeaderboard : entries,
   );
   const finalRaceCount = Math.max(
     0,
@@ -173,27 +177,29 @@ function FinalFleetTable({
               }}
             >
               {/* Identity headers */}
-              {['Rank', 'Name', 'Country', 'Sail #', 'Type'].map((h) => (
-                <th
-                  scope="col"
-                  key={h}
-                  style={{
-                    textAlign: 'left',
-                    padding: '9px 12px',
-                    fontWeight: 600,
-                    color: 'white',
-                    whiteSpace: 'nowrap',
-                    background: fleetAccent.thead,
-                  }}
-                >
-                  {h}
-                </th>
-              ))}
+              {['Rank', 'Name', 'Country', 'Sail #']
+                .concat(showType ? ['Type'] : [])
+                .map((h) => (
+                  <th
+                    scope="col"
+                    key={h}
+                    style={{
+                      textAlign: 'left',
+                      padding: '9px 12px',
+                      fontWeight: 600,
+                      color: 'white',
+                      whiteSpace: 'nowrap',
+                      background: fleetAccent.thead,
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
 
-              {/* Gross column */}
+              {/* Total column */}
               <th
                 scope="col"
-                title="Gross: total points before discards (the sum of every race score)."
+                title="Total: all race points added up, before any score is excluded (SHRS 5.4)."
                 style={{
                   textAlign: 'center',
                   padding: '7px 10px',
@@ -207,13 +213,13 @@ function FinalFleetTable({
                   cursor: 'help',
                 }}
               >
-                Gross
+                Total
               </th>
 
-              {/* Overall column */}
+              {/* Net column */}
               <th
                 scope="col"
-                title="Overall: net combined score after discards — this is what decides the ranking."
+                title="Net: qualifying plus final series points after excluded scores (SHRS 5.4, 5.5). This decides the ranking."
                 style={{
                   textAlign: 'center',
                   padding: '7px 10px',
@@ -226,7 +232,7 @@ function FinalFleetTable({
                   cursor: 'help',
                 }}
               >
-                Overall
+                Net
               </th>
 
               {/* Qualifying race headers */}
@@ -408,10 +414,12 @@ function FinalFleetTable({
                     {entry.boat_number}
                   </td>
 
-                  {/* Boat type */}
-                  <td style={{ padding: '8px 12px', color: '#555' }}>
-                    {entry.boat_type}
-                  </td>
+                  {/* Boat type: only when more than one model sails */}
+                  {showType && (
+                    <td style={{ padding: '8px 12px', color: '#555' }}>
+                      {entry.boat_type}
+                    </td>
+                  )}
 
                   {/* Gross total — sum of all races including discarded */}
                   {(() => {
@@ -434,6 +442,7 @@ function FinalFleetTable({
                     const grossTotal = sumPoints([...qualGross, ...finalGross]);
                     return (
                       <td
+                        data-col="total"
                         style={{
                           padding: '8px 10px',
                           textAlign: 'center',
@@ -450,8 +459,9 @@ function FinalFleetTable({
                     );
                   })()}
 
-                  {/* Overall combined total (SHRS 5.4) — right after Type */}
+                  {/* Net combined total (SHRS 5.4) */}
                   <td
+                    data-col="net"
                     style={{
                       padding: '8px 10px',
                       textAlign: 'center',

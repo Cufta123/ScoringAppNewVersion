@@ -28,7 +28,7 @@ import {
  *  - with "Shift other boats" off, editing a place to a duplicate leaves the
  *    other boat untouched (a manual tie, no automatic A7 averaging);
  *  - a position-keeping penalty (ZFP) keeps the finishing place but scores
- *    penalty points, so Gross and Overall diverge — and it persists on save;
+ *    penalty points, so Total and Net diverge — and it persists on save;
  *  - the "Shift other boats" toggle cascades the surrounding places.
  *
  * Shared event, serial execution. Only the ZFP test (last) persists changes;
@@ -81,12 +81,17 @@ async function openLeaderboard(): Promise<void> {
   await expect(window.getByText(/Qualifying Series/i)).toBeVisible();
 }
 
-// Row cell layout: Rank | Name | Country | Sail# | Type | Gross | Overall | R…
-function grossCell(rowName: RegExp) {
-  return window.getByRole('row', { name: rowName }).getByRole('cell').nth(5);
+// The Total (before exclusions) and Net (after) cells of a boat's row, found
+// by column rather than position: the Type column only shows with mixed models.
+function totalCell(rowName: RegExp) {
+  return window
+    .getByRole('row', { name: rowName })
+    .locator('td[data-col="total"]');
 }
-function overallCell(rowName: RegExp) {
-  return window.getByRole('row', { name: rowName }).getByRole('cell').nth(6);
+function netCell(rowName: RegExp) {
+  return window
+    .getByRole('row', { name: rowName })
+    .locator('td[data-col="net"]');
 }
 
 // Cancel out of edit mode, accepting the discard prompt if one is shown.
@@ -135,7 +140,7 @@ test('the worst race is discarded (parenthesised) and excluded from the net', as
   const aliceRow = window.getByRole('row', { name: /Alice/ });
   await expect(aliceRow.getByLabel('Race cell: (1)')).toHaveCount(1);
   await expect(aliceRow.getByLabel('Race cell: 1')).toHaveCount(3);
-  await expect(overallCell(/Alice/)).toHaveText('3');
+  await expect(netCell(/Alice/)).toHaveText('3');
 });
 
 test('editing a place to a duplicate leaves the other boat untouched', async () => {
@@ -160,9 +165,9 @@ test('editing a place to a duplicate leaves the other boat untouched', async () 
 
   // Bob normally scores 2,2,2,2 (net 6). His Race 1 is now a face-value 1 (no
   // averaging), giving 1,2,2,2 → one 2 is discarded → net 1 + 2 + 2 = 5.
-  await expect(overallCell(/Bob/)).toHaveText('5');
+  await expect(netCell(/Bob/)).toHaveText('5');
   // Alice is untouched: still four 1st places, net 3.
-  await expect(overallCell(/Alice/)).toHaveText('3');
+  await expect(netCell(/Alice/)).toHaveText('3');
 
   // Revert — leave the baseline untouched for the next test.
   await cancelEditing();
@@ -199,15 +204,15 @@ test('the Shift other boats toggle cascades the surrounding places', async () =>
   await cancelEditing();
 });
 
-test('a ZFP keeps the place but scores penalty points (Gross ≠ Overall) and persists', async () => {
+test('a ZFP keeps the place but scores penalty points (Total ≠ Net) and persists', async () => {
   await openLeaderboard();
   await window.getByRole('button', { name: 'Edit Results' }).click();
 
   // ZFP on Bob's Race 1: keeps finishing place 2, but scores 20% of the 4-boat
   // heat = +1 ⇒ 3 points. Bob normally scores 2,2,2,2; with the penalty it is
-  // 3,2,2,2. Gross sums every race = 9 (proving the penalty scored 3, not the
-  // place 2 — a plain 2,2,2,2 would be 8). Overall discards the worst (the 3),
-  // leaving 2 + 2 + 2 = 6, so Gross and Overall diverge.
+  // 3,2,2,2. Total sums every race = 9 (proving the penalty scored 3, not the
+  // place 2 — a plain 2,2,2,2 would be 8). Net discards the worst (the 3),
+  // leaving 2 + 2 + 2 = 6, so Total and Net diverge.
   await window
     .getByRole('row', { name: /Bob/ })
     .getByLabel('Race 1 status')
@@ -221,8 +226,8 @@ test('a ZFP keeps the place but scores penalty points (Gross ≠ Overall) and pe
   await expect(
     window.getByRole('row', { name: /Bob/ }).getByLabel('Race 1 value'),
   ).toHaveValue('2');
-  await expect(grossCell(/Bob/)).toHaveText('9');
-  await expect(overallCell(/Bob/)).toHaveText('6');
+  await expect(totalCell(/Bob/)).toHaveText('9');
+  await expect(netCell(/Bob/)).toHaveText('6');
 
   // Save and confirm the same values persist through the backend recompute.
   await window.getByRole('button', { name: 'Save Changes' }).click();
@@ -231,12 +236,12 @@ test('a ZFP keeps the place but scores penalty points (Gross ≠ Overall) and pe
   ).toBeVisible();
 
   // The ZFP race (3 pts) is Bob's worst, so it is the discarded one and renders
-  // parenthesised — "(ZFP)" — while Gross still counts it and Overall does not.
+  // parenthesised — "(ZFP)" — while Total still counts it and Net does not.
   await expect(
     window.getByRole('row', { name: /Bob/ }).getByLabel('Race cell: (ZFP)'),
   ).toHaveCount(1);
-  await expect(grossCell(/Bob/)).toHaveText('9');
-  await expect(overallCell(/Bob/)).toHaveText('6');
+  await expect(totalCell(/Bob/)).toHaveText('9');
+  await expect(netCell(/Bob/)).toHaveText('6');
 });
 
 test('a boat’s total explains itself, race by race, with the rule behind each number', async () => {
@@ -298,7 +303,7 @@ test('the event history lists what was done, newest first, and filters by boat',
 });
 
 test('the ZFP edit can be undone from the history, and the leaderboard follows', async () => {
-  await expect(grossCell(/Bob/)).toHaveText('9');
+  await expect(totalCell(/Bob/)).toHaveText('9');
   await window.getByRole('button', { name: 'Open event history' }).click();
   const dialog = window.getByRole('dialog', { name: 'Event history' });
   await dialog
@@ -313,8 +318,8 @@ test('the ZFP edit can be undone from the history, and the leaderboard follows',
   await dialog.getByRole('button', { name: 'Close' }).click();
 
   // Bob is back to 2, 2, 2, 2 without reopening the page.
-  await expect(grossCell(/Bob/)).toHaveText('8');
-  await expect(overallCell(/Bob/)).toHaveText('6');
+  await expect(totalCell(/Bob/)).toHaveText('8');
+  await expect(netCell(/Bob/)).toHaveText('6');
   await expect(
     window.getByRole('row', { name: /Bob/ }).getByLabel('Race cell: (ZFP)'),
   ).toHaveCount(0);
