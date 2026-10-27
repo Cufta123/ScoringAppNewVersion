@@ -1582,6 +1582,7 @@ handle(
             operation.newPosition,
             shiftForOperation,
             operation.entryStatus,
+            operation.rdgRaceIds,
           );
           lockDiscardProfileForRace(Number(operation.raceId));
         });

@@ -61,6 +61,8 @@ interface SaveRaceOperation {
   entryStatus?: string;
   /** Shift-other-boats state when THIS edit was made (matches the preview). */
   shiftPositions?: boolean;
+  /** RDG2: the races whose average was granted, so it stays live. */
+  rdgRaceIds?: number[];
   missingRaceId?: boolean;
 }
 
@@ -661,6 +663,7 @@ export default function useLeaderboard(eventId: number) {
       new Set(seriesIndices),
       excludeIdx,
       penaltyPos,
+      entry.race_statuses || [],
     );
 
   const computeRdgAverage = (
@@ -673,7 +676,7 @@ export default function useLeaderboard(eventId: number) {
     // RRS A9(a)/(b): average of the boat's points in all races in the
     // series (or the selected group) except the race in question. Penalty
     // scores are her points and are included in the average.
-    averageRacePoints(races, selectedIndices, excludeIdx, penaltyPos);
+    averageRacePoints(races, selectedIndices, excludeIdx, penaltyPos, statuses);
 
   // Position-keeping penalties (ZFP/SCP/T1) display their finishing place, but
   // score more points (RRS 44.3c/T1). The race cells store the place, so the
@@ -1224,7 +1227,7 @@ export default function useLeaderboard(eventId: number) {
       // the toggle was flipped between edits.
       const updateOperations: SaveRaceOperation[] = [];
       effectiveEditMap.forEach(
-        ({ boatId, raceIndex, rawPosition, status, shift }) => {
+        ({ boatId, raceIndex, rawPosition, status, shift, rdgSelection }) => {
           const entry = editableLeaderboard.find((e) => e.boat_id === boatId);
           if (!entry) return;
           const originalEntry = originalSource.find(
@@ -1249,6 +1252,13 @@ export default function useLeaderboard(eventId: number) {
             newPosition: rawPosition,
             entryStatus: status,
             shiftPositions: shift,
+            ...(status === 'RDG2' && rdgSelection
+              ? {
+                  rdgRaceIds: rdgSelection.seriesIndices
+                    .map((i) => Number(entry.race_ids?.[i]))
+                    .filter((id) => Number.isFinite(id)),
+                }
+              : {}),
           });
         },
       );
