@@ -21,8 +21,9 @@ Use this document first. Only search the repo when this file does not answer the
   (see §5 for the full module map).
 - Scoring core and cross-process helpers: `src/shared/`. The series scoring
   rules live in `src/shared/scoring/` (`series.ts`: discards, SHRS 5.7
-  tie-break and places for qualifying and final series; `discards.ts`;
-  `ranking.ts`). Code in `src/shared` takes data and returns results: it must
+  tie-break and places for qualifying and final series; `overall.ts`: SHRS
+  5.5 overall standings, fleet order and the tie-break across both series;
+  `discards.ts`; `ranking.ts`). Code in `src/shared` takes data and returns results: it must
   not import main-process, renderer, database, Electron, React or Node code
   (an ESLint rule enforces this), so any future viewer can run it unchanged.
 - Preload bridge and exposed API: `src/main/preload.ts`
@@ -148,8 +149,10 @@ into focused modules under `src/main/functions/`. Map of that directory:
   precedence + the SHRS 1.5 qualifying-score fallback.
 - `scoreStatus.ts` — status vocabulary, `normalizeScoreStatus`,
   `getScoringPenaltyPoints` (RRS 44.3c/T1), `compareSeededRows` (SHRS 5.3 order).
-- `overallTieBreak.ts` / `explainTieBreak.ts` — overall standings tie packets
-  and human-readable tie-break explanations.
+- `overallTieBreak.ts` — loads one boat's qualifying and final scores for the
+  overall tie-break; the rules and the overall ranking (`rankOverallStandings`,
+  used by `readOverallLeaderboard`) are in `shared/scoring/overall.ts`.
+- `explainTieBreak.ts` — human-readable tie-break explanations.
 - `finalSeriesEligibility.ts` — `getFinalSeriesEligibility` (whether the Final
   Series can start; rule 4.3 window detection).
 - `leaderboardRecompute.ts` — rebuilds `Leaderboard` / `FinalLeaderboard` from
@@ -408,7 +411,9 @@ Scoring engine / rules:
   screen agreeing with it on 2,000 random boats)
 - `scoringCore.characterisation.test.ts` (150 seeded random events through
   real SQLite; its snapshot pins results, so a refactor must leave it unchanged
-  and a rule fix updates it in its own commit, with the reason)
+  and a rule fix updates it in its own commit, with the reason);
+  `scoringCore.overall.characterisation.test.ts` does the same for the overall
+  standings, and `scoringCore.overall.test.ts` tests that core on plain data
 - `calculateBoatScores.test.ts`, `calculateFinalBoatScores.test.ts` (their
   mocks describe each boat as ONE list of races —
   `fixtures/scoresTableMock.ts` — as the database does)

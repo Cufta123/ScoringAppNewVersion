@@ -14,11 +14,9 @@ import { getEventDiscardConfig } from '../functions/discardConfig';
 import {
   OverallTiePacket,
   buildOverallTiePacket,
-  compareOverallTiePackets,
-  resolveOverallTieGroupSequentially,
+  rankOverallStandings,
 } from '../functions/overallTieBreak';
-import { findUnbrokenTies } from '../../shared/scoring/ranking';
-import { fleetNameForIndex, fleetRank } from '../../shared/fleetNames';
+import { fleetNameForIndex } from '../../shared/fleetNames';
 import { orderFinalLeaderboardRows } from '../functions/finalLeaderboardOrder';
 import explainTieBreak from '../functions/explainTieBreak';
 import explainBoatScore from '../functions/explainScore';
@@ -1870,79 +1868,12 @@ handle('readOverallLeaderboard', async (event, event_id) => {
     }
     return tiePacketCache.get(boatId) as OverallTiePacket;
   };
-
-  results.sort((left: any, right: any) => {
-    // SHRS 5.5: Gold before Silver before Bronze "and so on" — including the
-    // 5th and later fleets, which used to share one catch-all rank (RULE-m2).
-    const leftFleetRank = fleetRank(left.placement_group);
-    const rightFleetRank = fleetRank(right.placement_group);
-    if (leftFleetRank !== rightFleetRank) {
-      return leftFleetRank - rightFleetRank;
-    }
-
-    if (left.overall_points !== right.overall_points) {
-      return left.overall_points - right.overall_points;
-    }
-
-    return 0;
-  });
-
-  const groupedAndResolved: any[] = [];
-  // Boats still level after the full overall tie-break share a rank.
-  const tiedWithAbove = new Set<string>();
-  for (let i = 0; i < results.length; ) {
-    const fleet = results[i].placement_group;
-    const points = results[i].overall_points;
-    const tieGroup: any[] = [];
-
-    while (
-      i < results.length &&
-      results[i].placement_group === fleet &&
-      results[i].overall_points === points
-    ) {
-      tieGroup.push(results[i]);
-      i += 1;
-    }
-
-    if (tieGroup.length <= 1) {
-      groupedAndResolved.push(...tieGroup);
-    } else {
-      const resolved = resolveOverallTieGroupSequentially(
-        tieGroup,
-        getTiePacket,
-      );
-      findUnbrokenTies(resolved, (left: any, right: any) =>
-        compareOverallTiePackets(
-          left.boat_id,
-          right.boat_id,
-          getTiePacket(left.boat_id),
-          getTiePacket(right.boat_id),
-        ),
-      ).forEach((id) => tiedWithAbove.add(id));
-      groupedAndResolved.push(...resolved);
-    }
-  }
-
-  results.splice(0, results.length, ...groupedAndResolved);
-
-  // Assign overall rank: Gold before Silver before Bronze before Copper. A
-  // boat still tied with the one above (same fleet, same points, tie-break
-  // undecided) shares its rank: 1, 2, 2, 4.
-  results.forEach((row: any, index: number) => {
-    const above = results[index - 1];
-    row.overall_rank =
-      above &&
-      above.placement_group === row.placement_group &&
-      above.overall_points === row.overall_points &&
-      tiedWithAbove.has(String(row.boat_id))
-        ? above.overall_rank
-        : index + 1;
-  });
+  const ranked = rankOverallStandings(results, getTiePacket);
 
   console.log(
     `[IPC -> Renderer] readOverallLeaderboard (event_id=${event_id}): ${
-      results.length
+      ranked.length
     } entries`,
   );
-  return results;
+  return ranked;
 });

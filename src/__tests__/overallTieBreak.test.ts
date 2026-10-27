@@ -38,8 +38,8 @@ describe('compareOverallTiePackets — no shared heat (SHRS 5.6.ii.b, plain A8)'
     // (2 vs 1), so Y wins.
     const x = packet([1, 2, 3], [1, 2, 4], [4, 2, 1]);
     const y = packet([4, 5, 6], [1, 1, 5], [5, 1, 1]);
-    expect(compareOverallTiePackets('X', 'Y', x, y)).toBeGreaterThan(0); // Y first
-    expect(compareOverallTiePackets('Y', 'X', y, x)).toBeLessThan(0);
+    expect(compareOverallTiePackets(x, y)).toBeGreaterThan(0); // Y first
+    expect(compareOverallTiePackets(y, x)).toBeLessThan(0);
   });
 
   it('falls through to A8.2 (last race backward) when A8.1 ties', () => {
@@ -47,7 +47,7 @@ describe('compareOverallTiePackets — no shared heat (SHRS 5.6.ii.b, plain A8)'
     // X a82 [4,2,1] vs Y a82 [1,2,4]: Y scored 1 in the last race vs X's 4, Y wins.
     const x = packet([1, 2, 3], [1, 2, 4], [4, 2, 1]);
     const y = packet([4, 5, 6], [1, 2, 4], [1, 2, 4]);
-    expect(compareOverallTiePackets('X', 'Y', x, y)).toBeGreaterThan(0); // Y first
+    expect(compareOverallTiePackets(x, y)).toBeGreaterThan(0); // Y first
   });
 
   it('stays tied (returns 0) when A8.1 and A8.2 both tie — no boat-id fallback', () => {
@@ -55,8 +55,8 @@ describe('compareOverallTiePackets — no shared heat (SHRS 5.6.ii.b, plain A8)'
     // NOT invented from the internal boat_id.
     const b2 = packet([1, 2, 3], [1, 2, 3], [3, 2, 1]);
     const a1 = packet([4, 5, 6], [1, 2, 3], [3, 2, 1]);
-    expect(compareOverallTiePackets('B2', 'A1', b2, a1)).toBe(0);
-    expect(compareOverallTiePackets('A1', 'B2', a1, b2)).toBe(0);
+    expect(compareOverallTiePackets(b2, a1)).toBe(0);
+    expect(compareOverallTiePackets(a1, b2)).toBe(0);
   });
 });
 
@@ -89,7 +89,7 @@ describe('compareOverallTiePackets — shared heat (SHRS 5.7.2.2, excluded score
     ]);
     const x = packet([1, 2], [5, 5], [5, 5], xById);
     const y = packet([1, 2], [1, 1], [1, 1], yById);
-    expect(compareOverallTiePackets('X', 'Y', x, y)).toBeGreaterThan(0); // Y first
+    expect(compareOverallTiePackets(x, y)).toBeGreaterThan(0); // Y first
   });
 
   it('resolves the A8.1 shared-race comparison directly when raw shared points differ (SHRS 5.7(ii)(2))', () => {
@@ -108,8 +108,8 @@ describe('compareOverallTiePackets — shared heat (SHRS 5.7.2.2, excluded score
     const x = packet([1, 2], [], [], xById);
     const y = packet([1, 2], [], [], yById);
     // X sorted shared = [2,3], Y sorted shared = [1,4]: first diff 2 vs 1 -> Y wins.
-    expect(compareOverallTiePackets('X', 'Y', x, y)).toBeGreaterThan(0); // Y first
-    expect(compareOverallTiePackets('Y', 'X', y, x)).toBeLessThan(0);
+    expect(compareOverallTiePackets(x, y)).toBeGreaterThan(0); // Y first
+    expect(compareOverallTiePackets(y, x)).toBeLessThan(0);
   });
 
   it('M7: ranks a shared Final race ahead of a shared Qualifying race in A8.2, regardless of race_number magnitude', () => {
@@ -131,8 +131,8 @@ describe('compareOverallTiePackets — shared heat (SHRS 5.7.2.2, excluded score
     // If the Final race is (correctly) compared first: X=1 vs Y=5 -> X wins.
     // If a naive race_number-only sort were used, the Qualifying race would
     // be compared first instead (X=5 vs Y=1 -> Y would incorrectly win).
-    expect(compareOverallTiePackets('X', 'Y', x, y)).toBeLessThan(0); // X first
-    expect(compareOverallTiePackets('Y', 'X', y, x)).toBeGreaterThan(0);
+    expect(compareOverallTiePackets(x, y)).toBeLessThan(0); // X first
+    expect(compareOverallTiePackets(y, x)).toBeGreaterThan(0);
   });
 });
 
@@ -144,8 +144,8 @@ describe('compareOverallTiePackets — M8: unresolved tie must stay tied, not be
   it('no-shared-heat: returns 0 (tied) when A8.1 and A8.2 are both fully identical', () => {
     const b2 = packet([1, 2, 3], [1, 2, 3], [3, 2, 1]);
     const a1 = packet([4, 5, 6], [1, 2, 3], [3, 2, 1]);
-    expect(compareOverallTiePackets('B2', 'A1', b2, a1)).toBe(0);
-    expect(compareOverallTiePackets('A1', 'B2', a1, b2)).toBe(0);
+    expect(compareOverallTiePackets(b2, a1)).toBe(0);
+    expect(compareOverallTiePackets(a1, b2)).toBe(0);
   });
 
   it('shared-heat: returns 0 (tied) when shared-race A8.1 and A8.2 are both fully identical', () => {
@@ -171,7 +171,7 @@ describe('compareOverallTiePackets — M8: unresolved tie must stay tied, not be
     ]);
     const z = packet([1, 2], [], [], zById);
     const w = packet([1, 2], [], [], wById);
-    expect(compareOverallTiePackets('Z9', 'W1', z, w)).toBe(0);
+    expect(compareOverallTiePackets(z, w)).toBe(0);
   });
 });
 
