@@ -238,3 +238,37 @@ test('a ZFP keeps the place but scores penalty points (Gross ≠ Overall) and pe
   await expect(grossCell(/Bob/)).toHaveText('9');
   await expect(overallCell(/Bob/)).toHaveText('6');
 });
+
+test('a boat’s total explains itself, race by race, with the rule behind each number', async () => {
+  // After the ZFP test above Bob has 3 (ZFP), 2, 2, 2; the 3 is discarded.
+  await openLeaderboard();
+  await window
+    .getByRole('button', { name: 'How 6 points was calculated for sail 102' })
+    .click();
+
+  const dialog = window.getByRole('dialog', {
+    name: /score was calculated/,
+  });
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByRole('heading', { name: 'Qualifying series: 6 points' }),
+  ).toBeVisible();
+  // 4-boat heat: DNF score 5, 20% of it is 1.
+  await expect(
+    dialog.getByText(
+      'Finished 2 plus a Z flag penalty: 20% of the DNF score (5) is 1, so 2 + 1 = 3.',
+    ),
+  ).toBeVisible();
+  await expect(dialog.getByText('RRS 30.2, 44.3(c)')).toBeVisible();
+  await expect(
+    dialog.getByText(
+      /4 races completed in this series, so 1 worst score is excluded/,
+    ),
+  ).toBeVisible();
+  await expect(
+    dialog.getByText('All races 9 − excluded 3 = 6 points.'),
+  ).toBeVisible();
+
+  await dialog.getByRole('button', { name: 'Close' }).click();
+  await expect(dialog).toBeHidden();
+});

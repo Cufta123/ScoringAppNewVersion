@@ -21,6 +21,7 @@ import { findUnbrokenTies } from '../../shared/scoring/ranking';
 import { fleetNameForIndex, fleetRank } from '../../shared/fleetNames';
 import { orderFinalLeaderboardRows } from '../functions/finalLeaderboardOrder';
 import explainTieBreak from '../functions/explainTieBreak';
+import explainBoatScore from '../functions/explainScore';
 import {
   buildEventSnapshot,
   restoreEventSnapshot,
@@ -587,6 +588,12 @@ handle(
       throw error;
     }
   },
+);
+
+// "How was this score calculated?" for one boat: every race's points with the
+// rule behind them, the discards, and how ties with other boats were broken.
+handle('explainBoatScore', async (_event, event_id, boat_id) =>
+  explainBoatScore(Number(event_id), Number(boat_id)),
 );
 
 // SHRS validation of whether the Final Series can start. The renderer renders

@@ -327,10 +327,10 @@ describe('submitHeatRaceScoresAtomic handler', () => {
       points: 1,
       status: 'FINISHED',
     });
-    // T1 with maxHeatSize 10 => 30% rounded half-up = 3 places; place 2 => 5.
+    // T1 with maxHeatSize 10 => 30% of DNF 11 = 3.3; place 2 => 5.3.
     expect(scoreForBoat(raceId, 2)).toMatchObject({
       position: 2,
-      points: 5,
+      points: 5.3,
       status: 'T1',
     });
     // Boats not in the submission are seeded DNS at maxHeatSize + 1 = 11.
@@ -427,10 +427,10 @@ describe('submitHeatRaceScoresAtomic handler', () => {
 
     // Winner unchanged.
     expect(scoreForBoat(raceId, 1)).toMatchObject({ position: 1, points: 1 });
-    // ZFP keeps place 2; 20% of 10 = 2 places => place 2 scores 4.
+    // ZFP keeps place 2; 20% of DNF 11 = 2.2 => place 2 scores 4.2.
     expect(scoreForBoat(raceId, 2)).toMatchObject({
       position: 2,
-      points: 4,
+      points: 4.2,
       status: 'ZFP',
     });
     // The finisher behind the ZFP boat must stay 3rd with 3 points (was being
@@ -464,10 +464,10 @@ describe('submitHeatRaceScoresAtomic handler', () => {
     // RRS A7: the two boats tied for 1st share places 1 and 2 => 1.5 each.
     expect(scoreForBoat(raceId, 1)).toMatchObject({ position: 1, points: 1.5 });
     expect(scoreForBoat(raceId, 2)).toMatchObject({ position: 1, points: 1.5 });
-    // ZFP keeps place 3 (20% of 10 = 2 places => 3 + 2 = 5).
+    // ZFP keeps place 3 (20% of DNF 11 = 2.2 => 3 + 2.2 = 5.2).
     expect(scoreForBoat(raceId, 3)).toMatchObject({
       position: 3,
-      points: 5,
+      points: 5.2,
       status: 'ZFP',
     });
     // The 4th-place finisher keeps place 4 / 4 points (ZFP still holds slot 3).

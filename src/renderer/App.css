@@ -1989,3 +1989,133 @@ button.submit-scores-btn.is-unavailable:hover {
   flex-wrap: wrap;
   gap: 10px;
 }
+
+/* ── Score explanation ("how was this calculated?") ─────── */
+.score-explain-btn {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.score-explain-btn:hover {
+  text-decoration-style: solid;
+}
+
+.score-explain-btn:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.explain-modal {
+  width: min(860px, 96vw);
+}
+
+.explain-subtitle {
+  margin: -4px 0 12px;
+  color: var(--text-secondary);
+}
+
+.explain-modal .help-modal-body p {
+  margin: 10px 0 0;
+}
+
+.explain-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Undo the global data-table header (sticky navy bar, uppercase). */
+.explain-table th,
+.explain-table td {
+  position: static;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+  vertical-align: top;
+  font-size: 0.9rem;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--text);
+}
+
+.explain-table thead,
+.explain-table tbody th {
+  color: var(--navy);
+}
+
+.explain-table thead th,
+.explain-table tbody th {
+  color: var(--navy);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.explain-table tbody th,
+.explain-table td:nth-child(2),
+.explain-table td:nth-child(3) {
+  white-space: nowrap;
+}
+
+.explain-excluded th,
+.explain-excluded td {
+  color: var(--text-secondary);
+}
+
+.explain-excluded-tag {
+  margin-left: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.explain-rule {
+  display: inline-block;
+  margin-left: 2px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--teal-hover, #0b7a63);
+  background: rgba(15, 148, 120, 0.1);
+}
+
+.explain-note {
+  margin-top: 4px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.explain-sum {
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.explain-ties h5 {
+  margin: 14px 0 6px;
+  color: var(--navy);
+  font-size: 0.95rem;
+}
+
+.explain-ties ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.explain-ties li {
+  list-style: disc;
+  margin-bottom: 4px;
+}

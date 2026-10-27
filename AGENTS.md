@@ -129,6 +129,16 @@ into focused modules under `src/main/functions/`. Map of that directory:
   scores and hand them to the scoring core (`shared/scoring/series.ts`), which
   holds the rules. `calculateBoatScores.ts` also wraps the core's qualifying
   tie-break for the explain panel, so the panel and the ranking cannot differ.
+- `explainScore.ts` — "how was this score calculated?" for one boat (IPC
+  `explainBoatScore`): loads her races and hands them to
+  `shared/scoring/explain.ts`, which states every race's points with the rule
+  behind them (RRS A4/A7, SHRS 5.2, RRS 44.3(c)/30.2/T1, A9 redress with the
+  races averaged), the SHRS 5.4 discards, the sum, and ties (via
+  `explainTieBreak`). It uses the same discard choice and status-points rules
+  as the ranking (`shared/scoring/statusPoints.ts`), and
+  `explainBoatScore.integration.test.ts` checks its totals against the stored
+  leaderboard for every boat of 150 random events. The leaderboard's Overall
+  number opens it (`ScoreExplanationDialog.tsx`), except in edit/compare mode.
 - `creatingNewHeatsUtls.ts` — Race 1 serpentine seeding + Heat Movement Tables
   (filename typo `Utls` is intentional, see §10).
 - `discardConfig.ts` — per-event discard profile lookup. The pure parsing/count
@@ -176,7 +186,9 @@ Shared (renderer + main) — one definition per rule, imported by both processes
 
 - `fleetAssignment.ts` — `computeAdjustedFleetTotals` (rule 4.3).
 - `subgroups.ts`.
-- `scoringPenalty.ts` — RRS 44.3(c)/T1 points, `scoringPenaltyStatuses`, and
+- `scoringPenalty.ts` — RRS 44.3(c)/T1 points (20% / 30% of the DNF score, to
+  the nearest tenth as in RRS 2025–2028, capped at the DNF score),
+  `scoringPenaltyStatuses`, and
   `mandatoryDisplaceStatuses` (the RRS A6.1 promotion trigger).
 - `discardProfile.ts` — SHRS 5.4 profile parsing + exclusion count.
 - `fleetNames.ts` — SHRS 4.1 fleet naming and 5.5 precedence (`fleetRank`
@@ -323,7 +335,7 @@ Scoring (`calculateBoatScores.ts`, `scoreStatus.ts`)
   of raw points (`fleetRank`).
 - 5.6 — Redress averages computed separately per series: an RDG2 average covers
   ONLY races in the same series as the redressed cell — never a Q+F pool.
-- RRS A9 (A10 in 2025–28) redress, `shared/redress.ts`: RDG1 = average of all
+- RRS A9 (2025–2028) redress, `shared/redress.ts`: RDG1 = average of all
   other races in the series, RDG2 = average of PC-chosen races (stored in
   `Scores.rdg_race_ids`, schema migration 3), RDG3 = PC-set points (never
   recomputed). Averages include discarded races, EXCLUDE other RDG1/RDG2

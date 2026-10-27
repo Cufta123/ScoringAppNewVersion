@@ -5,10 +5,12 @@
  * based on `maxBoats + 1`, not `maxBoats` (see docs/SCORING_AUDIT.md M5,
  * already fixed in source — these tests pin the rule-correct values at the
  * documented rounding-boundary heat sizes).
+ *
+ * RRS 2025–2028 44.3(c) rounds the penalty "to the nearest tenth of a point
+ * (0.05 rounded upward)"; the 2021–2024 rule rounded to a whole number.
  */
 import {
   scoringPenaltyStatuses,
-  roundHalfUp,
   getScoringPenaltyPoints,
 } from '../shared/scoringPenalty';
 
@@ -18,50 +20,29 @@ describe('scoringPenaltyStatuses', () => {
   });
 });
 
-describe('roundHalfUp', () => {
-  it('rounds an exact .5 up', () => {
-    expect(roundHalfUp(2.5)).toBe(3);
-    expect(roundHalfUp(0.5)).toBe(1);
-  });
-
-  it('rounds down below .5', () => {
-    expect(roundHalfUp(2.49)).toBe(2);
-  });
-
-  it('rounds up above .5', () => {
-    expect(roundHalfUp(2.51)).toBe(3);
-  });
-});
-
 describe('getScoringPenaltyPoints — RRS 44.3(c)/T1, base = DNF score = maxBoats + 1 (SHRS 5.2 / M5)', () => {
   // 20% (ZFP/SCP): heat sizes where maxBoats+1 crosses a .5 rounding
   // boundary that maxBoats alone would not — these are exactly the sizes
   // that distinguish the M5-fixed formula from the old off-by-one bug.
   it.each([
-    [2, 1], // dnfScore=3, 3*0.2=0.6 -> 1
-    [7, 2], // dnfScore=8, 8*0.2=1.6 -> 2
-    [12, 3], // dnfScore=13, 13*0.2=2.6 -> 3
-    [17, 4], // dnfScore=18, 18*0.2=3.6 -> 4
-  ])(
-    'ZFP: heat size %i adds %i penalty place(s)',
-    (maxBoats, expectedPenaltyPlaces) => {
-      const finishingPosition = 1;
-      const result = getScoringPenaltyPoints(
-        finishingPosition,
-        maxBoats,
-        'ZFP',
-      );
-      expect(result).toBe(finishingPosition + expectedPenaltyPlaces);
-    },
-  );
+    [2, 0.6], // dnfScore=3, 3*0.2
+    [7, 1.6], // dnfScore=8
+    [12, 2.6], // dnfScore=13
+    [15, 3.2], // dnfScore=16
+    [17, 3.6], // dnfScore=18
+  ])('ZFP: heat size %i adds %f points', (maxBoats, expectedPenaltyPlaces) => {
+    const finishingPosition = 1;
+    const result = getScoringPenaltyPoints(finishingPosition, maxBoats, 'ZFP');
+    expect(result).toBe(finishingPosition + expectedPenaltyPlaces);
+  });
 
   it.each([
-    [2, 1],
-    [7, 2],
-    [12, 3],
-    [17, 4],
+    [2, 0.6],
+    [7, 1.6],
+    [12, 2.6],
+    [17, 3.6],
   ])(
-    'SCP: heat size %i adds %i penalty place(s) (same 20%% rate as ZFP)',
+    'SCP: heat size %i adds %f points (same 20%% rate as ZFP)',
     (maxBoats, expectedPenaltyPlaces) => {
       const result = getScoringPenaltyPoints(1, maxBoats, 'SCP');
       expect(result).toBe(1 + expectedPenaltyPlaces);
@@ -70,13 +51,14 @@ describe('getScoringPenaltyPoints — RRS 44.3(c)/T1, base = DNF score = maxBoat
 
   // 30% (Appendix T1): same boundary logic at the T1 rate.
   it.each([
-    [4, 2], // dnfScore=5, 5*0.3=1.5 -> 2
-    [8, 3], // dnfScore=9, 9*0.3=2.7 -> 3
-    [11, 4], // dnfScore=12, 12*0.3=3.6 -> 4
-    [14, 5], // dnfScore=15, 15*0.3=4.5 -> 5
-    [18, 6], // dnfScore=19, 19*0.3=5.7 -> 6
+    [4, 1.5], // dnfScore=5, 5*0.3
+    [8, 2.7], // dnfScore=9
+    [11, 3.6], // dnfScore=12
+    [12, 3.9], // dnfScore=13: 13*0.3 is 3.9000000000000004 in floating point
+    [14, 4.5], // dnfScore=15
+    [18, 5.7], // dnfScore=19
   ])(
-    'T1: heat size %i adds %i penalty place(s) (30%% rate)',
+    'T1: heat size %i adds %f points (30%% rate)',
     (maxBoats, expectedPenaltyPlaces) => {
       const result = getScoringPenaltyPoints(1, maxBoats, 'T1');
       expect(result).toBe(1 + expectedPenaltyPlaces);
@@ -89,7 +71,7 @@ describe('getScoringPenaltyPoints — RRS 44.3(c)/T1, base = DNF score = maxBoat
     const maxBoats = 10;
     const dnfScore = maxBoats + 1;
     const result = getScoringPenaltyPoints(10, maxBoats, 'ZFP');
-    // 10 + round(11*0.2=2.2)=2 -> 12, capped to 11.
+    // 10 + 11*0.2 = 12.2, capped to 11.
     expect(result).toBe(dnfScore);
   });
 
@@ -97,14 +79,14 @@ describe('getScoringPenaltyPoints — RRS 44.3(c)/T1, base = DNF score = maxBoat
     const maxBoats = 5;
     const dnfScore = maxBoats + 1; // 6
     const result = getScoringPenaltyPoints(5, maxBoats, 'T1');
-    // 5 + round(6*0.3=1.8 -> 2) = 7, capped to 6.
+    // 5 + 6*0.3 = 6.8, capped to 6.
     expect(result).toBe(dnfScore);
   });
 
   it('does not cap when the penalty keeps the boat within the fleet', () => {
     const result = getScoringPenaltyPoints(1, 12, 'ZFP');
-    // 1 + 3 = 4, well under dnfScore=13.
-    expect(result).toBe(4);
+    // 1 + 2.6 = 3.6, well under dnfScore=13.
+    expect(result).toBe(3.6);
   });
 
   it('defaults to the 20% rate for any status other than T1', () => {
