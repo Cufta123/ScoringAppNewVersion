@@ -55,6 +55,57 @@ export const journalObserver = {
 
 const parse = (json: string | null) => (json == null ? null : JSON.parse(json));
 
+const toChange = (row: any): HistoryChange => ({
+  change_id: row.change_id,
+  table_name: row.table_name,
+  op: row.op,
+  row_key: row.row_key,
+  old_row: parse(row.old_row),
+  new_row: parse(row.new_row),
+  context: parse(row.context) ?? {},
+});
+
+/** One action with every row it wrote (in any event), oldest first. */
+export function readAction(
+  action_id: number,
+): (HistoryAction & { eventIds: number[] }) | null {
+  const action = db
+    .prepare(
+      'SELECT action_id, channel, at FROM ChangeActions WHERE action_id = ?',
+    )
+    .get(action_id) as
+    | { action_id: number; channel: string; at: string }
+    | undefined;
+  if (!action) return null;
+  const rows = db
+    .prepare('SELECT * FROM ChangeLog WHERE action_id = ? ORDER BY change_id')
+    .all(action_id) as any[];
+  return {
+    ...action,
+    changes: rows.map(toChange),
+    eventIds: [...new Set(rows.map((row) => Number(row.event_id)))],
+  };
+}
+
+/** The first action after `afterChangeId` that wrote the given row. */
+export function laterActionOn(
+  table: string,
+  rowKey: string,
+  afterChangeId: number,
+): { channel: string | null; at: string } | null {
+  const row = db
+    .prepare(
+      `SELECT a.channel, c.at FROM ChangeLog c
+       LEFT JOIN ChangeActions a ON a.action_id = c.action_id
+       WHERE c.table_name = ? AND c.row_key = ? AND c.change_id > ?
+       ORDER BY c.change_id LIMIT 1`,
+    )
+    .get(table, rowKey, afterChangeId) as
+    | { channel: string | null; at: string }
+    | undefined;
+  return row ?? null;
+}
+
 /**
  * An event's history, newest action first. Rows no action claimed (written
  * outside an IPC call) are grouped by consecutive runs as `channel: null`.
@@ -63,9 +114,11 @@ export function readEventHistory(event_id: number): HistoryAction[] {
   const rows = db
     .prepare(
       `SELECT c.change_id, c.action_id, c.at, c.table_name, c.op, c.row_key,
-              c.old_row, c.new_row, c.context, a.channel, a.at AS action_at
+              c.old_row, c.new_row, c.context, a.channel, a.at AS action_at,
+              a.reverts_action_id, ra.channel AS reverts_channel
        FROM ChangeLog c
        LEFT JOIN ChangeActions a ON a.action_id = c.action_id
+       LEFT JOIN ChangeActions ra ON ra.action_id = a.reverts_action_id
        WHERE c.event_id = ?
        ORDER BY c.change_id DESC`,
     )
@@ -73,15 +126,7 @@ export function readEventHistory(event_id: number): HistoryAction[] {
 
   const actions: HistoryAction[] = [];
   rows.forEach((row) => {
-    const change: HistoryChange = {
-      change_id: row.change_id,
-      table_name: row.table_name,
-      op: row.op,
-      row_key: row.row_key,
-      old_row: parse(row.old_row),
-      new_row: parse(row.new_row),
-      context: parse(row.context) ?? {},
-    };
+    const change = toChange(row);
     const last = actions[actions.length - 1];
     if (last && last.action_id === row.action_id) {
       last.changes.push(change);
@@ -92,6 +137,8 @@ export function readEventHistory(event_id: number): HistoryAction[] {
       channel: row.channel ?? null,
       at: row.action_at ?? row.at,
       changes: [change],
+      reverts_action_id: row.reverts_action_id ?? null,
+      reverts_channel: row.reverts_channel ?? null,
     });
   });
   // Inside an action, show the changes in the order they were made.

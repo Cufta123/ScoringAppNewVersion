@@ -18,6 +18,7 @@ import {
 import { eventDB, heatRaceDB } from '../../api/db';
 import type { EventRow } from '../../types';
 import useExclusiveAction from '../../hooks/useExclusiveAction';
+import { useEventDataChanged } from '../../utils/eventDataChanged';
 
 function HeatRacePage() {
   const location = useLocation();
@@ -40,6 +41,7 @@ function HeatRacePage() {
   const refreshHeats = useCallback(() => {
     setHeatsRefreshToken((token) => token + 1);
   }, []);
+  useEventDataChanged(event?.event_id, refreshHeats);
 
   // Refresh-safe: resolve the event from the URL when router state is gone.
   useEffect(() => {

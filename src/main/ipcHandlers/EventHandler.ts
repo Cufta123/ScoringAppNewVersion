@@ -2,6 +2,7 @@ import { db } from '../../../public/Database/DBManager';
 import { normalizeDiscardConfigString } from '../functions/discardConfig';
 import handle from './handle';
 import { readEventHistory } from '../functions/changeJournal';
+import revertHistoryAction from '../functions/revertHistoryAction';
 
 interface SqliteError extends Error {
   code: string;
@@ -40,6 +41,10 @@ console.log('EventHandler.ts loaded');
 
 handle('readEventHistory', async (event, event_id) =>
   readEventHistory(Number(event_id)),
+);
+
+handle('revertHistoryAction', async (event, event_id, action_id) =>
+  revertHistoryAction(Number(event_id), Number(action_id)),
 );
 
 handle('readAllEvents', async () => {

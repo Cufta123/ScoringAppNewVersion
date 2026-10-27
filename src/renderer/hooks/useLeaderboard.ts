@@ -33,6 +33,7 @@ import {
 } from '../utils/placeConflicts';
 import type { UserRaceEdit } from '../utils/placeConflicts';
 import { eventDB, heatRaceDB } from '../api/db';
+import { useEventDataChanged } from '../utils/eventDataChanged';
 import type {
   CompareInfo,
   LeaderboardEntry,
@@ -581,6 +582,12 @@ export default function useLeaderboard(eventId: number) {
       cancelled = true;
     };
   }, [fetchLeaderboard]);
+
+  // An undo from the event history changed results behind this page. Reload,
+  // unless the user is editing: their unsaved edits must not be thrown away.
+  useEventDataChanged(eventId, () => {
+    if (!editMode) fetchLeaderboard();
+  });
 
   const hasUnsavedChanges = useMemo(() => {
     if (!editMode) return false;

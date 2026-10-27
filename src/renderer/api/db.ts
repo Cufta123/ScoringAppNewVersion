@@ -99,6 +99,11 @@ export interface EventDB {
   deleteEvent(eventId: number): Promise<unknown>;
   /** The event's change history, newest action first. */
   readEventHistory(eventId: number): Promise<HistoryAction[]>;
+  /** Undo one result change from the history (refused if overwritten since). */
+  revertHistoryAction(
+    eventId: number,
+    actionId: number,
+  ): Promise<{ success: true; actionId: number | null }>;
   associateBoatWithEvent(boatId: number, eventId: number): Promise<unknown>;
   removeBoatFromEvent(boatId: number, eventId: number): Promise<unknown>;
 }

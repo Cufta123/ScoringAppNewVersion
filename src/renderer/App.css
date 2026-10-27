@@ -2180,3 +2180,47 @@ button.submit-scores-btn.is-unavailable:hover {
   padding: 2px 8px;
   font-size: 0.85rem;
 }
+
+.history-entry-side {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.history-undo {
+  padding: 2px 10px;
+  font-size: 0.85rem;
+}
+
+.history-undone .history-lines {
+  color: var(--text-secondary);
+  text-decoration: line-through;
+}
+
+.history-undone-tag {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: var(--bg-subtle);
+}
+
+.history-notice,
+.history-error {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.history-notice {
+  color: var(--navy);
+  background: var(--bg-subtle);
+}
+
+.history-error {
+  color: #8a1c1c;
+  background: rgba(200, 40, 40, 0.1);
+}

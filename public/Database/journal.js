@@ -11,8 +11,8 @@
  * The IPC layer then groups the rows written by one user action under a
  * ChangeActions row (src/main/functions/changeJournal.ts).
  *
- * Derived tables (Leaderboard, FinalLeaderboard, RaceAssignmentSnapshots) are
- * not journalled: they are rebuilt from the journalled ones.
+ * The standings (Leaderboard, FinalLeaderboard) are not journalled: they are
+ * rebuilt from the journalled tables.
  *
  * Deleting an event deletes its history with it.
  *
@@ -25,7 +25,9 @@ const JOURNAL_TABLES = `
   CREATE TABLE IF NOT EXISTS ChangeActions (
     action_id INTEGER PRIMARY KEY AUTOINCREMENT,
     channel TEXT NOT NULL,
-    at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    -- Set when this action undid an earlier one (from the history).
+    reverts_action_id INTEGER
   );
 
   CREATE TABLE IF NOT EXISTS ChangeLog (
@@ -79,6 +81,14 @@ const JOURNALLED = [
     context: (x) =>
       `'heat_name', (SELECT heat_name FROM Heats WHERE heat_id = ${x}.heat_id),
        'heat_type', (SELECT heat_type FROM Heats WHERE heat_id = ${x}.heat_id)`,
+  },
+  {
+    // SHRS 3.1.5 frozen heat-assignment places. Not shown in the history, but
+    // journalled so undoing a protest decision restores them exactly.
+    table: 'RaceAssignmentSnapshots',
+    key: "X.race_id || ':' || X.rank",
+    eventId: `(SELECT h.event_id FROM Races r JOIN Heats h ON h.heat_id = r.heat_id
+               WHERE r.race_id = X.race_id)`,
   },
   {
     table: 'Scores',

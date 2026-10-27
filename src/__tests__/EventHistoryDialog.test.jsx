@@ -8,8 +8,12 @@ import EventHistoryDialog from '../renderer/components/EventHistoryDialog';
 import Navbar from '../renderer/components/Navbar';
 
 const mockReadHistory = jest.fn();
+const mockRevert = jest.fn();
 jest.mock('../renderer/api/db', () => ({
-  eventDB: { readEventHistory: (...args) => mockReadHistory(...args) },
+  eventDB: {
+    readEventHistory: (...args) => mockReadHistory(...args),
+    revertHistoryAction: (...args) => mockRevert(...args),
+  },
 }));
 
 const where = (sail) => ({ sail, heat_name: 'Heat A1', race_number: 1 });
@@ -62,7 +66,10 @@ const actions = [
 ];
 
 describe('event history dialog', () => {
-  beforeEach(() => mockReadHistory.mockReset());
+  beforeEach(() => {
+    mockReadHistory.mockReset();
+    mockRevert.mockReset();
+  });
 
   it('lists actions newest first with their changes', async () => {
     mockReadHistory.mockResolvedValue(actions);
@@ -147,5 +154,87 @@ describe('History button in the navbar', () => {
       await within(dialog).findByText(/No changes recorded yet/),
     ).toBeInTheDocument();
     expect(mockReadHistory).toHaveBeenCalledWith(7);
+  });
+});
+
+describe('undo from the history', () => {
+  beforeEach(() => {
+    mockReadHistory.mockReset();
+    mockRevert.mockReset();
+  });
+
+  it('offers Undo for a result change only, and undoes it', async () => {
+    const undoneHistory = [
+      {
+        action_id: 3,
+        channel: 'revertHistoryAction',
+        reverts_action_id: 2,
+        reverts_channel: 'updateRaceResult',
+        at: '2026-05-02T12:40:00.000Z',
+        changes: [
+          {
+            change_id: 20,
+            table_name: 'Scores',
+            op: 'update',
+            row_key: '1',
+            old_row: score(1, 3, 'DSQ'),
+            new_row: score(1, 1),
+            context: where('CRO 12'),
+          },
+        ],
+      },
+      ...actions,
+    ];
+    mockReadHistory
+      .mockResolvedValueOnce(actions)
+      .mockResolvedValueOnce(undoneHistory);
+    mockRevert.mockResolvedValue({ success: true, actionId: 3 });
+    const changed = jest.fn();
+    window.addEventListener('scoring-app:event-data-changed', changed);
+
+    render(<EventHistoryDialog eventId={4} open onClose={jest.fn()} />);
+    await screen.findByText('Result changed');
+    const undoButtons = screen.getAllByRole('button', { name: /^Undo: / });
+    // "Race scored" (index 1) is undone on the scoring page instead.
+    expect(undoButtons).toHaveLength(1);
+    expect(undoButtons[0]).toHaveAccessibleName(/^Undo: Result changed/);
+
+    fireEvent.click(undoButtons[0]);
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Undone: Result changed. The standings were recalculated.',
+    );
+    expect(mockRevert).toHaveBeenCalledWith(4, 2);
+    expect(changed).toHaveBeenCalledTimes(1);
+    expect(changed.mock.calls[0][0].detail).toEqual({ eventId: 4 });
+    window.removeEventListener('scoring-app:event-data-changed', changed);
+
+    // The reloaded history shows the undo, and the decision as undone; the
+    // undo itself can be undone.
+    expect(
+      await screen.findByText('Undid “Result changed”'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Undone')).toBeInTheDocument();
+    expect(
+      screen
+        .getAllByRole('button', { name: /^Undo: / })
+        .map((b) => b.getAttribute('aria-label')),
+    ).toEqual([expect.stringMatching(/^Undo: Undid “Result changed”/)]);
+  });
+
+  it('shows why an undo was refused', async () => {
+    mockReadHistory.mockResolvedValue(actions);
+    mockRevert.mockRejectedValue(
+      new Error(
+        'Cannot undo: CRO 12, Heat A1 race 1: 1 (1 point) → DSQ (3 points) was changed again later by “Result changed”. Undo that change first.',
+      ),
+    );
+    render(<EventHistoryDialog eventId={4} open onClose={jest.fn()} />);
+    await screen.findByText('Result changed');
+    fireEvent.click(
+      screen.getByRole('button', { name: /^Undo: Result changed/ }),
+    );
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /changed again later by “Result changed”/,
+    );
   });
 });

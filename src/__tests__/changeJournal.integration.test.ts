@@ -90,11 +90,19 @@ const sailsIn = (db: any, id: number): number[] =>
     .all(id)
     .map((row: { sail_number: number }) => row.sail_number);
 
-async function scoreHeat(db: any, eventId: number, name: string) {
+/** Score a heat; boats finish in sail-number order unless `reversed`. */
+async function scoreHeat(
+  db: any,
+  eventId: number,
+  name: string,
+  reversed = false,
+) {
   const id = heatId(db, eventId, name);
+  const sails = sailsIn(db, id);
+  if (reversed) sails.reverse();
   const result = await call('submitHeatRaceScoresAtomic', {
     heat_id: id,
-    placeNumbers: sailsIn(db, id).map((sail, index) => ({
+    placeNumbers: sails.map((sail, index) => ({
       boatNumber: sail,
       place: index + 1,
       status: 'FINISHED',
@@ -252,5 +260,165 @@ describe('change journal through the real handlers', () => {
     expect(sentences(update)).toEqual([
       'Name: Kup → Kup Jadrana; End date: 2026-05-03 → 2026-05-04',
     ]);
+  });
+});
+
+describe('undoing a change from the history (real handlers)', () => {
+  let db: any;
+
+  beforeAll(() => {
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    require('../main/ipcHandlers/EventHandler');
+    require('../main/ipcHandlers/HeatRaceHandler');
+    setCallObserver(journalObserver);
+  });
+
+  afterAll(() => {
+    setCallObserver(null);
+    jest.restoreAllMocks();
+  });
+
+  beforeEach(() => {
+    invalidateAssignmentSnapshotCache();
+    db = new DatabaseSync(':memory:');
+    db.exec('PRAGMA foreign_keys = ON');
+    migrate(db);
+    mockDbHolder.current = db;
+  });
+
+  afterEach(() => db.close());
+
+  /** Everything an undo must put back: results, SHRS 3.1.5 rows, standings. */
+  const state = () => ({
+    scores: db
+      .prepare(
+        'SELECT score_id, race_id, boat_id, position, points, status, rdg_race_ids FROM Scores ORDER BY score_id',
+      )
+      .all()
+      .map((row: any) => ({ ...row })),
+    shields: db
+      .prepare('SELECT * FROM RaceAssignmentSnapshots ORDER BY race_id, rank')
+      .all()
+      .map((row: any) => ({ ...row })),
+    standings: db
+      .prepare(
+        'SELECT boat_id, total_points_event, place FROM Leaderboard ORDER BY boat_id',
+      )
+      .all()
+      .map((row: any) => ({ ...row })),
+  });
+
+  const newest = async (eventId: number) => (await history(eventId))[0];
+
+  /** Two heats of two, both scored; returns heat A1's race. */
+  async function scoredEvent() {
+    const eventId = await createEvent('Kup');
+    await enterBoats(db, eventId, [1, 2, 3, 4]);
+    await call('createInitialHeatsAtomic', eventId, 2);
+    const raceA = await scoreHeat(db, eventId, 'Heat A1');
+    await scoreHeat(db, eventId, 'Heat B1');
+    const [winner] = sailsIn(db, heatId(db, eventId, 'Heat A1'));
+    return { eventId, raceA, winner };
+  }
+
+  it('undoes a protest decision exactly, and the undo can be undone', async () => {
+    const { eventId, raceA, winner } = await scoredEvent();
+    const before = state();
+
+    await call('updateRaceResult', eventId, raceA, winner, 1, false, 'DSQ');
+    const decided = state();
+    expect(decided.shields.length).toBeGreaterThan(0);
+    const decision = await newest(eventId);
+
+    await call('revertHistoryAction', eventId, decision.action_id);
+    expect(state()).toEqual(before);
+
+    const actions = await history(eventId);
+    expect(summarizeAction(actions[0]).label).toBe('Undid “Result changed”');
+    expect(summarizeAction(actions[0]).lines).toContainEqual(
+      expect.stringMatching(/→ 1 \(1 point\)$/),
+    );
+
+    await call('revertHistoryAction', eventId, actions[0].action_id);
+    expect(state()).toEqual(decided);
+  });
+
+  it('refuses to overwrite a later change to the same result', async () => {
+    const { eventId, raceA, winner } = await scoredEvent();
+    await call('updateRaceResult', eventId, raceA, winner, 1, false, 'DSQ');
+    const first = await newest(eventId);
+    await call('updateRaceResult', eventId, raceA, winner, 1, false, 'DNF');
+    const second = await newest(eventId);
+    const afterBoth = state();
+    const historyBefore = await history(eventId);
+
+    await expect(
+      call('revertHistoryAction', eventId, first.action_id),
+    ).rejects.toThrow(
+      /was changed again later by “Result changed”\. Undo that change first\./,
+    );
+    // A refused undo changes nothing and leaves no trace.
+    expect(state()).toEqual(afterBoth);
+    expect(await history(eventId)).toEqual(historyBefore);
+
+    await call('revertHistoryAction', eventId, second.action_id);
+    await call('revertHistoryAction', eventId, first.action_id);
+    expect(
+      db
+        .prepare('SELECT status FROM Scores WHERE race_id = ? AND boat_id = ?')
+        .get(raceA, winner).status,
+    ).toBe('FINISHED');
+  });
+
+  it('redress averages moving with later races do not block the undo', async () => {
+    const eventId = await createEvent('Kup');
+    await enterBoats(db, eventId, [1, 2, 3, 4]);
+    await call('createInitialHeatsAtomic', eventId, 1);
+    const race1 = await scoreHeat(db, eventId, 'Heat A1');
+    await scoreHeat(db, eventId, 'Heat A1');
+    const before = state();
+
+    // Sail 4 gets average-points redress for race 1...
+    await call('updateRaceResult', eventId, race1, 4, 4, false, 'RDG1');
+    const redress = await newest(eventId);
+    const rdgPoints = () =>
+      db
+        .prepare('SELECT points FROM Scores WHERE race_id = ? AND boat_id = 4')
+        .get(race1).points;
+    const pointsThen = rdgPoints();
+    // ...and a later race moves that average.
+    const race3 = await scoreHeat(db, eventId, 'Heat A1', true);
+    expect(rdgPoints()).not.toBe(pointsThen);
+
+    await call('revertHistoryAction', eventId, redress.action_id);
+    const restored = state();
+    const race1Rows = (s: any) =>
+      s.scores.filter((r: any) => r.race_id === race1);
+    expect(race1Rows(restored)).toEqual(race1Rows(before));
+    expect(
+      restored.scores.filter((r: any) => r.race_id === race3),
+    ).toHaveLength(4);
+  });
+
+  it('scoring a whole race is undone on the scoring page, not here', async () => {
+    const { eventId } = await scoredEvent();
+    const scored = (await history(eventId)).find(
+      (action) => action.channel === 'submitHeatRaceScoresAtomic',
+    ) as HistoryAction;
+    await expect(
+      call('revertHistoryAction', eventId, scored.action_id),
+    ).rejects.toThrow(/scoring page \(Undo last race\)/);
+  });
+
+  it('refuses an action of another event', async () => {
+    const { eventId, raceA, winner } = await scoredEvent();
+    await call('updateRaceResult', eventId, raceA, winner, 1, false, 'DSQ');
+    const decision = await newest(eventId);
+    const other = await createEvent('Other');
+    await expect(
+      call('revertHistoryAction', other, decision.action_id),
+    ).rejects.toThrow('This change belongs to another event.');
   });
 });
