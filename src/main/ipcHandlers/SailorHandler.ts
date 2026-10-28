@@ -57,9 +57,12 @@ handle('readAllBoats', () => {
     c.club_name, c.country AS club_country,
     cat.category_name
   FROM Boats b
-  JOIN Sailors s ON b.sailor_id = s.sailor_id
-  JOIN Clubs c ON s.club_id = c.club_id
-  JOIN Categories cat ON s.category_id = cat.category_id`,
+  -- LEFT: a boat with no sailor, club or category must still be listed, or
+  -- the add-sailor form (which looks here for a boat with the same sail
+  -- number) would miss it and create a duplicate.
+  LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id
+  LEFT JOIN Clubs c ON s.club_id = c.club_id
+  LEFT JOIN Categories cat ON s.category_id = cat.category_id`,
     )
     .all();
   return rows;
