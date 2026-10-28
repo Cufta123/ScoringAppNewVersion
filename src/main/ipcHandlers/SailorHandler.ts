@@ -1,6 +1,7 @@
 import { db } from '../../../public/Database/DBManager';
 import { subgroupToCategoryName } from '../../shared/subgroups';
 import handle from './handle';
+import type { ImportSailorsSummary } from '../../shared/importSailors';
 import retryWhenBusy from '../functions/retryWhenBusy';
 
 handle('readAllSailors', () => {
@@ -173,7 +174,7 @@ interface ImportRow {
   eventId?: number | string;
 }
 
-handle('importSailors', (_event, rows: ImportRow[]) => {
+handle('importSailors', (_event, rows: ImportRow[]): ImportSailorsSummary => {
   let created = 0; // new boats added to DB
   let associated = 0; // existing boats newly added to this event
   let alreadyInEvent = 0; // boats that were already in this event

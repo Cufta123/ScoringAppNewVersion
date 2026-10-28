@@ -32,21 +32,14 @@ import type {
   TieBreakResult,
 } from '../types';
 import type { HistoryAction } from '../../shared/history/describe';
+import type { ImportSailorsSummary } from '../../shared/importSailors';
 
 /**
- * Result of a bulk sailor import. The success path (handler) reports
- * created/associated/alreadyInEvent/invalid counts; the preload's error
- * fallback reports imported/skipped. All fields are therefore optional.
+ * Result of a bulk sailor import (shared/importSailors). Every field is
+ * optional here: the preload's error fallback reports only imported, skipped
+ * and errors.
  */
-export interface ImportSailorsResult {
-  imported?: number;
-  skipped?: number;
-  created?: number;
-  associated?: number;
-  alreadyInEvent?: number;
-  invalid?: number;
-  errors?: string[];
-}
+export type ImportSailorsResult = Partial<ImportSailorsSummary>;
 
 export interface SailorDB {
   readAllSailors(): Promise<SailorWithDetails[]>;

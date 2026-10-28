@@ -7,17 +7,16 @@
  * makes each message checkable without driving the heats screen.
  */
 
-export interface FinalSeriesEligibility {
-  ok?: boolean;
-  reason?: string;
-  raceCountBreakdown?: Array<{ name: string; count: number }>;
-  numFinalHeats?: number;
-  completedQualifyingRaces?: number;
-  rule43Applies?: boolean;
-  noRacesCompleted?: boolean;
-  latestRoundUnsailed?: boolean;
-  latestRoundNumber?: number | null;
-}
+import type { FinalSeriesEligibility as SharedFinalSeriesEligibility } from '../../shared/finalSeriesEligibility';
+
+/**
+ * The verdict as the renderer reads it. The fields are the main process's
+ * (shared/finalSeriesEligibility); here they are all optional and `reason`
+ * may be any text, so an unfamiliar verdict still gets an actionable prompt.
+ */
+export type FinalSeriesEligibility = Partial<
+  Omit<SharedFinalSeriesEligibility, 'reason'>
+> & { reason?: string };
 
 export function finalSeriesBlockedMessage(
   eligibility: FinalSeriesEligibility,
