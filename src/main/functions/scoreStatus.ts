@@ -13,6 +13,7 @@ import {
   promotesBoatsBehind,
 } from '../../shared/scoringPenalty';
 import { compareNationalSail } from '../../shared/sailOrder';
+import { getHeatGroupFromName } from '../../shared/heatNames';
 import {
   deriveNonFinisherPoints,
   isNonScoringPenalty,
@@ -164,13 +165,13 @@ export function compareSeededRows(left: SeededRow, right: SeededRow): number {
 }
 
 export function getHeatBaseFromName(heat_name: string): string {
-  const match = heat_name.match(/Heat\s+([A-Z]+)/);
-  if (!match) {
+  const group = getHeatGroupFromName(heat_name);
+  if (group === null) {
     throw new Error(
       `The heat name "${heat_name}" is not in the expected form (for example "Heat A1").`,
     );
   }
-  return match[1];
+  return group;
 }
 
 // Shared with the renderer (unassigned-entry notice); see shared/heatNames.

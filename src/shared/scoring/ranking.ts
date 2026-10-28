@@ -3,6 +3,9 @@
  * scoring. Pure: no database, no UI.
  */
 
+/** A boat's id: the database's integer, or a string where a caller keys by text. */
+export type BoatKey = string | number;
+
 /**
  * Lexicographic comparison of two point arrays (RRS A8.1 / A8.2 style).
  * Missing entries compare as worst possible score.
@@ -28,7 +31,7 @@ export function compareScoreArrays(
  * while the scores differ somewhere; boats with identical scores remain tied
  * and share the place, rather than being split by an internal id.
  */
-export function findUnbrokenTies<T extends { boat_id: any }>(
+export function findUnbrokenTies<T extends { boat_id: BoatKey }>(
   order: T[],
   compare: (left: T, right: T) => number,
 ): Set<string> {
@@ -46,7 +49,7 @@ export function findUnbrokenTies<T extends { boat_id: any }>(
  * above (same total, in `tiedWithAbove`) the same place: 1, 2, 2, 4.
  */
 export function assignPlaces(
-  table: { boat_id: any; totalPoints: number; place?: number }[],
+  table: { boat_id: BoatKey; totalPoints: number; place?: number }[],
   tiedWithAbove: Set<string>,
 ): void {
   table.forEach((boat, index) => {

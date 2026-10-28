@@ -305,7 +305,10 @@ handle('readBoatsByHeat', async (event, heat_id) => {
         cat.category_name
       FROM Heat_Boat hb
       JOIN Boats b ON hb.boat_id = b.boat_id
-      JOIN Sailors s ON b.sailor_id = s.sailor_id
+      -- LEFT: Boats.sailor_id is nullable. A boat with no (or a missing)
+      -- sailor is still in the heat and still scored, so it must still be
+      -- listed; an inner join made it vanish from the screen.
+      LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id
       LEFT JOIN Categories cat ON s.category_id = cat.category_id
       WHERE hb.heat_id = ?
     `,

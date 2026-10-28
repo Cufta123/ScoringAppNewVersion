@@ -7,6 +7,7 @@ import { DiscardConfig, getExcludeCountForConfig } from '../discardProfile';
 import { fleetRank } from '../fleetNames';
 import { capExcludeCountForBoat, getKeptScores } from './discards';
 import {
+  BoatKey,
   compareScoreArrays,
   findUnbrokenTies,
   resolveTiesSequentially,
@@ -144,10 +145,9 @@ export function compareOverallTiePackets(
 }
 
 /** SHRS 5.7(ii)(3): resolve the higher place of a tie group first. */
-export function resolveOverallTieGroupSequentially<T extends { boat_id: any }>(
-  rows: T[],
-  getTiePacket: (boatId: any) => OverallTiePacket,
-): T[] {
+export function resolveOverallTieGroupSequentially<
+  T extends { boat_id: BoatKey },
+>(rows: T[], getTiePacket: (boatId: T['boat_id']) => OverallTiePacket): T[] {
   return resolveTiesSequentially(rows, (left, right) =>
     compareOverallTiePackets(
       getTiePacket(left.boat_id),
@@ -157,7 +157,7 @@ export function resolveOverallTieGroupSequentially<T extends { boat_id: any }>(
 }
 
 export interface OverallRow {
-  boat_id: any;
+  boat_id: BoatKey;
   placement_group: string;
   /** Qualifying + final, already normalised with roundPoints. */
   overall_points: number;
@@ -171,7 +171,7 @@ export interface OverallRow {
  */
 export function rankOverallStandings<T extends OverallRow>(
   rows: T[],
-  getTiePacket: (boatId: any) => OverallTiePacket,
+  getTiePacket: (boatId: T['boat_id']) => OverallTiePacket,
 ): (T & { overall_rank: number })[] {
   const sorted = [...rows].sort(
     (left, right) =>

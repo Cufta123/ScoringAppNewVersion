@@ -1,4 +1,8 @@
 import { compareNationalSail } from '../../shared/sailOrder';
+import {
+  getHeatGroupFromName,
+  getHeatRoundFromName,
+} from '../../shared/heatNames';
 
 /**
  * SHRS 3 seeding order without a seeding list: national letters alphabetically,
@@ -84,10 +88,9 @@ function buildLatestHeatMapByBase(
 ): Record<string, { suffix: number; heat: HeatRef | null }> {
   return heats.reduce(
     (acc: Record<string, { suffix: number; heat: HeatRef | null }>, heat) => {
-      const match = heat.heat_name.match(/Heat ([A-Z]+)(\d*)/);
-      if (match) {
-        const [, base, suffix] = match;
-        const numericSuffix = suffix ? parseInt(suffix, 10) : 0;
+      const base = getHeatGroupFromName(heat.heat_name);
+      const numericSuffix = getHeatRoundFromName(heat.heat_name);
+      if (base !== null && numericSuffix !== null) {
         acc[base] = acc[base] || { suffix: -1, heat: null };
         if (numericSuffix >= acc[base].suffix) {
           acc[base] = { suffix: numericSuffix, heat };

@@ -15,6 +15,7 @@ import { sumPoints } from '../points';
 import { capExcludeCountForBoat, getKeptScores } from './discards';
 import {
   assignPlaces,
+  BoatKey,
   compareScoreArrays,
   findUnbrokenTies,
   resolveTiesSequentially,
@@ -29,12 +30,12 @@ export interface RaceScore {
   status?: string;
 }
 
-export interface SeriesBoat<Id = string> {
+export interface SeriesBoat<Id extends BoatKey = string> {
   boat_id: Id;
   scores: RaceScore[];
 }
 
-export interface RankedBoat<Id = string> {
+export interface RankedBoat<Id extends BoatKey = string> {
   boat_id: Id;
   totalPoints: number;
   place: number;
@@ -73,7 +74,7 @@ export function scoreBoatSeries(
  * cannot separate two boats. Boats with equal totals keep their input order
  * until the tie-break orders them.
  */
-function rankByTotal<T extends { boat_id: unknown; totalPoints: number }>(
+function rankByTotal<T extends { boat_id: BoatKey; totalPoints: number }>(
   boats: T[],
   compare: (left: T, right: T) => number,
 ): Array<T & { place: number }> {
@@ -98,7 +99,7 @@ function rankByTotal<T extends { boat_id: unknown; totalPoints: number }>(
 }
 
 /** What the qualifying tie-break needs to know about one boat. */
-export interface QualifyingTieBoat<Id = string> {
+export interface QualifyingTieBoat<Id extends BoatKey = string> {
   boat_id: Id;
   /** Scores kept after discards, best first. */
   keptAscending: number[];
@@ -155,7 +156,7 @@ export function sharedRaceScores(a: RaceScore[], b: RaceScore[]) {
  * 0 means still tied: the boats share the place (SHRS 5.7(ii)(4)), and no
  * order is invented from an internal id.
  */
-export function compareQualifyingTie<Id>(
+export function compareQualifyingTie<Id extends BoatKey>(
   a: QualifyingTieBoat<Id>,
   b: QualifyingTieBoat<Id>,
   singleHeatEvent: boolean,
@@ -190,7 +191,7 @@ const mostRaces = (boats: Array<{ scores: RaceScore[] }>) =>
   boats.reduce((max, boat) => Math.max(max, boat.scores.length), 0);
 
 /** Places in a qualifying series (SHRS 5.4, 5.7; RRS A8). */
-export function rankQualifyingSeries<Id>(
+export function rankQualifyingSeries<Id extends BoatKey>(
   boats: SeriesBoat<Id>[],
   { discardConfig, seriesRaceCount = mostRaces(boats) }: SeriesOptions,
 ): RankedBoat<Id>[] {
@@ -218,7 +219,9 @@ export function rankQualifyingSeries<Id>(
   ).map(({ boat_id, totalPoints, place }) => ({ boat_id, totalPoints, place }));
 }
 
-export interface FinalSeriesBoat<Id = string> extends SeriesBoat<Id> {
+export interface FinalSeriesBoat<
+  Id extends BoatKey = string,
+> extends SeriesBoat<Id> {
   /** "Gold", "Silver", … — each fleet is scored on its own (SHRS 5.1). */
   fleet: string;
 }
@@ -228,7 +231,7 @@ export interface FinalSeriesBoat<Id = string> extends SeriesBoat<Id> {
  * count is fleet-wide — fleets may sail different numbers of races (4.5) —
  * and the tie-break is A8.1 on ALL scores, excluded ones included, then A8.2.
  */
-export function rankFinalSeries<Id>(
+export function rankFinalSeries<Id extends BoatKey>(
   boats: FinalSeriesBoat<Id>[],
   { discardConfig }: Pick<SeriesOptions, 'discardConfig'>,
 ): Map<string, RankedBoat<Id>[]> {

@@ -3,6 +3,7 @@ import handle from './handle';
 import { findLatestHeatsBySuffix } from '../functions/creatingNewHeatsUtls';
 import { getEventDiscardConfig } from '../functions/discardConfig';
 import { fleetNameForIndex } from '../../shared/fleetNames';
+import { countQualifyingGroups } from '../../shared/heatNames';
 import refreshStandings from '../functions/standings';
 import { getRaceCountForHeat } from '../functions/heatQueries';
 import { getEventHeatOverflowPolicy } from '../functions/eventSettings';
@@ -43,18 +44,9 @@ handle(
       (heat) => heat.heat_type === 'Qualifying',
     );
 
-    const uniqueGroups = new Set(
-      qualifyingHeats
-        .map((heat) => {
-          // Match the full base letters ("Heat AA1" -> "AA"), consistent with
-          // getFinalSeriesEligibility / buildLatestHeatMapByBase elsewhere.
-          // A single-letter match would collapse multi-letter bases together.
-          const m = heat.heat_name.match(/Heat ([A-Z]+)/);
-          return m ? m[1] : null;
-        })
-        .filter(Boolean),
-    );
-    const numFinalHeats = uniqueGroups.size;
+    // Full base letters ("Heat AA1" -> "AA"): a single-letter match would
+    // collapse multi-letter bases together.
+    const numFinalHeats = countQualifyingGroups(qualifyingHeats);
 
     if (numFinalHeats < 2) {
       throw new Error(
