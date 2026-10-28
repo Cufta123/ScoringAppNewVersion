@@ -4,8 +4,6 @@ import {
   assignBoatsToInitialHeatsSerpentine,
   checkRaceCountForLatestHeats,
   compareByCountryThenSail,
-  generateNextHeatNames,
-  getNextHeatIndexByMovementTable,
 } from '../functions/creatingNewHeatsUtls';
 import { clearAssignmentSnapshotsForHeat } from '../functions/raceAssignmentSnapshot';
 import {
@@ -13,10 +11,7 @@ import {
   getRaceCountForHeat,
   requireHeat,
 } from '../functions/heatQueries';
-import {
-  getHeatBaseFromName,
-  getHeatRoundFromName,
-} from '../functions/scoreStatus';
+import { getHeatRoundFromName } from '../functions/scoreStatus';
 import {
   SHRS_MAX_BOATS_PER_HEAT,
   getEventQualifyingAssignmentMode,
@@ -32,6 +27,9 @@ import {
   findIndistinguishableBoats,
 } from '../../shared/boatKeys';
 import prepareHeatWriters from '../functions/heatWriters';
+import planNextRound, {
+  type PreAssignedBoat,
+} from '../functions/nextRoundPlan';
 
 handle('readAllHeats', async (event, event_id) => {
   const heats = db
@@ -322,133 +320,62 @@ handle('createNewHeatsBasedOnLeaderboard', async (event, event_id) => {
   checkRaceCountForLatestHeats(latestHeats, db);
   const raceRows = getLatestRaceRowsForHeats(latestHeats);
 
-  const sortedLatestHeats = [...latestHeats].sort((left, right) =>
-    getHeatBaseFromName(left.heat_name).localeCompare(
-      getHeatBaseFromName(right.heat_name),
-    ),
-  );
-  const heatIndexById = new Map<number, number>();
-  sortedLatestHeats.forEach((heat, index) => {
-    heatIndexById.set(heat.heat_id, index);
-  });
-
-  const raceByHeatId = new Map<
-    number,
-    { race_id: number; race_number: number }
-  >();
-  raceRows.forEach((row) => {
-    raceByHeatId.set(row.heat_id, {
-      race_id: row.race_id,
-      race_number: row.race_number,
-    });
-  });
-
-  // Define the new race number
-  const heatNameMatch = sortedLatestHeats[0].heat_name.match(/(\d+)$/);
-  const lastRaceNumber = heatNameMatch ? parseInt(heatNameMatch[1], 10) : 0;
-  const raceNumber = lastRaceNumber + 1;
-  // Generate names for the next round of heats
-  const nextHeatNames = generateNextHeatNames(sortedLatestHeats);
-
-  // Compute boat assignments (index-based) from current results first — these
-  // are all reads, so the heat + assignment writes below can run as a single
-  // atomic transaction.
-  const assignmentMode = getEventQualifyingAssignmentMode(event_id);
-  const assignments: { heatId: number; boatId: string }[] = [];
-  if (assignmentMode === 'pre-assigned') {
+  // All reads first, then plan, then one transaction of writes.
+  const mode = getEventQualifyingAssignmentMode(event_id);
+  const boatsByHeatId = new Map<number, PreAssignedBoat[]>();
+  const rankedBoatIdsByHeatId = new Map<number, number[]>();
+  if (mode === 'pre-assigned') {
     const boatsInHeatQuery = db.prepare(
       `SELECT hb.boat_id, b.country, b.sail_number
        FROM Heat_Boat hb
        JOIN Boats b ON b.boat_id = hb.boat_id
        WHERE hb.heat_id = ?`,
     );
-    sortedLatestHeats.forEach((heat) => {
-      const sourceIndex = heatIndexById.get(heat.heat_id);
-      if (sourceIndex === undefined) {
-        return;
-      }
-
-      const boatsInHeat = boatsInHeatQuery.all(heat.heat_id) as {
-        boat_id: string;
-        country: string | null;
-        sail_number: string | number | null;
-      }[];
-
-      // Sort in JS with the shared SHRS 3 comparator (numeric-aware sail
-      // numbers) so redistribution seeds boats in the same order as initial
-      // heat creation — SQL ORDER BY sorts "10" before "9".
-      boatsInHeat.sort(
-        (left, right) =>
-          compareByCountryThenSail(left, right) ||
-          String(left.boat_id).localeCompare(String(right.boat_id)),
+    latestHeats.forEach((heat) => {
+      boatsByHeatId.set(
+        heat.heat_id,
+        boatsInHeatQuery.all(heat.heat_id) as PreAssignedBoat[],
       );
-
-      boatsInHeat.forEach((boat) => {
-        assignments.push({ heatId: sourceIndex, boatId: boat.boat_id });
-      });
     });
   } else {
-    sortedLatestHeats.forEach((heat) => {
-      const sourceIndex = heatIndexById.get(heat.heat_id);
-      const raceForHeat = raceByHeatId.get(heat.heat_id);
-      if (sourceIndex === undefined || !raceForHeat) {
-        return;
-      }
-
-      const rankedBoats = getAssignmentRowsForHeatRace(
-        heat.heat_id,
-        raceForHeat.race_id,
+    raceRows.forEach((row) => {
+      rankedBoatIdsByHeatId.set(
+        row.heat_id,
+        getAssignmentRowsForHeatRace(row.heat_id, row.race_id).map(
+          (boat) => boat.boat_id,
+        ),
       );
-      rankedBoats.forEach((boat, rankIndex) => {
-        const targetHeatIndex = getNextHeatIndexByMovementTable(
-          sourceIndex,
-          rankIndex + 1,
-          sortedLatestHeats.length,
-        );
-        assignments.push({ heatId: targetHeatIndex, boatId: boat.boat_id });
-      });
     });
   }
-  // No silent fallback. Reaching here means the movement table (or the
-  // pre-assigned carry-forward) found nothing to redistribute, which is a data
-  // fault: the previous round's heats are empty, or its results never reached
-  // Scores. Re-seeding from scratch would discard the finishing positions
-  // SHRS 3.1(2) requires the assignment to be based on, and would silently
-  // reshuffle the fleet into a draw nobody sailed for. Fail loudly so the race
-  // office repairs the round instead.
-  if (assignments.length === 0) {
-    const heatList = sortedLatestHeats.map((heat) => heat.heat_name).join(', ');
-    const cause =
-      assignmentMode === 'pre-assigned'
-        ? 'Those heats have no boats assigned to them.'
-        : 'Those heats have no recorded results to move boats from.';
-    throw new Error(
-      `Cannot build round ${raceNumber}: no boats could be assigned from ${heatList}. ${cause} Check that the previous round is fully scored before redistributing.`,
-    );
+
+  const plan = planNextRound({
+    latestHeats,
+    mode,
+    boatsByHeatId,
+    rankedBoatIdsByHeatId,
+  });
+  if (!plan.ok) {
+    throw new Error(plan.refusal);
   }
 
   // Persist the new heats and their boat assignments atomically so a failure
   // can never leave half-created heats behind.
-  const heatIds: any[] = [];
   const { insertHeatStmt, insertHeatBoatStmt } = prepareHeatWriters();
   const persistNewHeats = db.transaction(() => {
-    nextHeatNames.forEach((heatName) => {
-      const { lastInsertRowid: newHeatId } = insertHeatStmt.run(
-        event_id,
-        heatName,
-        'Qualifying',
-      );
-      heatIds.push(newHeatId);
-    });
-    assignments.forEach(({ heatId, boatId }) => {
-      insertHeatBoatStmt.run(heatIds[heatId], boatId);
+    const heatIds = plan.heatNames.map((heatName) =>
+      Number(
+        insertHeatStmt.run(event_id, heatName, 'Qualifying').lastInsertRowid,
+      ),
+    );
+    plan.assignments.forEach(({ heatIndex, boatId }) => {
+      insertHeatBoatStmt.run(heatIds[heatIndex], boatId);
     });
   });
   persistNewHeats();
 
   const advisory = getOddEvenMovementAdvisory(
-    sortedLatestHeats.length,
-    assignments.length,
+    plan.heatCount,
+    plan.assignments.length,
   );
 
   return advisory ? { success: true, advisory } : { success: true };

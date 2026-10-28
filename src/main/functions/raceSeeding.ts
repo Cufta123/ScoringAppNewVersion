@@ -47,7 +47,7 @@ export function getRankedBoatsInHeatForRace(heat_id: number, race_id: number) {
   );
 
   const rows: {
-    boat_id: string;
+    boat_id: number;
     position: number | null;
     status: string;
     country: string | null;
@@ -56,7 +56,7 @@ export function getRankedBoatsInHeatForRace(heat_id: number, race_id: number) {
     .all(race_id, heat_id)
     .map(
       (row: {
-        boat_id: string;
+        boat_id: number;
         position: number | null;
         status: string | null;
         country: string | null;
