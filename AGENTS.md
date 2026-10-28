@@ -245,8 +245,7 @@ Shared (renderer + main) — one definition per rule, imported by both processes
 - `subgroups.ts`.
 - `scoringPenalty.ts` — RRS 44.3(c)/T1 points (20% / 30% of the DNF score, to
   the nearest tenth as in RRS 2025–2028, capped at the DNF score),
-  `scoringPenaltyStatuses`, and
-  `mandatoryDisplaceStatuses` (the RRS A6.1 promotion trigger).
+  and `scoringPenaltyStatuses`.
 - `discardProfile.ts` — SHRS 5.4 profile parsing + exclusion count.
 - `fleetNames.ts` — SHRS 4.1 fleet naming and 5.5 precedence (`fleetRank`
   orders "Fleet 5"+ too, not just Gold/Silver/Bronze/Copper).
@@ -255,13 +254,24 @@ Shared (renderer + main) — one definition per rule, imported by both processes
 - `raceTieScoring.ts` — the RRS A7 place walk: tied boats share the averaged
   points of the places they occupy, position-keeping penalties consume a slot
   without being re-scored.
-- `raceColumnEdit.ts` — what one result edit does to a whole race: the RRS A6.1
-  promotion, the optional manual ripple, and the A7 re-average. The main
-  process (`applyRaceResultUpdate`) and the renderer's edit preview
-  (`handleRaceChange`) BOTH call this, so the preview cannot disagree with what
-  Save persists. Each used to implement it separately — SQL on one side, array
-  arithmetic on the other, kept aligned by hand and by comment. Do not
-  reintroduce a local copy.
+- `raceColumnEdit.ts` — what one result correction does to a whole race. A
+  correction gives the race the result it would have had if the corrected
+  finish had been entered on the scoring screen: a new place MOVES the boat
+  (the boats in between make room; two moves swap two boats); a code with no
+  finishing place (DNF, OCS, BFD, UFD, DSQ, RET, …) on a boat that had one
+  moves every boat behind her up (RRS A6.1, and the same for every other
+  no-place code); a place for a boat that had none pushes the boats from that
+  place down; RDG/DPI change no other boat (A6.2, A10); ZFP/SCP/T1 keep the
+  place. `scoreRaceColumn` scores a column from places and codes (A7 averages,
+  44.3(c), SHRS 5.2) and never compacts a gap. There is no "Shift other boats"
+  toggle any more and no duplicate-place dialog: off, the toggle left
+  duplicates/gaps, BFD/OCS left the boats behind a place too low, and Save
+  replayed edits in a different order from the screen, so the saved race
+  could differ from the one shown. The leaderboard's Save now sends every
+  touched race WHOLE (`{ raceId, cells }`) and the main process stores it via
+  `applyRaceColumnState`, re-scoring it with `scoreRaceColumn`: what is shown
+  is what is saved. The preview (`handleRaceChange`) and the main process both
+  call this module; do not reintroduce a local copy.
 
 When extending the handler, keep this pattern: pure logic goes in a
 `functions/` module (so it is unit-testable), the handler only wires IPC.
@@ -348,9 +358,9 @@ Scoring (`calculateBoatScores.ts`, `scoreStatus.ts`)
 
 - RRS A4 — Low Point: finishing place = points (1st⇒1, …).
 - RRS A6.1 — A boat disqualified or retiring **after finishing** is removed from
-  the finishing order and every boat behind her **moves up one place**. This is
-  mandatory, so it is NOT gated on the leaderboard's "Shift other boats" toggle
-  (`mandatoryDisplaceStatuses`; mirrored in the renderer's edit preview).
+  the finishing order and every boat behind her **moves up one place**. A
+  correction to any other code with no finishing place does the same (see
+  `raceColumnEdit.ts`).
 - RRS A7 — **Race ties**: tied places share the summed points equally. Enterable
   from the scoring screen via the per-row tie ("=") control, which submits a
   shared place for `applyRaceTieScoring` to average.
@@ -573,6 +583,16 @@ For most feature/fix requests, do this in order:
   plain sum of tenth-point RDG scores carries float noise, equal totals stop
   comparing equal, and the SHRS 5.7 tie-break is skipped.
 
+- **Independent oracle tests** (`scoringOracle.integration.test.ts`,
+  `leaderboardEdit.wysiwyg.integration.test.jsx`, rules in
+  `fixtures/scoringOracle.ts`) score random events from the rule text alone,
+  sharing no scoring code with the app, and compare after every round: race
+  points (A4/A7, 44.3(c) to the tenth, SHRS 5.2), discards (5.4), places and
+  two-boat ties (5.7), race-1 seeding and the Heat Movement Tables (3.1, mixed
+  nations), undo/re-score, the fleet split (4.1/4.2/4.3), final scoring per
+  fleet and the overall (5.5); and that a leaderboard correction saves exactly
+  what was shown and equals entering the corrected finish. `ORACLE_SEEDS` /
+  `EDIT_SEEDS` raise the number of random events (default 40 / 30).
 - **Outdoor readability is a requirement**: the app is used by race officers
   (often 60+) on cheap laptops in sunshine. Root font is 17px; secondary text
   and borders are dark tokens (`--text-secondary`, `--border-strong`); toasts

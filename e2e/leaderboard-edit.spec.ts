@@ -186,10 +186,9 @@ test('numeric and penalty edits persist through Save and recompute', async () =>
   await openLeaderboard();
   await window.getByRole('button', { name: 'Edit Results' }).click();
 
-  // Numeric edit on Bob's Race 3. "Shift other boats" is OFF (the default),
-  // so this is a pure manual override: only Bob changes. A place past the
-  // last boat is refused, not corrected: 9 in a 4-boat race stays in red with
-  // the allowed range, changes nothing, and blocks Save until fixed.
+  // Numeric edit on Bob's Race 3. A place past the last boat is refused,
+  // not corrected: 9 in a 4-boat race stays in red with the allowed range,
+  // changes nothing, and blocks Save until fixed.
   const bobR3 = window
     .getByRole('row', { name: /Bob/ })
     .getByLabel('Race 3 value');
@@ -202,18 +201,22 @@ test('numeric and penalty edits persist through Save and recompute', async () =>
   ).toHaveText('1–4');
   await expect(netCell(/Bob/)).toHaveText('6');
 
-  // Fixed to last place (4): Bob's net updates to 2 + 2 + 4 = 8. Cara and Dan
-  // are left untouched (Dan keeps his 4, so the race now has two boats on 4 —
-  // a deliberate tie that the user can fix later).
+  // Moved to last place (4): the boats he passes make room — Cara 3rd -> 2nd,
+  // Dan 4th -> 3rd, as if the race had been entered so. Bob 2 + 2 + 4 = 8,
+  // Cara 3 + 3 + 2 = 8, Dan 4 + 4 + 3 = 11.
   await bobR3.fill('4');
   await bobR3.blur();
   await expect(bobR3).toHaveValue('4');
   await expect(bobR3).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(
+    window.getByRole('row', { name: /Cara/ }).getByLabel('Race 3 value'),
+  ).toHaveValue('2');
   await expect(netCell(/Bob/)).toHaveText('8');
+  await expect(netCell(/Dan/)).toHaveText('11');
 
-  // Penalty edit: Cara's Race 1 → DNS. The input disables for a hard penalty.
-  // With shifting off only Cara changes, so her net is 5 + 3 + 3 = 11 (her other
-  // races are not pulled up).
+  // Penalty edit: Cara's Race 1 → DNS. The input disables for a hard penalty,
+  // she scores 4 + 1 = 5, and Dan behind her moves up to 3rd (RRS A6.1).
+  // Cara 5 + 3 + 2 = 10, Dan 3 + 4 + 3 = 10.
   await window
     .getByRole('row', { name: /Cara/ })
     .getByLabel('Race 1 status')
@@ -221,29 +224,16 @@ test('numeric and penalty edits persist through Save and recompute', async () =>
   await expect(
     window.getByRole('row', { name: /Cara/ }).getByLabel('Race 1 value'),
   ).toBeDisabled();
-  await expect(netCell(/Cara/)).toHaveText('11');
+  await expect(netCell(/Cara/)).toHaveText('10');
+  await expect(netCell(/Dan/)).toHaveText('10');
 
-  // Save. The duplicate-place guard flags the deliberate Bob/Dan tie on
-  // place 4; keep the tie ("Save anyway") — RRS A7 point-splitting is the
-  // documented outcome of this manual override.
+  // Save writes what the screen shows: no duplicate place to ask about.
   await window.getByRole('button', { name: 'Save Changes' }).click();
-  await expect(
-    window.getByRole('dialog', { name: /Duplicate finishing place/i }),
-  ).toBeVisible();
-  await window
-    .getByRole('dialog')
-    .getByRole('button', { name: 'Save anyway' })
-    .click();
-
-  // Wait for the recompute + return to read mode.
   await expect(
     window.getByRole('button', { name: 'Edit Results' }),
   ).toBeVisible();
+  await expect(window.getByRole('dialog')).toHaveCount(0);
 
-  // Both edits survived the DB recompute, with no cascade onto other boats:
-  //  - Bob's Race 3 is now last place (4); his net is 2 + 2 + 4 = 8.
-  //  - Cara's Race 1 is DNS (scores 4+1 = 5); her other races are unchanged so
-  //    her net settles at 11.
   await expect(
     window.getByRole('row', { name: /Bob/ }).getByLabel('Race cell: 4'),
   ).toHaveCount(1);
@@ -251,7 +241,8 @@ test('numeric and penalty edits persist through Save and recompute', async () =>
   await expect(
     window.getByRole('row', { name: /Cara/ }).getByLabel('Race cell: DNS'),
   ).toHaveCount(1);
-  await expect(netCell(/Cara/)).toHaveText('11');
+  await expect(netCell(/Cara/)).toHaveText('10');
+  await expect(netCell(/Dan/)).toHaveText('10');
 });
 
 test('leaving the page with unsaved edits is guarded', async () => {

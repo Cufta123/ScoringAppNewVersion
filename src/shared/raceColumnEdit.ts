@@ -1,24 +1,38 @@
-import computeTiePlacements from './raceTieScoring';
 import {
   getScoringPenaltyPoints,
-  promotesBoatsBehind,
   scoringPenaltyStatuses,
 } from './scoringPenalty';
 
 /**
- * What happens to every boat in a race when the scorer changes one boat's
- * result: the mandatory RRS A6.1 promotion, the optional manual place ripple,
- * and the RRS A7 re-average that follows either of them.
+ * What a correction to one boat's result does to her whole race. The main
+ * process (saving) and the leaderboard edit screen (preview) both run this,
+ * so the screen always shows what Save writes.
  *
- * This was implemented twice — as SQL UPDATEs in the main process's
- * applyRaceResultUpdate, and as array arithmetic in useLeaderboard's
- * handleRaceChange so edit mode could preview the result before saving. The
- * two were kept aligned by hand and by comment ("mirror the backend"), which
- * is exactly what lets a preview drift from what actually gets saved.
+ * A correction gives the race the result it would have had if the corrected
+ * finish had been entered on the scoring screen in the first place:
  *
- * It is a pure function over the race's cells so both processes can use it:
- * the main process loads the race, applies this, and writes back what changed;
- * the renderer applies it to the cells it is already holding.
+ *  - A new place MOVES the boat in the finishing order: the boats between her
+ *    old and new place move up or down one to make room (as dragging her in
+ *    the finish list does). Two moves swap two boats.
+ *  - A code with no finishing place (DNF, OCS, BFD, DSQ, RET, …) on a boat
+ *    that held one takes her out of the finishing order and every boat behind
+ *    her moves up one place (RRS A6.1; a boat that did not start or finish
+ *    never had the place either).
+ *  - A finishing place for a boat that had none (a DNF found to have
+ *    finished) puts her into the order and the boats from that place on move
+ *    down one.
+ *  - Redress (RDG) and a discretionary penalty (DPI) change her score only:
+ *    no other boat's score changes (RRS A6.2, A10).
+ *  - ZFP/SCP/T1 keep the finishing place (RRS 44.3(c), T1).
+ *
+ * Places are never silently compacted: a gap left by redress stays a gap.
+ * Boats sharing a place share the points of the places they occupy (RRS A7).
+ *
+ * Earlier this was a "Shift other boats" toggle: off, a new place overrode
+ * one boat and left a duplicate or a gap, and a code such as BFD left the
+ * boats behind her a place too low. Each edit was then replayed on Save in a
+ * different order from the screen, so what was saved could differ from what
+ * was shown.
  */
 
 export interface RaceCell {
@@ -33,121 +47,144 @@ export interface RaceColumnEdit {
   /** The edited boat's place and status before this change. */
   previousPosition: number;
   previousStatus: string;
-  /** The edited boat's new place, points and status. */
+  /** The edited boat's new place (a finishing place, or RDG/DPI points). */
   newPosition: number;
   newPoints: number;
   newStatus: string;
-  /** The scorer's "shift other boats" toggle. */
-  shiftPositions: boolean;
-  /** Boats in the largest heat, for RRS 44.3(c) penalty points. */
+  /** No longer used: a new place always moves the boat (see above). */
+  shiftPositions?: boolean;
+  /** Boats in the largest heat (SHRS 5.2): DNF score = maxBoats + 1. */
   maxBoats: number;
 }
 
-/**
- * RRS A6.2 / A10: redress and discretionary penalties are set by the protest
- * committee and must not change any other boat's score, so an RDG or DPI edit
- * never displaces anyone.
- */
-function keepsProvidedPoints(status: string): boolean {
-  return status.startsWith('RDG') || status === 'DPI';
-}
-
-/** A boat that holds a real slot in the finishing order. */
-function holdsPlace(status: string): boolean {
+/** A boat holding a slot in the finishing order. */
+export function holdsPlace(status: string): boolean {
   return status === 'FINISHED' || scoringPenaltyStatuses.has(status);
 }
 
+/** Redress and DPI: points set by the protest committee. */
+export function keepsProvidedPoints(status: string): boolean {
+  return status.startsWith('RDG') || status === 'DPI';
+}
+
 /**
- * Move a cell to a new place. Position-keeping penalties (ZFP/SCP/T1) score a
- * percentage of the DNF score rather than their place, so their points are
- * recomputed instead of tracking the place.
+ * Score every cell from its place and code: RRS A7 averages for boats sharing
+ * a place, 44.3(c)/T1 points for position-keeping penalties, the DNF score
+ * (largest heat + 1, SHRS 5.2) for every other code. RDG/DPI points are kept.
  */
-function moveTo(cell: RaceCell, position: number, maxBoats: number): RaceCell {
-  return {
-    ...cell,
-    position,
-    points: scoringPenaltyStatuses.has(cell.status)
-      ? getScoringPenaltyPoints(position, maxBoats, cell.status)
-      : position,
-  };
+export function scoreRaceColumn(
+  cells: RaceCell[],
+  maxBoats: number,
+): RaceCell[] {
+  const dnf = maxBoats + 1;
+  const sharing = new Map<number, number>();
+  cells.forEach((cell) => {
+    if (holdsPlace(cell.status)) {
+      sharing.set(cell.position, (sharing.get(cell.position) ?? 0) + 1);
+    }
+  });
+  return cells.map((cell) => {
+    if (keepsProvidedPoints(cell.status)) return { ...cell };
+    if (!holdsPlace(cell.status)) {
+      return { ...cell, position: dnf, points: dnf };
+    }
+    if (scoringPenaltyStatuses.has(cell.status)) {
+      return {
+        ...cell,
+        points: getScoringPenaltyPoints(cell.position, maxBoats, cell.status),
+      };
+    }
+    const n = sharing.get(cell.position) ?? 1;
+    // Places p .. p+n-1, averaged.
+    return { ...cell, points: cell.position + (n - 1) / 2 };
+  });
 }
 
 export default function applyRaceColumnEdit(
   cells: RaceCell[],
   edit: RaceColumnEdit,
 ): RaceCell[] {
-  const {
-    index,
-    previousPosition,
-    previousStatus,
-    newPosition,
-    newPoints,
-    newStatus,
-    shiftPositions,
-    maxBoats,
-  } = edit;
+  const { index, previousPosition, previousStatus, newStatus, maxBoats } = edit;
+  const hadPlace = holdsPlace(previousStatus);
+  const takesPlace = holdsPlace(newStatus);
 
-  let next = cells.map((cell, i) =>
-    i === index
-      ? { position: newPosition, points: newPoints, status: newStatus }
-      : { ...cell },
-  );
+  let next = cells.map((cell) => ({ ...cell }));
 
-  const pcSetPoints = keepsProvidedPoints(newStatus);
-
-  // RULE-M16 / RRS A6.1: "each boat with a worse finishing place shall be
-  // moved up one place" when a boat that finished is disqualified or retires
-  // after finishing. Mandatory, so it is NOT gated on the shift toggle — that
-  // toggle governs only the manual ripple below, which is a data-entry
-  // convenience rather than a rule.
-  const promotesBoats = promotesBoatsBehind(previousStatus, newStatus);
-
-  if (promotesBoats) {
-    next = next.map((cell, i) => {
-      if (i === index || !holdsPlace(cell.status)) return cell;
-      if (cell.position <= previousPosition) return cell;
-      return moveTo(cell, cell.position - 1, maxBoats);
-    });
-  }
-
-  // With "shift other boats" OFF a manual place change is an override: only
-  // the edited boat moves, even if that leaves a tie or a gap. Only a move to
-  // a finishing place ripples — every other status is scored at largest-heat
-  // + 1 (SHRS 5.2) or is PC-set, so it vacates rather than occupies a slot.
-  if (shiftPositions && !pcSetPoints && newStatus === 'FINISHED') {
-    // LB-7: position-keeping penalties (ZFP/SCP/T1) occupy a real place, so
-    // they ripple with the finishers; leaving them behind would let the A7
-    // re-average read a stale place as a shared one.
-    const shiftRange = (
-      lowest: number,
-      highest: number,
-      delta: number,
-    ): void => {
-      next = next.map((cell, i) => {
-        if (i === index || !holdsPlace(cell.status)) return cell;
-        const inRange = cell.position >= lowest && cell.position <= highest;
-        return inRange ? moveTo(cell, cell.position + delta, maxBoats) : cell;
-      });
+  // Same place, another place-keeping code (FINISHED <-> ZFP/SCP/T1): only
+  // her own score changes, and a dead heat she is part of stays.
+  if (
+    hadPlace &&
+    takesPlace &&
+    Math.round(edit.newPosition) === previousPosition
+  ) {
+    next[index] = {
+      position: previousPosition,
+      points: previousPosition,
+      status: newStatus,
     };
+    return scoreRaceColumn(next, maxBoats);
+  }
 
-    if (previousPosition > newPosition) {
-      shiftRange(newPosition, previousPosition - 1, 1);
-    } else if (previousPosition < newPosition) {
-      shiftRange(previousPosition + 1, newPosition, -1);
+  const others = (fn: (cell: RaceCell) => RaceCell) => {
+    next = next.map((cell, i) =>
+      i === index || !holdsPlace(cell.status) ? cell : fn(cell),
+    );
+  };
+
+  // Out of the finishing order: the boats behind move up (RRS A6.1).
+  // Redress and DPI leave everyone else as they were (RRS A6.2, A10).
+  if (hadPlace && !(takesPlace || keepsProvidedPoints(newStatus))) {
+    others((cell) =>
+      cell.position > previousPosition
+        ? { ...cell, position: cell.position - 1 }
+        : cell,
+    );
+  }
+
+  if (takesPlace) {
+    // Moving: first leave the old place, as above.
+    if (hadPlace) {
+      others((cell) =>
+        cell.position > previousPosition
+          ? { ...cell, position: cell.position - 1 }
+          : cell,
+      );
     }
-  }
-
-  // RRS A7: re-average any places that are now shared. Needed after either
-  // kind of change — the mandatory promotion or the manual ripple.
-  if (promotesBoats || (shiftPositions && !pcSetPoints)) {
-    computeTiePlacements(next).forEach((placement) => {
-      next[placement.index] = {
-        ...next[placement.index],
-        position: placement.position,
-        points: placement.points,
-      };
+    // The place she can take: 1 .. one past the last boat.
+    let lastEnd = 0;
+    const sharing = new Map<number, number>();
+    next.forEach((cell, i) => {
+      if (i === index || !holdsPlace(cell.status)) return;
+      sharing.set(cell.position, (sharing.get(cell.position) ?? 0) + 1);
     });
+    sharing.forEach((n, position) => {
+      lastEnd = Math.max(lastEnd, position + n - 1);
+    });
+    let place = Math.min(
+      Math.max(1, Math.round(edit.newPosition)),
+      lastEnd + 1,
+    );
+    // Typed into the middle of a dead heat: she goes in front of it.
+    sharing.forEach((n, position) => {
+      if (place > position && place <= position + n - 1) place = position;
+    });
+    others((cell) =>
+      cell.position >= place ? { ...cell, position: cell.position + 1 } : cell,
+    );
+    next[index] = { position: place, points: place, status: newStatus };
+  } else if (keepsProvidedPoints(newStatus)) {
+    next[index] = {
+      position: edit.newPosition,
+      points: edit.newPoints,
+      status: newStatus,
+    };
+  } else {
+    next[index] = {
+      position: maxBoats + 1,
+      points: maxBoats + 1,
+      status: newStatus,
+    };
   }
 
-  return next;
+  return scoreRaceColumn(next, maxBoats);
 }

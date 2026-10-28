@@ -15,7 +15,6 @@ import {
 } from '../utils/compareUtils';
 import {
   confirmAction,
-  confirmChoice,
   reportError,
   reportInfo,
   reportWarning,
@@ -26,12 +25,6 @@ import {
   scoringPenaltyStatuses,
 } from '../../shared/scoringPenalty';
 import applyRaceColumnEdit from '../../shared/raceColumnEdit';
-import {
-  buildConflictMessage,
-  computeSwapEdits,
-  findPlaceConflicts,
-} from '../utils/placeConflicts';
-import type { UserRaceEdit } from '../utils/placeConflicts';
 import { eventDB, heatRaceDB } from '../api/db';
 import { useEventDataChanged } from '../utils/eventDataChanged';
 import type {
@@ -43,6 +36,19 @@ import type {
   Rdg2PickerState,
 } from '../types';
 
+/**
+ * A result the user changed this session, kept so Save knows which races to
+ * write and RDG averages can follow later edits.
+ */
+interface UserRaceEdit {
+  boatId: number;
+  raceIndex: number;
+  rawPosition: number;
+  status: string;
+  // SHRS 5.6: indices into the edited cell's OWN series race list.
+  rdgSelection?: { seriesIndices: number[] };
+}
+
 interface DiscardProfiles {
   qualifying: string;
   final: string;
@@ -53,18 +59,16 @@ interface MaxHeatSizes {
   final: number;
 }
 
-/** A single race-result change queued by handleSave for the atomic write. */
+/** One touched race, saved whole as the edit screen shows it. */
 interface SaveRaceOperation {
-  raceId?: string;
-  boatId: number;
-  raceIndex?: number;
-  newPosition?: number;
-  entryStatus?: string;
-  /** Shift-other-boats state when THIS edit was made (matches the preview). */
-  shiftPositions?: boolean;
-  /** RDG2: the races whose average was granted, so it stays live. */
-  rdgRaceIds?: number[];
-  missingRaceId?: boolean;
+  raceId: string;
+  cells: {
+    boatId: number;
+    position: number;
+    status: string;
+    /** RDG2: the races whose average was granted, so it stays live. */
+    rdgRaceIds?: number[];
+  }[];
 }
 
 /** Position + scored points + status for one boat in one race column. */
@@ -114,7 +118,6 @@ export default function useLeaderboard(eventId: number) {
   const [overallLeaderboard, setOverallLeaderboard] = useState<
     OverallLeaderboardEntry[]
   >([]);
-  const [shiftPositions, setShiftPositions] = useState(false);
   // Cells holding typed input that cannot be saved (a place outside 1..boats
   // in the race, points of 0 …), keyed `${boatId}-${raceIndex}` → a sentence
   // naming the sail and race. Save refuses while any is listed.
@@ -651,10 +654,6 @@ export default function useLeaderboard(eventId: number) {
     setRdgMeta({});
     setRdg2Picker(null);
     userEditsRef.current.clear();
-    // Start every edit session with "Shift other boats" off (its default).
-    // It's a powerful cascade toggle; if it silently stayed on from a previous
-    // session a single place edit could reshuffle a whole heat unexpectedly.
-    setShiftPositions(false);
     // Editing and comparing don't mix: row clicks (bubbling up from the edit
     // inputs) would toggle compare selection, and the compare panel reads
     // saved backend data that contradicts the on-screen draft.
@@ -1005,7 +1004,6 @@ export default function useLeaderboard(eventId: number) {
       raceIndex,
       rawPosition: newPosition,
       status: newStatus,
-      shift: shiftPositions,
     });
 
     // Rebuild one entry's race arrays + score-derived totals after changing its
@@ -1085,7 +1083,6 @@ export default function useLeaderboard(eventId: number) {
       newPosition,
       newPoints,
       newStatus,
-      shiftPositions,
       maxBoats,
     });
 
@@ -1146,7 +1143,6 @@ export default function useLeaderboard(eventId: number) {
       raceIndex,
       rawPosition: avg,
       status: 'RDG2',
-      shift: false,
       rdgSelection: { seriesIndices },
     });
 
@@ -1216,97 +1212,70 @@ export default function useLeaderboard(eventId: number) {
         ? leaderboard
         : eventLeaderboard;
 
-      // Start from the user's raw edits; a "Switch places" choice merges more.
-      // Keyed by `${boatId}-${raceIndex}` so a swap edit overrides (rather than
-      // duplicates) an existing edit for the same cell.
-      const effectiveEditMap = new Map(userEditsRef.current);
-
-      // If an edit left two boats sharing a finishing place, ask before writing.
-      // Switch places → keep every place unique (the displaced boat takes the
-      // place the other boat was moved from); Save anyway → keep the tie (RRS A7
-      // splits the points); Cancel → write nothing and stay in edit mode.
-      const placeConflicts = findPlaceConflicts(
-        editableLeaderboard,
-        userEditsRef.current,
-        finalSeriesStarted,
-      );
-      if (placeConflicts.length > 0) {
-        const choice = await confirmChoice(
-          buildConflictMessage(placeConflicts),
-          'Duplicate finishing place',
-          {
-            confirmLabel: 'Switch places',
-            extraLabel: 'Save anyway',
-            cancelLabel: 'Cancel',
-            confirmClassName: 'btn-success',
-            extraClassName: 'btn-danger',
-          },
-        );
-        if (choice === 'cancel') return;
-        if (choice === 'confirm') {
-          computeSwapEdits(
-            placeConflicts,
-            editableLeaderboard,
-            userEditsRef.current,
-          ).forEach((swap) => {
-            effectiveEditMap.set(`${swap.boatId}-${swap.raceIndex}`, swap);
-          });
-        }
-        // 'extra' (Save anyway) keeps the tie: leave effectiveEdits unchanged.
-      }
-
-      // Send only the cells that actually changed, with the RAW position chosen;
-      // the backend re-ranks each race after the write. Sending the re-ranked
-      // preview values instead would not converge (see rerankRaceColumn).
-      // Each operation carries the shift-toggle state from when the edit was
-      // made, so the backend replays exactly what the preview showed even if
-      // the toggle was flipped between edits.
-      const updateOperations: SaveRaceOperation[] = [];
-      effectiveEditMap.forEach(
-        ({ boatId, raceIndex, rawPosition, status, shift, rdgSelection }) => {
-          const entry = editableLeaderboard.find((e) => e.boat_id === boatId);
-          if (!entry) return;
-          const originalEntry = originalSource.find(
-            (e) => e.boat_id === boatId,
+      // Save every race the user touched WHOLE, exactly as the screen shows
+      // it. The main process checks it and scores it again from the rules
+      // (applyRaceColumnState), so what is saved is what was shown. Replaying
+      // each edit on its own used to apply them in a different order from the
+      // screen when a cell was edited twice, and could save another result.
+      const touchedRaceIds = new Set<string>();
+      userEditsRef.current.forEach(({ boatId, raceIndex }) => {
+        const entry = editableLeaderboard.find((e) => e.boat_id === boatId);
+        const raceId = entry?.race_ids?.[raceIndex];
+        if (raceId == null) {
+          throw new Error(
+            `Cannot save race updates: missing race ID for boat ${boatId}.`,
           );
-          const origStatus =
-            originalEntry?.race_statuses?.[raceIndex] || 'FINISHED';
-          const origPosition = originalEntry
-            ? parseRaceNum(originalEntry.races[raceIndex])
-            : NaN;
-          // eslint-disable-next-line eqeqeq
-          if (origPosition == rawPosition && origStatus === status) return;
+        }
+        touchedRaceIds.add(String(raceId));
+      });
 
-          const raceId = entry.race_ids?.[raceIndex];
-          if (!raceId) {
-            updateOperations.push({ missingRaceId: true, boatId, raceIndex });
-            return;
-          }
-          updateOperations.push({
-            raceId,
-            boatId,
-            newPosition: rawPosition,
-            entryStatus: status,
-            shiftPositions: shift,
-            ...(status === 'RDG2' && rdgSelection
-              ? {
-                  rdgRaceIds: rdgSelection.seriesIndices
-                    .map((i) => Number(entry.race_ids?.[i]))
-                    .filter((id) => Number.isFinite(id)),
-                }
-              : {}),
-          });
-        },
-      );
+      const cellsOf = (
+        rows: LeaderboardEntry[],
+        raceId: string,
+      ): SaveRaceOperation['cells'] =>
+        rows.flatMap((entry) => {
+          const i = (entry.race_ids || []).findIndex(
+            (id) => String(id) === raceId,
+          );
+          if (i === -1) return [];
+          const status = entry.race_statuses?.[i] || 'FINISHED';
+          const edit = userEditsRef.current.get(`${entry.boat_id}-${i}`);
+          const rdgRaceIds =
+            status === 'RDG2' && edit?.rdgSelection
+              ? edit.rdgSelection.seriesIndices
+                  .map((idx) => Number(entry.race_ids?.[idx]))
+                  .filter((id) => Number.isFinite(id))
+              : undefined;
+          return [
+            {
+              boatId: entry.boat_id,
+              position: parseRaceNum(entry.races[i]),
+              status,
+              ...(rdgRaceIds ? { rdgRaceIds } : {}),
+            },
+          ];
+        });
+      const sameRace = (
+        a: SaveRaceOperation['cells'],
+        b: SaveRaceOperation['cells'],
+      ) =>
+        a.length === b.length &&
+        a.every((cell) => {
+          const other = b.find((o) => o.boatId === cell.boatId);
+          return (
+            other != null &&
+            other.status === cell.status &&
+            other.position === cell.position &&
+            cell.rdgRaceIds == null
+          );
+        });
 
-      const missingRaceIdOperation = updateOperations.find(
-        (operation) => operation.missingRaceId,
-      );
-      if (missingRaceIdOperation) {
-        throw new Error(
-          `Cannot save race updates: missing race ID for boat ${missingRaceIdOperation.boatId}.`,
-        );
-      }
+      const updateOperations: SaveRaceOperation[] = [];
+      touchedRaceIds.forEach((raceId) => {
+        const cells = cellsOf(editableLeaderboard, raceId);
+        if (sameRace(cells, cellsOf(originalSource, raceId))) return;
+        updateOperations.push({ raceId, cells });
+      });
 
       if (updateOperations.length === 0) {
         userEditsRef.current.clear();
@@ -1323,7 +1292,7 @@ export default function useLeaderboard(eventId: number) {
         await heatRaceDB.saveLeaderboardRaceResultsAtomic(
           eventId,
           updateOperations,
-          shiftPositions,
+          false,
           finalSeriesStarted,
         );
 
@@ -1410,7 +1379,6 @@ export default function useLeaderboard(eventId: number) {
     saving,
     editableLeaderboard,
     overallLeaderboard,
-    shiftPositions,
     compareMode,
     selectedBoatIds,
     rdgMeta,
@@ -1424,7 +1392,6 @@ export default function useLeaderboard(eventId: number) {
     sortedGroups,
     compareInfo,
     // Setters
-    setShiftPositions,
     setCompareMode,
     setSelectedBoatIds,
     setRdg2Picker,

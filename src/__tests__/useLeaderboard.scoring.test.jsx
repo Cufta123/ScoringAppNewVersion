@@ -214,17 +214,13 @@ describe('useLeaderboard scoring/edit flow', () => {
     expect(edited.race_points[0]).toBe('1.8');
   });
 
-  it('shifts other boats when changing place with shiftPositions enabled', async () => {
+  it('a new place moves the boat and shifts the others', async () => {
     const { result } = renderHook(() => useLeaderboard(1));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
       await result.current.toggleEditMode();
-    });
-
-    act(() => {
-      result.current.setShiftPositions(true);
     });
 
     act(() => {
@@ -286,9 +282,6 @@ describe('useLeaderboard scoring/edit flow', () => {
 
       await act(async () => {
         await result.current.toggleEditMode();
-      });
-      act(() => {
-        result.current.setShiftPositions(true);
       });
       act(() => {
         result.current.handleRaceChange('b3', 0, 1, 'FINISHED');
@@ -437,7 +430,7 @@ describe('useLeaderboard scoring/edit flow', () => {
   // one place." Mandatory — so the edit preview must promote even with the
   // "Shift other boats" toggle OFF, or the saved result (which the backend
   // promotes regardless) would differ from what the scorer saw.
-  describe('RULE-M16: A6.1 promotion applies with shifting OFF', () => {
+  describe('RULE-M16: RRS A6.1 promotion in the edit preview', () => {
     it('moves boats behind a DSQ up one place without the shift toggle', async () => {
       const { result } = renderHook(() => useLeaderboard(5));
       await waitFor(() => expect(result.current.loading).toBe(false));
@@ -458,7 +451,7 @@ describe('useLeaderboard scoring/edit flow', () => {
       expect(get('b3').races[0]).toBe('2');
     });
 
-    it('still leaves other boats alone for a plain place edit with shifting OFF', async () => {
+    it('a new place moves the boat; the others make room (no duplicate place)', async () => {
       const { result } = renderHook(() => useLeaderboard(5));
       await waitFor(() => expect(result.current.loading).toBe(false));
       await act(async () => {
@@ -472,9 +465,8 @@ describe('useLeaderboard scoring/edit flow', () => {
       const get = (id) => after.find((e) => e.boat_id === id);
 
       expect(get('b1').races[0]).toBe('3');
-      // Manual override: the others keep their places even though that ties b3.
-      expect(get('b2').races[0]).toBe('2');
-      expect(get('b3').races[0]).toBe('3');
+      expect(get('b2').races[0]).toBe('1');
+      expect(get('b3').races[0]).toBe('2');
     });
   });
 
@@ -562,7 +554,7 @@ describe('useLeaderboard scoring/edit flow', () => {
     });
   });
 
-  describe('duplicate finishing-place guard on save', () => {
+  describe('Save sends each touched race whole, as shown', () => {
     const { confirmChoice } = require('../renderer/utils/userFeedback');
 
     const makeFinalRow = (boatId, sailNo, group, position) => ({
@@ -592,136 +584,34 @@ describe('useLeaderboard scoring/edit flow', () => {
       ]);
     });
 
-    const editIntoDuplicate = async (result) => {
+    it("moving b1 onto b2's place swaps them, with no question asked", async () => {
+      const { result } = renderHook(() => useLeaderboard(5));
       await waitFor(() => expect(result.current.loading).toBe(false));
       await waitFor(() => expect(result.current.finalSeriesStarted).toBe(true));
       await act(async () => {
         await result.current.toggleEditMode();
       });
-      // Shift OFF: manually put b1 on place 2, which b2 already holds.
       act(() => {
         result.current.handleRaceChange('b1', 0, 2, 'FINISHED');
       });
-    };
-
-    it('warns with both boats and offers three resolutions', async () => {
-      confirmChoice.mockResolvedValueOnce('extra');
-      const { result } = renderHook(() => useLeaderboard(5));
-      await editIntoDuplicate(result);
-
-      await act(async () => {
-        await result.current.handleSave();
-      });
-
-      expect(confirmChoice).toHaveBeenCalledTimes(1);
-      const [message, title, options] = confirmChoice.mock.calls[0];
-      expect(title).toBe('Duplicate finishing place');
-      expect(message).toContain('Sailor b1');
-      expect(message).toContain('Sailor b2');
-      expect(message).toContain('place 2');
-      // All three buttons are offered.
-      expect(options.confirmLabel).toBe('Switch places');
-      expect(options.extraLabel).toBe('Save anyway');
-      expect(options.cancelLabel).toBe('Cancel');
-    });
-
-    it('keeps the tie (one edit) when the user chooses Save anyway', async () => {
-      confirmChoice.mockResolvedValueOnce('extra');
-      const { result } = renderHook(() => useLeaderboard(5));
-      await editIntoDuplicate(result);
-
-      await act(async () => {
-        await result.current.handleSave();
-      });
-
-      const [, ops] =
-        window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic.mock
-          .calls[0];
-      // Only the edited boat is sent; b1 and b2 stay tied on place 2. The op
-      // carries the shift-toggle state from when the edit was made (OFF).
-      expect(ops).toEqual([
-        {
-          raceId: '201',
-          boatId: 'b1',
-          newPosition: 2,
-          entryStatus: 'FINISHED',
-          shiftPositions: false,
-        },
-      ]);
-    });
-
-    it('swaps places (two edits) when the user chooses Switch places', async () => {
-      confirmChoice.mockResolvedValueOnce('confirm');
-      const { result } = renderHook(() => useLeaderboard(5));
-      await editIntoDuplicate(result);
-
-      await act(async () => {
-        await result.current.handleSave();
-      });
-
-      const [, ops] =
-        window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic.mock
-          .calls[0];
-      // b1 takes place 2; b2 is displaced to b1's vacated place 1. Both are
-      // direct assignments (shift OFF) so the backend must not ripple them.
-      expect(ops).toContainEqual({
-        raceId: '201',
-        boatId: 'b1',
-        newPosition: 2,
-        entryStatus: 'FINISHED',
-        shiftPositions: false,
-      });
-      expect(ops).toContainEqual({
-        raceId: '201',
-        boatId: 'b2',
-        newPosition: 1,
-        entryStatus: 'FINISHED',
-        shiftPositions: false,
-      });
-      expect(ops).toHaveLength(2);
-    });
-
-    it('aborts the save and stays in edit mode when the user cancels', async () => {
-      confirmChoice.mockResolvedValueOnce('cancel');
-      const { result } = renderHook(() => useLeaderboard(5));
-      await editIntoDuplicate(result);
-
-      await act(async () => {
-        await result.current.handleSave();
-      });
-
-      expect(confirmChoice).toHaveBeenCalledTimes(1);
-      // Nothing is written and the user is left editing to fix the clash.
-      expect(
-        window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic,
-      ).not.toHaveBeenCalled();
-      expect(result.current.editMode).toBe(true);
-    });
-
-    it('does not warn when edited places stay unique', async () => {
-      const { result } = renderHook(() => useLeaderboard(5));
-      await waitFor(() => expect(result.current.loading).toBe(false));
-      await waitFor(() => expect(result.current.finalSeriesStarted).toBe(true));
-
-      await act(async () => {
-        await result.current.toggleEditMode();
-      });
-      act(() => {
-        result.current.setShiftPositions(true);
-      });
-      // Shift ON ripples the others, so no two boats end on the same place.
-      act(() => {
-        result.current.handleRaceChange('b3', 0, 1, 'FINISHED');
-      });
-
       await act(async () => {
         await result.current.handleSave();
       });
 
       expect(confirmChoice).not.toHaveBeenCalled();
-      expect(
-        window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic,
-      ).toHaveBeenCalledTimes(1);
+      const [, ops] =
+        window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic.mock
+          .calls[0];
+      expect(ops).toEqual([
+        {
+          raceId: '201',
+          cells: [
+            { boatId: 'b1', position: 2, status: 'FINISHED' },
+            { boatId: 'b2', position: 1, status: 'FINISHED' },
+            { boatId: 'b3', position: 3, status: 'FINISHED' },
+          ],
+        },
+      ]);
     });
   });
 
@@ -742,10 +632,7 @@ describe('useLeaderboard scoring/edit flow', () => {
       await result.current.handleSave();
     });
 
-    // Only the cell the user actually edited is sent; the backend re-ranks the
-    // rest of the column on recompute. (The preview re-ranks for display, but
-    // saving the cascade would not converge under the backend's per-op re-rank.)
-    // Each op carries the shift-toggle state from when that edit was made.
+    // The touched race is sent whole, exactly as the edit screen shows it.
     expect(
       window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic,
     ).toHaveBeenCalledWith(
@@ -753,10 +640,13 @@ describe('useLeaderboard scoring/edit flow', () => {
       [
         {
           raceId: '101',
-          boatId: 'b2',
-          newPosition: 4,
-          entryStatus: 'DSQ',
-          shiftPositions: false,
+          // The whole race as shown: b2 disqualified (3 boats + 1 = 4 when no
+          // heat size is known yet), b3 moved up (RRS A6.1).
+          cells: [
+            { boatId: 'b1', position: 1, status: 'FINISHED' },
+            { boatId: 'b2', position: 4, status: 'DSQ' },
+            { boatId: 'b3', position: 2, status: 'FINISHED' },
+          ],
         },
       ],
       false,
@@ -845,10 +735,6 @@ describe('useLeaderboard scoring/edit flow', () => {
     });
 
     act(() => {
-      result.current.setShiftPositions(true);
-    });
-
-    act(() => {
       result.current.handleRaceChange('b4', 0, 1, 'FINISHED');
     });
 
@@ -899,7 +785,7 @@ describe('useLeaderboard scoring/edit flow', () => {
       expect.any(Error),
     );
 
-    // Retrying the save resends the same single edit.
+    // Retrying the save resends the same race.
     await act(async () => {
       await result.current.handleSave();
     });
@@ -912,10 +798,11 @@ describe('useLeaderboard scoring/edit flow', () => {
     expect(retryOps).toEqual([
       {
         raceId: '101',
-        boatId: 'b2',
-        newPosition: 4,
-        entryStatus: 'DSQ',
-        shiftPositions: false,
+        cells: [
+          { boatId: 'b1', position: 1, status: 'FINISHED' },
+          { boatId: 'b2', position: 4, status: 'DSQ' },
+          { boatId: 'b3', position: 2, status: 'FINISHED' },
+        ],
       },
     ]);
   });
@@ -1084,16 +971,14 @@ describe('useLeaderboard scoring/edit flow', () => {
   // ─── LB-1 / LB-2 / LB-3 / LB-5 / LB-7 / LB-8 regressions ───────────────────
 
   describe('LB-2: ref-based double-submit guard in handleSave', () => {
-    const { confirmChoice } = require('../renderer/utils/userFeedback');
-
     it('starts only one save chain when handleSave is called twice rapidly', async () => {
-      // Hold the confirm dialog open so both clicks land while `saving` state is
-      // still false — only the synchronous ref guard can block the second click.
-      let resolveChoice;
-      confirmChoice.mockImplementationOnce(
+      // Hold the write open so both clicks land while `saving` state is
+      // still false — only the synchronous ref guard can block the second.
+      let finishWrite;
+      window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic.mockImplementationOnce(
         () =>
           new Promise((resolve) => {
-            resolveChoice = resolve;
+            finishWrite = resolve;
           }),
       );
 
@@ -1102,15 +987,18 @@ describe('useLeaderboard scoring/edit flow', () => {
       await act(async () => {
         await result.current.toggleEditMode();
       });
-      // Create a duplicate place (b1 -> 2 collides with b2) so a dialog opens.
       act(() => {
         result.current.handleRaceChange('b1', 0, 2, 'FINISHED');
       });
 
-      const first = result.current.handleSave();
-      const second = result.current.handleSave();
+      let first;
+      let second;
       await act(async () => {
-        resolveChoice('extra');
+        first = result.current.handleSave();
+        second = result.current.handleSave();
+      });
+      await act(async () => {
+        finishWrite({ success: true });
         await Promise.all([first, second]);
       });
 
@@ -1365,7 +1253,7 @@ describe('useLeaderboard scoring/edit flow', () => {
     });
   });
 
-  describe('LB-7: shift-mode cascade moves position-keeping penalties', () => {
+  describe('LB-7: a move carries position-keeping penalties along', () => {
     it('shifts a ZFP boat with the finishers and keeps every place unique', async () => {
       window.electron.sqlite.heatRaceDB.readLeaderboard.mockResolvedValueOnce([
         {
@@ -1431,9 +1319,6 @@ describe('useLeaderboard scoring/edit flow', () => {
       await act(async () => {
         await result.current.toggleEditMode();
       });
-      act(() => {
-        result.current.setShiftPositions(true);
-      });
       // Move b4 (place 4) up to place 1; everyone between must shift down.
       act(() => {
         result.current.handleRaceChange('b4', 0, 1, 'FINISHED');
@@ -1450,104 +1335,6 @@ describe('useLeaderboard scoring/edit flow', () => {
       expect(get('b2').races[0]).toBe('3');
       expect(get('b3').races[0]).toBe('4');
       expect(get('b2').race_statuses[0]).toBe('ZFP');
-    });
-  });
-
-  describe('LB-8: N-boat swap chain in computeSwapEdits', () => {
-    const { confirmChoice } = require('../renderer/utils/userFeedback');
-
-    it('does not collapse multiple displaced boats onto one place', async () => {
-      confirmChoice.mockResolvedValueOnce('confirm');
-      window.electron.sqlite.heatRaceDB.readLeaderboard.mockResolvedValueOnce([
-        {
-          boat_id: 'b1',
-          name: 'Ana',
-          surname: 'A',
-          country: 'CRO',
-          boat_number: '101',
-          boat_type: 'IOM',
-          place: 1,
-          total_points_event: 1,
-          race_positions: '1',
-          race_points: '1',
-          race_ids: '101',
-          race_statuses: 'FINISHED',
-        },
-        {
-          boat_id: 'b2',
-          name: 'Bruno',
-          surname: 'B',
-          country: 'CRO',
-          boat_number: '102',
-          boat_type: 'IOM',
-          place: 2,
-          total_points_event: 2,
-          race_positions: '2',
-          race_points: '2',
-          race_ids: '101',
-          race_statuses: 'FINISHED',
-        },
-        {
-          boat_id: 'b3',
-          name: 'Cedo',
-          surname: 'C',
-          country: 'CRO',
-          boat_number: '103',
-          boat_type: 'IOM',
-          place: 3,
-          total_points_event: 3,
-          race_positions: '3',
-          race_points: '3',
-          race_ids: '101',
-          race_statuses: 'FINISHED',
-        },
-      ]);
-
-      const { result } = renderHook(() => useLeaderboard(1));
-      await waitFor(() => expect(result.current.loading).toBe(false));
-      await act(async () => {
-        await result.current.toggleEditMode();
-      });
-      // Shift OFF: move b1 and b3 both onto place 2 (b2's place) — a 3-way tie.
-      act(() => {
-        result.current.handleRaceChange('b1', 0, 2, 'FINISHED');
-      });
-      act(() => {
-        result.current.handleRaceChange('b3', 0, 2, 'FINISHED');
-      });
-
-      await act(async () => {
-        await result.current.handleSave();
-      });
-
-      const [, ops] =
-        window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic.mock
-          .calls[0];
-      // b1 keeps place 2; b2 is rotated into the vacated place 1. b3 reverts to
-      // its saved place 3, so it is a no-op and must not be sent. Crucially, the
-      // old bug sent b3 to place 1 too — collapsing it onto b2's target.
-      expect(ops).toHaveLength(2);
-      expect(ops).toContainEqual({
-        raceId: '101',
-        boatId: 'b1',
-        newPosition: 2,
-        entryStatus: 'FINISHED',
-        shiftPositions: false,
-      });
-      expect(ops).toContainEqual({
-        raceId: '101',
-        boatId: 'b2',
-        newPosition: 1,
-        entryStatus: 'FINISHED',
-        shiftPositions: false,
-      });
-      expect(ops).not.toContainEqual({
-        raceId: '101',
-        boatId: 'b3',
-        newPosition: 1,
-        entryStatus: 'FINISHED',
-        shiftPositions: false,
-      });
     });
   });
 });

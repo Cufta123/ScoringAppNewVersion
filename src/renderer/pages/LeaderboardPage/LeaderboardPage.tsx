@@ -44,7 +44,6 @@ function LeaderboardContent({
     editMode,
     saving,
     editableLeaderboard,
-    shiftPositions,
     compareMode,
     selectedBoatIds,
     rdgMeta,
@@ -55,7 +54,6 @@ function LeaderboardContent({
     groupedLeaderboard,
     sortedGroups,
     compareInfo,
-    setShiftPositions,
     setCompareMode,
     setSelectedBoatIds,
     setRdg2Picker,
@@ -171,11 +169,9 @@ function LeaderboardContent({
           editMode={editMode}
           saving={saving}
           compareMode={compareMode}
-          shiftPositions={shiftPositions}
           editDisabled={finalSeriesStarted && !hasFinalData}
           onToggleEdit={toggleEditMode}
           onSave={handleSave}
-          onShiftChange={(e) => setShiftPositions(e.target.checked)}
           onToggleCompare={() => {
             setCompareMode((m) => !m);
             setSelectedBoatIds([]);
@@ -187,14 +183,14 @@ function LeaderboardContent({
           <div className="edit-mode-banner" role="status">
             <i className="fa fa-pen-to-square" aria-hidden="true" />
             <div>
-              <strong>Editing results.</strong> Type the finishing place, or
-              pick a code such as DNF or DSQ under it. Nothing is saved until
-              you press <strong>Save Changes</strong>;{' '}
-              <strong>Cancel Editing</strong> throws the edits away.
+              <strong>Editing results.</strong> Type a new place to move the
+              boat there: the other boats in that race move up or down to make
+              room. Pick a code such as DNF or DSQ under it: the boats behind
+              move up one place. Redress (RDG) changes no other boat.
               <br />
-              <strong>Shift other boats</strong> off: only the boat you change
-              moves. On: the other boats in that race move up or down to make
-              room.
+              What you see is what is saved, when you press{' '}
+              <strong>Save Changes</strong>. <strong>Cancel Editing</strong>{' '}
+              throws the edits away.
               {invalidCount > 0 && (
                 <div className="edit-mode-banner-error">
                   {invalidCount === 1

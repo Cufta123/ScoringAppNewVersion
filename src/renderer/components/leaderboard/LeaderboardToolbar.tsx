@@ -117,13 +117,11 @@ interface LeaderboardToolbarProps {
   /** True while a save is in flight — disables the Save button and shows progress. */
   saving?: boolean;
   compareMode: boolean;
-  shiftPositions: boolean;
   /** Disables the edit toggle, e.g. while the final series has no scored
    * races yet (there would be nothing editable on screen). */
   editDisabled?: boolean;
   onToggleEdit: () => void;
   onSave: () => void;
-  onShiftChange: React.ChangeEventHandler<HTMLInputElement>;
   onToggleCompare: () => void;
   onExport: (key: string) => void;
 }
@@ -133,11 +131,9 @@ function LeaderboardToolbar({
   editMode,
   saving = false,
   compareMode,
-  shiftPositions,
   editDisabled = false,
   onToggleEdit,
   onSave,
-  onShiftChange,
   onToggleCompare,
   onExport,
 }: LeaderboardToolbarProps) {
@@ -210,22 +206,6 @@ function LeaderboardToolbar({
               background: 'var(--surface-2, #f8fbff)',
             }}
           >
-            <label
-              className="toggle"
-              htmlFor="shiftPositionsCheckbox"
-              title="On: when a boat's place changes, the other boats in that race shift to keep places contiguous. Off: only the edited boat changes — other boats are left exactly as they are (which may leave a tie or a gap to fix manually)."
-            >
-              <input
-                id="shiftPositionsCheckbox"
-                type="checkbox"
-                checked={shiftPositions}
-                onChange={onShiftChange}
-              />
-              <span className="toggle-track">
-                <span className="toggle-thumb" />
-              </span>
-              Shift other boats
-            </label>
             <button
               type="button"
               onClick={onSave}

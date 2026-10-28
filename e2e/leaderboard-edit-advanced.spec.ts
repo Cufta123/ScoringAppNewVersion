@@ -25,11 +25,10 @@ import {
  *
  * Covers:
  *  - the discard is shown (parenthesised) and excluded from the net;
- *  - with "Shift other boats" off, editing a place to a duplicate leaves the
- *    other boat untouched (a manual tie, no automatic A7 averaging);
+ *  - a new place moves the boat; the boat on that place makes room;
  *  - a position-keeping penalty (ZFP) keeps the finishing place but scores
  *    penalty points, so Total and Net diverge — and it persists on save;
- *  - the "Shift other boats" toggle cascades the surrounding places.
+ *  - a move past several boats shifts each of them one place.
  *
  * Shared event, serial execution. Only the ZFP test (last) persists changes;
  * the others revert via Cancel so the baseline stays intact for their siblings.
@@ -143,44 +142,35 @@ test('the worst race is discarded (parenthesised) and excluded from the net', as
   await expect(netCell(/Alice/)).toHaveText('3');
 });
 
-test('editing a place to a duplicate leaves the other boat untouched', async () => {
+test('a new place moves the boat; the boat on that place makes room', async () => {
   await openLeaderboard();
   await window.getByRole('button', { name: 'Edit Results' }).click();
 
-  // "Shift other boats" is off (the default). Move Bob into Race 1 first place
-  // (where Alice already sits). Only Bob changes — Alice is left exactly as she
-  // is, so this is a manual tie at place 1 with no automatic A7 averaging.
+  // Bob to 1st in Race 1, where Alice sits: Alice moves to 2nd. Never two
+  // boats on one place.
   await window
     .getByRole('row', { name: /Bob/ })
     .getByLabel('Race 1 value')
     .fill('1');
 
-  // Both boats now display place 1 for Race 1; Alice's value is unchanged.
-  await expect(
-    window.getByRole('row', { name: /Alice/ }).getByLabel('Race 1 value'),
-  ).toHaveValue('1');
   await expect(
     window.getByRole('row', { name: /Bob/ }).getByLabel('Race 1 value'),
   ).toHaveValue('1');
+  await expect(
+    window.getByRole('row', { name: /Alice/ }).getByLabel('Race 1 value'),
+  ).toHaveValue('2');
 
-  // Bob normally scores 2,2,2,2 (net 6). His Race 1 is now a face-value 1 (no
-  // averaging), giving 1,2,2,2 → one 2 is discarded → net 1 + 2 + 2 = 5.
+  // Bob 1,2,2,2 → one 2 discarded → 5. Alice 2,1,1,1 → the 2 discarded → 3.
   await expect(netCell(/Bob/)).toHaveText('5');
-  // Alice is untouched: still four 1st places, net 3.
   await expect(netCell(/Alice/)).toHaveText('3');
 
   // Revert — leave the baseline untouched for the next test.
   await cancelEditing();
 });
 
-test('the Shift other boats toggle cascades the surrounding places', async () => {
+test('a move past several boats shifts each of them one place', async () => {
   await openLeaderboard();
   await window.getByRole('button', { name: 'Edit Results' }).click();
-
-  // The real checkbox is visually hidden behind the styled `.toggle-track`
-  // span (inside the label), which intercepts pointer events — so a plain
-  // check() can't reach it. Force the check; the label still toggles the box.
-  await window.getByLabel('Shift other boats').check({ force: true });
 
   // Move Dan to 1st in Race 2; the boats it passes each shift down one place.
   await window
