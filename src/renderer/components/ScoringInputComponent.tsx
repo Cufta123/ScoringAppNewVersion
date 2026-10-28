@@ -17,6 +17,11 @@ import {
   penaltyLabel,
 } from '../constants/penaltyLabels';
 import { heatRaceDB } from '../api/db';
+import {
+  boatsByEntryName,
+  entryKeysFor,
+  normalizeEntryKey,
+} from '../../shared/boatKeys';
 
 export type { ScoredBoat };
 
@@ -172,6 +177,10 @@ function ScoringInputComponent({
     addInputRef.current?.focus();
   }, [heat.heat_id]);
 
+  const heatKeys = React.useMemo(() => entryKeysFor(heat.boats), [heat.boats]);
+  const entryKeyOf = (boat: ScoringBoat): string =>
+    heatKeys.get(String(boat.boat_id)) ?? String(boat.sail_number);
+
   const isValidBoatNumber = (boatNumber: SailNumber): boolean =>
     validBoats
       .map((value) => normalizeBoatNumber(value))
@@ -196,7 +205,8 @@ function ScoringInputComponent({
       try {
         const boats = await heatRaceDB.readBoatsByHeat(heat.heat_id);
         if (!isActive) return;
-        setValidBoats(boats.map((boat) => boat.sail_number));
+        const keys = entryKeysFor(boats);
+        setValidBoats(boats.map((boat) => keys.get(String(boat.boat_id))!));
         setFetchError(null);
       } catch (error) {
         if (!isActive) return;
@@ -253,17 +263,50 @@ function ScoringInputComponent({
   };
 
   const handleAddBoats = () => {
-    const tokens = inputValue
-      .split(/[\s,]+/)
+    // "ITA 12" may be typed with a space, so letters join the number after.
+    const tokens: string[] = [];
+    inputValue
+      .split(/[\s,;]+/)
       .map((token) => token.trim())
-      .filter((token) => token.length > 0);
-    const unique = [...new Set(tokens.map(normalizeBoatNumber))];
-    // Map typed values to the canonical sail number from this heat so that
-    // the rest of the component works with one consistent value per boat.
-    const canonicalBySail = new Map(
-      validBoats.map((value) => [normalizeBoatNumber(value), value]),
+      .filter((token) => token.length > 0)
+      .forEach((token) => {
+        const previous = tokens[tokens.length - 1];
+        if (previous && /^[A-Za-z]{2,3}$/.test(previous) && /^\d/.test(token)) {
+          tokens[tokens.length - 1] = `${previous} ${token}`;
+        } else {
+          tokens.push(token);
+        }
+      });
+    // Every name that identifies a boat of this heat (sail number where it is
+    // unique, national letters + number always) -> her entry key.
+    const byName = boatsByEntryName(
+      heat.boats.map((boat) => ({ ...boat, key: entryKeyOf(boat) })),
     );
-    const invalidInput = unique.filter((n) => !canonicalBySail.has(n));
+    const unique = [...new Set(tokens.map(normalizeEntryKey))];
+    // A number two boats share needs the national letters.
+    const ambiguous = unique.filter(
+      (n) =>
+        !byName.has(n) &&
+        heat.boats.filter((boat) => normalizeEntryKey(boat.sail_number) === n)
+          .length > 1,
+    );
+    if (ambiguous.length > 0) {
+      reportWarning(
+        ambiguous
+          .map(
+            (n) =>
+              `Sail ${n} is in ${heat.heat_name} more than once: type ${heat.boats
+                .filter((boat) => normalizeEntryKey(boat.sail_number) === n)
+                .map(entryKeyOf)
+                .join(' or ')}, or click the boat in the list.`,
+          )
+          .join('\n'),
+        'Which boat?',
+      );
+    }
+    const invalidInput = unique.filter(
+      (n) => !byName.has(n) && !ambiguous.includes(n),
+    );
     if (invalidInput.length > 0) {
       reportWarning(
         `These sail numbers are not in ${heat.heat_name}: ${invalidInput.join(', ')}.\n\n` +
@@ -272,24 +315,27 @@ function ScoringInputComponent({
       );
     }
     const alreadyInOrder = new Set(boatNumbers.map(normalizeBoatNumber));
-    const validCanonical = unique.filter((n) => canonicalBySail.has(n));
-    const newlyAdded = validCanonical.filter((n) => !alreadyInOrder.has(n));
+    const validKeys = [
+      ...new Set(
+        unique.filter((n) => byName.has(n)).map((n) => byName.get(n)!.key),
+      ),
+    ];
+    const newlyAdded = validKeys.filter((key) => !alreadyInOrder.has(key));
     // Every typed number was valid but already scored, and nothing else was
     // added — without this note the input just clears and the action looks
     // like it silently failed.
     if (
       newlyAdded.length === 0 &&
-      validCanonical.length > 0 &&
-      invalidInput.length === 0
+      validKeys.length > 0 &&
+      invalidInput.length === 0 &&
+      ambiguous.length === 0
     ) {
       reportInfo(
-        `Already in the finish order: ${validCanonical
-          .map((n) => canonicalBySail.get(n))
-          .join(', ')}`,
+        `Already in the finish order: ${validKeys.join(', ')}`,
         'No change',
       );
     }
-    addBoatsToList(newlyAdded.map((n) => canonicalBySail.get(n) as SailNumber));
+    addBoatsToList(newlyAdded);
     setInputValue('');
   };
 
@@ -553,16 +599,19 @@ function ScoringInputComponent({
                 </thead>
                 <tbody>
                   {heat.boats.map((boat) => {
-                    const added = boatNumbers.includes(boat.sail_number);
-                    const invalid = isInvalidSail(boat.sail_number);
+                    // The name this boat is entered by: her sail number, or
+                    // "ITA 12" when another boat in the heat is also 12.
+                    const key = entryKeyOf(boat);
+                    const added = boatNumbers.includes(key);
+                    const invalid = isInvalidSail(key);
                     return (
                       <tr
                         key={boat.boat_id}
-                        onClick={() => handleBoatClick(boat.sail_number)}
+                        onClick={() => handleBoatClick(key)}
                         className={`${added ? 'is-added' : ''}${invalid ? ' is-invalid' : ''}`}
                         title={
                           added
-                            ? `Already added at place ${getPlaceDisplay(boat.sail_number)}`
+                            ? `Already added at place ${getPlaceDisplay(key)}`
                             : 'Click to add to finish order'
                         }
                       >
@@ -584,20 +633,17 @@ function ScoringInputComponent({
                         <td
                           className={`scoring-place-cell${added ? ' is-added' : ''}`}
                         >
-                          {getPlaceDisplay(boat.sail_number)}
+                          {getPlaceDisplay(key)}
                         </td>
                         <td>
                           <select
                             className="penalty-select"
-                            value={penalties[boat.sail_number] || ''}
+                            value={penalties[key] || ''}
                             onChange={(e) =>
-                              handlePenaltyChange(
-                                boat.sail_number,
-                                e.target.value,
-                              )
+                              handlePenaltyChange(key, e.target.value)
                             }
                             onClick={(e) => e.stopPropagation()}
-                            aria-label={`Penalty for sail ${boat.sail_number}`}
+                            aria-label={`Penalty for sail ${key}`}
                           >
                             <option value="">None</option>
                             {PENALTY_OPTIONS.map((option) => (
@@ -728,7 +774,7 @@ function ScoringInputComponent({
                   <span className="finish-sail">Sail #{number}</span>
                   {(() => {
                     const boat = heat.boats.find(
-                      (b) => String(b.sail_number) === String(number),
+                      (b) => entryKeyOf(b) === String(number),
                     );
                     const name = boat
                       ? `${boat.name ?? ''} ${boat.surname ?? ''}`.trim()

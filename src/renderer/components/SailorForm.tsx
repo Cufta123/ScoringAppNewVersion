@@ -228,10 +228,16 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
         try {
           await eventDB.associateBoatWithEvent(boat_id, eventId);
         } catch (error) {
-          reportError(
-            'There was an error associating the boat with the event.',
-            error,
-          );
+          const message = error instanceof Error ? error.message : '';
+          const reason = message.match(/Sail .* is already entered[^.]*\./);
+          if (reason) {
+            reportWarning(reason[0], 'Already entered');
+          } else {
+            reportError(
+              'There was an error associating the boat with the event.',
+              error,
+            );
+          }
           return; // Exit the function gracefully
         }
       }

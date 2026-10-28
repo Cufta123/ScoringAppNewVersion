@@ -67,6 +67,59 @@ describe('ScoringInputComponent', () => {
     });
   });
 
+  describe('two nations, one sail number (ITA 12, CRO 12)', () => {
+    const boats = [
+      makeBoat(1, 12, 'Ana', 'Test', 'ITA'),
+      makeBoat(2, 12, 'Ivo', 'Test', 'CRO'),
+      makeBoat(3, 7, 'Eva', 'Test', 'CRO'),
+    ];
+    const renderHeat = (onSubmit = jest.fn()) => {
+      readBoatsByHeat.mockResolvedValueOnce(boats);
+      render(
+        <ScoringInputComponent
+          heat={makeHeat(30, 'Heat A1', boats)}
+          onSubmit={onSubmit}
+        />,
+      );
+      return onSubmit;
+    };
+    const type = (text) => {
+      const input = screen.getByLabelText('Add sail numbers manually');
+      fireEvent.change(input, { target: { value: text } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+    };
+
+    it('the number alone asks which boat and adds none', async () => {
+      renderHeat();
+      await waitFor(() => expect(readBoatsByHeat).toHaveBeenCalled());
+      type('12');
+      expect(reportWarning).toHaveBeenCalledWith(
+        expect.stringMatching(/type ITA 12 or CRO 12/),
+        'Which boat?',
+      );
+      expect(screen.queryByText('Sail #ITA 12')).not.toBeInTheDocument();
+      expect(screen.queryByText('Sail #CRO 12')).not.toBeInTheDocument();
+    });
+
+    it('typed with national letters, or clicked, each boat is scored', async () => {
+      const onSubmit = renderHeat();
+      await waitFor(() => expect(readBoatsByHeat).toHaveBeenCalled());
+      type('cro 12, 7');
+      fireEvent.click(screen.getByText('Ana Test'));
+      expect(screen.getByText('Sail #CRO 12')).toBeInTheDocument();
+      expect(screen.getByText('Sail #ITA 12')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Submit Scores' }));
+      await waitFor(() =>
+        expect(onSubmit).toHaveBeenCalledWith([
+          { boatNumber: 'CRO 12', place: 1, status: 'FINISHED' },
+          { boatNumber: '7', place: 2, status: 'FINISHED' },
+          { boatNumber: 'ITA 12', place: 3, status: 'FINISHED' },
+        ]),
+      );
+    });
+  });
+
   it('adds boat on row click and submits FINISHED place', async () => {
     const boats = [makeBoat(1, 101, 'Ana')];
     readBoatsByHeat.mockResolvedValueOnce(boats);
@@ -86,7 +139,7 @@ describe('ScoringInputComponent', () => {
 
     expect(onSubmit).toHaveBeenCalledWith([
       {
-        boatNumber: 101,
+        boatNumber: '101',
         place: 1,
         status: 'FINISHED',
       },
@@ -132,9 +185,9 @@ describe('ScoringInputComponent', () => {
 
       // Both tie for 1st; the next boat takes 3rd (RRS A7).
       expect(onSubmit).toHaveBeenCalledWith([
-        { boatNumber: 101, place: 1, status: 'FINISHED' },
-        { boatNumber: 102, place: 1, status: 'FINISHED' },
-        { boatNumber: 103, place: 3, status: 'FINISHED' },
+        { boatNumber: '101', place: 1, status: 'FINISHED' },
+        { boatNumber: '102', place: 1, status: 'FINISHED' },
+        { boatNumber: '103', place: 3, status: 'FINISHED' },
       ]);
     });
 
@@ -167,9 +220,9 @@ describe('ScoringInputComponent', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Submit Scores' }));
 
       expect(onSubmit).toHaveBeenCalledWith([
-        { boatNumber: 101, place: 1, status: 'FINISHED' },
-        { boatNumber: 102, place: 2, status: 'FINISHED' },
-        { boatNumber: 103, place: 3, status: 'FINISHED' },
+        { boatNumber: '101', place: 1, status: 'FINISHED' },
+        { boatNumber: '102', place: 2, status: 'FINISHED' },
+        { boatNumber: '103', place: 3, status: 'FINISHED' },
       ]);
     });
 
@@ -196,9 +249,9 @@ describe('ScoringInputComponent', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Submit Scores' }));
 
       expect(onSubmit).toHaveBeenCalledWith([
-        { boatNumber: 101, place: 1, status: 'FINISHED' },
-        { boatNumber: 103, place: 2, status: 'FINISHED' },
-        { boatNumber: 102, place: 3, status: 'DNF' },
+        { boatNumber: '101', place: 1, status: 'FINISHED' },
+        { boatNumber: '103', place: 2, status: 'FINISHED' },
+        { boatNumber: '102', place: 3, status: 'DNF' },
       ]);
     });
 
@@ -220,9 +273,9 @@ describe('ScoringInputComponent', () => {
 
       // 103 must NOT silently rebind to 101: it is now alone in 2nd.
       expect(onSubmit).toHaveBeenCalledWith([
-        { boatNumber: 101, place: 1, status: 'FINISHED' },
-        { boatNumber: 103, place: 2, status: 'FINISHED' },
-        { boatNumber: 102, place: 3, status: 'DNF' },
+        { boatNumber: '101', place: 1, status: 'FINISHED' },
+        { boatNumber: '103', place: 2, status: 'FINISHED' },
+        { boatNumber: '102', place: 3, status: 'DNF' },
       ]);
     });
 
@@ -242,9 +295,9 @@ describe('ScoringInputComponent', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Submit Scores' }));
 
       expect(onSubmit).toHaveBeenCalledWith([
-        { boatNumber: 101, place: 1, status: 'FINISHED' },
-        { boatNumber: 102, place: 1, status: 'ZFP' },
-        { boatNumber: 103, place: 3, status: 'FINISHED' },
+        { boatNumber: '101', place: 1, status: 'FINISHED' },
+        { boatNumber: '102', place: 1, status: 'ZFP' },
+        { boatNumber: '103', place: 3, status: 'FINISHED' },
       ]);
     });
 
@@ -271,9 +324,9 @@ describe('ScoringInputComponent', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Submit Scores' }));
 
       expect(onSubmit).toHaveBeenCalledWith([
-        { boatNumber: 101, place: 1, status: 'FINISHED' },
-        { boatNumber: 102, place: 2, status: 'FINISHED' },
-        { boatNumber: 103, place: 3, status: 'FINISHED' },
+        { boatNumber: '101', place: 1, status: 'FINISHED' },
+        { boatNumber: '102', place: 2, status: 'FINISHED' },
+        { boatNumber: '103', place: 3, status: 'FINISHED' },
       ]);
     });
 
@@ -303,9 +356,9 @@ describe('ScoringInputComponent', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Submit Scores' }));
 
       expect(onSubmit).toHaveBeenCalledWith([
-        { boatNumber: 101, place: 1, status: 'FINISHED' },
-        { boatNumber: 103, place: 2, status: 'FINISHED' },
-        { boatNumber: 102, place: 3, status: 'FINISHED' },
+        { boatNumber: '101', place: 1, status: 'FINISHED' },
+        { boatNumber: '103', place: 2, status: 'FINISHED' },
+        { boatNumber: '102', place: 3, status: 'FINISHED' },
       ]);
     });
   });
@@ -331,7 +384,7 @@ describe('ScoringInputComponent', () => {
 
     expect(onSubmit).toHaveBeenCalledWith([
       {
-        boatNumber: 101,
+        boatNumber: '101',
         place: 1,
         status: 'DNC',
       },
@@ -360,7 +413,7 @@ describe('ScoringInputComponent', () => {
 
     expect(onSubmit).toHaveBeenCalledWith([
       {
-        boatNumber: 101,
+        boatNumber: '101',
         place: 1,
         status: 'ZFP',
       },
@@ -471,12 +524,12 @@ describe('ScoringInputComponent', () => {
 
     expect(onSubmit).toHaveBeenCalledWith([
       {
-        boatNumber: 102,
+        boatNumber: '102',
         place: 1,
         status: 'FINISHED',
       },
       {
-        boatNumber: 101,
+        boatNumber: '101',
         place: 2,
         status: 'FINISHED',
       },
@@ -508,8 +561,8 @@ describe('ScoringInputComponent', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Submit Scores' }));
 
     expect(onSubmit).toHaveBeenCalledWith([
-      { boatNumber: 102, place: 1, status: 'FINISHED' },
-      { boatNumber: 101, place: 2, status: 'FINISHED' },
+      { boatNumber: '102', place: 1, status: 'FINISHED' },
+      { boatNumber: '101', place: 2, status: 'FINISHED' },
     ]);
   });
 
@@ -623,22 +676,22 @@ describe('ScoringInputComponent', () => {
 
     expect(onSubmit).toHaveBeenCalledWith([
       {
-        boatNumber: 101,
+        boatNumber: '101',
         place: 1,
         status: 'FINISHED',
       },
       {
-        boatNumber: 103,
+        boatNumber: '103',
         place: 2,
         status: 'DNF',
       },
       {
-        boatNumber: 102,
+        boatNumber: '102',
         place: 3,
         status: 'DNS',
       },
       {
-        boatNumber: 104,
+        boatNumber: '104',
         place: 4,
         status: 'DSQ',
       },
