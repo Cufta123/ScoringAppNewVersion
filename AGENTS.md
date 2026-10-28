@@ -342,6 +342,11 @@ Qualifying assignment (`creatingNewHeatsUtls.ts`)
   assignments (`protestCommitteeStatuses` in `scoreStatus.ts`). An ordinary
   race-office correction may change them, and a boat transfer invalidates the
   affected heats' snapshots (`clearAssignmentSnapshotsForHeat`).
+  The leaderboard save marks each cell the user typed in (`edited`); only
+  those are decisions or corrections (`decideAssignmentShields` in
+  `raceScoring.ts`). A decision freezes the pre-save place of every boat that
+  moved with it (a DSQ promotes the boats behind her, RRS A6.1); a correction
+  un-shields only the edited boat.
 - 3.2 — **Pre-assignment**: equal size/ability, published before racing.
   (`shrs_qualifying_assignment_mode` = `progressive` | `pre-assigned`.)
 
