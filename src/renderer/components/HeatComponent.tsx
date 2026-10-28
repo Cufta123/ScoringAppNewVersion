@@ -12,16 +12,15 @@ import {
   reportWarning,
   getErrorMessage,
 } from '../utils/userFeedback';
-import { getExcludeCount, getFlagCode } from '../utils/leaderboardUtils';
+import { getFlagCode } from '../utils/leaderboardUtils';
 import useSnapshotHistory from '../hooks/useSnapshotHistory';
 import {
   finalSeriesBlockedMessage,
   unsailedLatestRoundMessage,
 } from '../utils/finalSeriesMessages';
 import type { FinalSeriesEligibility } from '../utils/finalSeriesMessages';
-import { computeAdjustedFleetTotals } from '../../shared/fleetAssignment';
 import { eventDB, heatRaceDB } from '../api/db';
-import type { EventRow, HeatBoatRow, LeaderboardEntry } from '../types';
+import type { EventRow, HeatBoatRow } from '../types';
 
 /** A heat with its boats and current race count, as displayed by this view. */
 export interface HeatWithBoats {
@@ -48,23 +47,6 @@ interface HeatComponentProps {
    * copy of that state can never go stale. */
   onFinalSeriesStateChange?: ((started: boolean) => void) | null;
   refreshToken?: number;
-}
-
-export function buildAdjustedFleetLeaderboard(
-  leaderboard: LeaderboardEntry[],
-  applyShs43TemporarySecondDiscard = true,
-  qualifyingDiscardProfile = 'standard',
-) {
-  // computeAdjustedFleetTotals lives in untyped shared JS; its JS-inferred
-  // param shape is narrower than LeaderboardEntry, so adapt at this boundary.
-  return computeAdjustedFleetTotals(
-    leaderboard as unknown as Parameters<typeof computeAdjustedFleetTotals>[0],
-    {
-      applyShs43TemporarySecondDiscard,
-      getExcludeCount: (n: number) =>
-        getExcludeCount(n, qualifyingDiscardProfile),
-    },
-  );
 }
 
 function HeatComponent({

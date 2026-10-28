@@ -58,7 +58,6 @@ describe('a stale or mistyped screen always gets a plain answer', () => {
   let heatId: number;
   let raceId: number;
   let boatId: number;
-  let scoreId: number;
 
   beforeAll(() => {
     jest.spyOn(console, 'log').mockImplementation(() => {});
@@ -108,9 +107,6 @@ describe('a stale or mistyped screen always gets a plain answer', () => {
         status: 'FINISHED',
       })),
     }));
-    scoreId = db
-      .prepare('SELECT score_id FROM Scores WHERE race_id = ? LIMIT 1')
-      .get(raceId).score_id;
   });
   afterEach(() => db.close());
 
@@ -164,31 +160,13 @@ describe('a stale or mistyped screen always gets a plain answer', () => {
     ['createInitialHeatsAtomic', () => [GONE, 2]],
     ['recreateInitialHeatsAtomic', () => [eventId, 2]],
     ['recreateInitialHeatsAtomic', () => [GONE, 0]],
-    ['deleteHeatsByEvent', () => [eventId]],
-    ['insertRace', () => [GONE, 1]],
-    ['insertScore', () => [GONE, boatId, 1, 1, 'FINISHED']],
-    ['insertScore', () => [raceId, boatId, 0, 0, 'FINISHED']],
-    ['insertScore', () => [raceId, boatId, 1, 1, 'XYZ']],
-    ['updateScore', () => [GONE, 1, 1, 'FINISHED']],
-    ['updateScore', () => [scoreId, 'abc', 'abc', 'FINISHED']],
-    ['deleteScore', () => [GONE]],
-    ['updateEventLeaderboard', () => [GONE]],
-    ['updateFinalLeaderboard', () => [GONE]],
     ['createNewHeatsBasedOnLeaderboard', () => [GONE]],
     ['undoLastScoredRaceForHeat', () => [GONE]],
-    ['undoLastScoredRace', () => [GONE]],
     ['undoLatestHeatRedistribution', () => [eventId]],
     ['undoLatestHeatRedistribution', () => [GONE]],
     ['transferBoatBetweenHeats', () => [GONE, heatId, boatId]],
     ['transferBoatBetweenHeats', () => [heatId, GONE, boatId]],
     ['readLeaderboard', () => [GONE]],
-    ['updateRaceResult', () => [eventId, GONE, boatId, 1, false, 'FINISHED']],
-    ['updateRaceResult', () => [eventId, raceId, GONE, 1, false, 'FINISHED']],
-    [
-      'updateRaceResult',
-      () => [eventId, raceId, boatId, 99, false, 'FINISHED'],
-    ],
-    ['updateRaceResult', () => [eventId, raceId, boatId, 1, false, 'FOO']],
     [
       'saveLeaderboardRaceResultsAtomic',
       () => [
@@ -199,7 +177,6 @@ describe('a stale or mistyped screen always gets a plain answer', () => {
             cells: [{ boatId, position: 1, status: 'FINISHED' }],
           },
         ],
-        false,
         false,
       ],
     ],
@@ -214,7 +191,6 @@ describe('a stale or mistyped screen always gets a plain answer', () => {
           },
         ],
         false,
-        false,
       ],
     ],
     [
@@ -223,8 +199,20 @@ describe('a stale or mistyped screen always gets a plain answer', () => {
         eventId,
         [{ raceId, cells: [{ boatId, position: 9, status: 'FINISHED' }] }],
         false,
+      ],
+    ],
+    [
+      'saveLeaderboardRaceResultsAtomic',
+      () => [
+        eventId,
+        [{ raceId, cells: [{ boatId, position: 1, status: 'FOO' }] }],
         false,
       ],
+    ],
+    // An edit that carries no cells (an old caller) is refused, not ignored.
+    [
+      'saveLeaderboardRaceResultsAtomic',
+      () => [eventId, [{ raceId, boatId, newPosition: 1 }], false],
     ],
     ['submitHeatRaceScoresAtomic', () => [{ heat_id: GONE, placeNumbers: [] }]],
     [

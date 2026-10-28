@@ -59,23 +59,6 @@ export interface EventRow {
   shrs_heat_overflow_policy: string;
 }
 
-export interface SailorRow {
-  sailor_id: number;
-  name: string;
-  surname: string;
-  birthday: string;
-  category_id: number | null;
-  club_id: number | null;
-}
-
-export interface BoatRow {
-  boat_id: number;
-  sail_number: number;
-  country: string;
-  model: string;
-  sailor_id: number | null;
-}
-
 export interface ClubRow {
   club_id: number;
   club_name: string;
@@ -100,15 +83,6 @@ export interface RaceRow {
   race_number: number;
 }
 
-export interface ScoreRow {
-  score_id: number;
-  race_id: number;
-  boat_id: number;
-  position: number;
-  points: number;
-  status: ScoreStatus;
-}
-
 // --- Joined / denormalized read shapes --------------------------------------
 
 /**
@@ -116,8 +90,8 @@ export interface ScoreRow {
  * `readBoatsByEvent` / `readBoatsByHeat`. Column names follow the SQL aliases
  * the handler selects: `name` is the sailor's first name, `boat_country` the
  * boat's registered country, `club_country` the club's. Note the select aliases
- * `b.country AS boat_country` and does not include `sailor_id`, so this is not a
- * `BoatRow`.
+ * `b.country AS boat_country` and does not include `sailor_id`, so it is not a
+ * plain row of the Boats table.
  */
 export interface EventBoatRow {
   boat_id: number;
@@ -170,13 +144,6 @@ export interface InsertResult {
 }
 
 // --- Leaderboard shapes -----------------------------------------------------
-
-export interface LeaderboardRow {
-  boat_id: number;
-  event_id: number;
-  total_points_event: number;
-  place: number | null;
-}
 
 export interface FinalLeaderboardRow {
   boat_id: number;

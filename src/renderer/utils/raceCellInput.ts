@@ -22,7 +22,7 @@ const fail = (short: string, message: string): RaceCellInputCheck => ({
   message,
 });
 
-export const MAX_MANUAL_POINTS = 99;
+const MAX_MANUAL_POINTS = 99;
 
 export function checkRaceCellInput(
   text: string,

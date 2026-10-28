@@ -335,7 +335,6 @@ describe('chaos: random race-office sessions keep the data whole', () => {
             })),
           },
         ],
-        false,
         race.heat_type === 'Final',
       );
     };
@@ -375,7 +374,16 @@ describe('chaos: random race-office sessions keep the data whole', () => {
           if (heat) await call('undoLastScoredRaceForHeat', heat.heat_id);
         },
       ],
-      ['undo last race', 1, () => call('undoLastScoredRace', eventId)],
+      [
+        'undo the last race of every heat of the round',
+        1,
+        async () => {
+          for (const heat of latestQualifying()) {
+            // eslint-disable-next-line no-await-in-loop
+            await call('undoLastScoredRaceForHeat', heat.heat_id);
+          }
+        },
+      ],
       ['correct a result', 3, correctRace],
       [
         'undo from the history',

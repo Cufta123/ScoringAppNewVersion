@@ -23,7 +23,7 @@ export interface DiscardModeAndConfig {
 
 export const DEFAULT_THRESHOLD_PREVIEW = '4,8,16,24';
 
-export const isStandardArithmetic = (config: DiscardConfig): boolean =>
+const isStandardArithmetic = (config: DiscardConfig): boolean =>
   config.firstDiscardAt === DEFAULT_DISCARD_CONFIG.firstDiscardAt &&
   config.secondDiscardAt === DEFAULT_DISCARD_CONFIG.secondDiscardAt &&
   config.additionalEvery === DEFAULT_DISCARD_CONFIG.additionalEvery;
@@ -33,7 +33,7 @@ export const isStandardArithmetic = (config: DiscardConfig): boolean =>
 // 2 + floor((n - secondDiscardAt) / additionalEvery) matches the thresholds
 // [firstDiscardAt, secondDiscardAt, secondDiscardAt + additionalEvery, ...]
 // over the first four steps shown in the preview.
-export const toLegacyThresholdPreview = (config: DiscardConfig): string => {
+const toLegacyThresholdPreview = (config: DiscardConfig): string => {
   return [
     config.firstDiscardAt,
     config.secondDiscardAt,

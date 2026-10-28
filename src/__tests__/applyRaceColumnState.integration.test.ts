@@ -1,21 +1,22 @@
 /** @jest-environment node */
 export {};
 
-// Behavioural characterisation of applyRaceResultUpdate against a REAL SQLite
-// engine (node:sqlite) rather than a string-matching mock.
+// Behavioural characterisation of what the leaderboard's Save stores, against
+// a REAL SQLite engine (node:sqlite) rather than a string-matching mock.
 //
-// The existing updateRaceResult suites assert on the exact SQL text issued and
-// on ordered op-logs, which pins the implementation rather than the rules: any
-// change to HOW the result is computed breaks them even when every score comes
-// out identical. These cases assert on the resulting Scores rows instead, so
-// they hold across a reimplementation and actually verify RRS A6.1, A6.2, A7,
-// A10 and SHRS 5.2 / 44.3(c).
+// Save sends every touched race whole. The edit screen builds that race with
+// shared/raceColumnEdit (the RRS A6.1 promotion, the place ripple) and the
+// main process stores it with applyRaceColumnState, scoring it again from the
+// rules (RRS A7, 44.3(c)/T1, SHRS 5.2). These cases run the same two steps and
+// assert on the resulting Scores rows, so RRS A6.1, A6.2, A7, A10 and
+// SHRS 5.2 / 44.3(c) are pinned end to end. They replaced the suites of the
+// removed per-boat `updateRaceResult` channel.
 //
 // better-sqlite3 is built for Electron's ABI and is not loadable in Jest's Node
 // environment, so this uses Node's built-in node:sqlite, whose statement API
 // (prepare/get/all/run + exec) matches what the handlers call.
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+// eslint-disable-next-line @typescript-eslint/no-var-requires, import/order
 const { DatabaseSync } = require('node:sqlite');
 
 jest.mock('electron', () => ({
@@ -31,8 +32,13 @@ jest.mock('../../public/Database/DBManager', () => ({
   },
 }));
 
-// eslint-disable-next-line import/first, import/order
-import { applyRaceResultUpdate } from '../main/functions/raceScoring';
+/* eslint-disable import/first, import/order */
+import {
+  applyRaceColumnState,
+  getMaxHeatSize,
+} from '../main/functions/raceScoring';
+import applyRaceColumnEdit from '../shared/raceColumnEdit';
+/* eslint-enable import/first, import/order */
 
 const EVENT_ID = 1;
 const HEAT_ID = 1;
@@ -139,6 +145,50 @@ function readRace(db: any): Record<number, [number, number, string]> {
   );
 }
 
+/**
+ * Correct one boat's result the way the leaderboard does: the shared edit
+ * rules build the whole race, which is then stored. `position` is the new
+ * place, or the points for RDG/DPI.
+ */
+function correct(db: any, boatId: number, position: number, status: string) {
+  const rows = db
+    .prepare(
+      'SELECT boat_id, position, points, status FROM Scores WHERE race_id = ? ORDER BY score_id',
+    )
+    .all(RACE_ID) as Row[];
+  const index = rows.findIndex((row) => row.boat_id === boatId);
+  const cells = applyRaceColumnEdit(
+    rows.map((row) => ({
+      position: row.position,
+      points: row.points,
+      status: row.status,
+    })),
+    {
+      index,
+      previousPosition: rows[index].position,
+      previousStatus: rows[index].status,
+      newPosition: position,
+      newPoints: position,
+      newStatus: status,
+      maxBoats: getMaxHeatSize(EVENT_ID, 'Qualifying'),
+    },
+  );
+  applyRaceColumnState(
+    EVENT_ID,
+    RACE_ID,
+    cells.map((cell, i) => ({
+      boatId: rows[i].boat_id,
+      position: cell.position,
+      status: cell.status,
+    })),
+  );
+}
+
+/** Send cells as they are, without the edit rules (a hand-made request). */
+const send = (
+  cells: Array<{ boatId: number; position: number; status: string }>,
+) => applyRaceColumnState(EVENT_ID, RACE_ID, cells);
+
 const finishers = (count: number): Row[] =>
   Array.from({ length: count }, (_, i) => ({
     boat_id: i + 1,
@@ -147,7 +197,7 @@ const finishers = (count: number): Row[] =>
     status: 'FINISHED',
   }));
 
-describe('applyRaceResultUpdate (real sqlite)', () => {
+describe('applyRaceColumnState (real sqlite)', () => {
   let db: any;
   afterEach(() => {
     db?.close();
@@ -155,11 +205,10 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
   });
 
   describe('RRS A6.1 — disqualification promotes the boats behind', () => {
-    it('moves every boat behind a DSQ up one place, with shift OFF', () => {
+    it('moves every boat behind a DSQ up one place', () => {
       db = seed(finishers(4));
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 2, 2, false, 'DSQ');
+      correct(db, 2, 2, 'DSQ');
       const race = readRace(db);
-      // The promotion is mandatory, so it happens even though shift is off.
       expect(race[1]).toEqual([1, 1, 'FINISHED']);
       expect(race[3]).toEqual([2, 2, 'FINISHED']);
       expect(race[4]).toEqual([3, 3, 'FINISHED']);
@@ -167,18 +216,9 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
       expect(race[2]).toEqual([5, 5, 'DSQ']);
     });
 
-    it('promotes identically with shift ON', () => {
-      db = seed(finishers(4));
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 2, 2, true, 'DSQ');
-      const race = readRace(db);
-      expect(race[1]).toEqual([1, 1, 'FINISHED']);
-      expect(race[3]).toEqual([2, 2, 'FINISHED']);
-      expect(race[4]).toEqual([3, 3, 'FINISHED']);
-    });
-
     it.each(['RET', 'DNE', 'DGM'])('applies to %s as well as DSQ', (status) => {
       db = seed(finishers(3));
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 1, 1, false, status);
+      correct(db, 1, 1, status);
       const race = readRace(db);
       expect(race[2]).toEqual([1, 1, 'FINISHED']);
       expect(race[3]).toEqual([2, 2, 'FINISHED']);
@@ -191,7 +231,7 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
         { boat_id: 2, position: 4, points: 4, status: 'DNS' },
         { boat_id: 3, position: 2, points: 2, status: 'FINISHED' },
       ]);
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 2, 0, false, 'DSQ');
+      correct(db, 2, 0, 'DSQ');
       const race = readRace(db);
       expect(race[1]).toEqual([1, 1, 'FINISHED']);
       expect(race[3]).toEqual([2, 2, 'FINISHED']);
@@ -205,7 +245,7 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
         { boat_id: 2, position: 2, points: 2, status: 'FINISHED' },
         { boat_id: 3, position: 3, points: 3.8, status: 'ZFP' },
       ]);
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 1, 1, false, 'DSQ');
+      correct(db, 1, 1, 'DSQ');
       const race = readRace(db);
       expect(race[2]).toEqual([1, 1, 'FINISHED']);
       expect(race[3][0]).toBe(2);
@@ -216,7 +256,7 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
   describe('RRS A6.2 / A10 — redress and DPI never move anyone', () => {
     it('leaves every other boat untouched for RDG1', () => {
       db = seed(finishers(4));
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 2, 2.5, true, 'RDG1');
+      correct(db, 2, 2.5, 'RDG1');
       const race = readRace(db);
       expect(race[1]).toEqual([1, 1, 'FINISHED']);
       expect(race[3]).toEqual([3, 3, 'FINISHED']);
@@ -227,7 +267,7 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
 
     it('keeps the provided value for DPI without displacing', () => {
       db = seed(finishers(3));
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 1, 1.5, true, 'DPI');
+      correct(db, 1, 1.5, 'DPI');
       const race = readRace(db);
       expect(race[1]).toEqual([1.5, 1.5, 'DPI']);
       expect(race[2]).toEqual([2, 2, 'FINISHED']);
@@ -236,10 +276,10 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
   });
 
   describe('a new place moves the boat; the boats in between make room', () => {
-    it('ripples the boats between old and new place when shift is ON', () => {
+    it('ripples the boats between old and new place', () => {
       db = seed(finishers(4));
       // Move the 4th boat up to 2nd: the boats it passes drop one place.
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 4, 2, true, 'FINISHED');
+      correct(db, 4, 2, 'FINISHED');
       const race = readRace(db);
       expect(race[1]).toEqual([1, 1, 'FINISHED']);
       expect(race[4]).toEqual([2, 2, 'FINISHED']);
@@ -249,24 +289,12 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
 
     it('ripples downward moves too', () => {
       db = seed(finishers(4));
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 1, 3, true, 'FINISHED');
+      correct(db, 1, 3, 'FINISHED');
       const race = readRace(db);
       expect(race[2]).toEqual([1, 1, 'FINISHED']);
       expect(race[3]).toEqual([2, 2, 'FINISHED']);
       expect(race[1]).toEqual([3, 3, 'FINISHED']);
       expect(race[4]).toEqual([4, 4, 'FINISHED']);
-    });
-
-    it('moves the same way with the old shift flag off: no duplicate place', () => {
-      // The "Shift other boats" toggle is gone: off, it left two boats on one
-      // place and the edit screen showed a different race from the one saved.
-      db = seed(finishers(4));
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 4, 2, false, 'FINISHED');
-      const race = readRace(db);
-      expect(race[1]).toEqual([1, 1, 'FINISHED']);
-      expect(race[4]).toEqual([2, 2, 'FINISHED']);
-      expect(race[2]).toEqual([3, 3, 'FINISHED']);
-      expect(race[3]).toEqual([4, 4, 'FINISHED']);
     });
 
     it('puts a boat that had no place into the order; the rest move down', () => {
@@ -280,7 +308,7 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
         10,
       );
       // Found to have finished 2nd after all.
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 4, 2, false, 'FINISHED');
+      correct(db, 4, 2, 'FINISHED');
       const race = readRace(db);
       expect(race[1]).toEqual([1, 1, 'FINISHED']);
       expect(race[4]).toEqual([2, 2, 'FINISHED']);
@@ -299,7 +327,7 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
         ],
         10,
       );
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 2, 3, false, 'FINISHED');
+      correct(db, 2, 3, 'FINISHED');
       const race = readRace(db);
       expect(race[1]).toEqual([1, 1, 'FINISHED']);
       expect(race[3]).toEqual([2, 2, 'FINISHED']);
@@ -315,7 +343,7 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
         ],
         10,
       );
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 2, 1, false, 'ZFP');
+      correct(db, 2, 1, 'ZFP');
       const race = readRace(db);
       expect(race[1]).toEqual([1, 1.5, 'FINISHED']);
       expect(race[2]).toEqual([1, 3.2, 'ZFP']);
@@ -330,7 +358,7 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
         { boat_id: 2, position: 2, points: 2.4, status: 'ZFP' },
         { boat_id: 3, position: 3, points: 3, status: 'FINISHED' },
       ]);
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 3, 2, true, 'FINISHED');
+      correct(db, 3, 2, 'FINISHED');
       const race = readRace(db);
       expect(race[3][0]).toBe(2);
       expect(race[2][0]).toBe(3);
@@ -346,7 +374,7 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
         { boat_id: 3, position: 2, points: 2, status: 'FINISHED' },
         { boat_id: 4, position: 4, points: 4, status: 'FINISHED' },
       ]);
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 1, 1, false, 'DSQ');
+      correct(db, 1, 1, 'DSQ');
       const race = readRace(db);
       // The tied pair takes places 1 and 2 => 1.5 each; the next boat is 3rd.
       expect(race[2]).toEqual([1, 1.5, 'FINISHED']);
@@ -354,9 +382,9 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
       expect(race[4]).toEqual([3, 3, 'FINISHED']);
     });
 
-    it('re-averages after a shift-on move onto an occupied place', () => {
+    it('re-averages after a move onto an occupied place', () => {
       db = seed(finishers(3));
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 3, 1, true, 'FINISHED');
+      correct(db, 3, 1, 'FINISHED');
       const race = readRace(db);
       expect(race[3]).toEqual([1, 1, 'FINISHED']);
       expect(race[1]).toEqual([2, 2, 'FINISHED']);
@@ -368,14 +396,14 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
     it('uses the largest heat size, not the number of scored boats', () => {
       // Three boats scored, but the heat holds 10 — the DNF scores 11.
       db = seed(finishers(3), 10);
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 3, 0, false, 'DNF');
+      correct(db, 3, 0, 'DNF');
       expect(readRace(db)[3]).toEqual([11, 11, 'DNF']);
     });
 
     it('discards the provided position for a non-scoring penalty', () => {
       // A legacy caller may send 0 or a stale place; it must not be written.
       db = seed(finishers(3));
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 2, 99, false, 'DNS');
+      correct(db, 2, 99, 'DNS');
       expect(readRace(db)[2]).toEqual([4, 4, 'DNS']);
     });
   });
@@ -383,7 +411,7 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
   describe('RRS 44.3(c) / T1 — position-keeping penalty points', () => {
     it('scores ZFP from its finishing place, capped at the DNF score', () => {
       db = seed(finishers(5));
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 2, 2, false, 'ZFP');
+      correct(db, 2, 2, 'ZFP');
       const [position, points, status] = readRace(db)[2];
       expect(position).toBe(2);
       expect(status).toBe('ZFP');
@@ -399,28 +427,28 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
     it('scores ZFP as place + 20% of the DNF score', () => {
       // largest heat 10 => DNF score 11 => 20% = 2.2 => 3 + 2.2 = 5.2
       db = seed(finishers(3), 10);
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 3, 3, false, 'ZFP');
+      correct(db, 3, 3, 'ZFP');
       expect(readRace(db)[3]).toEqual([3, 5.2, 'ZFP']);
     });
 
     it('caps SCP at the DNF score', () => {
       // largest heat 5 => 20% of 6 = 1.2 => 5 + 1.2 = 6.2, capped at 6.
       db = seed(finishers(5), 5);
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 5, 5, false, 'SCP');
+      correct(db, 5, 5, 'SCP');
       expect(readRace(db)[5]).toEqual([5, 6, 'SCP']);
     });
 
     it('applies no artificial minimum in a small heat', () => {
       // largest heat 5 => 20% of 6 = 1.2 (no minimum) => 2 + 1.2 = 3.2
       db = seed(finishers(5), 5);
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 2, 2, false, 'ZFP');
+      correct(db, 2, 2, 'ZFP');
       expect(readRace(db)[2]).toEqual([2, 3.2, 'ZFP']);
     });
 
     it('scores T1 as place + 30% of the DNF score', () => {
       // largest heat 10 => 30% of 11 = 3.3 => 4 + 3.3 = 7.3
       db = seed(finishers(5), 10);
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 4, 4, false, 'T1');
+      correct(db, 4, 4, 'T1');
       expect(readRace(db)[4]).toEqual([4, 7.3, 'T1']);
     });
   });
@@ -428,15 +456,15 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
   describe('status normalization and validation', () => {
     it('normalizes RAF to RET', () => {
       db = seed(finishers(3), 10);
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 2, 2, false, 'RAF');
+      correct(db, 2, 2, 'RAF');
       expect(readRace(db)[2]).toEqual([11, 11, 'RET']);
     });
 
     it('rejects an unsupported status', () => {
       db = seed(finishers(3));
-      expect(() =>
-        applyRaceResultUpdate(EVENT_ID, RACE_ID, 1, 3, false, 'FOO'),
-      ).toThrow('"FOO" is not a result code this app knows.');
+      expect(() => send([{ boatId: 1, position: 3, status: 'FOO' }])).toThrow(
+        '"FOO" is not a result code this app knows.',
+      );
     });
 
     it.each([0, Number.NaN])(
@@ -444,17 +472,17 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
       (position) => {
         db = seed(finishers(3));
         expect(() =>
-          applyRaceResultUpdate(
-            EVENT_ID,
-            RACE_ID,
-            1,
-            position,
-            false,
-            'FINISHED',
-          ),
+          send([{ boatId: 1, position, status: 'FINISHED' }]),
         ).toThrow(/must be a whole number of 1 or more/);
       },
     );
+
+    it('rejects a fractional finishing position', () => {
+      db = seed(finishers(3));
+      expect(() =>
+        send([{ boatId: 1, position: 2.5, status: 'FINISHED' }]),
+      ).toThrow(/must be a whole number of 1 or more/);
+    });
 
     it.each([
       ['RDG2', 0],
@@ -463,19 +491,56 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
       'rejects %s with a non-positive value (BK-6 / CMP C-23)',
       (status, value) => {
         db = seed(finishers(3));
-        expect(() =>
-          applyRaceResultUpdate(EVENT_ID, RACE_ID, 1, value, false, status),
-        ).toThrow(/must be a number above 0/);
+        expect(() => send([{ boatId: 1, position: value, status }])).toThrow(
+          /must be a number above 0/,
+        );
       },
     );
+
+    it('keeps a fractional RDG/DPI value as set by the protest committee', () => {
+      db = seed(finishers(3), 10);
+      send([
+        { boatId: 1, position: 4.5, status: 'RDG3' },
+        { boatId: 2, position: 2.5, status: 'DPI' },
+      ]);
+      const race = readRace(db);
+      expect(race[1]).toEqual([4.5, 4.5, 'RDG3']);
+      expect(race[2]).toEqual([2.5, 2.5, 'DPI']);
+      expect(race[3]).toEqual([3, 3, 'FINISHED']);
+    });
+
+    it('refuses a place past the last boat of the race', () => {
+      db = seed(finishers(3), 10);
+      expect(() =>
+        send([{ boatId: 1, position: 4, status: 'FINISHED' }]),
+      ).toThrow(/place 4 is not possible, only 3 boats sailed this race/);
+    });
+
+    it('refuses redress points above 99', () => {
+      db = seed(finishers(3), 10);
+      expect(() =>
+        send([{ boatId: 1, position: 100, status: 'RDG3' }]),
+      ).toThrow(/100 points is more than the 99 allowed/);
+    });
 
     it('leaves the race untouched when an edit is rejected', () => {
       db = seed(finishers(3));
       const before = readRace(db);
       expect(() =>
-        applyRaceResultUpdate(EVENT_ID, RACE_ID, 1, 0, false, 'FINISHED'),
+        send([{ boatId: 1, position: 0, status: 'FINISHED' }]),
       ).toThrow();
       expect(readRace(db)).toEqual(before);
+    });
+
+    it('stores a shared place as an A7 average', () => {
+      db = seed(finishers(4));
+      send([
+        { boatId: 2, position: 2, status: 'FINISHED' },
+        { boatId: 3, position: 2, status: 'FINISHED' },
+      ]);
+      const race = readRace(db);
+      expect(race[2]).toEqual([2, 2.5, 'FINISHED']);
+      expect(race[3]).toEqual([2, 2.5, 'FINISHED']);
     });
   });
 
@@ -501,17 +566,27 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
 
     it.each(NO_PLACE)('%s promotes the boats behind', (status) => {
       db = seed(finishers(3), 10);
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 1, 1, false, status);
+      correct(db, 1, 1, status);
       expect(readRace(db)[2][0]).toBe(1);
       expect(readRace(db)[3][0]).toBe(2);
       expect(readRace(db)[1]).toEqual([11, 11, status]);
     });
   });
 
-  it('rejects an edit for a boat with no result in the race', () => {
+  it('rejects an edit for a boat that did not sail the race', () => {
     db = seed(finishers(2));
     expect(() =>
-      applyRaceResultUpdate(EVENT_ID, RACE_ID, 99, 1, false, 'FINISHED'),
-    ).toThrow(/has no result in .* any more/i);
+      send([{ boatId: 99, position: 1, status: 'FINISHED' }]),
+    ).toThrow(/did not sail .*, so it has no result there/i);
+  });
+
+  it('rejects the same boat twice in one race', () => {
+    db = seed(finishers(2));
+    expect(() =>
+      send([
+        { boatId: 1, position: 1, status: 'FINISHED' },
+        { boatId: 1, position: 2, status: 'FINISHED' },
+      ]),
+    ).toThrow(/appears twice/i);
   });
 });

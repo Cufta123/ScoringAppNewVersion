@@ -4,21 +4,16 @@
  * movement tables consume.
  */
 import { db } from '../../../public/Database/DBManager';
+import { latestRaceReader } from './heatQueries';
 import { compareSeededRows, normalizeStatus } from './scoreStatus';
 
 export function getLatestRaceRowsForHeats(
   latestHeats: { heat_name: string; heat_id: number }[],
 ) {
-  const latestRaceByHeatQuery = db.prepare(
-    `SELECT race_id, race_number
-     FROM Races
-     WHERE heat_id = ?
-     ORDER BY race_number DESC, race_id DESC
-     LIMIT 1`,
-  );
+  const latestRaceForHeat = latestRaceReader();
 
   const raceRows = latestHeats.map((heat) => {
-    const raceRow = latestRaceByHeatQuery.get(heat.heat_id);
+    const raceRow = latestRaceForHeat(heat.heat_id);
     if (!raceRow) {
       throw new Error(
         `${heat.heat_name} has not raced yet. Score the current round before creating the next one.`,

@@ -209,12 +209,9 @@ describe('Property-based: tie-break winner invariants', () => {
         },
         heatRaceDB: {
           readAllHeats: jest.fn().mockResolvedValue([]),
-          updateEventLeaderboard: jest.fn().mockResolvedValue(true),
-          updateFinalLeaderboard: jest.fn().mockResolvedValue(true),
           readFinalLeaderboard: jest.fn().mockResolvedValue([]),
           readLeaderboard: jest.fn(),
           readOverallLeaderboard: jest.fn().mockResolvedValue([]),
-          updateRaceResult: jest.fn().mockResolvedValue(true),
           getMaxHeatSize: jest.fn().mockResolvedValue(0),
           explainTieBreak: jest.fn((eventId, x, y, isFinal) =>
             Promise.resolve(realExplainTieBreak(eventId, x, y, isFinal)),

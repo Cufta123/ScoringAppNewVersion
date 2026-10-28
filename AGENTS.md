@@ -134,8 +134,9 @@ Important migration details:
   action (scoring first enters DNS for every boat). The Navbar's History button
   (`EventHistoryDialog`) shows it on the event, scoring and leaderboard pages.
   **Undo from the history** (`revertHistoryAction`, IPC of the same name):
-  only result changes (`updateRaceResult`, leaderboard edits, `updateScore`,
-  `insertScore`, `deleteScore`, and an earlier undo) — scoring a race, heats
+  only result changes (leaderboard edits, an earlier undo, and the removed
+  `updateRaceResult` / `updateScore` / `insertScore` / `deleteScore` channels,
+  whose history rows stay in existing databases) — scoring a race, heats
   and entries feed later heats and keep their scoring-page Undo with its
   guards. Rules in `shared/history/revert.ts`: every row the action changed is
   put back as it was, in one transaction with the standings rebuild, and only
@@ -219,11 +220,11 @@ into focused modules under `src/main/functions/`. Map of that directory:
   qualifying assignment mode (3.1/3.2), heat overflow policy and
   `SHRS_MAX_BOATS_PER_HEAT` (2.3), and the discard-profile lock (5.4).
 - `raceScoring.ts` — every write to `Scores` for a single race:
-  `applyRaceResultUpdate` (RRS A6.1/A6.2, SHRS 5.2), `applyRaceTieScoring`
-  (RRS A7), `getMaxHeatSize`, `seedRaceWithDefaultDnsScores`,
+  `applyRaceColumnState` (stores a whole corrected race from the leaderboard's
+  Save, RRS A6.1/A6.2/A7, SHRS 5.2, 3.1.5), `applyRaceTieScoring` (RRS A7),
+  `getMaxHeatSize`, `seedRaceWithDefaultDnsScores`,
   `ensureCompleteRaceScoresForEvent` (DNS repair +
-  `ensureDncScoresForMissedQualifyingRaces`, RRS A5.1),
-  `recomputeLeaderboardsForRace`.
+  `ensureDncScoresForMissedQualifyingRaces`, RRS A5.1), `rescoreRace`.
 - `raceSeeding.ts` — reading a race's results back in SHRS 5.3 recording order
   for the next round's heat movement (`getRankedBoatsInHeatForRace`,
   `getLatestRaceRowsForHeats`, `getOddEvenMovementAdvisory`).
@@ -272,7 +273,11 @@ Shared (renderer + main) — one definition per rule, imported by both processes
   could differ from the one shown. The leaderboard's Save now sends every
   touched race WHOLE (`{ raceId, cells }`) and the main process stores it via
   `applyRaceColumnState`, re-scoring it with `scoreRaceColumn`: what is shown
-  is what is saved. The preview (`handleRaceChange`) and the main process both
+  is what is saved. `saveLeaderboardRaceResultsAtomic` takes
+  `(event_id, operations, updateFinalLeaderboard)` and accepts nothing but
+  whole races (an operation without `cells` is refused); the old per-boat
+  `updateRaceResult` / `applyRaceResultUpdate` path and its `shift_positions`
+  flag are gone. The preview (`handleRaceChange`) and the main process both
   call this module; do not reintroduce a local copy.
 
 When extending the handler, keep this pattern: pure logic goes in a
@@ -494,7 +499,9 @@ Handler / integration:
 - `HeatRaceHandler.createNewHeats.test.ts`,
   `HeatRaceHandler.overallTieBreak.test.ts`,
   `HeatRaceHandler.submitScoresAtomic.test.ts`,
-  `HeatRaceHandler.updateRaceResult.test.ts`,
+  `HeatRaceHandler.saveLeaderboard.integration.test.ts` (the leaderboard Save
+  through the real handler: SHRS 3.1.5 shields, cache rollback, atomicity),
+  `applyRaceColumnState.integration.test.ts` (what Save stores, per rule),
   `HeatRaceHandler.startFinalSeriesAtomic.test.ts`,
   `HeatRaceHandler.finalSeriesEligibility.test.ts`
 - `explainTieBreak.test.ts`, `compareUtils.test.ts`
@@ -535,13 +542,23 @@ For most feature/fix requests, do this in order:
 - Returning `false` from preload methods is converted to thrown errors by wrapper.
 - App uses hash routing, so route handling assumptions must match `HashRouter`.
 - Destructive work belongs in ONE handler, not a renderer sequence. "Recreate
-  Heats" was `deleteHeatsByEvent` then `createInitialHeatsAtomic`; the
+  Heats" was a delete-heats call then `createInitialHeatsAtomic`; the
   destructive half ran first, so a rejected create left the event with no heats.
   `recreateInitialHeatsAtomic` plans before it wipes, in one transaction.
   `planInitialHeats` / `insertPlannedInitialHeats` exist for exactly this split.
 - Renderer `raceHappened`-style state can be stale — never let it be the only
-  guard on a destructive channel. `deleteHeatsByEvent`, `removeBoatFromEvent`
-  and `recreateInitialHeatsAtomic` all re-check server-side.
+  guard on a destructive channel. `removeBoatFromEvent` and
+  `recreateInitialHeatsAtomic` re-check server-side.
+- Dead channels were removed (`insertHeat`, `insertRace`, `insertScore`,
+  `updateScore`, `deleteScore`, `readAllScores`, `deleteHeatsByEvent`,
+  `undoLastScoredRace`, `updateRaceResult`, `updateEventLeaderboard`,
+  `updateFinalLeaderboard`): the app never called them and several wrote scores
+  without checking whether the heat was closed. The history labels in
+  `shared/history/describe.ts` and the revertable list in
+  `shared/history/revert.ts` still name them, because existing databases hold
+  `ChangeActions` rows recorded under those channels. Do not re-add a score
+  write path outside `submitHeatRaceScoresAtomic` and
+  `saveLeaderboardRaceResultsAtomic`.
 - Async actions that mutate rounds go through `useExclusiveAction` (renderer
   hook). The ref inside it is load-bearing: two clicks in the same tick both
   read `busy === false` from state. `busy` only drives `disabled`.
@@ -679,8 +696,8 @@ For most feature/fix requests, do this in order:
   > 0, <=99, one decimal, comma accepted. Invalid input stays red with the
   > range, is not applied, and Save refuses naming each cell
   > (`editValidity.tsx` context -> `useLeaderboard.invalidCells`). The main
-  > process also refuses a place past the largest heat
-  > (`applyRaceResultUpdate`).
+  > process also refuses a place past the last boat of the race
+  > (`applyRaceColumnState`).
 
 ## 11. What To Search Only If Needed
 

@@ -8,7 +8,9 @@ import {
 } from '../utils/userFeedback';
 import { eventDB, heatRaceDB } from '../api/db';
 import type { EventRow } from '../types';
-import useEventSettings from '../hooks/useEventSettings';
+import useEventSettings, {
+  reportInvalidSettings,
+} from '../hooks/useEventSettings';
 import AdvancedEventSettings from './AdvancedEventSettings';
 import {
   getAssignmentLabel,
@@ -144,12 +146,7 @@ export default function EventList({
 
     const invalid = settings.validate();
     if (invalid) {
-      reportInfo(
-        invalid.message,
-        invalid.series === 'qualifying'
-          ? 'Invalid qualifying thresholds'
-          : 'Invalid final thresholds',
-      );
+      reportInvalidSettings(invalid);
       return;
     }
 
