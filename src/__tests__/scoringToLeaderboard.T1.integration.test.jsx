@@ -204,8 +204,6 @@ describe('T1 integration: scoring flow to leaderboard display', () => {
               });
               return { ok: true, raceNumber: 1, raceId };
             }),
-          updateEventLeaderboard: jest.fn().mockResolvedValue(true),
-          updateFinalLeaderboard: jest.fn().mockResolvedValue(true),
           readFinalLeaderboard: jest.fn().mockResolvedValue([]),
           readOverallLeaderboard: jest.fn().mockResolvedValue([]),
           readLeaderboard: jest

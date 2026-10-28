@@ -3,6 +3,7 @@ import {
   PENALTY_CODES,
   RDG_TYPES,
   getRaceCellDisplay,
+  stripExclusionParens,
 } from '../../utils/leaderboardUtils';
 import { scoringPenaltyStatuses } from '../../../shared/scoringPenalty';
 import { penaltyLabel } from '../../constants/penaltyLabels';
@@ -80,8 +81,7 @@ function ScoreCell({
   // value". Typed text is never corrected on the fly: an impossible place
   // (0, 15 in a 10-boat heat, 2.5) stays visible in red with the reason, is
   // not applied to the preview, and blocks Save until it is fixed.
-  const rawNumeric =
-    typeof race === 'string' ? race.replace(/[()]/g, '') : String(race);
+  const rawNumeric = stripExclusionParens(race);
   const [draft, setDraft] = React.useState<string | null>(null);
   const inputValue = draft ?? rawNumeric;
 

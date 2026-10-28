@@ -37,9 +37,6 @@ export const registerConfirmHandler = (
   };
 };
 
-export const hasConfirmHandler = (): boolean =>
-  typeof activeHandler === 'function';
-
 export const requestConfirm = (
   request: ConfirmRequest,
 ): Promise<ConfirmChoice> => {

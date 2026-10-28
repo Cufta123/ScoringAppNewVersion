@@ -6,6 +6,7 @@ import React, {
   useState,
 } from 'react';
 import { eventDB } from '../api/db';
+import useModalFocus from '../hooks/useModalFocus';
 import { HistoryAction, summarizeAction } from '../../shared/history/describe';
 import { whyNotRevertable } from '../../shared/history/revert';
 import {
@@ -235,26 +236,13 @@ function EventHistoryDialog({
     target?.scrollIntoView?.({ block: 'start' });
   }, [goBackTarget]);
 
-  useEffect(() => {
-    if (!open) return undefined;
-    const lastFocused = document.activeElement as HTMLElement | null;
-    closeRef.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        // A pending "go back" question is closed first, not the history.
-        setGoBackTarget((pending) => {
-          if (!pending) onClose();
-          return null;
-        });
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      if (typeof lastFocused?.focus === 'function') lastFocused.focus();
-    };
-  }, [open, onClose]);
+  useModalFocus(open, closeRef, () => {
+    // A pending "go back" question is closed first, not the history.
+    setGoBackTarget((pending) => {
+      if (!pending) onClose();
+      return null;
+    });
+  });
 
   const entries = useMemo(() => {
     const needle = filter.trim().toLowerCase();

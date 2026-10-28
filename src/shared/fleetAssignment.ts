@@ -1,7 +1,5 @@
-// Single source of truth for the final-fleet assignment totals.
-// Both the renderer (HeatComponent, exercised by tests) and the main-process
-// IPC handler delegate here so the SHRS 4.3 temporary-discard rule cannot drift
-// between two copies.
+// Single source of truth for the final-fleet assignment totals, used by the
+// main process when it splits the fleet (functions/fleetTotals.ts).
 
 import { sumPoints } from './points';
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { heatRaceDB } from '../../api/db';
+import useModalFocus from '../../hooks/useModalFocus';
 import type {
   BoatScoreExplanation,
   ExplainedRace,
@@ -170,22 +171,7 @@ function ScoreExplanationDialog({
     };
   }, [eventId, target]);
 
-  useEffect(() => {
-    if (!target) return undefined;
-    const lastFocused = document.activeElement as HTMLElement | null;
-    closeRef.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onClose();
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      if (typeof lastFocused?.focus === 'function') lastFocused.focus();
-    };
-  }, [target, onClose]);
+  useModalFocus(Boolean(target), closeRef, onClose);
 
   if (!target) return null;
 

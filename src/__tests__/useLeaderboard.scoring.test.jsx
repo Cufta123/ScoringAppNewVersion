@@ -90,14 +90,11 @@ describe('useLeaderboard scoring/edit flow', () => {
         },
         heatRaceDB: {
           readAllHeats: jest.fn().mockResolvedValue([]),
-          updateEventLeaderboard: jest.fn().mockResolvedValue(true),
-          updateFinalLeaderboard: jest.fn().mockResolvedValue(true),
           readFinalLeaderboard: jest.fn().mockResolvedValue([]),
           readLeaderboard: jest
             .fn()
             .mockResolvedValue(JSON.parse(JSON.stringify(baseLeaderboardRows))),
           readOverallLeaderboard: jest.fn().mockResolvedValue([]),
-          updateRaceResult: jest.fn().mockResolvedValue(true),
           saveLeaderboardRaceResultsAtomic: jest
             .fn()
             .mockResolvedValue({ success: true, updatedCount: 1 }),
@@ -236,6 +233,38 @@ describe('useLeaderboard scoring/edit flow', () => {
     expect(b3.races[0]).toBe('1');
     expect(b1.races[0]).toBe('2');
     expect(b2.races[0]).toBe('3');
+  });
+
+  describe('loading the standings', () => {
+    // Every read rebuilds the standings from the scores in the main process
+    // (AGENTS.md section 4), so loading is reads only: no separate recompute
+    // call, and no final-standings read while the final series has not started.
+    it('reads the qualifying standings only before the final series starts', async () => {
+      const db = window.electron.sqlite.heatRaceDB;
+      db.updateEventLeaderboard = jest.fn();
+      db.updateFinalLeaderboard = jest.fn();
+      const { result } = renderHook(() => useLeaderboard(1));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      expect(db.readLeaderboard).toHaveBeenCalledWith(1);
+      expect(db.readFinalLeaderboard).not.toHaveBeenCalled();
+      expect(db.readOverallLeaderboard).not.toHaveBeenCalled();
+      expect(db.updateEventLeaderboard).not.toHaveBeenCalled();
+      expect(db.updateFinalLeaderboard).not.toHaveBeenCalled();
+    });
+
+    it('reads the final and overall standings once the final series has started', async () => {
+      const db = window.electron.sqlite.heatRaceDB;
+      db.readAllHeats.mockResolvedValue([{ heat_type: 'Final' }]);
+      const { result } = renderHook(() => useLeaderboard(1));
+      await waitFor(() => expect(result.current.finalSeriesStarted).toBe(true));
+      await waitFor(() =>
+        expect(db.readOverallLeaderboard).toHaveBeenCalledWith(1),
+      );
+
+      expect(db.readLeaderboard).toHaveBeenCalledWith(1);
+      expect(db.readFinalLeaderboard).toHaveBeenCalledWith(1);
+    });
   });
 
   describe('final-series fleet scoping', () => {
@@ -650,7 +679,6 @@ describe('useLeaderboard scoring/edit flow', () => {
           ],
         },
       ],
-      false,
       false,
     );
   });

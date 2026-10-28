@@ -31,7 +31,7 @@ export const SHRS_PENALTY_ORDER = [
 // Codes not enumerated in SHRS 5.3; recorded after the listed ones.
 export const APPENDIX_FALLBACK_PENALTY_ORDER = ['DGM', 'DPI'];
 
-export const EFFECTIVE_PENALTY_ORDER = [
+const EFFECTIVE_PENALTY_ORDER = [
   ...SHRS_PENALTY_ORDER,
   ...APPENDIX_FALLBACK_PENALTY_ORDER,
 ];

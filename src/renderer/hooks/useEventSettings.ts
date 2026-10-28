@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { EventRow } from '../types';
+import { reportInfo } from '../utils/userFeedback';
 import {
   DEFAULT_THRESHOLD_PREVIEW,
   parseDiscardModeAndConfig,
@@ -99,6 +100,18 @@ function useDiscardSeries(): DiscardSeries & {
     reset,
   };
 }
+
+/** Tell the user which discard series failed validation and why. */
+export const reportInvalidSettings = (invalid: {
+  message: string;
+  series: 'qualifying' | 'final';
+}): void =>
+  reportInfo(
+    invalid.message,
+    invalid.series === 'qualifying'
+      ? 'Invalid qualifying thresholds'
+      : 'Invalid final thresholds',
+  );
 
 export interface LoadedEventSettings {
   advanced: boolean;
