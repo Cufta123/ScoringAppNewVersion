@@ -18,12 +18,15 @@ export default class MenuBuilder {
 
   backupsDir: string;
 
+  errorLogDir: string;
+
   constructor(
     mainWindow: BrowserWindow,
-    { backupsDir }: { backupsDir: string },
+    { backupsDir, errorLogDir }: { backupsDir: string; errorLogDir: string },
   ) {
     this.mainWindow = mainWindow;
     this.backupsDir = backupsDir;
+    this.errorLogDir = errorLogDir;
   }
 
   /**
@@ -43,6 +46,16 @@ export default class MenuBuilder {
         label: 'Open Data Folder',
         click: () => {
           shell.openPath(path.dirname(this.backupsDir));
+        },
+      },
+      {
+        // errors.log: every error, with the code the screen showed.
+        label: 'Open Error Log',
+        click: () => {
+          fs.mkdirSync(this.errorLogDir, { recursive: true });
+          const file = path.join(this.errorLogDir, 'errors.log');
+          if (fs.existsSync(file)) shell.showItemInFolder(file);
+          else shell.openPath(this.errorLogDir);
         },
       },
     ];

@@ -15,6 +15,7 @@ import {
   reportError,
   reportInfo,
   reportWarning,
+  getErrorMessage,
 } from '../../utils/userFeedback';
 import { checkRaceHappened } from '../../utils/raceStatus';
 import { eventDB, sailorDB } from '../../api/db';
@@ -239,7 +240,7 @@ function EventPage() {
       }
       return true;
     } catch (error) {
-      const message = error instanceof Error ? error.message : '';
+      const message = getErrorMessage(error);
       // The main process re-checks this because `raceHappened` here can be
       // stale. Its message names the WTH alternative, so pass it through
       // rather than replacing it with a generic failure.
@@ -432,6 +433,11 @@ function EventPage() {
                   className="btn-ghost"
                   onClick={handlePrintStartingList}
                   disabled={!Array.isArray(boats) || boats.length === 0}
+                  title={
+                    !Array.isArray(boats) || boats.length === 0
+                      ? 'Add boats to the event first'
+                      : undefined
+                  }
                 >
                   Print Starting List
                 </button>

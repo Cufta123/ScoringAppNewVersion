@@ -2,6 +2,7 @@
 // Disable no-unused-vars, broken for spread args
 /* eslint no-unused-vars: off */
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+import { explainError } from '../shared/errors/explainError';
 
 /**
  * Every sqlite channel, grouped exactly as the renderer consumes them
@@ -82,21 +83,8 @@ type SqliteChannel = SqliteChannelGroups[keyof SqliteChannelGroups][number];
  */
 export type Channels = 'dialog:openFile' | SqliteChannel;
 
-const toErrorMessage = (error: unknown): string => {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-  if (typeof error === 'string' && error.trim()) {
-    return error;
-  }
-  if (error && typeof error === 'object' && 'message' in error) {
-    const maybeMessage = (error as { message?: unknown }).message;
-    if (typeof maybeMessage === 'string' && maybeMessage.trim()) {
-      return maybeMessage;
-    }
-  }
-  return 'Unknown IPC error.';
-};
+/** The import summary says why, in words the user can act on. */
+const toErrorMessage = (error: unknown): string => explainError(error).message;
 
 // Typed wrapper around ipcRenderer.invoke. Restricting the channel to the
 // `Channels` union makes the contract compile-time enforced: invoking a channel
@@ -185,7 +173,34 @@ sqlite.sailorDB.importSailors = async (...args: unknown[]) => {
   }
 };
 
+/**
+ * Messages between the window and the app that are not database calls: the
+ * window's own errors go to the error log (src/main/errorLog.ts), and the app
+ * tells the window when the automatic backups stop working (or work again).
+ */
+const appEvents = {
+  logError(entry: {
+    where: string;
+    message: string;
+    stack?: string;
+    ref?: string;
+  }) {
+    ipcRenderer.send('app:logError', entry);
+  },
+  onBackupStatus(listener: (status: { ok: boolean; reason?: string }) => void) {
+    const subscription = (
+      _event: IpcRendererEvent,
+      status: { ok: boolean; reason?: string },
+    ) => listener(status);
+    ipcRenderer.on('app:backupStatus', subscription);
+    return () => {
+      ipcRenderer.removeListener('app:backupStatus', subscription);
+    };
+  },
+};
+
 const electronHandler = {
+  appEvents,
   ipcRenderer: {
     sendMessage(channel: Channels, ...args: unknown[]) {
       ipcRenderer.send(channel, ...args);

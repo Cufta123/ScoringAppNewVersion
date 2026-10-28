@@ -399,8 +399,15 @@ export default function useLeaderboard(eventId: number) {
         if (!cancelled) {
           setMaxHeatSizes({ qualifying: qualifying || 0, final: final || 0 });
         }
-      } catch (_) {
-        // Keep fallback heat sizes; penalty position falls back to entry count.
+      } catch (error) {
+        // The edit screen then scores DNF & co. from the entry count, which
+        // can differ from what Save writes; say so instead of guessing quietly.
+        if (!cancelled) {
+          reportError(
+            'Could not read the heat sizes. While editing, codes such as DNF may show a different score until you reload the page; Save always uses the right one.',
+            error,
+          );
+        }
       }
     })();
     return () => {

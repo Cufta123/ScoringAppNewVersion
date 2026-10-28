@@ -26,6 +26,7 @@ jest.mock('jspdf-autotable', () => jest.fn());
 jest.mock('../renderer/utils/registerPdfUnicodeFont', () => jest.fn());
 
 jest.mock('../renderer/utils/userFeedback', () => ({
+  ...jest.requireActual('../renderer/utils/userFeedback'),
   confirmAction: jest.fn().mockResolvedValue(true),
   confirmChoice: jest.fn().mockResolvedValue('cancel'),
   reportError: jest.fn(),

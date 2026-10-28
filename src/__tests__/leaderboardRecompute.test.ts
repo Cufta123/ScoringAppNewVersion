@@ -834,7 +834,7 @@ describe('heatQueries — getLatestQualifyingHeats / getRaceCountForHeat / getMa
     });
 
     expect(() => getLatestQualifyingHeats(5)).toThrow(
-      'No qualifying heats found for this event.',
+      'This event has no qualifying heats yet.',
     );
   });
 

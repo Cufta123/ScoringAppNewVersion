@@ -102,6 +102,7 @@ jest.mock('jspdf', () => ({ jsPDF: jest.fn() }));
 jest.mock('jspdf-autotable', () => jest.fn());
 jest.mock('../renderer/utils/registerPdfUnicodeFont', () => jest.fn());
 jest.mock('../renderer/utils/userFeedback', () => ({
+  ...jest.requireActual('../renderer/utils/userFeedback'),
   confirmAction: jest.fn().mockResolvedValue(true),
   reportError: jest.fn(),
 }));

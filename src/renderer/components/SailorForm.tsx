@@ -6,6 +6,7 @@ import {
   reportError,
   reportInfo,
   reportWarning,
+  getErrorMessage,
 } from '../utils/userFeedback';
 import { checkRaceHappened } from '../utils/raceStatus';
 
@@ -105,10 +106,13 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
           const err = error as { code?: string; message?: string };
           const isDuplicateClub =
             err?.code === 'SQLITE_CONSTRAINT_UNIQUE' ||
-            /unique/i.test(String(err?.message || ''));
+            /unique|already exists/i.test(String(err?.message || ''));
 
           if (!isDuplicateClub) {
-            reportError('There was an error inserting the club.', error);
+            reportError(
+              'Could not add the club, so the sailor was not added.',
+              error,
+            );
             return; // Exit the function gracefully
           }
 
@@ -153,7 +157,7 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
           );
           sailor_id = sailorResult.lastInsertRowid;
         } catch (error) {
-          reportError('There was an error inserting the sailor.', error);
+          reportError('Could not add the sailor.', error);
           return; // Exit the function gracefully
         }
       }
@@ -209,7 +213,10 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
           );
           boat_id = boatResult.lastInsertRowid;
         } catch (error) {
-          reportError('There was an error inserting the boat.', error);
+          reportError(
+            'Could not add the boat, so the entry was not added.',
+            error,
+          );
           return; // Exit the function gracefully
         }
       }
@@ -228,15 +235,12 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
         try {
           await eventDB.associateBoatWithEvent(boat_id, eventId);
         } catch (error) {
-          const message = error instanceof Error ? error.message : '';
+          const message = getErrorMessage(error);
           const reason = message.match(/Sail .* is already entered[^.]*\./);
           if (reason) {
             reportWarning(reason[0], 'Already entered');
           } else {
-            reportError(
-              'There was an error associating the boat with the event.',
-              error,
-            );
+            reportError('Could not enter the boat in this event.', error);
           }
           return; // Exit the function gracefully
         }
@@ -256,7 +260,7 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
       onAddSailor();
       reportInfo('Sailor and boat added successfully.', 'Success');
     } catch (error) {
-      reportError('An unexpected error occurred.', error);
+      reportError('Could not add the sailor and boat.', error);
     } finally {
       setSubmitting(false);
     }

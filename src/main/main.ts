@@ -1,13 +1,18 @@
 import path from 'path';
-import { app, BrowserWindow, shell, dialog, session } from 'electron';
+import { app, BrowserWindow, shell, dialog, session, ipcMain } from 'electron';
 import MenuBuilder from './menu';
 import { resolveHtmlPath, resolvePreloadPath } from './util';
 import './ipcHandlers/SailorHandler';
 import './ipcHandlers/EventHandler';
 import './ipcHandlers/HeatRaceHandler';
 import handle, { setCallObserver } from './ipcHandlers/handle';
-import { autoBackup } from '../../public/Database/DBManager';
+import { autoBackup, dbPath } from '../../public/Database/DBManager';
 import { journalObserver } from './functions/changeJournal';
+import { logError, setErrorLogDir } from './errorLog';
+import { newErrorRef } from '../shared/errors/explainError';
+
+// Every error is written to logs/errors.log next to the database.
+setErrorLogDir(path.join(path.dirname(dbPath), 'logs'), app.getVersion());
 
 // Group what each IPC call writes into one entry of the event history.
 setCallObserver(journalObserver);
@@ -16,13 +21,74 @@ setCallObserver(journalObserver);
 // failure to the screen) must not take the app down mid-race: results are
 // written in transactions, so log it and keep running.
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught exception in the main process:', error);
+  logError('main process (uncaught exception)', error, {
+    ref: newErrorRef(),
+    kind: 'unexpected',
+  });
 });
 process.on('unhandledRejection', (reason) => {
-  console.error('Unhandled rejection in the main process:', reason);
+  logError('main process (unhandled rejection)', reason, {
+    ref: newErrorRef(),
+    kind: 'unexpected',
+  });
 });
 
+// Errors in the window itself (see renderer/utils/userFeedback.ts).
+ipcMain.on('app:logError', (_event, entry) => {
+  const { where, message, stack, ref } = (entry ?? {}) as {
+    where?: string;
+    message?: string;
+    stack?: string;
+    ref?: string;
+  };
+  const error = new Error(String(message ?? '').slice(0, 2000));
+  if (stack) error.stack = String(stack).slice(0, 8000);
+  logError(`window: ${String(where ?? 'unknown').slice(0, 300)}`, error, {
+    ref: ref ? String(ref).slice(0, 20) : undefined,
+    kind: 'window',
+  });
+});
+
+// One copy of the app at a time: a second window on the same data file
+// would keep its own view of the heats and the two would write over each
+// other. Opening the app again (a double double-click) brings the open
+// window to the front instead. The automated tests run several copies, each
+// on its own data file, so they skip this.
+const singleInstance =
+  Boolean(process.env.SCORING_APP_DB_PATH) || app.requestSingleInstanceLock();
+
 let mainWindow: BrowserWindow | null = null;
+
+/**
+ * Whether the automatic backups work. When they stop (disk full, folder not
+ * writable) the window shows a warning that stays until they work again;
+ * the status is sent again whenever the page (re)loads.
+ */
+let backupStatus: { ok: boolean; reason?: string } = { ok: true };
+
+const backupFailureReason = (error: unknown): string => {
+  const text = `${(error as { code?: unknown })?.code ?? ''} ${
+    (error as Error)?.message ?? ''
+  }`;
+  if (/FULL|ENOSPC|disk is full/i.test(text)) {
+    return 'The disk is full. Free some space on this computer.';
+  }
+  if (/READONLY|CANTOPEN|EACCES|EPERM|EROFS|read-only/i.test(text)) {
+    return 'The backups folder cannot be written to. Check that the drive is connected and not read-only.';
+  }
+  return 'Check the free disk space. Details are in the error log (Help menu > Open Error Log).';
+};
+
+autoBackup.onStatus(({ ok, error }: { ok: boolean; error?: unknown }) => {
+  if (!ok) {
+    logError('automatic backup', error, {
+      ref: newErrorRef(),
+      kind: 'backup',
+    });
+  }
+  backupStatus = ok ? { ok } : { ok, reason: backupFailureReason(error) };
+  mainWindow?.webContents.send('app:backupStatus', backupStatus);
+});
 
 if (process.env.NODE_ENV === 'production') {
   // eslint-disable-next-line global-require
@@ -152,6 +218,7 @@ const createWindow = async () => {
 
   const menuBuilder = new MenuBuilder(mainWindow, {
     backupsDir: autoBackup.dir,
+    errorLogDir: path.join(path.dirname(dbPath), 'logs'),
   });
   menuBuilder.buildMenu();
 
@@ -159,8 +226,17 @@ const createWindow = async () => {
   // the window would stay blank. Every result is already in the database,
   // so load the page again; a reload loop is stopped after a few tries.
   let reloads = 0;
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (!backupStatus.ok) {
+      mainWindow?.webContents.send('app:backupStatus', backupStatus);
+    }
+  });
+
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
-    console.error('Renderer process gone:', details);
+    logError('window stopped', details, {
+      ref: newErrorRef(),
+      kind: 'unexpected',
+    });
     if (details.reason === 'clean-exit' || !mainWindow) return;
     reloads += 1;
     if (reloads <= 3) {
@@ -186,6 +262,7 @@ handle('dialog:openFile', async (event, options) => {
 
 // Final safety copy of anything scored since the last periodic backup.
 app.on('before-quit', () => {
+  if (!singleInstance) return;
   autoBackup.stop();
   autoBackup.backupIfChanged();
 });
@@ -196,9 +273,21 @@ app.on('window-all-closed', () => {
   }
 });
 
+if (!singleInstance) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  });
+}
+
 app
   .whenReady()
   .then(() => {
+    if (!singleInstance) return null;
     applyContentSecurityPolicy();
     // Start-up copy, then rolling copies while results are being entered.
     autoBackup.backupNow();
@@ -209,4 +298,13 @@ app
     });
     return null;
   })
-  .catch(console.log);
+  .catch((error) => {
+    logError('starting the app', error, {
+      ref: newErrorRef(),
+      kind: 'unexpected',
+    });
+    dialog.showErrorBox(
+      'IOM Regatta Manager could not start',
+      'The window could not be opened. Your saved results are safe. Close the app and start it again; if it happens again, send the error log (Help menu > Open Error Log, or the logs folder next to the data file).',
+    );
+  });

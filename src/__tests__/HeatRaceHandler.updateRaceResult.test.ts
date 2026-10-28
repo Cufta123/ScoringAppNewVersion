@@ -424,7 +424,7 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
   it('rejects unsupported score status', async () => {
     const handler = handlerRegistry.updateRaceResult;
     await expect(handler({}, 99, 500, 'B1', 3, false, 'FOO')).rejects.toThrow(
-      'Unsupported score status: FOO',
+      '"FOO" is not a result code this app knows.',
     );
   });
 
@@ -432,19 +432,19 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
     const handler = handlerRegistry.updateRaceResult;
     await expect(
       handler({}, 99, 500, 'B1', 0, false, 'FINISHED'),
-    ).rejects.toThrow(/must be a positive integer/);
+    ).rejects.toThrow(/must be a whole number of 1 or more/);
     await expect(
       handler({}, 99, 500, 'B1', Number.NaN, false, 'FINISHED'),
-    ).rejects.toThrow(/must be a positive integer/);
+    ).rejects.toThrow(/must be a whole number of 1 or more/);
   });
 
   it('rejects a 0 / negative RDG/DPI value (BK-6 / CMP C-23)', async () => {
     const handler = handlerRegistry.updateRaceResult;
     await expect(handler({}, 99, 500, 'B1', 0, false, 'RDG2')).rejects.toThrow(
-      /must be a positive number/,
+      /must be a number above 0/,
     );
     await expect(handler({}, 99, 500, 'B1', -1, false, 'DPI')).rejects.toThrow(
-      /must be a positive number/,
+      /must be a number above 0/,
     );
   });
 

@@ -43,6 +43,7 @@ const mockDbHolderRef = mockDbHolder;
 import { invalidateAssignmentSnapshotCache } from '../main/functions/raceAssignmentSnapshot';
 import { rescoreRace } from '../main/functions/raceScoring';
 import { setCallObserver } from '../main/ipcHandlers/handle';
+import { isTechnicalText } from '../shared/errors/explainError';
 import { journalObserver } from '../main/functions/changeJournal';
 import applyRaceColumnEdit, {
   holdsPlace,
@@ -70,11 +71,11 @@ const GUARDS: RegExp[] = [
   /Cannot score .* Final Series has already started/i, // qualifying closed
   /already been built from|next round .* built|Undo the redistribution/i, // round built on it
   /no (scored )?race to undo|nothing to undo|No races? (have been )?scored/i,
-  /different race counts|not every heat|has not sailed|still being sailed|Not all heats have the same number of races/i, // round incomplete
+  /different race counts|not all sailed the same number of races|not every heat|has not sailed|still being sailed|Not all heats have the same number of races/i, // round incomplete
   /Cannot undo|was changed again later|Undo that change first/i, // history conflict
   /scoring page|event settings|by itself|nothing to undo/i, // not undoable here
   /Final series has already been started/i,
-  /fewer than 2 qualifying groups/i,
+  /needs at least 2 qualifying heats/i,
   /no redistribution|first round|Cannot undo .* round/i,
   /races have already been scored|has raced|already raced|after a race/i,
   /not in (a|any|the) current|current-round|cannot be assigned|already in a heat|not entered/i,
@@ -86,7 +87,7 @@ const GUARDS: RegExp[] = [
   /has already raced\. Undo its race first/i, // moving a boat
   /Score the current round before/i,
   /Nothing was changed after this point/i,
-  /No qualifying heats found for this event/i, // back to before the heats
+  /has no qualifying heats yet/i, // back to before the heats
   /No boats are registered for this event yet/i, // back to before the entries
 ];
 
@@ -503,6 +504,11 @@ describe('chaos: random race-office sessions keep the data whole', () => {
         if (!isGuard(error)) {
           unexpected.push(
             `seed ${seed} step ${step} "${name}": ${(error as Error).stack}`,
+          );
+        } else if (isTechnicalText((error as Error).message)) {
+          // A refusal the user would see must be worded for them.
+          unexpected.push(
+            `seed ${seed} step ${step} "${name}" (technical wording): ${(error as Error).message}`,
           );
         }
       }

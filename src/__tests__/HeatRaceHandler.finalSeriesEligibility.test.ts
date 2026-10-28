@@ -338,7 +338,7 @@ describe('getFinalSeriesEligibility', () => {
 
     // The start handler still rejects the same state, so the two agree.
     await expect(handlerRegistry.startFinalSeriesAtomic({}, 1)).rejects.toThrow(
-      'Cannot start final series without qualifying leaderboard data.',
+      'there are no qualifying results yet',
     );
   });
 });

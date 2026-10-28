@@ -126,6 +126,28 @@ function HelpModal({ open, onClose }: HelpModalProps) {
           </section>
 
           <section>
+            <h4>When a message appears</h4>
+            <ul>
+              <li>
+                <strong>Red or yellow message:</strong> the first line says what
+                did not happen, the next says why and what to do. Nothing is
+                changed by an action that was refused.
+              </li>
+              <li>
+                <strong>“Unexpected problem” with a code:</strong> check the
+                screen before going on. If it happens again, open{' '}
+                <em>Help &gt; Open Error Log</em> in the menu bar and send the
+                file, with the code, to whoever looks after the app.
+              </li>
+              <li>
+                <strong>“Automatic backup failed”:</strong> results are still
+                saved, but no safety copies are made until there is free disk
+                space again.
+              </li>
+            </ul>
+          </section>
+
+          <section>
             <h4>Key terms</h4>
             <dl className="help-terms">
               <dt>Qualifying vs Final Series</dt>

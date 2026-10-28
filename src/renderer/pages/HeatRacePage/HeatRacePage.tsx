@@ -14,6 +14,7 @@ import {
   reportError,
   reportInfo,
   reportWarning,
+  getErrorMessage,
 } from '../../utils/userFeedback';
 import { eventDB, heatRaceDB } from '../../api/db';
 import type { EventRow } from '../../types';
@@ -217,8 +218,10 @@ function HeatRacePage() {
             'Invalid sail number mapping',
           );
         } else {
+          // Not a refusal the app knows: treat it as a fault (code + log).
           reportError(
-            `Could not save scores: ${result.reason || 'unknown error'}.`,
+            'Could not save race scores. Nothing was saved.',
+            new TypeError(`submit refused: ${String(result.reason)}`),
           );
         }
         return false;
@@ -276,12 +279,10 @@ function HeatRacePage() {
       }
       refreshHeats();
     } catch (error) {
-      const message = error instanceof Error ? error.message : '';
+      const message = getErrorMessage(error);
       if (message.includes('has not raced yet')) {
-        reportInfo(
-          'The current round has not been raced yet — score each heat before creating the next round.',
-          'Nothing to redistribute',
-        );
+        // Names the heat that still has to race.
+        reportInfo(message, 'Nothing to redistribute');
         return;
       }
       reportError('Could not create new heats from leaderboard.', error);

@@ -1,7 +1,10 @@
 import { ipcMain, IpcMainInvokeEvent } from 'electron';
+import { explainError } from '../../shared/errors/explainError';
+import { logError } from '../errorLog';
 
 /**
- * Registers an `ipcMain.handle` listener that logs and rethrows on failure.
+ * Registers an `ipcMain.handle` listener that logs a failure and rethrows it
+ * in words the user can act on (shared/errors/explainError).
  *
  * Every handler used to repeat the same five lines:
  *
@@ -51,8 +54,13 @@ export default function handle(
     try {
       return await listener(event, ...args);
     } catch (error) {
-      console.error(`IPC "${channel}" failed:`, error);
-      throw error;
+      // Only words the user can act on cross to the window: the app's own
+      // refusals as they are, database failures explained, anything else as
+      // "unexpected" with a reference to the details in the error log.
+      const explained = explainError(error);
+      logError(`IPC "${channel}"`, error, explained);
+      if (explained.kind === 'refusal') throw error;
+      throw new Error(explained.message);
     } finally {
       try {
         watching?.after(mark, channel);

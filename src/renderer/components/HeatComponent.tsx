@@ -10,6 +10,7 @@ import {
   reportError,
   reportInfo,
   reportWarning,
+  getErrorMessage,
 } from '../utils/userFeedback';
 import { getExcludeCount, getFlagCode } from '../utils/leaderboardUtils';
 import useSnapshotHistory from '../hooks/useSnapshotHistory';
@@ -254,10 +255,7 @@ function HeatComponent({
       reportInfo('Final Series started successfully!', 'Success');
       handleDisplayHeats();
     } catch (error) {
-      const message =
-        error instanceof Error && typeof error.message === 'string'
-          ? error.message
-          : '';
+      const message = getErrorMessage(error);
       if (
         !allowOversize &&
         message.includes('Final fleets would exceed 20 boats')
@@ -381,7 +379,7 @@ function HeatComponent({
       setHeatsCreated(true);
       handleDisplayHeats(); // Refresh the heats display
     } catch (error) {
-      const message = error instanceof Error ? error.message : '';
+      const message = getErrorMessage(error);
       if (message.includes('Heats already exist')) {
         reportInfo('Heats already exist for this event.', 'Action blocked');
         setHeatsCreated(true);
@@ -396,7 +394,8 @@ function HeatComponent({
       if (
         message.includes('boats per heat') ||
         message.includes('No boats are registered') ||
-        message.includes('Number of heats must be')
+        message.includes('Number of heats must be') ||
+        message.includes('Cannot create heats:')
       ) {
         reportWarning(message, 'Cannot create heats');
         return;
@@ -437,7 +436,7 @@ function HeatComponent({
       setHeatsCreated(true);
       handleDisplayHeats();
     } catch (error) {
-      const message = error instanceof Error ? error.message : '';
+      const message = getErrorMessage(error);
       // The main process authors plain-language validation messages for these;
       // surface them verbatim so the user knows what to change. The heats they
       // already had are untouched either way.
@@ -445,7 +444,7 @@ function HeatComponent({
         message.includes('boats per heat') ||
         message.includes('No boats are registered') ||
         message.includes('Number of heats must be') ||
-        message.includes('duplicate sail numbers') ||
+        message.includes('Cannot create heats:') ||
         message.includes('races have already been scored')
       ) {
         reportWarning(message, 'Heats not changed');
@@ -671,6 +670,9 @@ function HeatComponent({
             className="btn-ghost"
             onClick={() => runExclusive(handleExportNewHeats)}
             disabled={heatsToDisplay.length === 0 || busy}
+            title={
+              heatsToDisplay.length === 0 ? 'Create the heats first' : undefined
+            }
           >
             {isFinalSeriesView ? 'Print Final Series Heats' : 'Print New Heats'}
           </button>

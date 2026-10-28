@@ -15,6 +15,7 @@ jest.mock('react-router-dom', () => ({
 }));
 
 jest.mock('../renderer/utils/userFeedback', () => ({
+  ...jest.requireActual('../renderer/utils/userFeedback'),
   confirmAction: jest.fn(),
   reportError: jest.fn(),
   reportInfo: jest.fn(),

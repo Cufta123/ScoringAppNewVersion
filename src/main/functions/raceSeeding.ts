@@ -30,7 +30,7 @@ export function getLatestRaceRowsForHeats(
   const raceNumbers = [...new Set(raceRows.map((row) => row.race_number))];
   if (raceNumbers.length > 1) {
     throw new Error(
-      'Latest qualifying heats are not aligned on the same race number.',
+      'The heats of the current round have not all sailed the same number of races. Score (or undo) races until every heat is on the same race, then try again.',
     );
   }
 

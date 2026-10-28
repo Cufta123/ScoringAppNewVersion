@@ -29,6 +29,7 @@ jest.mock('react-toastify', () => ({
 }));
 
 jest.mock('../renderer/utils/userFeedback', () => ({
+  ...jest.requireActual('../renderer/utils/userFeedback'),
   reportError: jest.fn(),
   reportInfo: jest.fn(),
 }));

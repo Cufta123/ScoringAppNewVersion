@@ -219,7 +219,7 @@ describe('change journal through the real handlers', () => {
         heat_id: 999,
         placeNumbers: [{ boatNumber: 1, place: 1, status: 'FINISHED' }],
       }),
-    ).rejects.toThrow('Heat not found');
+    ).rejects.toThrow('This heat no longer exists');
     expect(await history(eventId)).toEqual(before);
   });
 

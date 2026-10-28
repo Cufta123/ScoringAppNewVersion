@@ -74,20 +74,20 @@ describe('sanitizePositiveInteger', () => {
   it('rejects NaN, 0, negatives, fractions and Infinity', () => {
     for (const bad of [NaN, 0, -1, 2.5, Infinity, -Infinity]) {
       expect(() => sanitizePositiveInteger(bad, 'Place')).toThrow(
-        /must be a positive integer/,
+        /must be a whole number of 1 or more/,
       );
     }
   });
 
   it('rejects non-numeric input', () => {
     expect(() => sanitizePositiveInteger('abc', 'Place')).toThrow(
-      /must be a positive integer/,
+      /must be a whole number of 1 or more/,
     );
     expect(() => sanitizePositiveInteger(undefined, 'Place')).toThrow(
-      /must be a positive integer/,
+      /must be a whole number of 1 or more/,
     );
     expect(() => sanitizePositiveInteger(null, 'Place')).toThrow(
-      /must be a positive integer/,
+      /must be a whole number of 1 or more/,
     );
   });
 
@@ -108,7 +108,7 @@ describe('sanitizePositiveFinite (RDG/DPI points)', () => {
   it('rejects NaN, 0, negatives and Infinity', () => {
     for (const bad of [NaN, 0, -1, -0.5, Infinity, -Infinity]) {
       expect(() => sanitizePositiveFinite(bad, 'Redress')).toThrow(
-        /must be a positive number/,
+        /must be a number above 0/,
       );
     }
   });

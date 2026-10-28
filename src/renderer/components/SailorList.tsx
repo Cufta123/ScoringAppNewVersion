@@ -141,11 +141,18 @@ function SailorList({
 
   useEffect(() => {
     const fetchCategories = async () => {
-      const result = await sailorDB.readAllCategories();
-      if (result) {
-        setCategories(result);
-      } else {
-        reportError('Could not load category list.');
+      try {
+        const result = await sailorDB.readAllCategories();
+        if (result) {
+          setCategories(result);
+        } else {
+          reportError('Could not load the category list.');
+        }
+      } catch (error) {
+        reportError(
+          'Could not load the category list, so categories cannot be changed here until the page is reloaded.',
+          error,
+        );
       }
     };
 

@@ -69,6 +69,7 @@ jest.mock(
 );
 
 jest.mock('../renderer/utils/userFeedback', () => ({
+  ...jest.requireActual('../renderer/utils/userFeedback'),
   confirmAction: jest.fn().mockResolvedValue(true),
   reportError: jest.fn(),
   reportInfo: jest.fn(),

@@ -265,7 +265,9 @@ handle(
         | undefined;
 
       if (!existingEvent) {
-        throw new Error('Event not found.');
+        throw new Error(
+          'This event no longer exists (it may have been deleted in the meantime). Go back to the event list.',
+        );
       }
 
       const normalizedQualifyingDiscardProfile = normalizeDiscardConfigString(
@@ -287,7 +289,7 @@ handle(
         existingQualifyingDiscardProfile !== normalizedQualifyingDiscardProfile
       ) {
         throw new Error(
-          'Qualifying discard profile is locked after the first qualifying race.',
+          'The qualifying discards cannot be changed any more: a qualifying race has already been scored with the current setting.',
         );
       }
 
@@ -296,7 +298,7 @@ handle(
         existingFinalDiscardProfile !== normalizedFinalDiscardProfile
       ) {
         throw new Error(
-          'Final discard profile is locked after the first final race.',
+          'The Final Series discards cannot be changed any more: a final race has already been scored with the current setting.',
         );
       }
 

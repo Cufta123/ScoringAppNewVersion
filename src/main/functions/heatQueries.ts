@@ -11,7 +11,9 @@ export function getLatestQualifyingHeats(event_id: any) {
   const existingHeats = existingHeatsQuery.all(event_id);
   const latestHeats = findLatestHeatsBySuffix(existingHeats);
   if (latestHeats.length === 0) {
-    throw new Error('No qualifying heats found for this event.');
+    throw new Error(
+      'This event has no qualifying heats yet. Create the heats first.',
+    );
   }
   return latestHeats;
 }

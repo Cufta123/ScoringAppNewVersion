@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import Papa from 'papaparse';
 import { sailorDB, type ImportSailorsResult } from '../api/db';
-import { getErrorMessage } from '../utils/userFeedback';
+import { describeError } from '../utils/userFeedback';
 
 const TEMPLATE_CSV =
   'name,surname,birthday,sail_number,country,model,club_name,category_name\nJohn,Doe,,12345,CRO,Laser,YC Zagreb,M\nJane,Smith,,67890,SVN,Optimist,JK Piran,U16';
@@ -53,7 +53,11 @@ function SailorImport({ eventId, onImportComplete = null }: SailorImportProps) {
           setResult({
             imported: 0,
             skipped: 0,
-            errors: parseErrors.map((err) => err.message),
+            errors: parseErrors.map((err) =>
+              typeof err.row === 'number'
+                ? `Line ${err.row + 2} of the file: ${err.message}`
+                : `The file could not be read: ${err.message}`,
+            ),
           });
           return;
         }
@@ -83,7 +87,11 @@ function SailorImport({ eventId, onImportComplete = null }: SailorImportProps) {
       setResult(res);
       if ((res.imported ?? 0) > 0 && onImportComplete) onImportComplete();
     } catch (error) {
-      setResult({ imported: 0, skipped: 0, errors: [getErrorMessage(error)] });
+      setResult({
+        imported: 0,
+        skipped: 0,
+        errors: [describeError(error, 'importing sailors')],
+      });
     } finally {
       setBusy(false);
       setPending(null);

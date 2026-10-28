@@ -265,7 +265,7 @@ describe('SailorHandler SQL handlers (real SQLite)', () => {
           sail_number: null,
         },
       ),
-    ).rejects.toThrow(/NOT NULL/);
+    ).rejects.toThrow(/The sail number is missing/);
 
     expect(db.prepare('SELECT name FROM Sailors').get().name).toBe('John');
     expect(db.prepare('SELECT COUNT(*) AS c FROM Clubs').get().c).toBe(1);

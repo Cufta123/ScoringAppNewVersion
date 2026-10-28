@@ -101,8 +101,27 @@ function pruneAutoBackups(dir, keepRecent = MAX_AUTO_BACKUPS) {
  * not churn out identical files. Call `start()` once the app is running and
  * `stop()` + `backupIfChanged()` on quit.
  */
-function createAutoBackup(db, dbPath, { intervalMs = 5 * 60 * 1000 } = {}) {
+function createAutoBackup(
+  db,
+  dbPath,
+  { intervalMs = 5 * 60 * 1000, onStatus = null } = {},
+) {
   const dir = backupDirFor(dbPath);
+  // Tell the app when backups start failing and when they work again, so
+  // the person at the screen is not relying on copies that are not there.
+  let statusListener = onStatus;
+  let failing = false;
+  const report = (ok, error) => {
+    if (ok === !failing) return;
+    failing = !ok;
+    if (statusListener) {
+      try {
+        statusListener({ ok, error });
+      } catch (listenerError) {
+        console.error('Backup status listener failed:', listenerError);
+      }
+    }
+  };
   const totalChanges = () =>
     Number(db.prepare('SELECT total_changes() AS n').get().n);
   let lastBackedUpAt = null;
@@ -113,17 +132,27 @@ function createAutoBackup(db, dbPath, { intervalMs = 5 * 60 * 1000 } = {}) {
       if (!hasUserData(db)) return null;
       const file = writeBackup(db, dir, 'auto');
       lastBackedUpAt = totalChanges();
-      pruneAutoBackups(dir);
+      report(true);
+      try {
+        pruneAutoBackups(dir);
+      } catch (error) {
+        console.error('Pruning old automatic backups failed:', error);
+      }
       return file;
     } catch (error) {
       // A failed backup must never take scoring down with it.
       console.error('Automatic backup failed:', error);
+      report(false, error);
       return null;
     }
   };
 
   return {
     dir,
+    /** Called with { ok, error } when backups fail, and when they recover. */
+    onStatus(listener) {
+      statusListener = listener;
+    },
     backupNow: backup,
     backupIfChanged() {
       if (lastBackedUpAt !== null && totalChanges() === lastBackedUpAt) {

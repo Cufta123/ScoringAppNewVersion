@@ -6,6 +6,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import UnassignedEntriesNotice from '../renderer/components/UnassignedEntriesNotice';
 
 jest.mock('../renderer/utils/userFeedback', () => ({
+  ...jest.requireActual('../renderer/utils/userFeedback'),
   reportError: jest.fn(),
 }));
 

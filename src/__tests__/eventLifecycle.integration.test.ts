@@ -322,7 +322,7 @@ describe('event snapshot round trip', () => {
     const before = db.prepare('SELECT COUNT(*) AS c FROM Scores').get().c;
 
     expect(() => restoreEventSnapshot(OTHER_EVENT_ID, snapshot)).toThrow(
-      'Snapshot does not belong to this event.',
+      'This backup file belongs to a different event',
     );
     expect(db.prepare('SELECT COUNT(*) AS c FROM Scores').get().c).toBe(before);
   });

@@ -102,14 +102,22 @@ handle('updateSailor', async (event, sailorData) => {
           'SELECT s.sailor_id, s.club_id FROM Boats b JOIN Sailors s ON s.sailor_id = b.sailor_id WHERE b.boat_id = ?',
         )
         .get(boat_id) as { sailor_id: number; club_id: number } | undefined;
-      if (!boatRow) throw new Error(`Boat not found: ${boat_id}`);
+      if (!boatRow) {
+        throw new Error(
+          'This boat no longer exists (it may have been removed in the meantime). Reload the page.',
+        );
+      }
       const { sailor_id } = boatRow;
 
       // Fetch category_id based on category_name
       const category = db
         .prepare('SELECT category_id FROM Categories WHERE category_name = ?')
         .get(category_name);
-      if (!category) throw new Error(`Category not found: ${category_name}`);
+      if (!category) {
+        throw new Error(
+          `"${category_name}" is not a category this app knows. Pick one from the list.`,
+        );
+      }
       const { category_id } = category;
 
       // Keep the sailor's current club unless the name actually changed. When it

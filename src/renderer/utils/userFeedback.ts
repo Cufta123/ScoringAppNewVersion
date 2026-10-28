@@ -1,5 +1,12 @@
 import { toast } from 'react-toastify';
 import { requestConfirm, type ConfirmChoice } from './confirmController';
+import {
+  isTechnicalText,
+  messageOf,
+  newErrorRef,
+  stripIpcWrapping,
+  unexpectedMessage,
+} from '../../shared/errors/explainError';
 
 export interface ConfirmOptions {
   confirmLabel?: string;
@@ -12,71 +19,76 @@ export interface ConfirmChoiceOptions extends ConfirmOptions {
   extraClassName?: string;
 }
 
-export const getErrorMessage = (error: unknown): string => {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  if (typeof error === 'string' && error.trim()) {
-    return error;
-  }
-
-  if (
-    error &&
-    typeof error === 'object' &&
-    'message' in error &&
-    typeof (error as { message?: unknown }).message === 'string'
-  ) {
-    return (error as { message: string }).message;
-  }
-
-  return 'Unexpected error. Please try again.';
-};
-
-const TECHNICAL = [
-  /SQLITE/i,
-  /constraint/i,
-  /\b(Type|Reference|Syntax|Range)Error\b/,
-  /Cannot read propert/i,
-  /is not a function/i,
-  /\bundefined\b|\bnull\b|\bNaN\b/,
-  /\bat \S+ \(/, // a stack frame
-  /Unknown IPC error/i,
-  /Operation failed: /,
-];
+/** The error's own text, without Electron's "Error invoking remote method". */
+export const getErrorMessage = (error: unknown): string =>
+  stripIpcWrapping(messageOf(error)) || 'Unexpected error. Please try again.';
 
 /**
  * The reason a refusal gives, worded for the person at the screen, or null
- * when the message is technical. Electron wraps main-process errors as
- * "Error invoking remote method 'x': Error: <reason>".
+ * when the message is technical. The main process already turns its own
+ * failures into plain words (shared/errors/explainError); this keeps a
+ * technical message from the window itself off the screen.
  */
 export const plainReason = (error: unknown): string | null => {
-  const raw = getErrorMessage(error);
-  const reason = raw
-    .replace(/^Error invoking remote method '[^']*':\s*/, '')
-    .replace(/^(Error:\s*)+/, '')
-    .trim();
-  if (!reason || reason.length > 400) return null;
-  if (TECHNICAL.some((pattern) => pattern.test(reason))) return null;
+  // A TypeError, RangeError, … is a fault in the app whatever it says; the
+  // app's own refusals (and everything from the main process) are plain Errors.
+  if (
+    error instanceof Error &&
+    Object.getPrototypeOf(error) !== Error.prototype
+  ) {
+    return null;
+  }
+  const reason = stripIpcWrapping(messageOf(error));
+  if (!reason || reason.length > 600) return null;
+  if (isTechnicalText(reason)) return null;
   return reason;
+};
+
+/** Send an error of the window itself to the error log (best effort). */
+export const logToErrorLog = (
+  where: string,
+  error: unknown,
+  ref?: string,
+): void => {
+  try {
+    window.electron?.appEvents?.logError({
+      where,
+      message: messageOf(error) || String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      ref,
+    });
+  } catch {
+    // The log is a convenience; never fail the screen over it.
+  }
+};
+
+/**
+ * Why something failed, in words the user can act on: the reason the app
+ * gave, or — for a fault in the app — "unexpected problem" with a code that
+ * is also written, with the details, to the error log.
+ */
+export const describeError = (error: unknown, where = 'window'): string => {
+  const reason = plainReason(error);
+  if (reason) return reason;
+  const ref = newErrorRef();
+  logToErrorLog(where, error, ref);
+  return unexpectedMessage(ref);
 };
 
 export const reportError = (
   title: string | undefined,
   error?: unknown,
 ): void => {
-  // Keep the raw technical detail (SQLite/IPC/JS messages) for diagnosis, but
-  // never show it to the user — a race officer needs a plain-language message,
-  // not an error code. The detail goes to the console/devtools instead.
+  // The raw detail stays in the console and the error log; the screen gets
+  // what happened (the title) and why (the reason, in plain words).
   if (error !== undefined) {
     // eslint-disable-next-line no-console
-    console.error(title ?? 'Application error', error, getErrorMessage(error));
+    console.error(title ?? 'Application error', error);
   }
   const heading =
     title && title.trim() ? title : 'Something went wrong. Please try again.';
-  // The app's own refusals say what to do ("finish the current round
-  // first"); show that reason. Technical failures stay in the console.
-  const reason = error === undefined ? null : plainReason(error);
+  const reason =
+    error === undefined ? null : describeError(error, heading.slice(0, 200));
   const message =
     reason && reason !== heading ? `${heading}\n${reason}` : heading;
   // Errors stay on screen until dismissed so slower readers never miss them.
@@ -96,9 +108,14 @@ export const reportInfo = (message?: string, title = 'Notice'): void => {
 export const reportWarning = (
   message?: string,
   title = 'Please check',
+  { toastId }: { toastId?: string } = {},
 ): void => {
   const body = message || 'Please review your input.';
-  toast.warning(`${title}: ${body}`, { autoClose: false, closeOnClick: true });
+  toast.warning(`${title}: ${body}`, {
+    autoClose: false,
+    closeOnClick: true,
+    toastId,
+  });
 };
 
 const safeString = (value: unknown, fallback: string): string =>

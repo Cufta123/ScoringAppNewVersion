@@ -67,6 +67,27 @@ describe('automatic backups', () => {
     expect(backupFiles()).toHaveLength(2);
   });
 
+  it('says once when backups stop working, and again when they work', () => {
+    db.exec("INSERT INTO Events VALUES (1, 'Kup')");
+    const statuses: boolean[] = [];
+    const auto = backup.createAutoBackup(db, dbPath);
+    auto.onStatus(({ ok }: { ok: boolean }) => statuses.push(ok));
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    // The backups folder cannot be created: a file is in its way.
+    const dir = backup.backupDirFor(dbPath);
+    fs.writeFileSync(dir, 'in the way');
+    expect(auto.backupNow()).toBeNull();
+    expect(auto.backupNow()).toBeNull();
+    expect(statuses).toEqual([false]);
+
+    fs.rmSync(dir);
+    expect(auto.backupNow()).not.toBeNull();
+    expect(auto.backupNow()).not.toBeNull();
+    expect(statuses).toEqual([false, true]);
+    jest.restoreAllMocks();
+  });
+
   it('keeps the recent copies plus the last copy of each earlier day', () => {
     const dir = backup.backupDirFor(dbPath);
     fs.mkdirSync(dir, { recursive: true });

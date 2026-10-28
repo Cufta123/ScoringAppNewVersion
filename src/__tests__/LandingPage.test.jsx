@@ -30,6 +30,7 @@ jest.mock(
     },
 );
 jest.mock('../renderer/utils/userFeedback', () => ({
+  ...jest.requireActual('../renderer/utils/userFeedback'),
   reportError: jest.fn(),
 }));
 
