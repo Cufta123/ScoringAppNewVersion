@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { reportError, reportInfo } from '../utils/userFeedback';
 import { eventDB } from '../api/db';
-import useEventSettings from '../hooks/useEventSettings';
+import useEventSettings, {
+  reportInvalidSettings,
+} from '../hooks/useEventSettings';
 import AdvancedEventSettings from './AdvancedEventSettings';
 
 interface EventFormProps {
@@ -55,12 +57,7 @@ function EventForm({ onEventCreated = null }: EventFormProps) {
 
     const invalid = settings.validate();
     if (invalid) {
-      reportInfo(
-        invalid.message,
-        invalid.series === 'qualifying'
-          ? 'Invalid qualifying thresholds'
-          : 'Invalid final thresholds',
-      );
+      reportInvalidSettings(invalid);
       return;
     }
 
