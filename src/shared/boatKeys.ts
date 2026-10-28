@@ -84,3 +84,16 @@ export function findIndistinguishableBoats(
     .filter(([, ids]) => ids.length > 1)
     .map(([name, boatIds]) => ({ name, boatIds }));
 }
+
+/** "CRO 12 (boats 4, 9)" — for an error a race officer can act on. */
+export function describeIndistinguishable(
+  groups: Array<{ name: string; boatIds: Array<number | string> }>,
+): string {
+  return groups
+    .map(({ name, boatIds }) =>
+      name === ''
+        ? `${boatIds.length} boats have no sail number`
+        : `${name} is entered ${boatIds.length} times`,
+    )
+    .join('; ');
+}
