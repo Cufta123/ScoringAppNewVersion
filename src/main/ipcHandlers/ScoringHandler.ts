@@ -198,7 +198,8 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
   return { ok: true as const, raceNumber: nextRaceNumber, raceId };
 });
 
-handle('undoLastScoredRaceForHeat', async (event, heat_id) => {
+handle('undoLastScoredRaceForHeat', async (event, raw_heat_id) => {
+  const heat_id = Number(raw_heat_id);
   const heatRow = requireHeat(heat_id);
   const lastRace = getLatestRaceForHeat(heat_id);
 
@@ -244,7 +245,12 @@ handle('undoLastScoredRaceForHeat', async (event, heat_id) => {
 
 handle(
   'saveLeaderboardRaceResultsAtomic',
-  async (_event, event_id, operations, updateFinalLeaderboard = false) => {
+  async (
+    _event,
+    event_id: number,
+    operations,
+    updateFinalLeaderboard = false,
+  ) => {
     const safeOperations = Array.isArray(operations) ? operations : [];
     // The leaderboard edit screen sends each touched race whole, as it shows
     // it (see applyRaceColumnState); nothing else is accepted.

@@ -17,10 +17,11 @@ handle(
   'startFinalSeriesAtomic',
   async (
     _event,
-    event_id,
+    raw_event_id,
     allow_oversize_confirm = false,
     apply_shrs43_temporary_second_discard = true,
   ) => {
+    const event_id = Number(raw_event_id);
     const allHeats = db
       .prepare(
         'SELECT heat_id, heat_name, heat_type FROM Heats WHERE event_id = ?',

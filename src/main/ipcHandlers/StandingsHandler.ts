@@ -21,8 +21,49 @@ import {
   getMaxHeatSize,
 } from '../functions/raceScoring';
 
+/** The boat and sailor columns every leaderboard read returns. */
+interface BoatStandingsColumns {
+  boat_id: number;
+  boat_number: string | number | null;
+  boat_type: string | null;
+  name: string | null;
+  surname: string | null;
+  country: string | null;
+}
+
+/** Per-race columns: comma-joined, in race order (see GROUP_CONCAT below). */
+interface RaceColumns {
+  race_positions: string | null;
+  race_points: string | null;
+  race_ids: string | null;
+  race_statuses: string | null;
+}
+
+interface QualifyingReadRow extends BoatStandingsColumns, RaceColumns {
+  total_points_event: number;
+  place: number;
+}
+
+interface FinalReadRow extends BoatStandingsColumns, RaceColumns {
+  total_points_final: number;
+  event_id: number;
+  placement_group: string;
+  qualifying_points: number;
+}
+
+interface OverallReadRow extends BoatStandingsColumns {
+  qualifying_points: number;
+  final_points: number;
+  overall_points: number;
+  placement_group: string;
+  final_place: number;
+}
+
 handle('getMaxHeatSize', async (event, event_id, heat_type) => {
-  return getMaxHeatSize(event_id, heat_type || undefined);
+  return getMaxHeatSize(
+    Number(event_id),
+    heat_type ? String(heat_type) : undefined,
+  );
 });
 
 // Explain the SHRS 5.7 tie-break between two boats for the compare panel.
@@ -33,7 +74,7 @@ handle(
   'explainTieBreak',
   async (_event, event_id, boatAId, boatBId, isFinalSeries) => {
     return explainTieBreak(
-      event_id,
+      Number(event_id),
       String(boatAId),
       String(boatBId),
       Boolean(isFinalSeries),
@@ -51,7 +92,7 @@ handle('explainBoatScore', async (_event, event_id, boat_id) => {
 // SHRS validation of whether the Final Series can start. The renderer renders
 // prompts/messages from the returned reason; all the rule logic stays here.
 handle('getFinalSeriesEligibility', async (_event, event_id) => {
-  return getFinalSeriesEligibility(event_id);
+  return getFinalSeriesEligibility(Number(event_id));
 });
 
 /**
@@ -59,7 +100,7 @@ handle('getFinalSeriesEligibility', async (_event, event_id) => {
  * race other heats of the round have not (see CountedRaces). Shown on the
  * leaderboard, greyed, and not counted until the round is complete.
  */
-function readRacesInProgress(event_id: any) {
+function readRacesInProgress(event_id: number) {
   const rows = db
     .prepare(
       `SELECT sc.boat_id, sc.race_id, sc.position, sc.points,
@@ -81,7 +122,8 @@ function readRacesInProgress(event_id: any) {
   return { rows, byBoat };
 }
 
-handle('readLeaderboard', async (event, event_id) => {
+handle('readLeaderboard', async (event, raw_event_id) => {
+  const event_id = Number(raw_event_id);
   // The stored standings are only a cache: rebuild them from the scores on
   // every read, so the screen can never show stale places (cheap: one event).
   db.transaction(() => {
@@ -117,14 +159,17 @@ handle('readLeaderboard', async (event, event_id) => {
     'ORDER BY lb.place ASC';
   const readQuery = db.prepare(query);
   const pending = readRacesInProgress(event_id);
-  const results = (readQuery.all(event_id, event_id) as any[]).map((row) => ({
+  const results = (
+    readQuery.all(event_id, event_id) as QualifyingReadRow[]
+  ).map((row) => ({
     ...row,
     pending_races: pending.byBoat.get(Number(row.boat_id)) ?? [],
   }));
   return results;
 });
 
-handle('readFinalLeaderboard', async (event, event_id) => {
+handle('readFinalLeaderboard', async (event, raw_event_id) => {
+  const event_id = Number(raw_event_id);
   // Rebuilt on every read, like readLeaderboard: never a stale table.
   db.transaction(() => {
     ensureCompleteRaceScoresForEvent(event_id, 'Final');
@@ -174,7 +219,7 @@ handle('readFinalLeaderboard', async (event, event_id) => {
   // SHRS 5.5 fleet precedence + SHRS 1.5 qualifying-score fallback — see
   // functions/finalLeaderboardOrder.ts.
   const results = orderFinalLeaderboardRows(
-    readQuery.all(event_id, event_id) as any[],
+    readQuery.all(event_id, event_id) as FinalReadRow[],
   );
   return results;
 });
@@ -185,8 +230,9 @@ handle('readFinalLeaderboard', async (event, event_id) => {
  * SHRS 1.5: If no races are completed in the Final Series, boats are ranked
  * according to their series score in the Qualifying Series.
  */
-handle('readOverallLeaderboard', async (event, event_id) => {
-  refreshStandings(Number(event_id));
+handle('readOverallLeaderboard', async (event, raw_event_id) => {
+  const event_id = Number(raw_event_id);
+  refreshStandings(event_id);
   // SHRS 1.5: "If no races are completed in the Final Series boats will be
   // ranked according to their series score in the Qualifying Series." A final
   // race is "completed" once it has been SAILED — i.e. once ANY boat has a
@@ -255,13 +301,15 @@ handle('readOverallLeaderboard', async (event, event_id) => {
 
   // Normalise the SQL sums so equal overall totals compare equal (see
   // shared/points.ts) — otherwise a tie group below can be split by noise.
-  const results = (overallQuery.all(event_id) as any[]).map((row) => ({
-    ...row,
-    overall_points: roundPoints(Number(row.overall_points)),
-  }));
+  const results = (overallQuery.all(event_id) as OverallReadRow[]).map(
+    (row) => ({
+      ...row,
+      overall_points: roundPoints(Number(row.overall_points)),
+    }),
+  );
 
-  const tiePacketCache = new Map<any, OverallTiePacket>();
-  const getTiePacket = (boatId: any) => {
+  const tiePacketCache = new Map<number, OverallTiePacket>();
+  const getTiePacket = (boatId: number) => {
     if (!tiePacketCache.has(boatId)) {
       tiePacketCache.set(boatId, buildOverallTiePacket(event_id, boatId));
     }

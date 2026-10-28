@@ -104,7 +104,7 @@ handle('insertHeatBoat', async (event, heat_id, boat_id) => {
  * writing anything. Separated from the insert so "recreate" can prove the new
  * split is buildable before it throws the current heats away.
  */
-function planInitialHeats(event_id: any, num_heats: any) {
+function planInitialHeats(event_id: number, num_heats: unknown) {
   const numHeats = Number(num_heats);
   if (!Number.isInteger(numHeats) || numHeats < 1 || numHeats > 26) {
     throw new Error('Number of heats must be between 1 and 26.');
@@ -158,7 +158,7 @@ function planInitialHeats(event_id: any, num_heats: any) {
 
 /** Write a plan from `planInitialHeats`. Caller supplies the transaction. */
 function insertPlannedInitialHeats(
-  event_id: any,
+  event_id: number,
   plan: ReturnType<typeof planInitialHeats>,
 ) {
   const { insertHeatStmt, insertHeatBoatStmt } = prepareHeatWriters();
@@ -179,7 +179,7 @@ function insertPlannedInitialHeats(
  * blocks these once a race has happened, but that state can be stale — never
  * rely on it for a delete this destructive.
  */
-function assertNoScoredRacesForEvent(event_id: any) {
+function assertNoScoredRacesForEvent(event_id: number) {
   const scoredRaces = db
     .prepare(
       `SELECT COUNT(*) AS count FROM Races r
@@ -195,7 +195,7 @@ function assertNoScoredRacesForEvent(event_id: any) {
 }
 
 /** Drop an event's heats and their assignments. Caller supplies the transaction. */
-function wipeHeatsForEvent(event_id: any) {
+function wipeHeatsForEvent(event_id: number) {
   try {
     db.prepare(
       `DELETE FROM RaceAssignmentSnapshots WHERE race_id IN (
@@ -243,7 +243,8 @@ function wipeHeatsForEvent(event_id: any) {
 // the SHRS 3.1 serpentine — all in one transaction so a failure can never
 // leave half-created heats behind (the old renderer-side per-row IPC loop
 // could die at the 21st boat of a heat with no rollback).
-handle('createInitialHeatsAtomic', async (_event, event_id, num_heats) => {
+handle('createInitialHeatsAtomic', async (_event, raw_event_id, num_heats) => {
+  const event_id = Number(raw_event_id);
   const existingHeats = db
     .prepare('SELECT COUNT(*) AS count FROM Heats WHERE event_id = ?')
     .get(event_id) as { count: number };
@@ -275,16 +276,20 @@ handle('createInitialHeatsAtomic', async (_event, event_id, num_heats) => {
  * Planning before the wipe, inside one transaction, makes the whole thing
  * all-or-nothing: either the new heats exist or the old ones still do.
  */
-handle('recreateInitialHeatsAtomic', async (_event, event_id, num_heats) => {
-  assertNoScoredRacesForEvent(event_id);
-  const plan = planInitialHeats(event_id, num_heats);
+handle(
+  'recreateInitialHeatsAtomic',
+  async (_event, raw_event_id, num_heats) => {
+    const event_id = Number(raw_event_id);
+    assertNoScoredRacesForEvent(event_id);
+    const plan = planInitialHeats(event_id, num_heats);
 
-  const recreate = db.transaction(() => {
-    wipeHeatsForEvent(event_id);
-    return insertPlannedInitialHeats(event_id, plan);
-  });
-  return { success: true, ...recreate() };
-});
+    const recreate = db.transaction(() => {
+      wipeHeatsForEvent(event_id);
+      return insertPlannedInitialHeats(event_id, plan);
+    });
+    return { success: true, ...recreate() };
+  },
+);
 
 handle('readBoatsByHeat', async (event, heat_id) => {
   const boats = db
@@ -315,7 +320,8 @@ handle('readAllRaces', async (event, heat_id) => {
   return races;
 });
 
-handle('createNewHeatsBasedOnLeaderboard', async (event, event_id) => {
+handle('createNewHeatsBasedOnLeaderboard', async (event, raw_event_id) => {
+  const event_id = Number(raw_event_id);
   const latestHeats = getLatestQualifyingHeats(event_id);
   checkRaceCountForLatestHeats(latestHeats, db);
   const raceRows = getLatestRaceRowsForHeats(latestHeats);
@@ -381,7 +387,8 @@ handle('createNewHeatsBasedOnLeaderboard', async (event, event_id) => {
   return advisory ? { success: true, advisory } : { success: true };
 });
 
-handle('undoLatestHeatRedistribution', async (event, event_id) => {
+handle('undoLatestHeatRedistribution', async (event, raw_event_id) => {
+  const event_id = Number(raw_event_id);
   const latestHeats = getLatestQualifyingHeats(event_id);
 
   // Guard against deleting the first round: "undo redistribution" must only

@@ -67,7 +67,7 @@ function apply(step: RevertStep) {
   }
   const row = step.row as Record<string, unknown>;
   const columns = checkedColumns(step.table, Object.keys(row));
-  const values = columns.map((column) => row[column] as any);
+  const values = columns.map((column) => row[column]);
   if (step.op === 'insert') {
     db.prepare(
       `INSERT INTO ${step.table} (${columns.join(', ')})

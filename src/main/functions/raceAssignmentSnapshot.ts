@@ -130,7 +130,7 @@ export function invalidateAssignmentSnapshotCache(): void {
  */
 export function unshieldBoatFromAssignmentSnapshot(
   race_id: number,
-  boat_id: any,
+  boat_id: number | string,
 ): void {
   const frozen =
     raceAssignmentSnapshots.get(race_id) ??

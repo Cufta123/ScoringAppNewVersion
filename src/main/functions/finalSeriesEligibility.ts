@@ -9,7 +9,7 @@ export type { FinalSeriesEligibility };
 // main process so the rules (group counting, equal-race-count, Rule 4.3
 // threshold) have one home; the renderer only renders prompts from the result.
 export function getFinalSeriesEligibility(
-  event_id: any,
+  event_id: number,
 ): FinalSeriesEligibility {
   const empty = {
     numFinalHeats: 0,

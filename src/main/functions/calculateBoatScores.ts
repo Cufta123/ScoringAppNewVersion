@@ -11,10 +11,10 @@ import {
 // Loads an event's qualifying scores and hands them to the scoring core
 // (src/shared/scoring/series.ts), which holds the rules.
 
-interface Result {
-  boat_id: any;
-  total_points_event: any;
-  number_of_races: any;
+interface Result<Id> {
+  boat_id: Id;
+  total_points_event: number;
+  number_of_races: number;
 }
 
 interface ScoreEntry extends RaceScore {
@@ -27,7 +27,10 @@ export interface TieCandidate {
 }
 
 /** A boat's qualifying race scores (worst first). */
-export function getScoresForA81(event_id: any, boat_id: any): ScoreEntry[] {
+export function getScoresForA81(
+  event_id: number,
+  boat_id: number | string,
+): ScoreEntry[] {
   return db
     .prepare(
       `SELECT s.points, COALESCE(s.status, 'FINISHED') as status, s.race_id, r.race_number
@@ -42,7 +45,10 @@ export function getScoresForA81(event_id: any, boat_id: any): ScoreEntry[] {
 }
 
 /** SHRS 5.7.1 vs 5.7.2 for the event (see isSingleHeatSeries). */
-export function detectSingleHeatEvent(event_id: any, boatIds: string[]) {
+export function detectSingleHeatEvent(
+  event_id: number,
+  boatIds: Array<number | string>,
+) {
   return isSingleHeatSeries(
     boatIds.map((boat_id) => ({ scores: getScoresForA81(event_id, boat_id) })),
   );
@@ -50,7 +56,7 @@ export function detectSingleHeatEvent(event_id: any, boatIds: string[]) {
 
 /** The qualifying tie-break the ranking uses, for the explain panel. */
 export function compareQualifyingTieCandidates(
-  event_id: any,
+  event_id: number,
   a: TieCandidate,
   b: TieCandidate,
   isSingleHeatEvent: boolean,
@@ -74,10 +80,10 @@ export function compareQualifyingTieCandidates(
  * Qualifying places for the boats in `results` (one row per boat with a
  * score). `number_of_races` gives the series length for SHRS 5.4.
  */
-export default function calculateBoatScores(
-  results: Result[],
-  event_id: any,
-): RankedBoat<any>[] {
+export default function calculateBoatScores<Id extends number | string>(
+  results: Result<Id>[],
+  event_id: number,
+): RankedBoat<Id>[] {
   const seriesRaceCount = results.reduce(
     (max, row) => Math.max(max, Number(row.number_of_races) || 0),
     0,

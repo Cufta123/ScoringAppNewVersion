@@ -64,7 +64,20 @@ handle('readAllBoats', () => {
     .all();
   return rows;
 });
-handle('updateSailor', async (event, sailorData) => {
+/** What the sailor edit form sends (see SailorForm). */
+interface SailorEdit {
+  name: string;
+  surname: string;
+  category_name: string;
+  club_name: string;
+  originalClubName: string;
+  boat_id: number;
+  sail_number: string | number;
+  country: string;
+  model: string;
+}
+
+handle('updateSailor', async (event, sailorData: SailorEdit) => {
   const {
     name,
     surname,

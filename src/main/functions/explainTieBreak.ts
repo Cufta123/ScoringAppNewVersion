@@ -56,7 +56,10 @@ type RaceRow = {
 
 type DisplayRace = RaceRow & { excluded: boolean };
 
-function getBoatFinalHeatName(event_id: any, boat_id: any): string | null {
+function getBoatFinalHeatName(
+  event_id: number,
+  boat_id: number | string,
+): string | null {
   const row = db
     .prepare(
       `SELECT h.heat_name FROM Heats h
@@ -69,8 +72,8 @@ function getBoatFinalHeatName(event_id: any, boat_id: any): string | null {
 }
 
 function getSeriesRaceDisplay(
-  event_id: any,
-  boat_id: any,
+  event_id: number,
+  boat_id: number | string,
   heat_type: 'Qualifying' | 'Final',
   discardConfig: DiscardConfig,
 ): DisplayRace[] {
@@ -114,7 +117,7 @@ function getSeriesRaceDisplay(
 
 // All boats with a qualifying score in the event. Needed so single-vs-multi
 // heat is decided at the EVENT level (SHRS 5.7), not from the tied pair alone.
-function getAllQualifyingBoatIds(event_id: any): string[] {
+function getAllQualifyingBoatIds(event_id: number): string[] {
   const rows = db
     .prepare(
       `SELECT DISTINCT s.boat_id
@@ -124,7 +127,7 @@ function getAllQualifyingBoatIds(event_id: any): string[] {
        JOIN CountedRaces cr ON cr.race_id = s.race_id
        WHERE h.event_id = ? AND h.heat_type = 'Qualifying'`,
     )
-    .all(event_id) as { boat_id: any }[];
+    .all(event_id) as { boat_id: number }[];
   return rows.map((row) => String(row.boat_id));
 }
 
@@ -286,7 +289,7 @@ function buildA8Steps(options: {
 }
 
 function explainQualifying(
-  event_id: any,
+  event_id: number,
   boatAId: string,
   boatBId: string,
 ): TieBreakExplanation {
@@ -418,7 +421,7 @@ function explainQualifying(
 }
 
 function explainOverall(
-  event_id: any,
+  event_id: number,
   boatAId: string,
   boatBId: string,
 ): TieBreakExplanation {
@@ -538,7 +541,7 @@ function explainOverall(
 }
 
 export default function explainTieBreak(
-  event_id: any,
+  event_id: number,
   boatAId: string,
   boatBId: string,
   isFinalSeries: boolean,

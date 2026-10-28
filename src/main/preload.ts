@@ -74,35 +74,41 @@ export type Channels = 'dialog:openFile' | SqliteChannel;
 /** The import summary says why, in words the user can act on. */
 const toErrorMessage = (error: unknown): string => explainError(error).message;
 
+// What an invoked channel resolves to is whatever its handler returned; the
+// renderer's typed view of each result lives in src/renderer/api/db.ts.
+type Invoker = (...args: unknown[]) => Promise<unknown>;
+
 // Typed wrapper around ipcRenderer.invoke. Restricting the channel to the
 // `Channels` union makes the contract compile-time enforced: invoking a channel
 // that no main-process handler registers becomes a type error.
-const invokeChannel = (channel: Channels, ...args: unknown[]): Promise<any> =>
-  ipcRenderer.invoke(channel, ...args);
+const invokeChannel = (
+  channel: Channels,
+  ...args: unknown[]
+): Promise<unknown> => ipcRenderer.invoke(channel, ...args);
 
 // Factory for the common case: forward args to a channel and let any IPC
 // rejection propagate to the caller. Centralising this removes ~40 copies of
 // identical try/catch boilerplate and keeps error handling consistent (callers
 // always see a thrown error, never a `false` sentinel).
 const makeInvoker =
-  (channel: Channels) =>
-  (...args: unknown[]): Promise<any> =>
+  (channel: Channels): Invoker =>
+  (...args) =>
     invokeChannel(channel, ...args);
 
 // Wraps every exposed sqlite method so a resolved `false` (legacy failure
 // signal from some handlers) is converted to a thrown error. Failures are
 // logged once, in the main process, by `handle()`.
-const wrapSqliteApi = <T extends Record<string, any>>(api: T): T => {
-  const wrapped = {} as T;
+const wrapSqliteApi = <T extends object>(api: T): T => {
+  const wrapped: Record<string, unknown> = {};
 
   Object.entries(api).forEach(([groupName, groupValue]) => {
     if (!groupValue || typeof groupValue !== 'object') {
-      (wrapped as Record<string, any>)[groupName] = groupValue;
+      wrapped[groupName] = groupValue;
       return;
     }
 
-    const wrappedGroup: Record<string, any> = {};
-    Object.entries(groupValue as Record<string, any>).forEach(
+    const wrappedGroup: Record<string, unknown> = {};
+    Object.entries(groupValue as Record<string, unknown>).forEach(
       ([methodName, methodValue]) => {
         if (typeof methodValue !== 'function') {
           wrappedGroup[methodName] = methodValue;
@@ -110,7 +116,7 @@ const wrapSqliteApi = <T extends Record<string, any>>(api: T): T => {
         }
 
         wrappedGroup[methodName] = async (...args: unknown[]) => {
-          const result = await methodValue(...args);
+          const result = await (methodValue as Invoker)(...args);
           if (result === false) {
             throw new Error(`Operation failed: ${groupName}.${methodName}`);
           }
@@ -119,13 +125,11 @@ const wrapSqliteApi = <T extends Record<string, any>>(api: T): T => {
       },
     );
 
-    (wrapped as Record<string, any>)[groupName] = wrappedGroup;
+    wrapped[groupName] = wrappedGroup;
   });
 
-  return wrapped;
+  return wrapped as T;
 };
-
-type Invoker = (...args: unknown[]) => Promise<any>;
 
 type SqliteApi = {
   [Group in keyof SqliteChannelGroups]: {

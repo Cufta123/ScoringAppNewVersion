@@ -74,12 +74,17 @@ export function buildEventSnapshot(event_id: number) {
   };
 }
 
+/** One row of a snapshot table, as exported (column name -> value). */
+export type SnapshotRow = Record<string, unknown>;
+
+export interface EventSnapshot {
+  event_id: number;
+  tables: Record<string, SnapshotRow[]>;
+}
+
 export function restoreEventSnapshot(
   event_id: number,
-  snapshot: {
-    event_id: number;
-    tables: Record<string, any[]>;
-  },
+  snapshot: EventSnapshot,
 ) {
   if (!snapshot || typeof snapshot !== 'object') {
     throw new Error(

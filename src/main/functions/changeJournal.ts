@@ -55,7 +55,30 @@ export const journalObserver = {
 
 const parse = (json: string | null) => (json == null ? null : JSON.parse(json));
 
-const toChange = (row: any): HistoryChange => ({
+/** A ChangeLog row as stored: the row images are JSON text. */
+interface ChangeLogRow {
+  change_id: number;
+  action_id: number | null;
+  event_id: number | null;
+  at: string;
+  table_name: string;
+  op: HistoryChange['op'];
+  row_key: string;
+  old_row: string | null;
+  new_row: string | null;
+  context: string | null;
+}
+
+/** ChangeLog joined to the action it belongs to (see readEventHistory). */
+interface ChangeLogWithAction extends ChangeLogRow {
+  channel: string | null;
+  action_at: string | null;
+  reverts_action_id: number | null;
+  reverts_channel: string | null;
+  restores_to_action_id: number | null;
+}
+
+const toChange = (row: ChangeLogRow): HistoryChange => ({
   change_id: row.change_id,
   table_name: row.table_name,
   op: row.op,
@@ -79,7 +102,7 @@ export function readAction(
   if (!action) return null;
   const rows = db
     .prepare('SELECT * FROM ChangeLog WHERE action_id = ? ORDER BY change_id')
-    .all(action_id) as any[];
+    .all(action_id) as ChangeLogRow[];
   return {
     ...action,
     changes: rows.map(toChange),
@@ -123,7 +146,7 @@ export function readEventHistory(event_id: number): HistoryAction[] {
        WHERE c.event_id = ?
        ORDER BY c.change_id DESC`,
     )
-    .all(event_id) as any[];
+    .all(event_id) as ChangeLogWithAction[];
 
   const actions: HistoryAction[] = [];
   rows.forEach((row) => {
