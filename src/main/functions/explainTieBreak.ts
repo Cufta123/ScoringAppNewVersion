@@ -18,6 +18,14 @@ import {
   buildOverallTiePacket,
   compareOverallTiePackets,
 } from './overallTieBreak';
+import type {
+  TieBreakExplanation,
+  TieBreakRaceGridCell,
+  TieBreakRacePair,
+  TieBreakStep,
+} from '../../shared/scoring/tieBreakTypes';
+
+export type { TieBreakExplanation };
 
 // Authoritative tie-break explanation for the leaderboard compare panel.
 //
@@ -48,58 +56,10 @@ type RaceRow = {
 
 type DisplayRace = RaceRow & { excluded: boolean };
 
-type Comparison = {
-  mode: 'A8.1' | 'A8.2';
-  scoreA: number;
-  scoreB: number;
-  position?: number;
-  raceId?: number;
-};
-
-type Step = {
-  rule: string;
-  note: string;
-  subtitle?: string;
-  resolved: boolean;
-  comparison?: Comparison;
-};
-
-type RaceGridCell = {
-  key: string;
-  label: string;
-  scoreA: number | string;
-  scoreB: number | string;
-  excludedA: boolean;
-  excludedB: boolean;
-  shared: boolean;
-  isBreaker: boolean;
-};
-
-type RacePair = {
-  raceId: number;
-  raceNumber: number;
-  heatType: string;
-  pointsA: number;
-  pointsB: number;
-  excludedA: boolean;
-  excludedB: boolean;
-  displayA: number;
-  displayB: number;
-};
-
-export type TieBreakExplanation = {
-  tied: boolean;
-  totalA: number;
-  totalB: number;
-  winnerBoatId: string | null;
-  route: { rule: string; note: string } | null;
-  steps: Step[];
-  raceGrid: RaceGridCell[];
-  sharedRacePairs: RacePair[];
-  sharedQualRacePairs: RacePair[];
-};
-
-function getBoatFinalHeatName(event_id: any, boat_id: any): string | null {
+function getBoatFinalHeatName(
+  event_id: number,
+  boat_id: number | string,
+): string | null {
   const row = db
     .prepare(
       `SELECT h.heat_name FROM Heats h
@@ -112,8 +72,8 @@ function getBoatFinalHeatName(event_id: any, boat_id: any): string | null {
 }
 
 function getSeriesRaceDisplay(
-  event_id: any,
-  boat_id: any,
+  event_id: number,
+  boat_id: number | string,
   heat_type: 'Qualifying' | 'Final',
   discardConfig: DiscardConfig,
 ): DisplayRace[] {
@@ -157,7 +117,7 @@ function getSeriesRaceDisplay(
 
 // All boats with a qualifying score in the event. Needed so single-vs-multi
 // heat is decided at the EVENT level (SHRS 5.7), not from the tied pair alone.
-function getAllQualifyingBoatIds(event_id: any): string[] {
+function getAllQualifyingBoatIds(event_id: number): string[] {
   const rows = db
     .prepare(
       `SELECT DISTINCT s.boat_id
@@ -167,7 +127,7 @@ function getAllQualifyingBoatIds(event_id: any): string[] {
        JOIN CountedRaces cr ON cr.race_id = s.race_id
        WHERE h.event_id = ? AND h.heat_type = 'Qualifying'`,
     )
-    .all(event_id) as { boat_id: any }[];
+    .all(event_id) as { boat_id: number }[];
   return rows.map((row) => String(row.boat_id));
 }
 
@@ -204,7 +164,7 @@ function firstPairDiff(
 function buildSharedPairs(
   aRaces: DisplayRace[],
   bRaces: DisplayRace[],
-): RacePair[] {
+): TieBreakRacePair[] {
   const bByRace = new Map(bRaces.map((race) => [race.race_id, race]));
   return aRaces
     .filter((race) => bByRace.has(race.race_id))
@@ -226,9 +186,9 @@ function buildSharedPairs(
 }
 
 function buildSharedRaceGrid(
-  sharedPairs: RacePair[],
+  sharedPairs: TieBreakRacePair[],
   breakerRaceId: number | null,
-): RaceGridCell[] {
+): TieBreakRaceGridCell[] {
   return sharedPairs.map((pair) => ({
     key: String(pair.raceId),
     label: `${pair.heatType === 'Final' ? 'F' : 'Q'}${pair.raceNumber}`,
@@ -244,7 +204,7 @@ function buildSharedRaceGrid(
 function buildIndividualRaceGrid(
   aRaces: DisplayRace[],
   bRaces: DisplayRace[],
-): RaceGridCell[] {
+): TieBreakRaceGridCell[] {
   const maxLen = Math.max(aRaces.length, bRaces.length);
   return Array.from({ length: maxLen }, (_unused, idx) => {
     const a = aRaces[idx];
@@ -272,8 +232,8 @@ function buildA8Steps(options: {
   a81Subtitle: string;
   a82Subtitle: string;
   a81RuleLabel: string;
-}): { steps: Step[]; breakerRaceId: number | null } {
-  const steps: Step[] = [];
+}): { steps: TieBreakStep[]; breakerRaceId: number | null } {
+  const steps: TieBreakStep[] = [];
   let breakerRaceId: number | null = null;
 
   const sortedA = [...options.a81A].sort((x, y) => x - y);
@@ -329,7 +289,7 @@ function buildA8Steps(options: {
 }
 
 function explainQualifying(
-  event_id: any,
+  event_id: number,
   boatAId: string,
   boatBId: string,
 ): TieBreakExplanation {
@@ -397,7 +357,7 @@ function explainQualifying(
   );
 
   let route: { rule: string; note: string };
-  let stepResult: { steps: Step[]; breakerRaceId: number | null };
+  let stepResult: { steps: TieBreakStep[]; breakerRaceId: number | null };
 
   if (sharedPairs.length > 0 && !isSingleHeatEvent) {
     route = {
@@ -461,7 +421,7 @@ function explainQualifying(
 }
 
 function explainOverall(
-  event_id: any,
+  event_id: number,
   boatAId: string,
   boatBId: string,
 ): TieBreakExplanation {
@@ -530,7 +490,7 @@ function explainOverall(
   ];
 
   let route: { rule: string; note: string };
-  let stepResult: { steps: Step[]; breakerRaceId: number | null };
+  let stepResult: { steps: TieBreakStep[]; breakerRaceId: number | null };
 
   if (sharedPairs.length > 0) {
     route = {
@@ -581,7 +541,7 @@ function explainOverall(
 }
 
 export default function explainTieBreak(
-  event_id: any,
+  event_id: number,
   boatAId: string,
   boatBId: string,
   isFinalSeries: boolean,

@@ -105,9 +105,14 @@ export function findLatestHeatsBySuffix(existingHeats: HeatRef[]) {
     .filter((heat) => heat !== null);
 }
 
+/** The part of the database this check needs (a prepared `COUNT(*)` read). */
+interface RaceCountDb {
+  prepare(sql: string): { get(heat_id: number): { race_count: number } };
+}
+
 export function checkRaceCountForLatestHeats(
   lastHeats: { heat_name: string; heat_id: number }[],
-  db: any,
+  db: RaceCountDb,
 ) {
   const raceCountQuery = db.prepare(
     `SELECT COUNT(*) as race_count FROM Races WHERE heat_id = ?`,

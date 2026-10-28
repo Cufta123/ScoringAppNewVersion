@@ -9,16 +9,16 @@ import {
 // Loads an event's final-series scores and hands them to the scoring core
 // (src/shared/scoring/series.ts), which holds the rules.
 
-interface Result {
-  boat_id: any;
-  total_points_final: any;
-  heat_name: any;
+interface Result<Id> {
+  boat_id: Id;
+  total_points_final: number;
+  heat_name: string;
 }
 
 function getFinalScores(
-  event_id: any,
-  boat_id: any,
-  heat_name: any,
+  event_id: number,
+  boat_id: number | string,
+  heat_name: string,
 ): RaceScore[] {
   return db
     .prepare(
@@ -39,10 +39,10 @@ const fleetOf = (heat_name: unknown) =>
     : undefined) ?? String(heat_name);
 
 /** Places within each final fleet, keyed by fleet name. */
-export default function calculateFinalBoatScores(
-  results: Result[],
-  event_id: any,
-): Map<string, RankedBoat<any>[]> {
+export default function calculateFinalBoatScores<Id extends number | string>(
+  results: Result<Id>[],
+  event_id: number,
+): Map<string, RankedBoat<Id>[]> {
   return rankFinalSeries(
     results.map((row) => ({
       boat_id: row.boat_id,

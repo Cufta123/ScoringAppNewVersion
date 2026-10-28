@@ -85,7 +85,7 @@ export function refreshRedressAverages(rows: SeriesScoreRow[]) {
 // round grows the largest heat. Re-derive them against the current series-wide
 // largest heat before aggregating, so all races in the series agree.
 export function renormalizeNonFinisherScores(
-  event_id: any,
+  event_id: number,
   heat_type: 'Qualifying' | 'Final',
 ) {
   const maxBoats = getMaxHeatSizeForEvent(event_id, heat_type);
@@ -126,7 +126,7 @@ export function renormalizeNonFinisherScores(
   refreshRedressAverages(rows);
 }
 
-export function recomputeEventLeaderboard(event_id: any) {
+export function recomputeEventLeaderboard(event_id: number) {
   const deleteStmt = db.prepare('DELETE FROM Leaderboard WHERE event_id = ?');
   const query = `
     SELECT boat_id, SUM(points) as total_points_event, COUNT(DISTINCT Races.race_id) as number_of_races
@@ -164,7 +164,7 @@ export function recomputeEventLeaderboard(event_id: any) {
   tx();
 }
 
-export function recomputeFinalLeaderboard(event_id: any) {
+export function recomputeFinalLeaderboard(event_id: number) {
   // Start from Heat_Boat, not Scores: SHRS 4.5 lets fleets sail different
   // numbers of races, so a fleet that has not raced yet must still keep its
   // boats on the final leaderboard (with a 0-point final series so far)

@@ -32,7 +32,7 @@ export interface CallObserver<Mark = unknown> {
   after: (mark: Mark, channel: string) => void;
 }
 
-let observer: CallObserver<any> | null = null;
+let observer: CallObserver | null = null;
 
 /**
  * Watch every IPC call: `before` runs as a call starts and `after` once it has
@@ -41,34 +41,39 @@ let observer: CallObserver<any> | null = null;
  * it unset, so their mocked databases are never asked about the journal.
  */
 export function setCallObserver<Mark>(next: CallObserver<Mark> | null): void {
-  observer = next;
+  // The mark is opaque to this module: whatever `before` returned goes back to
+  // `after` of the same observer.
+  observer = next as CallObserver | null;
 }
 
-export default function handle(
+export default function handle<Args extends unknown[] = unknown[]>(
   channel: string,
-  listener: (event: IpcMainInvokeEvent, ...args: any[]) => unknown,
+  listener: (event: IpcMainInvokeEvent, ...args: Args) => unknown,
 ): void {
-  ipcMain.handle(channel, async (event: IpcMainInvokeEvent, ...args: any[]) => {
-    const watching = observer;
-    const mark = watching?.before(channel);
-    try {
-      return await listener(event, ...args);
-    } catch (error) {
-      // Only words the user can act on cross to the window: the app's own
-      // refusals as they are, database failures explained, anything else as
-      // "unexpected" with a reference to the details in the error log.
-      const explained = explainError(error);
-      logError(`IPC "${channel}"`, error, explained);
-      if (explained.kind === 'refusal') throw error;
-      throw new Error(explained.message);
-    } finally {
+  ipcMain.handle(
+    channel,
+    async (event: IpcMainInvokeEvent, ...args: unknown[]) => {
+      const watching = observer;
+      const mark = watching?.before(channel);
       try {
-        watching?.after(mark, channel);
+        return await listener(event, ...(args as Args));
       } catch (error) {
-        // The call itself went through; a failure to group its history must
-        // not turn it into an error for the user.
-        console.error(`Journal grouping for "${channel}" failed:`, error);
+        // Only words the user can act on cross to the window: the app's own
+        // refusals as they are, database failures explained, anything else as
+        // "unexpected" with a reference to the details in the error log.
+        const explained = explainError(error);
+        logError(`IPC "${channel}"`, error, explained);
+        if (explained.kind === 'refusal') throw error;
+        throw new Error(explained.message);
+      } finally {
+        try {
+          watching?.after(mark, channel);
+        } catch (error) {
+          // The call itself went through; a failure to group its history must
+          // not turn it into an error for the user.
+          console.error(`Journal grouping for "${channel}" failed:`, error);
+        }
       }
-    }
-  });
+    },
+  );
 }

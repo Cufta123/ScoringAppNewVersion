@@ -70,7 +70,7 @@ function current(table: string, key: Row): Row | null {
       .prepare(
         `SELECT * FROM ${table} WHERE ${keys.map((k) => `${k} = ?`).join(' AND ')}`,
       )
-      .get(...keys.map((k) => key[k] as any)) as Row | undefined) ?? null
+      .get(...keys.map((k) => key[k])) as Row | undefined) ?? null
   );
 }
 
@@ -104,7 +104,7 @@ function invert(change: JournalRow) {
   }
 
   const where = keys.map((k) => `${k} = ?`).join(' AND ');
-  const keyValues = keys.map((k) => key[k] as any);
+  const keyValues = keys.map((k) => key[k]);
   if (change.op === 'insert') {
     db.prepare(`DELETE FROM ${table} WHERE ${where}`).run(...keyValues);
   } else if (change.op === 'delete') {
@@ -113,12 +113,12 @@ function invert(change: JournalRow) {
       `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${columns
         .map(() => '?')
         .join(', ')})`,
-    ).run(...columns.map((c) => (before as Row)[c] as any));
+    ).run(...columns.map((c) => (before as Row)[c]));
   } else {
     const columns = known(table, Object.keys(before as Row));
     db.prepare(
       `UPDATE ${table} SET ${columns.map((c) => `${c} = ?`).join(', ')} WHERE ${where}`,
-    ).run(...columns.map((c) => (before as Row)[c] as any), ...keyValues);
+    ).run(...columns.map((c) => (before as Row)[c]), ...keyValues);
   }
 }
 

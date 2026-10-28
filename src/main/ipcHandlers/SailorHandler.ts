@@ -1,14 +1,8 @@
 import { db } from '../../../public/Database/DBManager';
 import { subgroupToCategoryName } from '../../shared/subgroups';
 import handle from './handle';
-
-interface SqliteError extends Error {
-  code: string;
-}
-
-const log = (message: string) => {
-  console.log(message);
-};
+import type { ImportSailorsSummary } from '../../shared/importSailors';
+import retryWhenBusy from '../functions/retryWhenBusy';
 
 handle('readAllSailors', () => {
   const rows = db
@@ -70,7 +64,20 @@ handle('readAllBoats', () => {
     .all();
   return rows;
 });
-handle('updateSailor', async (event, sailorData) => {
+/** What the sailor edit form sends (see SailorForm). */
+interface SailorEdit {
+  name: string;
+  surname: string;
+  category_name: string;
+  club_name: string;
+  originalClubName: string;
+  boat_id: number;
+  sail_number: string | number;
+  country: string;
+  model: string;
+}
+
+handle('updateSailor', async (event, sailorData: SailorEdit) => {
   const {
     name,
     surname,
@@ -157,34 +164,14 @@ handle('updateSailor', async (event, sailorData) => {
 handle(
   'insertSailor',
   async (event, name, surname, birthday, category_id, club_id) => {
-    const maxRetries = 5;
-    const delay = (ms: number) =>
-      new Promise((resolve) => {
-        setTimeout(resolve, ms);
-      });
-
-    const insertSailorWithRetry = async (
-      attempt: number,
-    ): Promise<{ lastInsertRowid: number }> => {
-      try {
-        const result = db
-          .prepare(
-            'INSERT INTO Sailors (name, surname, birthday, category_id, club_id) VALUES (?, ?, ?, ?, ?)',
-          )
-          .run(name, surname, birthday, category_id, club_id);
-        return { lastInsertRowid: result.lastInsertRowid };
-      } catch (error) {
-        const sqliteError = error as SqliteError;
-        if (sqliteError.code === 'SQLITE_BUSY' && attempt < maxRetries) {
-          log(`Database is locked, retrying attempt ${attempt}...`);
-          await delay(100 * attempt); // Exponential backoff
-          return insertSailorWithRetry(attempt + 1);
-        }
-        throw error;
-      }
-    };
-
-    return insertSailorWithRetry(1);
+    return retryWhenBusy(() => {
+      const result = db
+        .prepare(
+          'INSERT INTO Sailors (name, surname, birthday, category_id, club_id) VALUES (?, ?, ?, ?, ?)',
+        )
+        .run(name, surname, birthday, category_id, club_id);
+      return { lastInsertRowid: result.lastInsertRowid };
+    });
   },
 );
 
@@ -200,7 +187,7 @@ interface ImportRow {
   eventId?: number | string;
 }
 
-handle('importSailors', (_event, rows: ImportRow[]) => {
+handle('importSailors', (_event, rows: ImportRow[]): ImportSailorsSummary => {
   let created = 0; // new boats added to DB
   let associated = 0; // existing boats newly added to this event
   let alreadyInEvent = 0; // boats that were already in this event

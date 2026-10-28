@@ -1,5 +1,13 @@
 import path from 'path';
-import { app, BrowserWindow, shell, dialog, session, ipcMain } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  shell,
+  dialog,
+  session,
+  ipcMain,
+  type OpenDialogOptions,
+} from 'electron';
 import MenuBuilder from './menu';
 import { resolveHtmlPath, resolvePreloadPath } from './util';
 import './ipcHandlers/SailorHandler';
@@ -256,7 +264,7 @@ const createWindow = async () => {
 };
 
 // Register the IPC handler for the file dialog
-handle('dialog:openFile', async (event, options) => {
+handle('dialog:openFile', async (event, options: OpenDialogOptions) => {
   return dialog.showOpenDialog(mainWindow!, options);
 });
 

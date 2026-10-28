@@ -15,7 +15,7 @@ import {
 export function captureRaceAssignmentSnapshotIfMissing(
   heat_id: number,
   race_id: number,
-  boat_id: any,
+  boat_id: number | string,
 ) {
   const existing =
     raceAssignmentSnapshots.get(race_id) ??

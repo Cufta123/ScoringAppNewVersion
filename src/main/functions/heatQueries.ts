@@ -5,7 +5,7 @@ import type { HeatRow } from './seriesGuards';
 // Small shared read helpers for qualifying heats and their race counts. Used by
 // both the IPC handlers and the Final Series eligibility check.
 
-export function getLatestQualifyingHeats(event_id: any) {
+export function getLatestQualifyingHeats(event_id: number) {
   const existingHeatsQuery = db.prepare(
     `SELECT heat_name, heat_id FROM Heats WHERE event_id = ? AND heat_type = 'Qualifying'`,
   );
@@ -76,7 +76,7 @@ export function getRaceCountForHeat(heat_id: number): number {
 // score non-finishers as (largest heat + 1). Shared so the leaderboard
 // recompute can re-derive stale scores against the same value the handler uses.
 export function getMaxHeatSizeForEvent(
-  event_id: any,
+  event_id: number,
   heat_type?: string,
 ): number {
   const heatTypeFilter = heat_type ? `AND h.heat_type = ?` : '';

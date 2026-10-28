@@ -16,7 +16,17 @@ Use this document first. Only search the repo when this file does not answer the
 - IPC handlers (registered via `handle()` in `src/main/ipcHandlers/handle.ts`):
   - `src/main/ipcHandlers/SailorHandler.ts`
   - `src/main/ipcHandlers/EventHandler.ts`
-  - `src/main/ipcHandlers/HeatRaceHandler.ts`
+  - `src/main/ipcHandlers/HeatRaceHandler.ts` — only imports the five files
+    below (kept so `main.ts` and the tests have one import for the heat/race
+    channels):
+    - `HeatHandler.ts` — heats, initial heats and "recreate", boats in heats,
+      transfer, next round, undo redistribution
+    - `ScoringHandler.ts` — submit a race, undo a race, leaderboard result
+      edits (`saveLeaderboardRaceResultsAtomic`)
+    - `StandingsHandler.ts` — leaderboard reads (qualifying, final, overall),
+      explain score / tie-break, Final Series eligibility, max heat size
+    - `FinalSeriesHandler.ts` — `startFinalSeriesAtomic`
+    - `SnapshotHandler.ts` — event snapshot export / restore (file dialogs)
 - Pure/domain logic (extracted out of the handlers): `src/main/functions/`
   (see §5 for the full module map).
 - Scoring core and cross-process helpers: `src/shared/`. The series scoring
@@ -30,7 +40,9 @@ Use this document first. Only search the repo when this file does not answer the
 - Renderer DB access wrapper: `src/renderer/api/db` (re-exports `eventDB`,
   `heatRaceDB`, etc. over `window.electron.sqlite.*`).
 - Renderer routes: `src/renderer/App.tsx`
-- Database open + startup: `public/Database/DBManager.js`; versioned schema
+- Database open + startup: `public/Database/DBManager.js` (its startup dialog
+  words its own advice but recognises damaged / busy / full / read-only files
+  with `classifyDatabaseFailure` from `shared/errors/explainError.ts`); versioned schema
   migrations: `public/Database/schema.js`; automatic backups:
   `public/Database/backup.js`
 - App menu: `src/main/menu.ts`
@@ -180,8 +192,9 @@ DB file paths:
 
 ## 5. Domain Rules And Scoring Notes
 
-`HeatRaceHandler.ts` holds the IPC wiring; the actual logic has been extracted
-into focused modules under `src/main/functions/`. Map of that directory:
+The handlers (`ipcHandlers/`) only wire IPC: read, call a pure planner, write
+in one transaction. The logic lives in focused modules under
+`src/main/functions/`. Map of that directory:
 
 - `calculateBoatScores.ts` / `calculateFinalBoatScores.ts` — load a series'
   scores and hand them to the scoring core (`shared/scoring/series.ts`), which
@@ -218,7 +231,28 @@ into focused modules under `src/main/functions/`. Map of that directory:
   `getRaceCountForHeat`).
 - `eventSettings.ts` — per-event SHRS configuration on the Events row:
   qualifying assignment mode (3.1/3.2), heat overflow policy and
-  `SHRS_MAX_BOATS_PER_HEAT` (2.3), and the discard-profile lock (5.4).
+  `SHRS_MAX_BOATS_PER_HEAT` (2.3), and the discard-profile lock (5.4). The
+  allowed values (`QualifyingAssignmentMode`, `HeatOverflowPolicy`) and their
+  one normalizer are in `shared/eventSettings.ts`; the event writes and these
+  reads both use it.
+- `finalFleetPlan.ts` — `planFinalFleets`: the Final Series fleet split (SHRS
+  4.1/4.2/2.3: withdrawn boats last, overflow policy, never more fleets than
+  boats, sizes as equal as possible with the earlier fleets taking the
+  remainder) from the qualifying ranking, as boat ids per fleet or a plain
+  refusal. `startFinalSeriesAtomic` reads, plans and writes.
+- `nextRoundPlan.ts` — `planNextRound`: round number, heat names and every
+  boat's heat for the next qualifying round (Heat Movement Table for
+  progressive events, carry-forward for pre-assigned ones), or the refusal when
+  nothing could be assigned. `createNewHeatsBasedOnLeaderboard` reads, plans
+  and writes.
+- `submittedRaceScore.ts` — `scoreSubmittedBoat`: one scoring-screen entry to
+  position / points / status (FINISHED keeps its place; ZFP/SCP/T1 keep the
+  place and add the penalty; every other code takes largest heat + 1, SHRS
+  5.2). `submitHeatRaceScoresAtomic` works every boat out before it opens the
+  transaction.
+- `heatWriters.ts` — the two prepared INSERTs every heat builder uses.
+- `retryWhenBusy.ts` — retry a write a few times while SQLite reports
+  `SQLITE_BUSY` (insertSailor, insertEvent).
 - `raceScoring.ts` — every write to `Scores` for a single race:
   `applyRaceColumnState` (stores a whole corrected race from the leaderboard's
   Save, RRS A6.1/A6.2/A7, SHRS 5.2, 3.1.5), `applyRaceTieScoring` (RRS A7),
@@ -246,6 +280,14 @@ Shared (renderer + main) — one definition per rule, imported by both processes
 
 - `fleetAssignment.ts` — `computeAdjustedFleetTotals` (rule 4.3).
 - `subgroups.ts`.
+- `eventSettings.ts` — `QualifyingAssignmentMode`, `HeatOverflowPolicy` and
+  their normalizers (the vocabulary of an event's SHRS settings).
+- IPC result types, one definition for both processes: `scoring/tieBreakTypes.ts`
+  (the tie-break explanation), `finalSeriesEligibility.ts`, `importSailors.ts`,
+  `scoring/explain.ts` (`BoatScoreExplanation`). The renderer's names for them
+  in `renderer/types.ts` are aliases; where the renderer must tolerate partial
+  results it derives a looser type from the shared one. When a handler returns
+  a new shape, define it in `src/shared` and import it on both sides.
 - `scoringPenalty.ts` — RRS 44.3(c)/T1 points (20% / 30% of the DNF score, to
   the nearest tenth as in RRS 2025–2028, capped at the DNF score),
   and `scoringPenaltyStatuses`.
@@ -316,7 +358,7 @@ Number/size of heats
 
 - 2.1–2.2 — As few heats as possible; sizes as equal as possible.
 - 2.3 — **Max 20 boats per heat** (`SHRS_MAX_BOATS_PER_HEAT` in
-  `HeatRaceHandler.ts`; overflow governed by `shrs_heat_overflow_policy`).
+  `shared/heatSizing.ts`; overflow governed by `shrs_heat_overflow_policy`).
 
 Qualifying assignment (`creatingNewHeatsUtls.ts`)
 
@@ -501,6 +543,13 @@ Scoring engine / rules:
 
 Handler / integration:
 
+- `finalFleetPlan.test.ts` (the fleet split: withdrawn last, odd sizes, more
+  fleets than boats, oversize with and without confirmation),
+  `nextRoundPlan.test.ts` (movement table, pre-assigned, refusals),
+  `submittedRaceScore.test.ts` (place / points / status per code),
+  `eventSettings.test.ts`, `retryWhenBusy.test.ts`,
+  `DBManager.failStartup.test.ts` (startup advice per failure kind and
+  `classifyDatabaseFailure`)
 - `HeatRaceHandler.createNewHeats.test.ts`,
   `HeatRaceHandler.overallTieBreak.test.ts`,
   `HeatRaceHandler.submitScoresAtomic.test.ts`,
@@ -567,11 +616,19 @@ For most feature/fix requests, do this in order:
 - Async actions that mutate rounds go through `useExclusiveAction` (renderer
   hook). The ref inside it is load-bearing: two clicks in the same tick both
   read `busy === false` from state. `busy` only drives `disabled`.
-- `HeatRaceHandler.ts` is intentionally thin wiring: the logic lives in
+- The handlers are intentionally thin wiring: the logic lives in
   `src/main/functions/`. Add new pure logic there, not inline in the handler.
-  This had drifted — 718 lines of domain helpers had accumulated back in the
-  handler and were moved out in Sept 2026. If you find yourself writing a
-  non-handler function in this file, it belongs in `functions/`.
+  This had drifted twice — 718 lines of domain helpers had accumulated back in
+  the handler (moved out in Sept 2026), and later the fleet split, the
+  next-round assignment and the per-boat score were inline in their handlers
+  (now `planFinalFleets`, `planNextRound`, `scoreSubmittedBoat`). The heat/race
+  channels are split by area (`HeatHandler`, `ScoringHandler`,
+  `StandingsHandler`, `FinalSeriesHandler`, `SnapshotHandler`); a helper two of
+  them need goes to `functions/`, never copied.
+- `handle()` is generic over the listener's parameters: an unannotated
+  parameter arrives as `unknown`, so convert ids once at the top of the handler
+  (`const event_id = Number(raw_event_id)`) and pass numbers on. Do not
+  reintroduce `any` in `src/main`.
 - `functions/` modules import `db` directly from `DBManager` (not passed in),
   and only call `db.prepare` inside functions — never at module top level, so
   importing a module never touches the database.
@@ -710,7 +767,7 @@ Only run repo-wide search if needed after using this file.
 
 - IPC channel usage: search by channel name string.
 - SQL writes: search for `.run(` in `src/main/ipcHandlers`.
-- Score status handling: search `status`, `penalty`, `RDG`, `exclude` in `HeatRaceHandler.ts`.
+- Score status handling: search `status`, `penalty`, `RDG`, `exclude` in `ScoringHandler.ts` and `functions/scoreStatus.ts`.
 
 ## 12. Definition Of Done For Agent Changes
 

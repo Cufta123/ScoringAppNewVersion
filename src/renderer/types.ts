@@ -8,6 +8,18 @@
 
 /** Penalty / redress status codes a score can carry (SHRS + RRS Appendix A). */
 import type { PendingRace } from '../shared/raceProgress';
+import type {
+  TieBreakComparison,
+  TieBreakExplanation,
+  TieBreakRaceGridCell,
+  TieBreakRacePair,
+  TieBreakRoute,
+  TieBreakStep,
+} from '../shared/scoring/tieBreakTypes';
+import type {
+  HeatOverflowPolicy,
+  QualifyingAssignmentMode,
+} from '../shared/eventSettings';
 
 export type ScoreStatus =
   | 'FINISHED'
@@ -51,12 +63,12 @@ export interface EventRow {
   start_date: string;
   end_date: string;
   shrs_version: string;
-  shrs_qualifying_assignment_mode: 'progressive' | 'pre-assigned';
+  shrs_qualifying_assignment_mode: QualifyingAssignmentMode;
   shrs_discard_profile_qualifying: string;
   shrs_discard_profile_final: string;
   shrs_discard_locked_qualifying: 0 | 1;
   shrs_discard_locked_final: 0 | 1;
-  shrs_heat_overflow_policy: string;
+  shrs_heat_overflow_policy: HeatOverflowPolicy;
 }
 
 export interface ClubRow {
@@ -231,63 +243,17 @@ export interface OverallLeaderboardEntry {
 }
 
 // --- Tie-break (SHRS 5.7) explanation, from `explainTieBreak` ----------------
+// Defined once in src/shared/scoring/tieBreakTypes.ts (the main process builds
+// it); these are the renderer's names for the same types.
 
-export interface TieBreakRacePair {
-  raceId: number | string;
-  raceNumber?: number;
-  heatType?: string;
-  displayA?: string | number;
-  displayB?: string | number;
-  [key: string]: unknown;
-}
-
-export interface TieBreakRoute {
-  rule?: string;
-  note?: string;
-  [key: string]: unknown;
-}
-
-export interface TieBreakComparison {
-  mode?: string;
-  scoreA?: number;
-  scoreB?: number;
-  position?: number;
-  raceId?: number | string;
-  [key: string]: unknown;
-}
-
-export interface TieBreakStep {
-  rule?: string;
-  note?: string;
-  subtitle?: string;
-  resolved?: boolean;
-  comparison?: TieBreakComparison;
-  [key: string]: unknown;
-}
-
-export interface RaceGridCell {
-  key?: string;
-  label?: string;
-  scoreA?: number | string;
-  scoreB?: number | string;
-  excludedA?: boolean;
-  excludedB?: boolean;
-  isBreaker?: boolean;
-  [key: string]: unknown;
-}
-
-export interface TieBreakResult {
-  winnerBoatId?: number | string | null;
-  sharedRacePairs?: TieBreakRacePair[];
-  sharedQualRacePairs?: TieBreakRacePair[];
-  totalA?: number;
-  totalB?: number;
-  tied?: boolean;
-  steps?: TieBreakStep[];
-  route?: TieBreakRoute | null;
-  raceGrid?: RaceGridCell[];
-  [key: string]: unknown;
-}
+export type {
+  TieBreakComparison,
+  TieBreakRacePair,
+  TieBreakRoute,
+  TieBreakStep,
+};
+export type RaceGridCell = TieBreakRaceGridCell;
+export type TieBreakResult = TieBreakExplanation;
 
 // --- Leaderboard edit-mode UI state (shared by the hook and its components) --
 

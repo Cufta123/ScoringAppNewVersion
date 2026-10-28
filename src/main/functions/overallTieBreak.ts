@@ -20,8 +20,8 @@ export {
 } from '../../shared/scoring/overall';
 
 export function buildOverallTiePacket(
-  event_id: any,
-  boat_id: any,
+  event_id: number,
+  boat_id: number | string,
 ): OverallTiePacket {
   const scores = db
     .prepare(

@@ -148,20 +148,70 @@ function sqliteCode(error: unknown, text: string): string | null {
   return null;
 }
 
-function explainDatabase(code: string, text: string): string | null {
+/** What was wrong with the database file or the drive it is on. */
+export type DatabaseFailure =
+  | 'busy'
+  | 'full'
+  | 'readonly'
+  | 'unreadable'
+  | 'damaged';
+
+function failureOfCode(code: string): DatabaseFailure | null {
   if (code.startsWith('SQLITE_BUSY') || code.startsWith('SQLITE_LOCKED')) {
-    return `The database is busy, probably because IOM Regatta Manager is open twice. Close the other window and try again. ${NOT_SAVED}`;
+    return 'busy';
   }
-  if (code.startsWith('SQLITE_FULL')) {
-    return `The disk is full. Free some space on this computer (for example empty the Recycle Bin), then try again. ${NOT_SAVED}`;
-  }
-  if (code.startsWith('SQLITE_READONLY')) {
-    return `The app is not allowed to write its data file (the folder or drive is read-only). Check the drive, or restart the app. ${NOT_SAVED}`;
-  }
+  if (code.startsWith('SQLITE_FULL')) return 'full';
+  if (code.startsWith('SQLITE_READONLY')) return 'readonly';
   if (code.startsWith('SQLITE_IOERR') || code.startsWith('SQLITE_CANTOPEN')) {
-    return `The computer could not read or write the data file. If the data is on a USB stick or network drive, check that it is still connected, then try again. ${NOT_SAVED}`;
+    return 'unreadable';
   }
   if (code.startsWith('SQLITE_CORRUPT') || code.startsWith('SQLITE_NOTADB')) {
+    return 'damaged';
+  }
+  return null;
+}
+
+/** Errors from the file system itself, before SQLite gets to say anything. */
+const FILE_SYSTEM_FAILURES: Record<string, DatabaseFailure> = {
+  ENOSPC: 'full',
+  EACCES: 'readonly',
+  EPERM: 'readonly',
+  EROFS: 'readonly',
+};
+
+/**
+ * Which kind of database failure an error is (busy, disk full, read-only,
+ * unreadable, damaged), or null when it is none of them. Shared so the
+ * startup dialog (public/Database/DBManager.js), which words its own advice,
+ * recognises failures exactly as the messages in the window do.
+ */
+export function classifyDatabaseFailure(
+  error: unknown,
+): DatabaseFailure | null {
+  const code = sqliteCode(error, stripIpcWrapping(messageOf(error)));
+  const failure = code ? failureOfCode(code) : null;
+  if (failure) return failure;
+  const fileSystemCode = (error as { code?: unknown } | null)?.code;
+  return typeof fileSystemCode === 'string'
+    ? (FILE_SYSTEM_FAILURES[fileSystemCode] ?? null)
+    : null;
+}
+
+function explainDatabase(code: string, text: string): string | null {
+  const failure = failureOfCode(code);
+  if (failure === 'busy') {
+    return `The database is busy, probably because IOM Regatta Manager is open twice. Close the other window and try again. ${NOT_SAVED}`;
+  }
+  if (failure === 'full') {
+    return `The disk is full. Free some space on this computer (for example empty the Recycle Bin), then try again. ${NOT_SAVED}`;
+  }
+  if (failure === 'readonly') {
+    return `The app is not allowed to write its data file (the folder or drive is read-only). Check the drive, or restart the app. ${NOT_SAVED}`;
+  }
+  if (failure === 'unreadable') {
+    return `The computer could not read or write the data file. If the data is on a USB stick or network drive, check that it is still connected, then try again. ${NOT_SAVED}`;
+  }
+  if (failure === 'damaged') {
     return 'The data file is damaged. Stop entering results, close the app and restore the latest backup (Help menu > Open Backups Folder).';
   }
   if (code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {

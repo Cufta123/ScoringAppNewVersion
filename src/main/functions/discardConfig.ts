@@ -19,7 +19,7 @@ export {
 };
 
 export function getEventDiscardConfig(
-  event_id: any,
+  event_id: number,
   series: 'qualifying' | 'final',
 ): DiscardConfig {
   const column =
@@ -52,12 +52,12 @@ export function getEventDiscardConfig(
  * "Final Gold".
  */
 export function getSeriesDiscardRaceCount(
-  event_id: any,
+  event_id: number,
   heat_type: 'Qualifying' | 'Final',
   heat_name?: string | null,
 ): number {
   const heatNameFilter = heat_name ? 'AND h.heat_name = ?' : '';
-  const params: any[] = heat_name
+  const params: Array<number | string> = heat_name
     ? [event_id, heat_type, heat_name]
     : [event_id, heat_type];
 
