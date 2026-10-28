@@ -1,10 +1,18 @@
 /* eslint-disable react/no-array-index-key */
 /* eslint-disable no-nested-ternary */
 import React, { useState } from 'react';
-import Flag from 'react-world-flags';
 import ScoreCell from './ScoreCell';
 import { sumPoints } from '../../../shared/points';
 import ComparePanel from './ComparePanel';
+import {
+  ExplainableScore,
+  GrossTotalCell,
+  IdentityCells,
+  IdentityHeaders,
+  NetCell,
+  RaceColumnHeader,
+  leaderboardRowStyle,
+} from './TablePieces';
 import {
   FLEET_COLORS,
   grossPointValues,
@@ -57,27 +65,6 @@ function FinalFleetTable({
   getFlagCode,
   onExplain = undefined,
 }: FinalFleetTableProps) {
-  const explainable = (
-    value: number | null | undefined,
-    entry: LeaderboardEntry,
-  ) => {
-    if (value == null || Number.isNaN(value)) return '–';
-    if (!onExplain) return value;
-    return (
-      <button
-        type="button"
-        className="score-explain-btn"
-        aria-label={`How ${value} points was calculated for sail ${entry.boat_number}`}
-        title="How was this calculated?"
-        onClick={(event) => {
-          event.stopPropagation();
-          onExplain(entry);
-        }}
-      >
-        {value}
-      </button>
-    );
-  };
   const [showTotals, setShowTotals] = useState(false);
 
   if (!entries?.length) return null;
@@ -181,24 +168,10 @@ function FinalFleetTable({
               }}
             >
               {/* Identity headers */}
-              {['Rank', 'Name', 'Country', 'Sail #']
-                .concat(showType ? ['Type'] : [])
-                .map((h) => (
-                  <th
-                    scope="col"
-                    key={h}
-                    style={{
-                      textAlign: 'left',
-                      padding: '9px 12px',
-                      fontWeight: 600,
-                      color: 'white',
-                      whiteSpace: 'nowrap',
-                      background: fleetAccent.thead,
-                    }}
-                  >
-                    {h}
-                  </th>
-                ))}
+              <IdentityHeaders
+                showType={showType}
+                background={fleetAccent.thead}
+              />
 
               {/* Total column */}
               <th
@@ -248,31 +221,11 @@ function FinalFleetTable({
                   colQRaceId != null &&
                   (compareInfo?.sharedQualIds?.has(colQRaceId) ?? false);
                 return (
-                  <th
-                    scope="col"
+                  <RaceColumnHeader
                     key={`qh-r${i + 1}`}
-                    aria-label={
-                      colQIsShared ? `Q${i + 1} shared race` : `Q${i + 1}`
-                    }
-                    title={
-                      colQIsShared
-                        ? 'Shared race with compared competitor'
-                        : undefined
-                    }
-                    style={{
-                      textAlign: 'center',
-                      padding: '7px 10px',
-                      fontWeight: 600,
-                      color: 'white',
-                      whiteSpace: 'nowrap',
-                      background: colQIsShared
-                        ? 'rgba(255, 210, 0, 0.55)'
-                        : 'rgba(255,255,255,0.15)',
-                      borderLeft: '1px solid rgba(255,255,255,0.18)',
-                    }}
-                  >
-                    Q{i + 1}
-                  </th>
+                    label={`Q${i + 1}`}
+                    shared={colQIsShared}
+                  />
                 );
               })}
 
@@ -304,31 +257,11 @@ function FinalFleetTable({
                   colFRaceId != null &&
                   (compareInfo?.sharedIds?.has(colFRaceId) ?? false);
                 return (
-                  <th
-                    scope="col"
+                  <RaceColumnHeader
                     key={`fh-r${i + 1}`}
-                    aria-label={
-                      colFIsShared ? `F${i + 1} shared race` : `F${i + 1}`
-                    }
-                    title={
-                      colFIsShared
-                        ? 'Shared race with compared competitor'
-                        : undefined
-                    }
-                    style={{
-                      textAlign: 'center',
-                      padding: '7px 10px',
-                      fontWeight: 600,
-                      color: 'white',
-                      whiteSpace: 'nowrap',
-                      background: colFIsShared
-                        ? 'rgba(255, 210, 0, 0.55)'
-                        : 'rgba(255,255,255,0.15)',
-                      borderLeft: '1px solid rgba(255,255,255,0.18)',
-                    }}
-                  >
-                    F{i + 1}
-                  </th>
+                    label={`F${i + 1}`}
+                    shared={colFIsShared}
+                  />
                 );
               })}
 
@@ -366,105 +299,31 @@ function FinalFleetTable({
                   onClick={() =>
                     onCompareRowClick(entry.boat_id, entry.placement_group)
                   }
-                  style={{
-                    background: isSelected
-                      ? 'rgba(42, 157, 143, 0.15)'
-                      : index % 2 === 0
-                        ? '#fff'
-                        : 'var(--surface-2, #f8fbff)',
-                    borderBottom: '1px solid var(--border, #dde3ea)',
-                    cursor: compareMode ? 'pointer' : 'default',
-                    outline: isSelected
-                      ? '2px solid var(--teal, #2a9d8f)'
-                      : 'none',
-                    outlineOffset: '-2px',
-                  }}
+                  style={leaderboardRowStyle(index, isSelected, compareMode)}
                 >
-                  {/* Rank */}
-                  <td
-                    style={{
-                      padding: '8px 12px',
-                      fontWeight: 700,
-                      color: 'var(--navy)',
-                    }}
-                  >
-                    {entry.overall_rank ?? index + 1}
-                  </td>
-
-                  {/* Name */}
-                  <td style={{ padding: '8px 12px' }}>
-                    {entry.name} {entry.surname}
-                  </td>
-
-                  {/* Country + flag */}
-                  <td style={{ padding: '8px 12px' }}>
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                      }}
-                    >
-                      <Flag
-                        code={getFlagCode(entry.country ?? '')}
-                        style={{ width: '24px' }}
-                      />
-                      {entry.country}
-                    </div>
-                  </td>
-
-                  {/* Sail number */}
-                  <td style={{ padding: '8px 12px', fontWeight: 600 }}>
-                    {entry.boat_number}
-                  </td>
-
-                  {/* Boat type: only when more than one model sails */}
-                  {showType && (
-                    <td style={{ padding: '8px 12px', color: '#555' }}>
-                      {entry.boat_type}
-                    </td>
-                  )}
+                  <IdentityCells
+                    rank={entry.overall_rank ?? index + 1}
+                    entry={entry}
+                    showType={showType}
+                    getFlagCode={getFlagCode}
+                  />
 
                   {/* Gross total — sum of all races including discarded */}
-                  {(() => {
-                    const grossTotal = sumPoints([
+                  <GrossTotalCell
+                    total={sumPoints([
                       ...grossPointValues(qualifyingEntry),
                       ...grossPointValues(entry),
-                    ]);
-                    return (
-                      <td
-                        data-col="total"
-                        style={{
-                          padding: '8px 10px',
-                          textAlign: 'center',
-                          fontWeight: 600,
-                          color: 'var(--text-muted, #5A7389)',
-                          background: 'rgba(0,0,0,0.02)',
-                          borderLeft: '2px solid rgba(0,0,0,0.1)',
-                          borderRight: '1px solid rgba(0,0,0,0.08)',
-                          fontSize: '0.9rem',
-                        }}
-                      >
-                        {grossTotal > 0 ? grossTotal : '–'}
-                      </td>
-                    );
-                  })()}
+                    ])}
+                  />
 
                   {/* Net combined total (SHRS 5.4) */}
-                  <td
-                    data-col="net"
-                    style={{
-                      padding: '8px 10px',
-                      textAlign: 'center',
-                      fontWeight: 700,
-                      color: 'var(--teal-hover, #0B7A63)',
-                      background: 'rgba(42,157,143,0.05)',
-                      borderLeft: '2px solid rgba(42,157,143,0.3)',
-                      borderRight: '2px solid rgba(42,157,143,0.3)',
-                    }}
-                  >
-                    {explainable(entry.total_points_combined, entry)}
-                  </td>
+                  <NetCell>
+                    <ExplainableScore
+                      value={entry.total_points_combined}
+                      entry={entry}
+                      onExplain={onExplain}
+                    />
+                  </NetCell>
 
                   {/* Qualifying race cells — always read-only */}
                   {Array.from({ length: qualRaceCount }, (_, ri) => {

@@ -1,7 +1,15 @@
 import React from 'react';
-import Flag from 'react-world-flags';
 import ScoreCell from './ScoreCell';
 import ComparePanel from './ComparePanel';
+import {
+  ExplainableScore,
+  GrossTotalCell,
+  IdentityCells,
+  IdentityHeaders,
+  NetCell,
+  RaceColumnHeader,
+  leaderboardRowStyle,
+} from './TablePieces';
 import { sumPoints } from '../../../shared/points';
 import {
   grossPointValues,
@@ -58,32 +66,7 @@ function QualifyingTable({
 }: QualifyingTableProps) {
   if (!leaderboard.length) return null;
 
-  const explainable = (
-    value: number | null | undefined,
-    entry: LeaderboardEntry,
-  ) => {
-    if (value == null || Number.isNaN(value)) return '–';
-    if (!onExplain) return value;
-    return (
-      <button
-        type="button"
-        className="score-explain-btn"
-        aria-label={`How ${value} points was calculated for sail ${entry.boat_number}`}
-        title="How was this calculated?"
-        onClick={(event) => {
-          event.stopPropagation();
-          onExplain(entry);
-        }}
-      >
-        {value}
-      </button>
-    );
-  };
-
   const showType = hasMixedBoatTypes(leaderboard);
-  const identityHeaders = ['Rank', 'Name', 'Country', 'Sail #'].concat(
-    showType ? ['Type'] : [],
-  );
   const raceCount = leaderboard[0]?.races?.length || 0;
   // SHRS 1.1: a race consists of all its heats. Results of a round some heats
   // have not sailed yet are shown after the counted races, greyed, and are
@@ -165,22 +148,10 @@ function QualifyingTable({
               }}
             >
               {/* Identity headers */}
-              {identityHeaders.map((h) => (
-                <th
-                  scope="col"
-                  key={h}
-                  style={{
-                    textAlign: 'left',
-                    padding: '9px 12px',
-                    fontWeight: 600,
-                    color: 'white',
-                    whiteSpace: 'nowrap',
-                    background: QUAL_ACCENT.thead,
-                  }}
-                >
-                  {h}
-                </th>
-              ))}
+              <IdentityHeaders
+                showType={showType}
+                background={QUAL_ACCENT.thead}
+              />
 
               {/* Total column */}
               <th
@@ -232,31 +203,11 @@ function QualifyingTable({
                     compareInfo?.sharedIds?.has(colRaceId) ||
                     false);
                 return (
-                  <th
-                    scope="col"
+                  <RaceColumnHeader
                     key={`qh-r${i + 1}`}
-                    aria-label={
-                      colIsShared ? `Q${i + 1} shared race` : `Q${i + 1}`
-                    }
-                    title={
-                      colIsShared
-                        ? 'Shared race with compared competitor'
-                        : undefined
-                    }
-                    style={{
-                      textAlign: 'center',
-                      padding: '7px 10px',
-                      fontWeight: 600,
-                      color: 'white',
-                      whiteSpace: 'nowrap',
-                      background: colIsShared
-                        ? 'rgba(255, 210, 0, 0.55)'
-                        : 'rgba(255,255,255,0.15)',
-                      borderLeft: '1px solid rgba(255,255,255,0.18)',
-                    }}
-                  >
-                    Q{i + 1}
-                  </th>
+                    label={`Q${i + 1}`}
+                    shared={colIsShared}
+                  />
                 );
               })}
               {Array.from({ length: pendingCount }, (_, i) => (
@@ -278,103 +229,32 @@ function QualifyingTable({
               const grossTotal = sumPoints(grossPointValues(entry));
               const overallNet =
                 entry.computed_total ?? entry.total_points_event;
-              const stripeBackground =
-                index % 2 === 0 ? '#fff' : 'var(--surface-2, #f8fbff)';
 
               return (
                 <tr
                   key={`ev-${entry.boat_id}`}
                   className="leaderboard-row"
                   onClick={() => onCompareRowClick(entry.boat_id)}
-                  style={{
-                    background: isSelected
-                      ? 'rgba(42, 157, 143, 0.15)'
-                      : stripeBackground,
-                    borderBottom: '1px solid var(--border, #dde3ea)',
-                    cursor: compareMode ? 'pointer' : 'default',
-                    outline: isSelected
-                      ? '2px solid var(--teal, #2a9d8f)'
-                      : 'none',
-                    outlineOffset: '-2px',
-                  }}
+                  style={leaderboardRowStyle(index, isSelected, compareMode)}
                 >
-                  {/* Rank */}
-                  <td
-                    style={{
-                      padding: '8px 12px',
-                      fontWeight: 700,
-                      color: 'var(--navy)',
-                    }}
-                  >
-                    {entry.place ?? index + 1}
-                  </td>
-
-                  {/* Name */}
-                  <td style={{ padding: '8px 12px' }}>
-                    {entry.name} {entry.surname}
-                  </td>
-
-                  {/* Country + flag */}
-                  <td style={{ padding: '8px 12px' }}>
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                      }}
-                    >
-                      <Flag
-                        code={getFlagCode(entry.country ?? '')}
-                        style={{ width: '24px' }}
-                      />
-                      {entry.country}
-                    </div>
-                  </td>
-
-                  {/* Sail number */}
-                  <td style={{ padding: '8px 12px', fontWeight: 600 }}>
-                    {entry.boat_number}
-                  </td>
-
-                  {/* Boat type: only when more than one model sails */}
-                  {showType && (
-                    <td style={{ padding: '8px 12px', color: '#555' }}>
-                      {entry.boat_type}
-                    </td>
-                  )}
+                  <IdentityCells
+                    rank={entry.place ?? index + 1}
+                    entry={entry}
+                    showType={showType}
+                    getFlagCode={getFlagCode}
+                  />
 
                   {/* Total */}
-                  <td
-                    data-col="total"
-                    style={{
-                      padding: '8px 10px',
-                      textAlign: 'center',
-                      fontWeight: 600,
-                      color: 'var(--text-muted, #5A7389)',
-                      background: 'rgba(0,0,0,0.02)',
-                      borderLeft: '2px solid rgba(0,0,0,0.1)',
-                      borderRight: '1px solid rgba(0,0,0,0.08)',
-                      fontSize: '0.9rem',
-                    }}
-                  >
-                    {grossTotal > 0 ? grossTotal : '–'}
-                  </td>
+                  <GrossTotalCell total={grossTotal} />
 
                   {/* Net */}
-                  <td
-                    data-col="net"
-                    style={{
-                      padding: '8px 10px',
-                      textAlign: 'center',
-                      fontWeight: 700,
-                      color: 'var(--teal-hover, #0B7A63)',
-                      background: 'rgba(42,157,143,0.05)',
-                      borderLeft: '2px solid rgba(42,157,143,0.3)',
-                      borderRight: '2px solid rgba(42,157,143,0.3)',
-                    }}
-                  >
-                    {explainable(overallNet, entry)}
-                  </td>
+                  <NetCell>
+                    <ExplainableScore
+                      value={overallNet}
+                      entry={entry}
+                      onExplain={onExplain}
+                    />
+                  </NetCell>
 
                   {/* Race score cells */}
                   {entry.races?.map((race, ri) => {
