@@ -288,6 +288,24 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
       expect(race[3]).toEqual([4, 4, 'FINISHED']);
     });
 
+    it('giving a redressed boat a place back never puts a boat past the last', () => {
+      // Found by the chaos test: 3 boats, the 2nd given redress (her slot left
+      // free), then given 3rd place again pushed the 3rd boat to 4th of 3.
+      db = seed(
+        [
+          { boat_id: 1, position: 1, points: 1, status: 'FINISHED' },
+          { boat_id: 2, position: 5, points: 5, status: 'RDG3' },
+          { boat_id: 3, position: 3, points: 3, status: 'FINISHED' },
+        ],
+        10,
+      );
+      applyRaceResultUpdate(EVENT_ID, RACE_ID, 2, 3, false, 'FINISHED');
+      const race = readRace(db);
+      expect(race[1]).toEqual([1, 1, 'FINISHED']);
+      expect(race[3]).toEqual([2, 2, 'FINISHED']);
+      expect(race[2]).toEqual([3, 3, 'FINISHED']);
+    });
+
     it('keeps a dead heat when a tied boat only gets a ZFP', () => {
       db = seed(
         [

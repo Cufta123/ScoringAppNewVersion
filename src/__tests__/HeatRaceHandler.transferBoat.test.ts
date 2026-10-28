@@ -10,6 +10,7 @@ type PrepareStatement = {
   run?: (...args: any[]) => any;
 };
 
+const racedHeats = new Set<number>();
 const handlerRegistry: Record<string, (...args: any[]) => any> = {};
 
 jest.mock('electron', () => ({
@@ -52,6 +53,15 @@ const dbMock = {
     if (sql.startsWith('SELECT event_id, heat_type FROM Heats')) {
       return {
         get: (heatId: number) => state.heats[heatId],
+      };
+    }
+    // Heats that have raced (none unless a test adds one).
+    if (sql.includes('EXISTS (SELECT 1 FROM Races r')) {
+      return {
+        get: (fromId: number, toId: number) =>
+          [fromId, toId]
+            .filter((id) => racedHeats.has(id))
+            .map((id) => ({ heat_name: `Heat ${id}` }))[0],
       };
     }
     if (sql.includes('COUNT(*) as count FROM Heat_Boat')) {
@@ -196,6 +206,20 @@ describe('transferBoatBetweenHeats atomicity', () => {
     ).rejects.toThrow(/more than 20 boats/i);
     // The boat stays where it was.
     expect(state.rows).toContainEqual({ heat_id: 1, boat_id: 42 });
+  });
+
+  it('refuses to move a boat out of or into a heat that has raced', async () => {
+    // Found by the chaos test: moved out of a raced heat, the boat kept her
+    // result there and sailed the round again in the other heat.
+    racedHeats.add(1);
+    try {
+      await expect(
+        handlerRegistry.transferBoatBetweenHeats({}, 1, 2, 42),
+      ).rejects.toThrow('Heat 1 has already raced. Undo its race first.');
+      expect(state.rows).toEqual([{ heat_id: 1, boat_id: 42 }]);
+    } finally {
+      racedHeats.clear();
+    }
   });
 
   it('refuses to transfer between heats of different events', async () => {

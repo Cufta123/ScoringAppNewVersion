@@ -506,7 +506,7 @@ describe('submitHeatRaceScoresAtomic handler', () => {
     const original = state.boatsByHeat[10];
     state.boatsByHeat[10] = [
       { boat_id: 1, sail_number: '101' },
-      { boat_id: 2, sail_number: '101' }, // duplicate of boat 1
+      { boat_id: 2, sail_number: '101' }, // same sail, same (no) nation
       { boat_id: 3, sail_number: '102' },
     ];
     try {
@@ -520,7 +520,7 @@ describe('submitHeatRaceScoresAtomic handler', () => {
             isFinalSeries: false,
           },
         ),
-      ).rejects.toThrow(/duplicate sail number/i);
+      ).rejects.toThrow(/101 is entered 2 times/);
     } finally {
       state.boatsByHeat[10] = original;
     }
@@ -546,7 +546,7 @@ describe('submitHeatRaceScoresAtomic handler', () => {
             isFinalSeries: false,
           },
         ),
-      ).rejects.toThrow(/duplicate sail number/i);
+      ).rejects.toThrow(/2 boats have no sail number/);
     } finally {
       state.boatsByHeat[10] = original;
     }

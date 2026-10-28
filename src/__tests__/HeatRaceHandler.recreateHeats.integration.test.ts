@@ -92,9 +92,9 @@ describe('recreateInitialHeatsAtomic', () => {
 
   it('keeps the existing heats when the new split is rejected', async () => {
     const before = heatNames(db);
-    // A duplicate sail number is the realistic trigger: the entry list is
-    // edited after the heats were built, and createInitialHeatsAtomic refuses
-    // to seed because a boat-by-sail map would silently drop one of them.
+    // The same sail entered twice is the realistic trigger: the entry list is
+    // edited after the heats were built, and no one could tell the two boats
+    // apart when scoring, so the new split is refused.
     db.exec(
       `INSERT INTO Boats (boat_id, sail_number, country, model) VALUES (99, 1, 'CRO', 'IOM');
        INSERT INTO Boat_Event (boat_id, event_id) VALUES (99, ${EVENT_ID});`,
@@ -102,7 +102,7 @@ describe('recreateInitialHeatsAtomic', () => {
 
     await expect(
       handlerRegistry.recreateInitialHeatsAtomic({}, EVENT_ID, 3),
-    ).rejects.toThrow('duplicate sail numbers');
+    ).rejects.toThrow('CRO 1 is entered 2 times');
 
     expect(heatNames(db)).toEqual(before);
     expect(assignmentCount(db)).toBe(9);

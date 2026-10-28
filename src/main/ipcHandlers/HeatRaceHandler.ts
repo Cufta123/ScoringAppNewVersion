@@ -67,6 +67,11 @@ import {
   hasFinalSeriesStarted,
 } from '../functions/seriesGuards';
 import {
+  boatsByEntryName,
+  findIndistinguishableBoats,
+  normalizeEntryKey,
+} from '../../shared/boatKeys';
+import {
   applyRaceColumnState,
   applyRaceResultUpdate,
   applyRaceTieScoring,
@@ -77,8 +82,6 @@ import {
 } from '../functions/raceScoring';
 import buildAdjustedFleetLeaderboard from '../functions/fleetTotals';
 import {
-  detectDuplicateSailNumbers,
-  normalizeSailNumber,
   sanitizePositiveFinite,
   sanitizePositiveInteger,
 } from '../functions/validation';
@@ -242,6 +245,19 @@ handle('insertHeatBoat', async (event, heat_id, boat_id) => {
  * writing anything. Separated from the insert so "recreate" can prove the new
  * split is buildable before it throws the current heats away.
  */
+/** "CRO 12 (boats 4, 9)" — for an error a race officer can act on. */
+function describeIndistinguishable(
+  groups: Array<{ name: string; boatIds: Array<number | string> }>,
+): string {
+  return groups
+    .map(({ name, boatIds }) =>
+      name === ''
+        ? `${boatIds.length} boats have no sail number`
+        : `${name} is entered ${boatIds.length} times`,
+    )
+    .join('; ');
+}
+
 function planInitialHeats(event_id: any, num_heats: any) {
   const numHeats = Number(num_heats);
   if (!Number.isInteger(numHeats) || numHeats < 1 || numHeats > 26) {
@@ -267,20 +283,13 @@ function planInitialHeats(event_id: any, num_heats: any) {
     );
   }
 
-  // BK-4: two boats sharing a sail number (or an empty sail number) collide
-  // when keying a boat-by-sail map, which would silently drop one boat from
-  // the heat assignment. Fail loudly instead of assigning the wrong boats.
-  const duplicateSailNumbers = detectDuplicateSailNumbers(boats);
-  if (duplicateSailNumbers.length > 0) {
-    const details = duplicateSailNumbers
-      .map(({ sail, boatIds }) =>
-        sail === ''
-          ? `empty sail number (boats ${boatIds.join(', ')})`
-          : `sail number "${sail}" (boats ${boatIds.join(', ')})`,
-      )
-      .join('; ');
+  // Boats are placed by boat_id, so ITA 12 and CRO 12 are fine; only two
+  // boats no one could tell apart in scoring (same letters and number) stop
+  // the heats from being made.
+  const indistinguishable = findIndistinguishableBoats(boats);
+  if (indistinguishable.length > 0) {
     throw new Error(
-      `Cannot create heats: duplicate sail numbers — ${details}.`,
+      `Cannot create heats: ${describeIndistinguishable(indistinguishable)}.`,
     );
   }
 
@@ -664,39 +673,48 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
 
     const boats = db
       .prepare(
-        `SELECT b.boat_id, b.sail_number
+        `SELECT b.boat_id, b.sail_number, b.country
          FROM Heat_Boat hb
          JOIN Boats b ON hb.boat_id = b.boat_id
          WHERE hb.heat_id = ?`,
       )
-      .all(heat_id) as Array<{ boat_id: number; sail_number: string | number }>;
+      .all(heat_id) as Array<{
+      boat_id: number;
+      sail_number: string | number;
+      country: string | null;
+    }>;
 
-    const normalizeSail = normalizeSailNumber;
-
-    // BK-4: two boats sharing a sail number (or an empty sail number) collide in
-    // boatsBySail and silently drop one boat's score. Detect it up front and fail
-    // loudly instead of scoring the wrong boat.
-    const duplicateSailNumbers = detectDuplicateSailNumbers(boats);
-    if (duplicateSailNumbers.length > 0) {
-      const details = duplicateSailNumbers
-        .map(({ sail, boatIds }) =>
-          sail === ''
-            ? `empty sail number (boats ${boatIds.join(', ')})`
-            : `sail number "${sail}" (boats ${boatIds.join(', ')})`,
-        )
-        .join('; ');
+    // Boats are named by sail number, or by national letters + number where
+    // the number is not unique in the heat (ITA 12 and CRO 12, see
+    // shared/boatKeys). Only boats no one could tell apart stop scoring.
+    const indistinguishable = findIndistinguishableBoats(boats);
+    if (indistinguishable.length > 0) {
       throw new Error(
-        `Cannot score heat ${heat_id}: duplicate sail numbers — ${details}.`,
+        `Cannot score heat ${heat_id}: ${describeIndistinguishable(indistinguishable)}.`,
       );
     }
 
-    const boatsBySail = new Map(
-      boats.map((boat) => [normalizeSail(boat.sail_number), boat]),
-    );
+    const boatsByName = boatsByEntryName(boats);
+    const boatFor = (boatNumber: unknown) =>
+      boatsByName.get(normalizeEntryKey(boatNumber));
+
+    // The same boat named twice would score her twice; refuse rather than
+    // keep whichever came last.
+    const named = new Set<number>();
+    placeNumbers.forEach(({ boatNumber }) => {
+      const boat = boatFor(boatNumber);
+      if (!boat) return;
+      if (named.has(boat.boat_id)) {
+        throw new Error(
+          `Cannot score heat ${heat_id}: sail ${String(boatNumber)} is in the result twice.`,
+        );
+      }
+      named.add(boat.boat_id);
+    });
 
     const unmatched = placeNumbers
       .map((entry) => entry.boatNumber)
-      .filter((boatNumber) => !boatsBySail.has(normalizeSail(boatNumber)));
+      .filter((boatNumber) => !boatFor(boatNumber));
 
     // Surface a structured result so the renderer can show a targeted message
     // instead of throwing. Nothing has been written at this point.
@@ -726,7 +744,7 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
 
       let hasFinisher = false;
       placeNumbers.forEach(({ boatNumber, place, status }) => {
-        const boat = boatsBySail.get(normalizeSail(boatNumber))!;
+        const boat = boatFor(boatNumber)!;
         const normalizedStatus = normalizeScoreStatus(status);
 
         let position: number;
@@ -1469,6 +1487,24 @@ handle(
       if (fromHeat.heat_type === 'Final' || toHeat.heat_type === 'Final') {
         throw new Error(
           'Cannot transfer a boat to or from a Final Series fleet.',
+        );
+      }
+
+      // A heat that has raced keeps the boats it raced with: moving a boat
+      // out would leave her result behind and let her sail the round again in
+      // the other heat (two results in one round, which shifted everyone's
+      // discards); moving one in would give her no result. The heats page
+      // blocks dragging then, but its state can be stale.
+      const racedHeat = db
+        .prepare(
+          `SELECT h.heat_name FROM Heats h
+           WHERE h.heat_id IN (?, ?)
+             AND EXISTS (SELECT 1 FROM Races r WHERE r.heat_id = h.heat_id)`,
+        )
+        .get(from_heat_id, to_heat_id) as { heat_name: string } | undefined;
+      if (racedHeat) {
+        throw new Error(
+          `Cannot move a boat: ${racedHeat.heat_name} has already raced. Undo its race first.`,
         );
       }
 

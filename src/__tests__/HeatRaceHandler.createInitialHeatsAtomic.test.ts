@@ -97,7 +97,7 @@ describe('createInitialHeatsAtomic duplicate-sail guard (BK-4)', () => {
     dbMock.transaction.mockClear();
   });
 
-  it('rejects heat creation when two boats share a sail number', async () => {
+  it('creates heats when two nations share a sail number (ITA 12, CRO 12)', async () => {
     boats = [
       { boat_id: 1, sail_number: '101', country: 'CRO' },
       { boat_id: 2, sail_number: '101', country: 'AUS' },
@@ -105,7 +105,18 @@ describe('createInitialHeatsAtomic duplicate-sail guard (BK-4)', () => {
 
     await expect(
       handlerRegistry.createInitialHeatsAtomic({}, 1, 2),
-    ).rejects.toThrow(/duplicate sail number/i);
+    ).resolves.toMatchObject({ success: true, assignedBoats: 2 });
+  });
+
+  it('rejects heat creation when the same sail is entered twice', async () => {
+    boats = [
+      { boat_id: 1, sail_number: '101', country: 'CRO' },
+      { boat_id: 2, sail_number: ' 101', country: 'CRO' },
+    ];
+
+    await expect(
+      handlerRegistry.createInitialHeatsAtomic({}, 1, 2),
+    ).rejects.toThrow(/CRO 101 is entered 2 times/);
 
     expect(insertedHeats).toHaveLength(0);
     expect(insertedHeatBoats).toHaveLength(0);
@@ -119,7 +130,7 @@ describe('createInitialHeatsAtomic duplicate-sail guard (BK-4)', () => {
 
     await expect(
       handlerRegistry.createInitialHeatsAtomic({}, 1, 2),
-    ).rejects.toThrow(/duplicate sail number/i);
+    ).rejects.toThrow(/2 boats have no sail number/);
   });
 
   it('still creates heats for boats with distinct sail numbers', async () => {

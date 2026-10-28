@@ -20,7 +20,9 @@ export function getLatestRaceRowsForHeats(
   const raceRows = latestHeats.map((heat) => {
     const raceRow = latestRaceByHeatQuery.get(heat.heat_id);
     if (!raceRow) {
-      throw new Error(`No races found for heat ${heat.heat_name}.`);
+      throw new Error(
+        `${heat.heat_name} has not raced yet. Score the current round before creating the next one.`,
+      );
     }
     return { ...raceRow, heat_id: heat.heat_id, heat_name: heat.heat_name };
   });

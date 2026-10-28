@@ -593,6 +593,29 @@ For most feature/fix requests, do this in order:
   fleet and the overall (5.5); and that a leaderboard correction saves exactly
   what was shown and equals entering the corrected finish. `ORACLE_SEEDS` /
   `EDIT_SEEDS` raise the number of random events (default 40 / 30).
+- **Shared sail numbers** (`shared/boatKeys.ts`): sail numbers are national,
+  so ITA 12 and CRO 12 can both race. Heats are built by boat_id; in scoring a
+  boat is named by her sail number where it is unique in the heat, else by
+  national letters + number ("ITA 12"; "ita12" is accepted). Only the same
+  letters AND number twice (or two blank sail numbers) is refused — at entry
+  (`associateBoatWithEvent`), heat creation and scoring. Earlier any repeated
+  number refused to create heats or score the heat.
+- **Chaos test** (`chaos.integration.test.ts`, `CHAOS_SEEDS`, default 25):
+  random sessions of every race-office action through the real handlers.
+  Only the guards listed in it may refuse; after each step foreign keys,
+  one score per boat per race, places inside the race, every race scored by
+  `scoreRaceColumn`, and every total vs its races and discards must hold. It
+  found: moving a boat out of a heat that had raced (she sailed the round
+  twice; `transferBoatBetweenHeats` now refuses raced heats), a correction
+  that put a boat past the last place (redress gap; `raceColumnEdit` now
+  fills the nearest free slot), and an undo from the history that left two
+  boats on one place unaveraged (`revertHistoryAction` now calls
+  `rescoreRace`).
+- Error toasts show the main process's reason when it is plain language
+  (`plainReason` in `userFeedback.ts`); technical messages stay in the
+  console. The main process logs uncaught errors instead of dying, and
+  reloads the window if the page process dies.
+
 - **Outdoor readability is a requirement**: the app is used by race officers
   (often 60+) on cheap laptops in sunshine. Root font is 17px; secondary text
   and borders are dark tokens (`--text-secondary`, `--border-strong`); toasts

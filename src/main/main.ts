@@ -12,6 +12,16 @@ import { journalObserver } from './functions/changeJournal';
 // Group what each IPC call writes into one entry of the event history.
 setCallObserver(journalObserver);
 
+// An unexpected error outside an IPC call (each call already reports its own
+// failure to the screen) must not take the app down mid-race: results are
+// written in transactions, so log it and keep running.
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught exception in the main process:', error);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled rejection in the main process:', reason);
+});
+
 let mainWindow: BrowserWindow | null = null;
 
 if (process.env.NODE_ENV === 'production') {
@@ -144,6 +154,24 @@ const createWindow = async () => {
     backupsDir: autoBackup.dir,
   });
   menuBuilder.buildMenu();
+
+  // If the page itself dies (out of memory on a small laptop, a GPU fault),
+  // the window would stay blank. Every result is already in the database,
+  // so load the page again; a reload loop is stopped after a few tries.
+  let reloads = 0;
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    console.error('Renderer process gone:', details);
+    if (details.reason === 'clean-exit' || !mainWindow) return;
+    reloads += 1;
+    if (reloads <= 3) {
+      mainWindow.reload();
+    } else {
+      dialog.showErrorBox(
+        'IOM Regatta Manager stopped working',
+        'The window failed several times. All saved results are safe in the database. Please close and restart the app.',
+      );
+    }
+  });
 
   mainWindow.webContents.setWindowOpenHandler((edata) => {
     shell.openExternal(edata.url);
