@@ -33,6 +33,34 @@ export const getErrorMessage = (error: unknown): string => {
   return 'Unexpected error. Please try again.';
 };
 
+const TECHNICAL = [
+  /SQLITE/i,
+  /constraint/i,
+  /\b(Type|Reference|Syntax|Range)Error\b/,
+  /Cannot read propert/i,
+  /is not a function/i,
+  /\bundefined\b|\bnull\b|\bNaN\b/,
+  /\bat \S+ \(/, // a stack frame
+  /Unknown IPC error/i,
+  /Operation failed: /,
+];
+
+/**
+ * The reason a refusal gives, worded for the person at the screen, or null
+ * when the message is technical. Electron wraps main-process errors as
+ * "Error invoking remote method 'x': Error: <reason>".
+ */
+export const plainReason = (error: unknown): string | null => {
+  const raw = getErrorMessage(error);
+  const reason = raw
+    .replace(/^Error invoking remote method '[^']*':\s*/, '')
+    .replace(/^(Error:\s*)+/, '')
+    .trim();
+  if (!reason || reason.length > 400) return null;
+  if (TECHNICAL.some((pattern) => pattern.test(reason))) return null;
+  return reason;
+};
+
 export const reportError = (
   title: string | undefined,
   error?: unknown,
@@ -44,8 +72,13 @@ export const reportError = (
     // eslint-disable-next-line no-console
     console.error(title ?? 'Application error', error, getErrorMessage(error));
   }
-  const message =
+  const heading =
     title && title.trim() ? title : 'Something went wrong. Please try again.';
+  // The app's own refusals say what to do ("finish the current round
+  // first"); show that reason. Technical failures stay in the console.
+  const reason = error === undefined ? null : plainReason(error);
+  const message =
+    reason && reason !== heading ? `${heading}\n${reason}` : heading;
   // Errors stay on screen until dismissed so slower readers never miss them.
   toast.error(message, { autoClose: false, closeOnClick: true });
 };
