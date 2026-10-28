@@ -4,28 +4,33 @@
  * discard-profile lock that closes editing at the first warning signal (5.4).
  */
 import { db } from '../../../public/Database/DBManager';
+import {
+  type HeatOverflowPolicy,
+  type QualifyingAssignmentMode,
+  normalizeHeatOverflowPolicy,
+  normalizeQualifyingAssignmentMode,
+} from '../../shared/eventSettings';
 
-export const getEventQualifyingAssignmentMode = (event_id: any): string => {
+export const getEventQualifyingAssignmentMode = (
+  event_id: number,
+): QualifyingAssignmentMode => {
   const row = db
     .prepare(
       'SELECT shrs_qualifying_assignment_mode FROM Events WHERE event_id = ?',
     )
     .get(event_id) as { shrs_qualifying_assignment_mode?: string } | undefined;
-  const value = row?.shrs_qualifying_assignment_mode;
-  if (value === 'pre-assigned') {
-    return 'pre-assigned';
-  }
-  return 'progressive';
+  return normalizeQualifyingAssignmentMode(
+    row?.shrs_qualifying_assignment_mode,
+  );
 };
 
-export const getEventHeatOverflowPolicy = (event_id: any): string => {
+export const getEventHeatOverflowPolicy = (
+  event_id: number,
+): HeatOverflowPolicy => {
   const row = db
     .prepare('SELECT shrs_heat_overflow_policy FROM Events WHERE event_id = ?')
     .get(event_id) as { shrs_heat_overflow_policy?: string } | undefined;
-  if (row?.shrs_heat_overflow_policy === 'confirm-allow-oversize') {
-    return 'confirm-allow-oversize';
-  }
-  return 'auto-increase';
+  return normalizeHeatOverflowPolicy(row?.shrs_heat_overflow_policy);
 };
 
 // Re-exported from the shared module so the renderer's heat-count default and

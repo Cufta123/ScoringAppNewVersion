@@ -8,39 +8,11 @@ import handle from './handle';
 import { readEventHistory } from '../functions/changeJournal';
 import revertHistoryAction from '../functions/revertHistoryAction';
 import restoreToHistoryPoint from '../functions/restoreToHistoryPoint';
-
-interface SqliteError extends Error {
-  code: string;
-}
-const log = (message: string) => {
-  console.log(message);
-};
-
-const allowedAssignmentModes = new Set(['progressive', 'pre-assigned']);
-const allowedHeatOverflowPolicies = new Set([
-  'auto-increase',
-  'confirm-allow-oversize',
-]);
-
-const normalizeAssignmentMode = (value: unknown): string => {
-  const normalized = String(value ?? 'progressive')
-    .trim()
-    .toLowerCase();
-  if (!allowedAssignmentModes.has(normalized)) {
-    return 'progressive';
-  }
-  return normalized;
-};
-
-const normalizeHeatOverflowPolicy = (value: unknown): string => {
-  const normalized = String(value ?? 'auto-increase')
-    .trim()
-    .toLowerCase();
-  if (!allowedHeatOverflowPolicies.has(normalized)) {
-    return 'auto-increase';
-  }
-  return normalized;
-};
+import retryWhenBusy from '../functions/retryWhenBusy';
+import {
+  normalizeHeatOverflowPolicy,
+  normalizeQualifyingAssignmentMode,
+} from '../../shared/eventSettings';
 
 handle('readEventHistory', async (event, event_id) =>
   readEventHistory(Number(event_id)),
@@ -72,51 +44,33 @@ handle(
     shrs_discard_profile_final = 'standard',
     shrs_heat_overflow_policy = 'auto-increase',
   ) => {
-    const maxRetries = 5;
-    const delay = (ms: number) =>
-      new Promise((resolve) => {
-        setTimeout(resolve, ms);
-      });
-    const insertEventWithRetry = async (
-      attempt: number,
-    ): Promise<{ lastInsertRowid: number }> => {
-      try {
-        const result = db
-          .prepare(
-            `INSERT INTO Events (
-              event_name,
-              event_location,
-              start_date,
-              end_date,
-              shrs_version,
-              shrs_qualifying_assignment_mode,
-              shrs_discard_profile_qualifying,
-              shrs_discard_profile_final,
-              shrs_heat_overflow_policy
-            ) VALUES (?, ?, ?, ?, '2026-1', ?, ?, ?, ?)`,
-          )
-          .run(
+    return retryWhenBusy(() => {
+      const result = db
+        .prepare(
+          `INSERT INTO Events (
             event_name,
             event_location,
             start_date,
             end_date,
-            normalizeAssignmentMode(shrs_qualifying_assignment_mode),
-            normalizeDiscardConfigString(shrs_discard_profile_qualifying),
-            normalizeDiscardConfigString(shrs_discard_profile_final),
-            normalizeHeatOverflowPolicy(shrs_heat_overflow_policy),
-          );
-        return { lastInsertRowid: result.lastInsertRowid };
-      } catch (error) {
-        const sqliteError = error as SqliteError;
-        if (sqliteError.code === 'SQLITE_BUSY' && attempt < maxRetries) {
-          log(`Database is busy. Retrying in 100ms. Attempt ${attempt + 1}`);
-          await delay(100 * attempt);
-          return insertEventWithRetry(attempt + 1);
-        }
-        throw error;
-      }
-    };
-    return insertEventWithRetry(1);
+            shrs_version,
+            shrs_qualifying_assignment_mode,
+            shrs_discard_profile_qualifying,
+            shrs_discard_profile_final,
+            shrs_heat_overflow_policy
+          ) VALUES (?, ?, ?, ?, '2026-1', ?, ?, ?, ?)`,
+        )
+        .run(
+          event_name,
+          event_location,
+          start_date,
+          end_date,
+          normalizeQualifyingAssignmentMode(shrs_qualifying_assignment_mode),
+          normalizeDiscardConfigString(shrs_discard_profile_qualifying),
+          normalizeDiscardConfigString(shrs_discard_profile_final),
+          normalizeHeatOverflowPolicy(shrs_heat_overflow_policy),
+        );
+      return { lastInsertRowid: result.lastInsertRowid };
+    });
   },
 );
 
@@ -317,7 +271,7 @@ handle(
       event_location,
       start_date,
       end_date,
-      normalizeAssignmentMode(shrs_qualifying_assignment_mode),
+      normalizeQualifyingAssignmentMode(shrs_qualifying_assignment_mode),
       normalizedQualifyingDiscardProfile,
       normalizedFinalDiscardProfile,
       normalizeHeatOverflowPolicy(shrs_heat_overflow_policy),

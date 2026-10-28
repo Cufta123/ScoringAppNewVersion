@@ -8,6 +8,10 @@
 
 /** Penalty / redress status codes a score can carry (SHRS + RRS Appendix A). */
 import type { PendingRace } from '../shared/raceProgress';
+import type {
+  HeatOverflowPolicy,
+  QualifyingAssignmentMode,
+} from '../shared/eventSettings';
 
 export type ScoreStatus =
   | 'FINISHED'
@@ -51,12 +55,12 @@ export interface EventRow {
   start_date: string;
   end_date: string;
   shrs_version: string;
-  shrs_qualifying_assignment_mode: 'progressive' | 'pre-assigned';
+  shrs_qualifying_assignment_mode: QualifyingAssignmentMode;
   shrs_discard_profile_qualifying: string;
   shrs_discard_profile_final: string;
   shrs_discard_locked_qualifying: 0 | 1;
   shrs_discard_locked_final: 0 | 1;
-  shrs_heat_overflow_policy: string;
+  shrs_heat_overflow_policy: HeatOverflowPolicy;
 }
 
 export interface ClubRow {
