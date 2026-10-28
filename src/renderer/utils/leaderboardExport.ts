@@ -18,6 +18,7 @@ import {
   escapeCsvCell,
   getRaceCellDisplay,
   hasMixedBoatTypes,
+  parseRaceNum,
 } from './leaderboardUtils';
 import escapeHtml from './escapeHtml';
 import { reportError, reportInfo } from './userFeedback';
@@ -141,11 +142,6 @@ const formatCell = (race: string, status: string | undefined): string =>
 
 export const buildExportData = (ctx: LeaderboardExportContext): ExportData => {
   const { finalSeriesStarted, leaderboard, eventLeaderboard } = ctx;
-  const parseScore = (v: unknown): number => {
-    const n = parseFloat(String(v ?? '').replace(/[()]/g, ''));
-    return Number.isNaN(n) ? 0 : n;
-  };
-
   if (!finalSeriesStarted) {
     // ── Qualifying-only view ────────────────────────────────────────────────
     const raceCount = eventLeaderboard[0]?.races?.length ?? 0;
@@ -161,7 +157,7 @@ export const buildExportData = (ctx: LeaderboardExportContext): ExportData => {
     ];
     const rows = (eventLeaderboard ?? []).map((e, i) => {
       const grossTotal = (e.race_points ?? e.races ?? []).reduce(
-        (s, r) => s + parseScore(r),
+        (s, r) => s + parseRaceNum(r),
         0,
       );
       const overall = e.computed_total ?? e.total_points_event;
@@ -222,8 +218,11 @@ export const buildExportData = (ctx: LeaderboardExportContext): ExportData => {
       const qualRacePoints = qualEntry?.race_points ?? qualRaces;
       const finalRacePoints = entry.race_points ?? finalRaces;
 
-      const qualGross = qualRacePoints.reduce((s, r) => s + parseScore(r), 0);
-      const finalGross = finalRacePoints.reduce((s, r) => s + parseScore(r), 0);
+      const qualGross = qualRacePoints.reduce((s, r) => s + parseRaceNum(r), 0);
+      const finalGross = finalRacePoints.reduce(
+        (s, r) => s + parseRaceNum(r),
+        0,
+      );
       const gross = qualGross + finalGross;
 
       const overall =

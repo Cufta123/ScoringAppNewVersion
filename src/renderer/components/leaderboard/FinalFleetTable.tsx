@@ -5,7 +5,11 @@ import Flag from 'react-world-flags';
 import ScoreCell from './ScoreCell';
 import { sumPoints } from '../../../shared/points';
 import ComparePanel from './ComparePanel';
-import { FLEET_COLORS, hasMixedBoatTypes } from '../../utils/leaderboardUtils';
+import {
+  FLEET_COLORS,
+  grossPointValues,
+  hasMixedBoatTypes,
+} from '../../utils/leaderboardUtils';
 import type {
   CompareInfo,
   LeaderboardEntry,
@@ -423,23 +427,10 @@ function FinalFleetTable({
 
                   {/* Gross total — sum of all races including discarded */}
                   {(() => {
-                    const qualGross = (
-                      qualifyingEntry?.race_points ||
-                      qualifyingEntry?.races ||
-                      []
-                    ).map((r) => {
-                      const v = parseFloat(String(r).replace(/[()]/g, ''));
-                      return Number.isNaN(v) ? 0 : v;
-                    });
-                    const finalGross = (
-                      entry.race_points ||
-                      entry.races ||
-                      []
-                    ).map((r) => {
-                      const v = parseFloat(String(r).replace(/[()]/g, ''));
-                      return Number.isNaN(v) ? 0 : v;
-                    });
-                    const grossTotal = sumPoints([...qualGross, ...finalGross]);
+                    const grossTotal = sumPoints([
+                      ...grossPointValues(qualifyingEntry),
+                      ...grossPointValues(entry),
+                    ]);
                     return (
                       <td
                         data-col="total"

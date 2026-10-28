@@ -3,7 +3,10 @@ import Flag from 'react-world-flags';
 import ScoreCell from './ScoreCell';
 import ComparePanel from './ComparePanel';
 import { sumPoints } from '../../../shared/points';
-import { hasMixedBoatTypes } from '../../utils/leaderboardUtils';
+import {
+  grossPointValues,
+  hasMixedBoatTypes,
+} from '../../utils/leaderboardUtils';
 import type {
   CompareInfo,
   LeaderboardEntry,
@@ -272,13 +275,7 @@ function QualifyingTable({
           <tbody>
             {leaderboard.map((entry, index) => {
               const isSelected = selectedBoatIds.includes(entry.boat_id);
-              const grossSource = entry.race_points || entry.races || [];
-              const grossTotal = sumPoints(
-                grossSource.map((r) => {
-                  const v = parseFloat(String(r).replace(/[()]/g, ''));
-                  return Number.isNaN(v) ? 0 : v;
-                }),
-              );
+              const grossTotal = sumPoints(grossPointValues(entry));
               const overallNet =
                 entry.computed_total ?? entry.total_points_event;
               const stripeBackground =

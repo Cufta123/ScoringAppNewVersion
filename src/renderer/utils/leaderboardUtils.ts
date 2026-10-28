@@ -38,13 +38,27 @@ export const RDG_TYPES = ['RDG1', 'RDG2', 'RDG3'];
 export type { RawLeaderboardEntry };
 
 /**
+ * A race cell without the parentheses that mark a discarded score: "(7)" -> "7".
+ */
+export const stripExclusionParens = (value: unknown): string =>
+  String(value).replace(/[()]/g, '');
+
+/**
  * Strip exclusion parentheses and return 0 for any non-numeric value.
  * Uses parseFloat so RDG average scores (e.g. 3.4) are preserved.
  */
 export const parseRaceNum = (val: unknown): number => {
-  const n = parseFloat(String(val).replace(/[()]/g, ''));
+  const n = parseFloat(stripExclusionParens(val));
   return Number.isNaN(n) ? 0 : n;
 };
+
+/**
+ * A boat's points race by race as numbers, discards included (the Gross
+ * column): her scored points, or the race cells when no points are stored.
+ */
+export const grossPointValues = (
+  entry: Pick<LeaderboardEntry, 'race_points' | 'races'> | null | undefined,
+): number[] => (entry?.race_points || entry?.races || []).map(parseRaceNum);
 
 /**
  * RRS A9 average of a boat's points over a chosen set of race indices, excluding
@@ -67,7 +81,7 @@ export const averageRacePoints = (
 ): number => {
   const cells = raceValues
     .map((value, idx) => ({
-      points: parseFloat(String(value).replace(/[()]/g, '')),
+      points: parseFloat(stripExclusionParens(value)),
       status: statuses[idx] || 'FINISHED',
       idx,
     }))
@@ -113,9 +127,8 @@ export const applyExclusions = (
   // callers and unit tests).
   seriesRaceCount: number | undefined = undefined,
 ): { markedRaces: string[]; total: number } => {
-  const strip = (value: string | number) => String(value).replace(/[()]/g, '');
   const points = scoreValues.map((value) => {
-    const v = parseFloat(strip(value));
+    const v = parseFloat(stripExclusionParens(value));
     return Number.isNaN(v) ? 0 : v;
   });
   // Never discard all of a boat's scores (same cap as the stored scores).
@@ -134,7 +147,9 @@ export const applyExclusions = (
 
   return {
     markedRaces: rawPositions.map((race, i) =>
-      excluded.has(i) ? `(${strip(race)})` : strip(race),
+      excluded.has(i)
+        ? `(${stripExclusionParens(race)})`
+        : stripExclusionParens(race),
     ),
     total: sumPoints(points.filter((_point, i) => !excluded.has(i))),
   };
@@ -258,14 +273,14 @@ export const getRaceCellDisplay = (
   // (3.5:1 / 2.85:1) failed. Active RDG text uses the darker teal (--teal-hover,
   // 5.28:1) instead of --teal (#0F9478, 3.8:1) so it passes too.
   if (isRdgCell && isExcluded) {
-    const clean = race.replace(/[()]/g, '');
+    const clean = stripExclusionParens(race);
     displayText = `(RDG (${clean}))`;
     displayColor = 'var(--text-muted, #5A7389)';
   } else if (isRdgCell) {
     displayText = `RDG (${race})`;
     displayColor = 'var(--teal-hover, #0B7A63)';
   } else if (isDpiCell && isExcluded) {
-    const clean = race.replace(/[()]/g, '');
+    const clean = stripExclusionParens(race);
     displayText = `(DPI (${clean}))`;
     displayColor = 'var(--text-muted, #5A7389)';
   } else if (isDpiCell) {
