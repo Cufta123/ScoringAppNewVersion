@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { heatRaceDB } from '../api/db';
 import { reportError } from '../utils/userFeedback';
-import {
-  countQualifyingGroups,
-  hasFinalHeats,
-  hasScoredRace,
-} from '../utils/heatView';
+import { hasFinalHeats, hasScoredRace } from '../utils/heatView';
+import { countQualifyingGroups } from '../../shared/heatNames';
 import type { HeatWithBoats } from '../utils/heatView';
 
 /**

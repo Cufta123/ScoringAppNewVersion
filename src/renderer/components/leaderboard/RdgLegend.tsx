@@ -1,6 +1,7 @@
 import React from 'react';
 import { RDG_TYPES } from '../../utils/leaderboardUtils';
 import type { LeaderboardEntry, RdgMeta } from '../../types';
+import { sailorFullName } from '../../utils/sailorName';
 
 interface RdgLegendProps {
   editableLeaderboard: LeaderboardEntry[];
@@ -75,7 +76,7 @@ function RdgLegend({
             <strong style={{ color: 'var(--teal-hover,#0B7A63)' }}>
               {status}
             </strong>{' '}
-            {entry.name} {entry.surname} — {racePrefix}
+            {sailorFullName(entry)} — {racePrefix}
             {ri + 1}: {desc} = <strong>{score}</strong>
           </div>
         );

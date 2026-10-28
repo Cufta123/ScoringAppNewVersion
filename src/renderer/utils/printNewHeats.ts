@@ -6,6 +6,7 @@ import registerPdfUnicodeFont from './registerPdfUnicodeFont';
 import escapeHtml from './escapeHtml';
 import { toSubgroupLabel } from '../../shared/subgroups';
 import { heatRaceDB } from '../api/db';
+import { sailorFullName } from './sailorName';
 
 interface ExportEvent {
   event_name?: string | null;
@@ -118,7 +119,7 @@ export default async function printNewHeats(
 
       if (Array.isArray(heat.boats) && heat.boats.length > 0) {
         heat.boats.forEach((boat) => {
-          const sailorName = `${boat.name} ${boat.surname}`;
+          const sailorName = sailorFullName(boat);
           worksheet.addRow([
             sailorName,
             boat.country || 'N/A',
@@ -168,7 +169,7 @@ export default async function printNewHeats(
         'Boat Model',
       ];
       const body = (heat.boats || []).map((boat) => [
-        `${boat.name || ''} ${boat.surname || ''}`.trim() || 'N/A',
+        sailorFullName(boat) || 'N/A',
         boat.country || 'N/A',
         boat.sail_number || 'N/A',
         getSubgroup(boat),
@@ -231,7 +232,7 @@ export default async function printNewHeats(
         </tr></thead><tbody>`;
       (heat.boats || []).forEach((boat) => {
         html += `<tr>
-          <td>${escapeHtml(`${boat.name || ''} ${boat.surname || ''}`.trim())}</td>
+          <td>${escapeHtml(sailorFullName(boat))}</td>
           <td>${escapeHtml(boat.country || 'N/A')}</td>
           <td>${escapeHtml(boat.sail_number || 'N/A')}</td>
           <td>${escapeHtml(getSubgroup(boat))}</td>

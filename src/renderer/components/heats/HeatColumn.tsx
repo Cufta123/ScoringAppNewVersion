@@ -3,6 +3,7 @@ import Flag from 'react-world-flags';
 import { getFlagCode } from '../../utils/leaderboardUtils';
 import { BOAT_DRAG_MIME, serializeBoatDrag } from '../../utils/heatView';
 import type { HeatWithBoats } from '../../utils/heatView';
+import { sailorFullName } from '../../utils/sailorName';
 
 const boatNumberColumnStyle = { maxWidth: '100px' };
 const sailorNameColumnStyle = { maxWidth: '220px' };
@@ -109,9 +110,7 @@ function HeatColumn({
                   : undefined
               }
             >
-              <td style={sailorNameColumnStyle}>
-                {boat.name} {boat.surname}
-              </td>
+              <td style={sailorNameColumnStyle}>{sailorFullName(boat)}</td>
               <td>
                 <Flag
                   code={getFlagCode(boat.country ?? '')}

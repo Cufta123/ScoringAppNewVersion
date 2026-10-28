@@ -3,6 +3,7 @@ import {
   getHeatGroupFromName,
   getHeatRoundFromName,
 } from '../../shared/heatNames';
+import { sailorFullName } from './sailorName';
 
 /** A heat with its boats and current race count, as displayed by the heats view. */
 export interface HeatWithBoats {
@@ -26,23 +27,6 @@ export const hasFinalHeats = (
 export const hasScoredRace = (
   heats: Array<Pick<HeatWithBoats, 'raceNumber'>>,
 ): boolean => heats.some((heat) => heat.raceNumber > 0);
-
-/**
- * SHRS 1.1: the number of distinct qualifying heat letter groups ("Heat B3" ->
- * "B"). A Final Series needs at least two. Full base letters, consistent with
- * the main-process group count.
- */
-export function countQualifyingGroups(
-  heats: Array<Pick<HeatWithBoats, 'heat_name' | 'heat_type'>>,
-): number {
-  const groups = new Set<string>();
-  heats.forEach((heat) => {
-    if (heat.heat_type !== 'Qualifying') return;
-    const group = getHeatGroupFromName(heat.heat_name);
-    if (group) groups.add(group);
-  });
-  return groups.size;
-}
 
 /**
  * The heats that are "current": every final fleet once the Final Series has
@@ -125,5 +109,5 @@ export const boatMoveQuestion = (
   fromHeatName: string | undefined,
   toHeatName: string | undefined,
 ): string =>
-  `Move boat ${boat.sail_number} (${boat.name} ${boat.surname}) from ` +
+  `Move boat ${boat.sail_number} (${sailorFullName(boat)}) from ` +
   `${fromHeatName ?? 'its heat'} to ${toHeatName ?? 'this heat'}?`;

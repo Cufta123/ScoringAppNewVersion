@@ -5,6 +5,7 @@ import { formatPlaceDisplay } from '../../utils/finishEntry';
 import { tieKey } from '../../utils/finishOrder';
 import type { SailNumber } from '../../utils/finishOrder';
 import type { ScoringBoat } from '../../hooks/useScoringInput';
+import { sailorFullName } from '../../utils/sailorName';
 
 function tieButtonTitle(
   index: number,
@@ -83,9 +84,7 @@ export default function FinishOrderList({
     >
       {boatNumbers.map((number, index) => {
         const boat = boatByKey.get(String(number));
-        const name = boat
-          ? `${boat.name ?? ''} ${boat.surname ?? ''}`.trim()
-          : '';
+        const name = boat ? sailorFullName(boat) : '';
         const invalid = isInvalidSail(number);
         const penalty = penalties[number];
         const isDisplacing = Boolean(

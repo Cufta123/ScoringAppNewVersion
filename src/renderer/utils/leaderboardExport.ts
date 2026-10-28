@@ -24,6 +24,7 @@ import escapeHtml from './escapeHtml';
 import { reportError, reportInfo } from './userFeedback';
 import { eventDB } from '../api/db';
 import type { LeaderboardEntry } from '../types';
+import { sailorFullName } from './sailorName';
 
 type ExportCell = string | number;
 
@@ -160,7 +161,7 @@ export const buildExportData = (ctx: LeaderboardExportContext): ExportData => {
       const overall = e.computed_total ?? e.total_points_event;
       return [
         e.place ?? i + 1,
-        `${e.name} ${e.surname}`,
+        sailorFullName(e),
         e.country ?? '',
         e.boat_number ?? '',
         e.boat_type ?? '',
@@ -230,7 +231,7 @@ export const buildExportData = (ctx: LeaderboardExportContext): ExportData => {
 
       return [
         entry.overall_rank ?? i + 1,
-        `${entry.name} ${entry.surname}`,
+        sailorFullName(entry),
         entry.country ?? '',
         entry.boat_number ?? '',
         entry.boat_type ?? '',

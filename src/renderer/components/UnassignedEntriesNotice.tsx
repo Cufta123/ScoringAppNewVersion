@@ -4,6 +4,7 @@ import type { EventBoatRow } from '../types';
 import { reportError } from '../utils/userFeedback';
 import { findUnassignedEntries, suggestHeat } from '../utils/unassignedEntries';
 import type { HeatForAssignment } from '../utils/unassignedEntries';
+import { sailorFullName } from '../utils/sailorName';
 
 interface UnassignedEntriesNoticeProps {
   eventId: number;
@@ -67,7 +68,7 @@ export default function UnassignedEntriesNotice({
 
   const suggested = suggestHeat(openHeats);
   const label = (boat: EventBoatRow) =>
-    `${boat.boat_country ?? ''} ${boat.sail_number} — ${boat.name} ${boat.surname}`.trim();
+    `${boat.boat_country ?? ''} ${boat.sail_number} — ${sailorFullName(boat)}`.trim();
 
   const addToHeat = (boat: EventBoatRow) =>
     runExclusive(async () => {

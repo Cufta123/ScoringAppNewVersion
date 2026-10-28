@@ -1,6 +1,5 @@
 import {
   boatMoveQuestion,
-  countQualifyingGroups,
   getLastHeats,
   hasFinalHeats,
   hasScoredRace,
@@ -26,32 +25,6 @@ const boat = {
   surname: 'Horvat',
   category_name: null,
 } as HeatBoatRow;
-
-describe('countQualifyingGroups', () => {
-  it('counts distinct letter groups across rounds', () => {
-    const heats = [
-      heat('Heat A1'),
-      heat('Heat B1'),
-      heat('Heat A2'),
-      heat('Heat B2'),
-      heat('Heat C2'),
-    ];
-    expect(countQualifyingGroups(heats)).toBe(3);
-  });
-
-  it('uses the full base letters and ignores final fleets', () => {
-    const heats = [
-      heat('Heat AA1'),
-      heat('Heat A1'),
-      heat('Final Gold', 'Final'),
-    ];
-    expect(countQualifyingGroups(heats)).toBe(2);
-  });
-
-  it('is zero without heats', () => {
-    expect(countQualifyingGroups([])).toBe(0);
-  });
-});
 
 describe('getLastHeats', () => {
   it('keeps only the latest round of each group', () => {

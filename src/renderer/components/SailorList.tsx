@@ -6,6 +6,7 @@ import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
 import { sailorDB } from '../api/db';
 import LoadingState from './shared/LoadingState';
 import type { CategoryRow } from '../types';
+import { sailorFullName } from '../utils/sailorName';
 
 const EXPANDED_STORAGE_KEY = 'sailorListExpanded';
 
@@ -215,7 +216,7 @@ function SailorList({
 
   const handleRemoveWithConfirm = async (sailor: SailorListSailor) => {
     const confirmed = await confirmAction(
-      `Remove boat ${sailor.sail_number} (${sailor.name} ${sailor.surname}) from this event?`,
+      `Remove boat ${sailor.sail_number} (${sailorFullName(sailor)}) from this event?`,
       'Remove boat',
       { confirmLabel: 'Remove boat', confirmClassName: 'btn-danger' },
     );
@@ -391,7 +392,7 @@ function SailorList({
                       />
                     </>
                   ) : (
-                    `${sailor.name} ${sailor.surname}`
+                    sailorFullName(sailor)
                   )}
                 </td>
                 <td>
@@ -436,7 +437,7 @@ function SailorList({
                         <button
                           type="button"
                           className="icon-action-btn"
-                          aria-label={`Save changes for ${sailor.name} ${sailor.surname}`}
+                          aria-label={`Save changes for ${sailorFullName(sailor)}`}
                           title="Save changes"
                           onClick={handleSave}
                           disabled={savingEdit}
@@ -454,7 +455,7 @@ function SailorList({
                         <button
                           type="button"
                           className="icon-action-btn"
-                          aria-label={`Cancel editing ${sailor.name} ${sailor.surname}`}
+                          aria-label={`Cancel editing ${sailorFullName(sailor)}`}
                           title="Cancel editing"
                           onClick={handleCancelEdit}
                           disabled={savingEdit}
@@ -470,7 +471,7 @@ function SailorList({
                       <button
                         type="button"
                         className="icon-action-btn"
-                        aria-label={`Edit ${sailor.name} ${sailor.surname}`}
+                        aria-label={`Edit ${sailorFullName(sailor)}`}
                         title="Edit sailor and boat"
                         onClick={() => handleEditClick(sailor)}
                       >

@@ -20,6 +20,7 @@ import {
 import { checkRaceHappened } from '../../utils/raceStatus';
 import { eventDB, sailorDB } from '../../api/db';
 import type { EventBoatRow, EventRow } from '../../types';
+import { sailorFullName } from '../../utils/sailorName';
 
 type MappedEventBoat = EventBoatRow & {
   sailor: string;
@@ -265,7 +266,7 @@ function EventPage() {
 
   const boatOptions = availableBoats.map((boat) => ({
     value: boat.boat_id,
-    label: `${boat.boat_country} ${boat.sail_number} - ${boat.model} (Sailor: ${boat.name} ${boat.surname})`,
+    label: `${boat.boat_country} ${boat.sail_number} - ${boat.model} (Sailor: ${sailorFullName(boat)})`,
   }));
 
   return (

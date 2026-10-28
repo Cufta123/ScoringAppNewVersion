@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { CompareInfo } from '../../types';
+import { sailorFullName } from '../../utils/sailorName';
 
 function getStepStatusClass(resolved: boolean | undefined): string {
   if (resolved === true) return 'compare-step-resolved';
@@ -102,8 +103,8 @@ function ComparePanel({
       tiedGroupEntries = [],
     } = displayed;
 
-    const boatAName = `${boatA.name} ${boatA.surname}`;
-    const boatBName = `${boatB.name} ${boatB.surname}`;
+    const boatAName = sailorFullName(boatA);
+    const boatBName = sailorFullName(boatB);
 
     const routeFallback =
       tieBreak?.steps?.find((step) =>
@@ -170,7 +171,7 @@ function ComparePanel({
                         key={`tg-${entry.boat_id}`}
                         className="compare-tied-group-chip"
                       >
-                        #{rank} {entry.name} {entry.surname}
+                        #{rank} {sailorFullName(entry)}
                       </span>
                     );
                   })}
@@ -186,10 +187,7 @@ function ComparePanel({
             {tieBreak.winner ? (
               <span>
                 Tie broken in favour of{' '}
-                <strong>
-                  {tieBreak.winner.name} {tieBreak.winner.surname}
-                </strong>
-                .
+                <strong>{sailorFullName(tieBreak.winner)}</strong>.
               </span>
             ) : (
               <span className="compare-muted">Tie could not be broken.</span>

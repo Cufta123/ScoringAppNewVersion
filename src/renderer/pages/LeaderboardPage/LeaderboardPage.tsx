@@ -27,6 +27,7 @@ import {
 import './LeaderboardPage.css';
 import { eventDB } from '../../api/db';
 import type { EventRow, LeaderboardEntry } from '../../types';
+import { sailorFullName } from '../../utils/sailorName';
 
 interface LeaderboardContentProps {
   eventId: number;
@@ -82,7 +83,7 @@ function LeaderboardContent({
           setExplainTarget({
             boatId: entry.boat_id,
             sail: `${entry.country ?? ''} ${entry.boat_number ?? ''}`.trim(),
-            name: `${entry.name ?? ''} ${entry.surname ?? ''}`.trim(),
+            name: sailorFullName(entry),
             place: finalSeriesStarted
               ? (entry.overall_rank ?? null)
               : (entry.place ?? null),
@@ -122,7 +123,7 @@ function LeaderboardContent({
 
     if (compareInfo && compareInfo.tied && compareInfo.tieBreak?.winner) {
       setLiveMessage(
-        `Tie detected. Winner by tie-break: ${compareInfo.tieBreak.winner.name} ${compareInfo.tieBreak.winner.surname}.`,
+        `Tie detected. Winner by tie-break: ${sailorFullName(compareInfo.tieBreak.winner)}.`,
       );
       return;
     }
@@ -132,9 +133,7 @@ function LeaderboardContent({
         compareInfo.totalA < compareInfo.totalB
           ? compareInfo.boatA
           : compareInfo.boatB;
-      setLiveMessage(
-        `Comparison updated. ${leader.name} ${leader.surname} leads.`,
-      );
+      setLiveMessage(`Comparison updated. ${sailorFullName(leader)} leads.`);
     }
   }, [compareMode, selectedBoatIds, compareInfo]);
 

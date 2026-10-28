@@ -5,6 +5,7 @@ import {
 } from '../../constants/penaltyLabels';
 import type { ScoringBoat } from '../../hooks/useScoringInput';
 import type { SailNumber } from '../../utils/finishOrder';
+import { sailorFullName } from '../../utils/sailorName';
 
 // Plain-language labels so non-expert scorers know what each code means.
 // Sourced from the shared penaltyLabels module so entry and leaderboard-edit
@@ -92,7 +93,7 @@ export default function BoatPickerPanel({
                       }
                     >
                       <td>
-                        {boat.name} {boat.surname}
+                        {sailorFullName(boat)}
                         {/* Always rendered (hidden until added) so adding the
                           check never reflows the row. */}
                         <span
