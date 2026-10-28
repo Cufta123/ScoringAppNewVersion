@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Flag from 'react-world-flags';
 import { getFlagCode } from '../utils/leaderboardUtils';
 import { toSubgroupLabel } from '../../shared/subgroups';
@@ -9,6 +9,32 @@ import type { CategoryRow } from '../types';
 import { sailorFullName } from '../utils/sailorName';
 
 const EXPANDED_STORAGE_KEY = 'sailorListExpanded';
+
+// Numeric-aware, case-insensitive comparison so "Sail №" sorts 9, 10, 100
+// (sail numbers are stored as TEXT) instead of lexicographically.
+const collator = new Intl.Collator(undefined, {
+  numeric: true,
+  sensitivity: 'base',
+});
+
+// The collapsed state is a per-viewer convenience: storage can be missing,
+// blocked or hold something else, and none of that may break the list.
+const readExpanded = (): boolean => {
+  try {
+    const saved = localStorage.getItem(EXPANDED_STORAGE_KEY);
+    return saved === null ? true : JSON.parse(saved) !== false;
+  } catch (_error) {
+    return true;
+  }
+};
+
+const writeExpanded = (expanded: boolean): void => {
+  try {
+    localStorage.setItem(EXPANDED_STORAGE_KEY, JSON.stringify(expanded));
+  } catch (_error) {
+    // Not remembered; the list still works.
+  }
+};
 
 type SortDirection = 'asc' | 'desc';
 
@@ -94,20 +120,9 @@ function SailorList({
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [editingSailorId, setEditingSailorId] = useState<number | null>(null);
   const [editedSailor, setEditedSailor] = useState<EditedSailor>({});
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(readExpanded);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [savingEdit, setSavingEdit] = useState(false);
-
-  useEffect(() => {
-    const savedIsExpanded = localStorage.getItem(EXPANDED_STORAGE_KEY);
-    if (savedIsExpanded !== null) {
-      setIsExpanded(JSON.parse(savedIsExpanded));
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(EXPANDED_STORAGE_KEY, JSON.stringify(isExpanded));
-  }, [isExpanded]);
 
   const handleSort = (col: string) => {
     if (col === sortCriteria) {
@@ -118,27 +133,22 @@ function SailorList({
     }
   };
 
-  // Numeric-aware, case-insensitive comparison so "Sail №" sorts 9, 10, 100
-  // (sail numbers are stored as TEXT) instead of lexicographically.
-  const collator = new Intl.Collator(undefined, {
-    numeric: true,
-    sensitivity: 'base',
-  });
-
   // Subgroup is displayed via its label, so sort by the label the user sees
   // rather than the raw stored category code.
-  const sortValue = (sailor: SailorListSailor): unknown =>
-    sortCriteria === 'category'
-      ? toSubgroupLabel(sailor.category) || sailor.category || ''
-      : sailor[sortCriteria];
-
-  const sortedSailors = [...sailors].sort((a, b) => {
+  const sortedSailors = useMemo(() => {
+    const sortValue = (sailor: SailorListSailor): unknown =>
+      sortCriteria === 'category'
+        ? toSubgroupLabel(sailor.category) || sailor.category || ''
+        : sailor[sortCriteria];
     const dir = sortDirection === 'asc' ? 1 : -1;
-    return (
-      collator.compare(String(sortValue(a) ?? ''), String(sortValue(b) ?? '')) *
-      dir
+    return [...sailors].sort(
+      (a, b) =>
+        collator.compare(
+          String(sortValue(a) ?? ''),
+          String(sortValue(b) ?? ''),
+        ) * dir,
     );
-  });
+  }, [sailors, sortCriteria, sortDirection]);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -237,7 +247,9 @@ function SailorList({
   };
 
   const toggleExpand = () => {
-    setIsExpanded(!isExpanded);
+    const next = !isExpanded;
+    setIsExpanded(next);
+    writeExpanded(next);
   };
 
   return (

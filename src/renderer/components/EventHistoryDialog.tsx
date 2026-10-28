@@ -23,6 +23,13 @@ interface EventHistoryDialogProps {
   onClose: () => void;
 }
 
+/** The entry "Go back to here" was pressed on, awaiting confirmation. */
+interface GoBackTarget {
+  actionId: number;
+  label: string;
+  at: string;
+}
+
 /** Changes listed per action before "Show all" is needed. */
 const PREVIEW_LINES = 6;
 
@@ -140,12 +147,7 @@ function EventHistoryDialog({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [undoError, setUndoError] = useState<string | null>(null);
-  /** The entry "Go back to here" was pressed on, awaiting confirmation. */
-  const [goBackTarget, setGoBackTarget] = useState<{
-    actionId: number;
-    label: string;
-    at: string;
-  } | null>(null);
+  const [goBackTarget, setGoBackTarget] = useState<GoBackTarget | null>(null);
   const confirmCancelRef = useRef<HTMLButtonElement>(null);
 
   const load = useCallback(
@@ -179,33 +181,33 @@ function EventHistoryDialog({
     };
   }, [open, load]);
 
-  const undo = async (actionId: number, label: string) => {
+  // Both changes of the event run the same way: clear the last message, do it,
+  // tell the world the event's data changed, reload the list.
+  const runChange = async (change: () => Promise<void>, failure: string) => {
     setBusy(true);
     setNotice(null);
     setUndoError(null);
     try {
-      await eventDB.revertHistoryAction(eventId, actionId);
-      setNotice(
-        `Undone: ${label}. The standings were recalculated. The undo is in the history and can be undone too.`,
-      );
+      await change();
       notifyEventDataChanged(eventId);
       await load();
     } catch (err) {
-      setUndoError(plainReason(err) ?? 'The change could not be undone.');
+      setUndoError(plainReason(err) ?? failure);
     } finally {
       setBusy(false);
     }
   };
 
-  const goBack = async (target: {
-    actionId: number;
-    label: string;
-    at: string;
-  }) => {
-    setBusy(true);
-    setNotice(null);
-    setUndoError(null);
-    try {
+  const undo = (actionId: number, label: string) =>
+    runChange(async () => {
+      await eventDB.revertHistoryAction(eventId, actionId);
+      setNotice(
+        `Undone: ${label}. The standings were recalculated. The undo is in the history and can be undone too.`,
+      );
+    }, 'The change could not be undone.');
+
+  const goBack = (target: GoBackTarget) =>
+    runChange(async () => {
       const result = await eventDB.restoreEventToHistoryPoint(
         eventId,
         target.actionId,
@@ -216,17 +218,7 @@ function EventHistoryDialog({
           `${result.undoneActions} later ${result.undoneActions === 1 ? 'action was' : 'actions were'} taken back and the standings were recalculated. ` +
           'A backup was saved first. To return, use “Undo going back” on the newest entry.',
       );
-      notifyEventDataChanged(eventId);
-      await load();
-    } catch (err) {
-      setUndoError(
-        plainReason(err) ??
-          'Could not go back. Nothing was changed; the details are in the log.',
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
+    }, 'Could not go back. Nothing was changed; the details are in the log.');
 
   useEffect(() => {
     if (!goBackTarget) return;
@@ -252,6 +244,14 @@ function EventHistoryDialog({
       .map((action) => action.action_id)
       .filter((id): id is number => id != null);
     const newest = ids.length ? Math.max(...ids) : null;
+    // For each action id, the id of the entry just before it (the one "Undo
+    // going back" returns to).
+    const previousId = new Map<number, number>();
+    [...ids]
+      .sort((a, b) => a - b)
+      .forEach((id, index, sorted) => {
+        if (index > 0) previousId.set(id, sorted[index - 1]);
+      });
     const byId = new Map(list.map((action) => [action.action_id, action]));
     return list
       .map((action) => {
@@ -263,13 +263,10 @@ function EventHistoryDialog({
         const label = restoresTo
           ? `Went back to after “${summarizeAction(restoresTo).label}” (${formatTime(restoresTo.at)})`
           : summary.label;
-        // The entry just before this one, oldest-first: where "Undo going
-        // back" returns to.
-        const before = ids
-          .filter((id) => action.action_id != null && id < action.action_id)
-          .reduce<
-            number | null
-          >((best, id) => (best == null || id > best ? id : best), null);
+        const before =
+          action.action_id != null
+            ? (previousId.get(action.action_id) ?? null)
+            : null;
         return {
           key: `${action.action_id ?? 'auto'}-${action.changes[0]?.change_id}`,
           at: action.at,
@@ -310,6 +307,26 @@ function EventHistoryDialog({
 
   if (!open) return null;
 
+  const undoHandlerFor = (entry: (typeof entries)[number]) => {
+    if (entry.actionId == null) return undefined;
+    // Going back is undone by going back to just before it.
+    if (entry.isRestore) {
+      return entry.isNewest && entry.before != null
+        ? () =>
+            setGoBackTarget({
+              actionId: entry.before as number,
+              label: entry.beforeAction
+                ? summarizeAction(entry.beforeAction).label
+                : 'the entry before',
+              at: entry.beforeAction?.at ?? entry.at,
+            })
+        : undefined;
+    }
+    return entry.undoable
+      ? () => undo(entry.actionId as number, entry.label)
+      : undefined;
+  };
+
   let body: React.ReactNode = <p>Loading…</p>;
   if (error) {
     body = <p role="alert">Could not load the history: {error}</p>;
@@ -336,25 +353,7 @@ function EventHistoryDialog({
               busy={busy || goBackTarget != null}
               undoLabel={entry.isRestore ? 'Undo going back' : 'Undo'}
               isTarget={goBackTarget?.actionId === entry.actionId}
-              onUndo={(() => {
-                if (entry.actionId == null) return undefined;
-                // Going back is undone by going back to just before it.
-                if (entry.isRestore) {
-                  return entry.isNewest && entry.before != null
-                    ? () =>
-                        setGoBackTarget({
-                          actionId: entry.before as number,
-                          label: entry.beforeAction
-                            ? summarizeAction(entry.beforeAction).label
-                            : 'the entry before',
-                          at: entry.beforeAction?.at ?? entry.at,
-                        })
-                    : undefined;
-                }
-                return entry.undoable
-                  ? () => undo(entry.actionId as number, entry.label)
-                  : undefined;
-              })()}
+              onUndo={undoHandlerFor(entry)}
               onGoBack={
                 entry.actionId != null && !entry.isNewest
                   ? () =>
