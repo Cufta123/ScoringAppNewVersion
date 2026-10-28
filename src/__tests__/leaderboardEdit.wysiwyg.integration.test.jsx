@@ -67,7 +67,10 @@ import {
   randomOutcome,
   tenth,
 } from './fixtures/scoringOracle';
-import { invalidateAssignmentSnapshotCache } from '../main/functions/raceAssignmentSnapshot';
+import {
+  invalidateAssignmentSnapshotCache,
+  raceAssignmentSnapshots,
+} from '../main/functions/raceAssignmentSnapshot';
 /* eslint-enable import/first */
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -474,4 +477,72 @@ describe('final series edits: Save writes exactly what the screen shows', () => 
     unmount();
     db.close();
   });
+});
+
+describe('SHRS 3.1.5: the edit screen tells the main process which cells were typed', () => {
+  it.each([1, 2, 3, 4, 5])(
+    'a DSQ of the winner freezes every boat of the race, seed %i',
+    async (seed) => {
+      const rand = prng(seed * 7919);
+      const eventId = await scoredEvent(rand, {
+        boats: 8,
+        heats: 2,
+        rounds: 1,
+      });
+      const { result, unmount } = await openEditor(eventId);
+      const rows = result.current.editableLeaderboard;
+
+      // A race whose winner crossed the line and whose heat has other finishers
+      // behind her, who the DSQ then promotes (RRS A6.1).
+      const raceId = [...outcomesByRace.entries()].find(
+        ([id]) =>
+          Object.values(savedRace(id)).filter(
+            (cell) => cell.status === 'FINISHED',
+          ).length >= 3,
+      )?.[0];
+      expect(raceId).toBeDefined();
+      const before = savedRace(raceId);
+      const winner = Number(
+        Object.keys(before).find((boat) => before[boat].position === 1),
+      );
+      const entry = rows.find((row) => row.boat_id === winner);
+      const raceIndex = entry.race_ids.findIndex(
+        (id) => String(id) === String(raceId),
+      );
+
+      act(() => {
+        result.current.handleRaceChange(winner, raceIndex, null, 'DSQ');
+      });
+      mockChoice.current = 'extra';
+      await act(async () => {
+        await result.current.handleSave();
+      });
+      expect(reportError).not.toHaveBeenCalled();
+
+      const after = savedRace(raceId);
+      const promoted = Object.keys(before).filter(
+        (boat) => after[boat].position !== before[boat].position,
+      );
+      expect(promoted.length).toBeGreaterThanOrEqual(2);
+
+      // Every boat of the race keeps the place it held before the decision.
+      const frozen = raceAssignmentSnapshots.get(Number(raceId));
+      expect(frozen?.size).toBe(Object.keys(before).length);
+      Object.keys(before).forEach((boat) => {
+        expect(frozen.get(String(boat))).toEqual({
+          position: before[boat].position,
+          status: before[boat].status,
+        });
+      });
+      expect(
+        db
+          .prepare(
+            'SELECT COUNT(*) AS n FROM RaceAssignmentSnapshots WHERE race_id = ?',
+          )
+          .get(raceId).n,
+      ).toBe(Object.keys(before).length);
+      unmount();
+      db.close();
+    },
+  );
 });

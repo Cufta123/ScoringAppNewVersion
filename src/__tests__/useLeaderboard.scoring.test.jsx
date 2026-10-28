@@ -636,9 +636,9 @@ describe('useLeaderboard scoring/edit flow', () => {
         {
           raceId: '201',
           cells: [
-            { boatId: 'b1', position: 2, status: 'FINISHED' },
-            { boatId: 'b2', position: 1, status: 'FINISHED' },
-            { boatId: 'b3', position: 3, status: 'FINISHED' },
+            { boatId: 'b1', position: 2, status: 'FINISHED', edited: true },
+            { boatId: 'b2', position: 1, status: 'FINISHED', edited: false },
+            { boatId: 'b3', position: 3, status: 'FINISHED', edited: false },
           ],
         },
       ]);
@@ -673,9 +673,9 @@ describe('useLeaderboard scoring/edit flow', () => {
           // The whole race as shown: b2 disqualified (3 boats + 1 = 4 when no
           // heat size is known yet), b3 moved up (RRS A6.1).
           cells: [
-            { boatId: 'b1', position: 1, status: 'FINISHED' },
-            { boatId: 'b2', position: 4, status: 'DSQ' },
-            { boatId: 'b3', position: 2, status: 'FINISHED' },
+            { boatId: 'b1', position: 1, status: 'FINISHED', edited: false },
+            { boatId: 'b2', position: 4, status: 'DSQ', edited: true },
+            { boatId: 'b3', position: 2, status: 'FINISHED', edited: false },
           ],
         },
       ],
@@ -828,9 +828,9 @@ describe('useLeaderboard scoring/edit flow', () => {
       {
         raceId: '101',
         cells: [
-          { boatId: 'b1', position: 1, status: 'FINISHED' },
-          { boatId: 'b2', position: 4, status: 'DSQ' },
-          { boatId: 'b3', position: 2, status: 'FINISHED' },
+          { boatId: 'b1', position: 1, status: 'FINISHED', edited: false },
+          { boatId: 'b2', position: 4, status: 'DSQ', edited: true },
+          { boatId: 'b3', position: 2, status: 'FINISHED', edited: false },
         ],
       },
     ]);

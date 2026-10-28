@@ -11,6 +11,12 @@ export interface SaveRaceOperation {
     status: string;
     /** RDG2: the races whose average was granted, so it stays live. */
     rdgRaceIds?: number[];
+    /**
+     * The user typed in this cell this session. A boat that only moved because
+     * of another cell (RRS A6.1 promotion, place ripple) is false. SHRS 3.1.5:
+     * only edited cells are protest decisions or race-office corrections.
+     */
+    edited: boolean;
   }[];
 }
 
@@ -66,6 +72,7 @@ export function buildRaceOperations(
           boatId: entry.boat_id,
           position: parseRaceNum(entry.races[i]),
           status,
+          edited: edit != null,
           ...(rdgRaceIds ? { rdgRaceIds } : {}),
         },
       ];
