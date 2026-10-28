@@ -154,12 +154,15 @@ const installExtensions = async () => {
   const forceDownload = !!process.env.UPGRADE_EXTENSIONS;
   const extensions = ['REACT_DEVELOPER_TOOLS'];
 
-  return installer
-    .default(
-      extensions.map((name: string) => installer[name]),
-      forceDownload,
-    )
-    .catch(console.log);
+  return (
+    installer
+      .default(
+        extensions.map((name: string) => installer[name]),
+        forceDownload,
+      )
+      // eslint-disable-next-line no-console -- dev-only devtools install; failure is not worth a user-facing error
+      .catch(console.log)
+  );
 };
 
 const createWindow = async () => {

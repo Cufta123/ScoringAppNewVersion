@@ -5,6 +5,7 @@
  * here so the rules are applied in one place.
  */
 import { db } from '../../../public/Database/DBManager';
+import { logError } from '../errorLog';
 import computeTiePlacements from '../../shared/raceTieScoring';
 import {
   holdsPlace,
@@ -270,8 +271,10 @@ export function ensureDncScoresForMissedQualifyingRaces(
   });
 
   transaction();
-  console.warn(
-    `[Data integrity] Scored ${missingRounds.length} missed qualifying race(s) as DNC for event ${event_id} (RRS A5.1 / SHRS 5.3).`,
+  // A repair is a data anomaly worth a line in the error log (ids only).
+  logError(
+    'Data integrity',
+    `Scored ${missingRounds.length} missed qualifying race(s) as DNC for event ${event_id} (RRS A5.1 / SHRS 5.3).`,
   );
   return missingRounds.length;
 }
@@ -322,8 +325,9 @@ export function ensureCompleteRaceScoresForEvent(
   });
 
   transaction();
-  console.warn(
-    `[Data integrity] Repaired ${missingRows.length} missing score row(s) as DNS for event ${event_id} (${heatType}).`,
+  logError(
+    'Data integrity',
+    `Repaired ${missingRows.length} missing score row(s) as DNS for event ${event_id} (${heatType}).`,
   );
   return missingRows.length + dncScored();
 }

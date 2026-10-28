@@ -71,7 +71,7 @@ export default function handle<Args extends unknown[] = unknown[]>(
         } catch (error) {
           // The call itself went through; a failure to group its history must
           // not turn it into an error for the user.
-          console.error(`Journal grouping for "${channel}" failed:`, error);
+          logError(`Journal grouping for "${channel}"`, error);
         }
       }
     },

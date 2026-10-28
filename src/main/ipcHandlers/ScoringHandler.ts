@@ -1,5 +1,6 @@
 import { db } from '../../../public/Database/DBManager';
 import handle from './handle';
+import { logError } from '../errorLog';
 import {
   clearAssignmentSnapshot,
   FrozenAssignmentRow,
@@ -62,7 +63,8 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
   // HRH M4: derive the event from the heat itself; ignore the payload value.
   const { event_id } = heatRow;
   if (payloadEventId != null && Number(payloadEventId) !== event_id) {
-    console.warn(
+    logError(
+      'submitHeatRaceScoresAtomic',
       `HRH M4: submitHeatRaceScoresAtomic payload event_id ${payloadEventId} does not match heat ${heat_id}'s event ${event_id}; using the heat's event.`,
     );
   }
@@ -253,8 +255,8 @@ handle(
   ) => {
     const event_id = Number(raw_event_id);
     const safeOperations = Array.isArray(operations) ? operations : [];
-    // The leaderboard edit screen sends each touched race whole, as it shows
-    // it (see applyRaceColumnState); nothing else is accepted.
+    // The leaderboard edit screen sends each touched race whole, as shown
+    // (see applyRaceColumnState); nothing else is accepted.
     if (safeOperations.some((operation) => !Array.isArray(operation?.cells))) {
       throw new Error(
         'This change did not include the whole race it belongs to, so it was not saved. Reload the leaderboard and make the change again.',
