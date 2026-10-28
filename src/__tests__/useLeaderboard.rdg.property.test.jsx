@@ -93,8 +93,6 @@ describe('Property-based: RDG1/RDG2/RDG3 random stress', () => {
         },
         heatRaceDB: {
           readAllHeats: jest.fn().mockResolvedValue([]),
-          updateEventLeaderboard: jest.fn().mockResolvedValue(true),
-          updateFinalLeaderboard: jest.fn().mockResolvedValue(true),
           readFinalLeaderboard: jest.fn().mockResolvedValue([]),
           readLeaderboard: jest.fn(),
           readOverallLeaderboard: jest.fn().mockResolvedValue([]),

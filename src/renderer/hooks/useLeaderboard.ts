@@ -427,45 +427,14 @@ export default function useLeaderboard(eventId: number) {
       setRdg2Picker(null);
       setEditMode(false);
       try {
-        // If a recompute fails we still fall back to the existing DB values, but
-        // the reader must be told the standings may not reflect the latest edits
-        // — otherwise a real backend failure is indistinguishable from a normal
-        // load and stale numbers are shown as if authoritative.
-        let recomputeFailed = false;
-
-        // Recompute the event leaderboard in the DB so that place values
-        // reflect correct exclusions and SHRS 5.7 tie-breaking.
-        try {
-          await heatRaceDB.updateEventLeaderboard(eventId);
-        } catch (error) {
-          recomputeFailed = true;
-          // eslint-disable-next-line no-console
-          console.error('updateEventLeaderboard failed', error);
-        }
-
-        // Recompute the final leaderboard so FinalLeaderboard is always current
-        // before reading (matches the pattern used for the qualifying leaderboard).
-        if (finalSeriesStarted) {
-          try {
-            await heatRaceDB.updateFinalLeaderboard(eventId);
-          } catch (error) {
-            recomputeFailed = true;
-            // eslint-disable-next-line no-console
-            console.error('updateFinalLeaderboard failed', error);
-          }
-        }
-
-        if (recomputeFailed) {
-          reportWarning(
-            'The leaderboard could not be fully recomputed, so the standings ' +
-              'shown may not reflect the most recent scores or edits. Try ' +
-              'reloading; if this keeps happening, re-check the latest race results.',
-            'Standings may be out of date',
-          );
-        }
-
+        // Every read below rebuilds the standings from the scores in the main
+        // process first (AGENTS.md section 4), so no separate recompute call is
+        // needed here. The final standings are only used once the Final Series
+        // has started.
         const resultsTuple = await Promise.all([
-          heatRaceDB.readFinalLeaderboard(eventId),
+          finalSeriesStarted
+            ? heatRaceDB.readFinalLeaderboard(eventId)
+            : Promise.resolve([]),
           heatRaceDB.readLeaderboard(eventId),
           finalSeriesStarted
             ? heatRaceDB.readOverallLeaderboard(eventId)
