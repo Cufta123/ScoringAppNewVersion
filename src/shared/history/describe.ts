@@ -32,7 +32,13 @@ export interface HistoryAction {
   restores_to_action_id?: number | null;
 }
 
-/** What a user action was, by the IPC channel that made it. */
+/**
+ * What a user action was, by the IPC channel that made it. Some channels below
+ * (insertHeat, deleteHeatsByEvent, insertRace, insertScore, updateScore,
+ * updateRaceResult, deleteScore, undoLastScoredRace, updateEventLeaderboard,
+ * updateFinalLeaderboard) no longer exist, but existing databases hold
+ * ChangeActions rows recorded under them, so they stay described.
+ */
 const ACTION_LABELS: Record<string, string> = {
   insertEvent: 'Event created',
   updateEvent: 'Event settings changed',

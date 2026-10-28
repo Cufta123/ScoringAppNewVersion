@@ -34,7 +34,12 @@ const ONE_WAY_EVENT_FIELDS = [
   'shrs_discard_locked_final',
 ];
 
-/** The user actions that change results, and only results. */
+/**
+ * The user actions that change results, and only results. updateRaceResult,
+ * updateScore, insertScore and deleteScore are removed channels, kept because
+ * existing databases hold history rows recorded under them that must still be
+ * undoable.
+ */
 const RESULT_CHANNELS = [
   'updateRaceResult',
   'saveLeaderboardRaceResultsAtomic',
@@ -47,7 +52,11 @@ const RESULT_CHANNELS = [
 const SCORING_PAGE_REASON =
   'Scoring a race, heats and the entry list are undone on the scoring page (Undo last race), which checks that later heats do not depend on them.';
 
-/** Actions the app takes by itself, which it would simply take again. */
+/**
+ * Actions the app takes by itself, which it would simply take again.
+ * updateEventLeaderboard and updateFinalLeaderboard are removed channels, kept
+ * for history rows recorded under them in existing databases.
+ */
 const AUTOMATIC_CHANNELS = [
   'readLeaderboard',
   'readFinalLeaderboard',

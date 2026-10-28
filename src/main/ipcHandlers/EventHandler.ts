@@ -186,7 +186,7 @@ WHERE be.event_id = ?
 handle('removeBoatFromEvent', async (event, boat_id, event_id) => {
   // Server-side guard. The renderer blocks this once a race has happened, but
   // that state can be stale and the channel is reachable on its own — the same
-  // reasoning deleteHeatsByEvent already applies. A mid-series withdrawal is
+  // reasoning recreateInitialHeatsAtomic already applies. A mid-series withdrawal is
   // recorded as WTH in scoring; removing the entry would orphan her scores.
   const scored = db
     .prepare(
