@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { reportError } from '../utils/userFeedback';
+import { logToErrorLog, reportError } from '../utils/userFeedback';
 
 interface ErrorBoundaryState {
   hasError: boolean;
@@ -34,14 +34,12 @@ class ErrorBoundaryBase extends React.Component<
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
-    // Keep the raw technical detail (component stack, error object) for
-    // diagnosis in devtools, then surface a plain-language message to the race
-    // officer via the existing feedback toast.
-    // eslint-disable-next-line no-console
-    console.error(
-      'A screen crashed while rendering. Use the buttons below to recover.',
+    // The error log gets the raw technical detail including the component
+    // stack, which reportError does not carry; the race officer gets a
+    // plain-language message via the existing feedback toast.
+    logToErrorLog(
+      `A screen crashed while rendering.${errorInfo?.componentStack ?? ''}`,
       error,
-      errorInfo?.componentStack,
     );
     reportError(
       'Something went wrong displaying this screen. Your event data is safe — reload the screen or go back to the home page.',

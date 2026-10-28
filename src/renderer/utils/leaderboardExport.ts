@@ -45,16 +45,13 @@ export interface LeaderboardExportContext {
   eventLeaderboard: LeaderboardEntry[];
 }
 
-export const sanitizeFilenamePart = (
-  value: unknown,
-  fallback = 'event',
-): string => {
+const sanitizeFilenamePart = (value: unknown, fallback = 'event'): string => {
   const raw = String(value ?? '').trim();
   const safe = raw.replace(/[<>:"/\\|?*]+/g, '_').replace(/\s+/g, '_');
   return safe || fallback;
 };
 
-export const getExportMeta = async (ctx: LeaderboardExportContext) => {
+const getExportMeta = async (ctx: LeaderboardExportContext) => {
   const { eventId, finalSeriesStarted, leaderboard, eventLeaderboard } = ctx;
   let eventName = `event_${eventId}`;
   try {
@@ -84,7 +81,7 @@ export const getExportMeta = async (ctx: LeaderboardExportContext) => {
   };
 };
 
-export const toPdfText = (value: unknown): string => {
+const toPdfText = (value: unknown): string => {
   const source = String(value ?? '').normalize('NFC');
 
   // Repair common mojibake patterns (UTF-8 bytes read as latin1/cp1252).

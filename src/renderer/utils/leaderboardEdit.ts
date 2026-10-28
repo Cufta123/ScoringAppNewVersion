@@ -119,7 +119,7 @@ const pointsCellsForAverage = (entry: LeaderboardEntry): string[] =>
  * RRS A9(a): RDG1 — average of the boat's points in all the other races of the
  * series. Penalty scores are her points and are included in the average.
  */
-export const averageAllRacePoints = (
+const averageAllRacePoints = (
   entry: LeaderboardEntry,
   excludeIdx: number,
   penaltyPos: number,

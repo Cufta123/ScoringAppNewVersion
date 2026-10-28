@@ -331,7 +331,7 @@ export const FLEET_COLORS: Record<string, { border: string; thead: string }> = {
  */
 const GENERAL_GROUP_RANK = Number.MAX_SAFE_INTEGER - 1;
 
-export const fleetGroupRank = (group: string): number =>
+const fleetGroupRank = (group: string): number =>
   group === 'General' ? GENERAL_GROUP_RANK : fleetRank(group);
 
 export const compareFleetGroups = (a: string, b: string): number =>
