@@ -5,10 +5,11 @@ import { getEventDiscardConfig } from '../functions/discardConfig';
 import { fleetNameForIndex } from '../../shared/fleetNames';
 import refreshStandings from '../functions/standings';
 import { getRaceCountForHeat } from '../functions/heatQueries';
-import {
-  SHRS_MAX_BOATS_PER_HEAT,
-  getEventHeatOverflowPolicy,
-} from '../functions/eventSettings';
+import { getEventHeatOverflowPolicy } from '../functions/eventSettings';
+import planFinalFleets, {
+  NO_QUALIFYING_RESULTS_REFUSAL,
+  findWithdrawnBoatIds,
+} from '../functions/finalFleetPlan';
 import buildAdjustedFleetLeaderboard from '../functions/fleetTotals';
 import prepareHeatWriters from '../functions/heatWriters';
 
@@ -110,9 +111,7 @@ handle(
     }>;
 
     if (leaderboard.length === 0) {
-      throw new Error(
-        'Cannot start the Final Series: there are no qualifying results yet. Score the qualifying races first.',
-      );
+      throw new Error(NO_QUALIFYING_RESULTS_REFUSAL);
     }
 
     const qualifyingDiscardConfig = getEventDiscardConfig(
@@ -124,80 +123,36 @@ handle(
       qualifyingDiscardConfig,
       apply_shrs43_temporary_second_discard === true,
     );
-    const withdrawnBoatIds = new Set(
-      leaderboard
-        .filter((boat) => {
-          const statuses = boat.race_statuses
-            ? boat.race_statuses.split(',')
-            : [];
-          return statuses.some((s) => s.trim().toUpperCase() === 'WTH');
-        })
-        .map((boat) => boat.boat_id),
-    );
-
-    adjustedLeaderboard.sort((left, right) => {
-      const leftWithdrawn = withdrawnBoatIds.has(left.boat_id);
-      const rightWithdrawn = withdrawnBoatIds.has(right.boat_id);
-      if (leftWithdrawn !== rightWithdrawn) {
-        return leftWithdrawn ? 1 : -1;
-      }
-      return left.totalPoints - right.totalPoints;
-    });
-
     const overflowPolicy = getEventHeatOverflowPolicy(event_id);
-    let finalHeatCount = numFinalHeats;
-    if (adjustedLeaderboard.length > finalHeatCount * SHRS_MAX_BOATS_PER_HEAT) {
-      if (overflowPolicy === 'auto-increase') {
-        finalHeatCount = Math.ceil(
-          adjustedLeaderboard.length / SHRS_MAX_BOATS_PER_HEAT,
-        );
-      } else if (!allow_oversize_confirm) {
-        throw new Error(
-          `Final fleets would exceed ${SHRS_MAX_BOATS_PER_HEAT} boats. Confirm oversize to continue or switch event policy to auto-increase heats.`,
-        );
-      }
+    const plan = planFinalFleets(
+      adjustedLeaderboard,
+      findWithdrawnBoatIds(leaderboard),
+      numFinalHeats,
+      overflowPolicy,
+      Boolean(allow_oversize_confirm),
+    );
+    if (!plan.ok) {
+      throw new Error(plan.refusal);
     }
 
-    // RULE-M23 / SHRS 4.1: never create more final fleets than there are
-    // boats, and reduce the fleet count when withdrawals allow ("the number
-    // of Final Series Fleets may be reduced"). Without this, `boatsPerFleet`
-    // floors to 0 and the trailing fleets are created empty (0 boats), which
-    // violates 4.1's "as equal as possible" and leaves stray empty final
-    // heats.
-    finalHeatCount = Math.min(finalHeatCount, adjustedLeaderboard.length);
-
-    const boatsPerFleet = Math.floor(
-      adjustedLeaderboard.length / finalHeatCount,
-    );
-    const extraBoats = adjustedLeaderboard.length % finalHeatCount;
     const { insertHeatStmt, insertHeatBoatStmt } = prepareHeatWriters();
     const transaction = db.transaction(() => {
-      const insertedFinalHeatIds: number[] = [];
-      for (let i = 0; i < finalHeatCount; i += 1) {
+      const insertedFinalHeatIds = plan.fleets.map((_fleet, i) => {
         // SHRS 4.1 fleet naming, shared with the ranking precedence used by
         // the leaderboard reads so "Fleet 5" is always ranked 5th (RULE-m2).
-        const fleetName = fleetNameForIndex(i);
         const insertResult = insertHeatStmt.run(
           event_id,
-          `Final ${fleetName}`,
+          `Final ${fleetNameForIndex(i)}`,
           'Final',
         );
-        insertedFinalHeatIds.push(Number(insertResult.lastInsertRowid));
-      }
+        return Number(insertResult.lastInsertRowid);
+      });
 
-      let boatIndex = 0;
-      for (let i = 0; i < insertedFinalHeatIds.length; i += 1) {
-        const boatsInFleet = boatsPerFleet + (i < extraBoats ? 1 : 0);
-        const fleetSlice = adjustedLeaderboard.slice(
-          boatIndex,
-          boatIndex + boatsInFleet,
-        );
-        boatIndex += boatsInFleet;
-
-        fleetSlice.forEach((boat) => {
-          insertHeatBoatStmt.run(insertedFinalHeatIds[i], boat.boat_id);
+      plan.fleets.forEach((fleet, i) => {
+        fleet.forEach((boatId) => {
+          insertHeatBoatStmt.run(insertedFinalHeatIds[i], boatId);
         });
-      }
+      });
 
       return {
         success: true,
