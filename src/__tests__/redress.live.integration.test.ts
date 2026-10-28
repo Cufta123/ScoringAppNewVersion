@@ -90,22 +90,19 @@ describe('live average-points redress (single-fleet event)', () => {
       .get(raceId, REDRESSED);
 
   const grant = (raceId: number, status: string, rdgRaceIds?: number[]) =>
-    handlerRegistry.saveLeaderboardRaceResultsAtomic(
-      {},
-      EVENT_ID,
-      [
-        {
-          raceId,
-          boatId: REDRESSED,
-          newPosition: 1,
-          entryStatus: status,
-          shiftPositions: false,
-          ...(rdgRaceIds ? { rdgRaceIds } : {}),
-        },
-      ],
-      false,
-      false,
-    );
+    handlerRegistry.saveLeaderboardRaceResultsAtomic({}, EVENT_ID, [
+      {
+        raceId,
+        cells: [
+          {
+            boatId: REDRESSED,
+            position: 1,
+            status,
+            ...(rdgRaceIds ? { rdgRaceIds } : {}),
+          },
+        ],
+      },
+    ]);
 
   beforeAll(() => {
     require('../main/ipcHandlers/HeatRaceHandler');

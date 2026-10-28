@@ -29,8 +29,8 @@ export const penaltyStatuses = [
   'DPI',
 ];
 // SHRS 5.2 / RRS 44.3(c): derive the points a non-finisher status should carry
-// given the current largest-heat size. Mirrors the write-time logic in
-// applyRaceResultUpdate so a leaderboard recompute can re-derive frozen scores
+// given the current largest-heat size. Mirrors the write-time logic of
+// scoreRaceColumn so a leaderboard recompute can re-derive frozen scores
 // against the current series-wide largest heat (fixing stale DNF/DNS points).
 // Returns null for statuses whose points are NOT a function of the largest heat
 // (FINISHED keeps its place-based points; RDG keeps its redress value).
@@ -62,8 +62,8 @@ export function deriveNonFinisherPoints(
  * (DNF, DNS, DSQ, OCS, RET, BFD, UFD, DNC, NSC, WTH, DNE, DGM) whose finishing
  * place is discarded and whose score is fixed at (largest heat + 1)?
  *
- * Mirrors the classification in the IPC handler's `applyRaceResultUpdate` so
- * the write path and any re-derivation agree. RDG and DPI keep their
+ * Mirrors the classification `scoreRaceColumn` writes with, so the write
+ * path and any re-derivation agree. RDG and DPI keep their
  * protest-committee-provided value and are NOT non-scoring; ZFP/SCP/T1 are
  * position-keeping scoring penalties and are also NOT non-scoring.
  */

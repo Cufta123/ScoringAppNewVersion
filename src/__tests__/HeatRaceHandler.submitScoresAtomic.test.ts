@@ -32,7 +32,7 @@ type ScoreRow = {
 
 const MAX_HEAT_SIZE = 10;
 const HEAT_ID = 10;
-// Heat 10 belongs to event 1 (see the 'SELECT event_id, heat_type FROM Heats'
+// Heat 10 belongs to event 1 (see the 'SELECT heat_id, heat_name, event_id, heat_type FROM Heats'
 // mock). HRH M4: the handler must score against the heat's event, not any
 // event_id the payload carries.
 const HEAT_EVENT_ID = 1;
@@ -95,9 +95,14 @@ const dbMock = {
         },
       };
     }
-    if (sql.startsWith('SELECT event_id, heat_type, heat_name FROM Heats')) {
+    if (
+      sql.startsWith(
+        'SELECT heat_id, heat_name, event_id, heat_type FROM Heats',
+      )
+    ) {
       return {
         get: (heatId: number) => ({
+          heat_id: heatId,
           event_id: 1,
           heat_type: 'Qualifying',
           heat_name: heatId === 20 ? 'Heat B1' : 'Heat A1',

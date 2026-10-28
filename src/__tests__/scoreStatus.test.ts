@@ -169,7 +169,7 @@ describe('deriveNonFinisherPoints (SHRS 5.2 re-derivation)', () => {
   // imposed by the protest committee) must NOT be auto-scored as largest-heat+1
   // like DSQ. Its points are PC-set, so `deriveNonFinisherPoints` returns null
   // (keep the stored value) — the same treatment as RDG. The write path
-  // (`applyRaceResultUpdate`) likewise keeps the frontend-provided value, and
+  // (`applyRaceColumnState`) likewise keeps the frontend-provided value, and
   // the leaderboard edit flow provides the points-entry field.
   it('does NOT auto-score DPI as largest-heat + 1 — points are protest-committee-set (RRS A10)', () => {
     expect(deriveNonFinisherPoints('DPI', 5, 20)).toBeNull();

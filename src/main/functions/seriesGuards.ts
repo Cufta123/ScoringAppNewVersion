@@ -6,7 +6,7 @@ import { getHeatBaseFromName, getHeatRoundFromName } from './scoreStatus';
  *
  * The renderer hides or warns about these actions, but its state can be stale
  * and every channel is reachable on its own, so the main process re-checks
- * (the same reasoning as deleteHeatsByEvent / removeBoatFromEvent).
+ * (the same reasoning as recreateInitialHeatsAtomic / removeBoatFromEvent).
  */
 
 export interface HeatRow {

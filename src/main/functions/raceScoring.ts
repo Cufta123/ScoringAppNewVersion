@@ -1,30 +1,23 @@
 /**
  * Writes to the Scores table: seeding a new race, repairing missing rows,
- * applying a single result edit (RRS A6.1/A6.2/A7, SHRS 5.2), and re-averaging
+ * saving a whole corrected race (RRS A6.1/A6.2/A7, SHRS 5.2), and re-averaging
  * shared places. Everything that changes a boat's score for one race lives
  * here so the rules are applied in one place.
  */
 import { db } from '../../../public/Database/DBManager';
 import computeTiePlacements from '../../shared/raceTieScoring';
-import applyRaceColumnEdit, {
+import {
   holdsPlace,
   keepsProvidedPoints,
   scoreRaceColumn,
   type RaceCell,
 } from '../../shared/raceColumnEdit';
 import { captureRaceAssignmentSnapshotIfMissing } from './assignmentShield';
-import {
-  recomputeEventLeaderboard,
-  recomputeFinalLeaderboard,
-} from './leaderboardRecompute';
 import { unshieldBoatFromAssignmentSnapshot } from './raceAssignmentSnapshot';
 import {
   getHeatRoundFromName,
-  getScoringPenaltyPoints,
-  isNonScoringPenalty,
   normalizeScoreStatus,
   protestCommitteeStatuses,
-  rdgStatuses,
   scoringPenaltyStatuses,
 } from './scoreStatus';
 import { sanitizePositiveFinite, sanitizePositiveInteger } from './validation';
@@ -371,234 +364,6 @@ export function applyRaceTieScoring(race_id: number): void {
 
 /** Protest-committee points (RDG3, DPI) above this are a typing mistake. */
 const MAX_PROVIDED_POINTS = 99;
-
-export function applyRaceResultUpdate(
-  event_id: any,
-  race_id: any,
-  boat_id: any,
-  new_position: any,
-  shift_positions: boolean,
-  new_status: any,
-  // RDG2 only: the race ids the protest committee chose to average, so the
-  // recompute can keep the average live (shared/redress.ts).
-  rdg_race_ids?: unknown,
-) {
-  const status = normalizeScoreStatus(new_status);
-  const isRdg = rdgStatuses.includes(status);
-  const isScoringPenalty = scoringPenaltyStatuses.has(status);
-  // RRS A10: DPI points are set by the protest committee, so — like RDG — the
-  // frontend-provided value is kept verbatim and never auto-derived to
-  // (largest heat + 1). Grouped with RDG under `pcSetPoints`.
-  const pcSetPoints = isRdg || status === 'DPI';
-
-  // Determine heat info used by SHRS 5.2 / 44.3(c) scoring.
-  const heatRow = db
-    .prepare(
-      `SELECT h.heat_id, h.heat_type FROM Heats h
-       JOIN Races r ON r.heat_id = h.heat_id
-       WHERE r.race_id = ?`,
-    )
-    .get(race_id) as { heat_id: number; heat_type: string } | undefined;
-  const heatType = heatRow?.heat_type ?? 'Qualifying';
-  const maxBoats = getMaxHeatSize(event_id, heatType);
-
-  // RULE-M14 / SHRS 3.1.5: only a PROTEST-COMMITTEE decision is shielded from
-  // changing heat assignments, so only such an edit snapshots the pre-decision
-  // order. This used to fire on every score correction, which meant a single
-  // mistyped finishing place permanently froze the heat assignment for the rest
-  // of the event even though the rule says nothing about race-office fixes.
-  if (heatRow?.heat_id != null) {
-    if (protestCommitteeStatuses.has(status)) {
-      captureRaceAssignmentSnapshotIfMissing(
-        heatRow.heat_id,
-        Number(race_id),
-        boat_id,
-      );
-    } else {
-      // An ordinary race-office correction is NOT shielded by 3.1.5, so this
-      // boat's frozen slot must be dropped so its corrected result drives the
-      // next assignment. Only THIS boat is un-shielded (RULE-M21): other boats'
-      // protest decisions keep their shields — clearing the whole race here
-      // would erase them.
-      unshieldBoatFromAssignmentSnapshot(Number(race_id), boat_id);
-    }
-  }
-
-  // For RDG and DPI statuses keep the frontend-provided value (PC-set);
-  // for ZFP/SCP apply scoring penalty on finishing place;
-  // for other penalties use largest-heat size + 1 per SHRS 5.2.
-  // BK-6: guard against NaN/0/negative before writing. RDG/DPI are PC-set and
-  // may be fractional or < 1 (CMP C-23/C-24), so they only need to be finite and
-  // positive; every other status writes a finishing place (positive whole number).
-  let positionContext = `The place for ${status}`;
-  if (pcSetPoints) positionContext = `The points for ${status}`;
-  else if (status === 'FINISHED') positionContext = 'The place';
-  // BK-6: non-scoring penalties (DNF/DNS/DSQ/...) are always scored at
-  // maxBoats + 1 (SHRS 5.2), so their provided position is discarded and must
-  // NOT be validated — a legacy caller may send 0/'' for "no place". Only
-  // values that are actually written (FINISHED, ZFP/SCP/T1, RDG/DPI) are
-  // sanitized. The classification lives in scoreStatus.isNonScoringPenalty so
-  // the write path and re-derivation share one definition.
-  const isNonScoringPenaltyStatus = isNonScoringPenalty(status);
-  let finalPosition: number;
-  let points: number;
-  if (isNonScoringPenaltyStatus) {
-    finalPosition = maxBoats + 1;
-    points = finalPosition;
-  } else if (pcSetPoints) {
-    finalPosition = sanitizePositiveFinite(new_position, positionContext);
-    points = finalPosition;
-  } else {
-    finalPosition = sanitizePositiveInteger(new_position, positionContext);
-    points = isScoringPenalty
-      ? getScoringPenaltyPoints(finalPosition, maxBoats, status)
-      : finalPosition;
-  }
-
-  const currentResult = db
-    .prepare(
-      `SELECT position, COALESCE(status, 'FINISHED') as status
-              FROM Scores
-              WHERE race_id = ? AND boat_id = ?
-              ORDER BY score_id DESC
-              LIMIT 1`,
-    )
-    .get(race_id, boat_id) as { position: number; status: string } | undefined;
-
-  if (!currentResult) {
-    throw new Error(
-      `${boatLabel(boat_id)} has no result in ${raceLabel(race_id)} any more (the race may have been undone in the meantime). Reload the page.`,
-    );
-  }
-  const currentPosition = currentResult.position;
-  const previousStatus = normalizeScoreStatus(currentResult.status);
-
-  // Load the whole race so the rule application below is a pure computation
-  // over its cells. The transformation — the RRS A6.1 promotion, the manual
-  // place ripple, and the RRS A7 re-average — lives in shared/raceColumnEdit,
-  // so the renderer's edit preview runs the very same code and cannot drift
-  // from what is persisted here.
-  const raceRows = db
-    .prepare(
-      `SELECT score_id, boat_id, position, points,
-              COALESCE(status, 'FINISHED') AS status
-       FROM Scores
-       WHERE race_id = ?
-       ORDER BY score_id ASC`,
-    )
-    .all(race_id) as {
-    score_id: number;
-    boat_id: number;
-    position: number;
-    points: number;
-    status: string;
-  }[];
-
-  // A finishing place cannot be past the last boat of the largest heat (it
-  // used to accept any positive number: 5000 was stored and scored 5000
-  // points). The leaderboard checks the exact boats in the race; this is the
-  // last line of defence for any caller.
-  const placeLimit = Math.max(raceRows.length, maxBoats);
-  if (
-    !isNonScoringPenaltyStatus &&
-    !pcSetPoints &&
-    finalPosition > placeLimit
-  ) {
-    throw new Error(
-      `${positionContext} must be 1 to ${placeLimit}, not ${finalPosition}.`,
-    );
-  }
-  if (pcSetPoints && finalPosition > MAX_PROVIDED_POINTS) {
-    throw new Error(
-      `${positionContext} cannot be more than ${MAX_PROVIDED_POINTS}, not ${finalPosition}.`,
-    );
-  }
-
-  const editedIndex = raceRows.findIndex(
-    (row) => String(row.boat_id) === String(boat_id),
-  );
-  if (editedIndex === -1) {
-    throw new Error(
-      `${boatLabel(boat_id)} has no result in ${raceLabel(race_id)} any more (the race may have been undone in the meantime). Reload the page.`,
-    );
-  }
-
-  const updatedCells = applyRaceColumnEdit(
-    raceRows.map((row) => ({
-      position: row.position,
-      points: row.points,
-      status: normalizeScoreStatus(row.status),
-    })),
-    {
-      index: editedIndex,
-      previousPosition: currentPosition,
-      previousStatus,
-      newPosition: finalPosition,
-      newPoints: points,
-      newStatus: status,
-      shiftPositions: shift_positions,
-      maxBoats,
-    },
-  );
-
-  // Write back only the rows the edit actually moved. No transaction here:
-  // every caller already runs inside one (see the BK-5 boundary tests), and
-  // the SQL this replaced was likewise a bare sequence of UPDATEs.
-  const writeRow = db.prepare(
-    'UPDATE Scores SET position = ?, points = ?, status = ? WHERE score_id = ?',
-  );
-  updatedCells.forEach((cell, i) => {
-    const row = raceRows[i];
-    // The edited boat is always written, exactly as before: an edit that
-    // resolves to the same place still records the scorer's decision. Other
-    // boats are written only if the edit actually moved them.
-    const unchanged =
-      cell.position === row.position &&
-      cell.points === row.points &&
-      cell.status === row.status;
-    if (i !== editedIndex && unchanged) return;
-    writeRow.run(cell.position, cell.points, cell.status, row.score_id);
-  });
-
-  // Record (or drop) the RDG2 basis. Only touched when it matters, so an
-  // ordinary edit issues no extra write.
-  const editedScoreId = raceRows[editedIndex].score_id;
-  if (status === 'RDG2' && Array.isArray(rdg_race_ids)) {
-    const ids = rdg_race_ids.map(Number).filter((id) => Number.isFinite(id));
-    db.prepare('UPDATE Scores SET rdg_race_ids = ? WHERE score_id = ?').run(
-      ids.length > 0 ? JSON.stringify(ids) : null,
-      editedScoreId,
-    );
-  } else if (status !== 'RDG2' && previousStatus === 'RDG2') {
-    db.prepare('UPDATE Scores SET rdg_race_ids = NULL WHERE score_id = ?').run(
-      editedScoreId,
-    );
-  }
-}
-
-// BK-7: after a single-score edit or delete, refresh the affected event's
-// leaderboard so standings don't go stale. A Final race must also refresh the
-// FinalLeaderboard (the event recompute alone leaves it out of date), mirroring
-// undoLastScoredRaceForHeat.
-export const recomputeLeaderboardsForRace = (race_id: number) => {
-  const row = db
-    .prepare(
-      `SELECT h.event_id, h.heat_type
-       FROM Races r
-       JOIN Heats h ON h.heat_id = r.heat_id
-       WHERE r.race_id = ?`,
-    )
-    .get(race_id) as { event_id: number; heat_type: string } | undefined;
-
-  if (!row) {
-    return;
-  }
-
-  recomputeEventLeaderboard(row.event_id);
-  if (row.heat_type === 'Final') {
-    recomputeFinalLeaderboard(row.event_id);
-  }
-};
 
 /** One boat's result in a race, as the leaderboard edit screen shows it. */
 export interface RaceColumnCell {
