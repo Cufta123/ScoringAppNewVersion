@@ -27,7 +27,7 @@ import { boatLabel, raceLabel } from './labels';
  * SHRS 5.2: Get the number of boats in the largest heat for an event.
  * Used for penalty scoring (DNS, DSQ, RET, etc. = largest heat size + 1).
  */
-export function getMaxHeatSize(event_id: any, heat_type?: string): number {
+export function getMaxHeatSize(event_id: number, heat_type?: string): number {
   const heatTypeFilter = heat_type ? `AND h.heat_type = ?` : '';
   const sql = `
     SELECT MAX(boat_count) AS max_boats
@@ -139,7 +139,9 @@ export function seedRaceWithDefaultDnsScores(
  * boat must not collect DNCs for Silver's races; boats in a final fleet are
  * already covered by the DNS repair above, which walks Heat_Boat.
  */
-export function ensureDncScoresForMissedQualifyingRaces(event_id: any): number {
+export function ensureDncScoresForMissedQualifyingRaces(
+  event_id: number,
+): number {
   const heats = db
     .prepare(
       `SELECT heat_id, heat_name FROM Heats
@@ -275,7 +277,7 @@ export function ensureDncScoresForMissedQualifyingRaces(event_id: any): number {
 }
 
 export function ensureCompleteRaceScoresForEvent(
-  event_id: any,
+  event_id: number,
   heatType: 'Qualifying' | 'Final',
 ): number {
   const missingRows = db
@@ -438,8 +440,8 @@ function decideAssignmentShields(
  * save a different race from the one shown.
  */
 export function applyRaceColumnState(
-  event_id: any,
-  race_id: any,
+  event_id: number,
+  race_id: number,
   sentCells: RaceColumnCell[],
 ) {
   const raceId = Number(race_id);

@@ -247,10 +247,11 @@ handle(
   'saveLeaderboardRaceResultsAtomic',
   async (
     _event,
-    event_id: number,
+    raw_event_id: number | string,
     operations,
     updateFinalLeaderboard = false,
   ) => {
+    const event_id = Number(raw_event_id);
     const safeOperations = Array.isArray(operations) ? operations : [];
     // The leaderboard edit screen sends each touched race whole, as it shows
     // it (see applyRaceColumnState); nothing else is accepted.
@@ -279,7 +280,11 @@ handle(
 
     const tx = db.transaction(() => {
       safeOperations.forEach((operation) => {
-        applyRaceColumnState(event_id, operation.raceId, operation.cells);
+        applyRaceColumnState(
+          event_id,
+          Number(operation.raceId),
+          operation.cells,
+        );
         lockDiscardProfileForRace(Number(operation.raceId));
       });
 
