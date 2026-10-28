@@ -1,47 +1,42 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import React, { useState, useCallback } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import HeatComponent from '../../components/HeatComponent';
-import ScoringInputComponent, {
-  type ScoringHeat,
-  type ScoredBoat,
-} from '../../components/ScoringInputComponent';
+import ScoringInputComponent from '../../components/ScoringInputComponent';
 import Navbar from '../../components/Navbar';
 import Breadcrumbs from '../../components/shared/Breadcrumbs';
 import LoadingState from '../../components/shared/LoadingState';
 import './HeatRacePage.css';
-import {
-  confirmAction,
-  reportError,
-  reportInfo,
-  reportWarning,
-  getErrorMessage,
-} from '../../utils/userFeedback';
-import { eventDB, heatRaceDB } from '../../api/db';
-import type { EventRow } from '../../types';
-import useExclusiveAction from '../../hooks/useExclusiveAction';
+import { reportError, reportWarning } from '../../utils/userFeedback';
+import { heatRaceDB } from '../../api/db';
+import { hasFinalHeats } from '../../utils/heatView';
 import { useEventDataChanged } from '../../utils/eventDataChanged';
+import useRouteEvent from '../../hooks/useRouteEvent';
+import useRoundActions from '../../hooks/useRoundActions';
+import useScoringSession from '../../hooks/useScoringSession';
 
 function HeatRacePage() {
-  const location = useLocation();
   const navigate = useNavigate();
   const { eventName } = useParams();
-  const [event, setEvent] = useState<EventRow | null>(
-    (location.state as { event?: EventRow } | null)?.event || null,
-  );
-  const [selectedHeat, setSelectedHeat] = useState<ScoringHeat | null>(null);
-  const [isScoring, setIsScoring] = useState(false);
-  // True while the scoring view holds an entered-but-not-yet-submitted finish
-  // order. Guards "Back to Heats" so a misclick can't silently discard it.
-  const [hasUnsavedEntry, setHasUnsavedEntry] = useState(false);
+  const event = useRouteEvent(eventName);
+  // Both reported by HeatComponent whenever its heats load, so the page's copy
+  // can never go stale (and are re-read below when the history changes them).
   const [finalSeriesStarted, setFinalSeriesStarted] = useState(false);
+  const [numQualifyingGroups, setNumQualifyingGroups] = useState(0);
   // Bumped to tell HeatComponent to re-fetch its heats after a round-level
   // action (create-from-leaderboard, undo) without forcing a full remount.
   const [heatsRefreshToken, setHeatsRefreshToken] = useState(0);
-  const [numQualifyingGroups, setNumQualifyingGroups] = useState(0);
-
   const refreshHeats = useCallback(() => {
     setHeatsRefreshToken((token) => token + 1);
   }, []);
+
+  const scoring = useScoringSession({
+    event,
+    finalSeriesStarted,
+    numQualifyingGroups,
+  });
+  const { selectedHeat, isScoring, closeScoring } = scoring;
+  const rounds = useRoundActions({ event, finalSeriesStarted, refreshHeats });
+
   // After going back in the history (or an undo there) the heat being scored
   // may be gone or may have been raced already; leave its scoring view then,
   // rather than let a finish order be submitted into a heat that changed.
@@ -50,9 +45,7 @@ function HeatRacePage() {
     if (!event?.event_id) return;
     try {
       const allHeats = await heatRaceDB.readAllHeats(event.event_id);
-      setFinalSeriesStarted(
-        allHeats.some((heat) => heat.heat_type === 'Final'),
-      );
+      setFinalSeriesStarted(hasFinalHeats(allHeats));
       if (isScoring && selectedHeat) {
         const stillThere = allHeats.some(
           (heat) => heat.heat_id === selectedHeat.heat_id,
@@ -60,12 +53,8 @@ function HeatRacePage() {
         const races = stillThere
           ? await heatRaceDB.readAllRaces(selectedHeat.heat_id)
           : [];
-        const changed =
-          !stillThere || (races.length ?? 0) !== (selectedHeat.raceNumber ?? 0);
-        if (changed) {
-          setIsScoring(false);
-          setSelectedHeat(null);
-          setHasUnsavedEntry(false);
+        if (!stillThere || races.length !== (selectedHeat.raceNumber ?? 0)) {
+          closeScoring();
           reportWarning(
             `${selectedHeat.heat_name} changed in the history while you were scoring it, so its scoring was closed. Nothing was saved for it; open it again if it still needs scoring.`,
             'Heat changed',
@@ -75,349 +64,21 @@ function HeatRacePage() {
     } catch (error) {
       reportError('Could not reload the heats.', error);
     }
-  }, [event?.event_id, isScoring, selectedHeat, refreshHeats]);
+  }, [event?.event_id, isScoring, selectedHeat, refreshHeats, closeScoring]);
   useEventDataChanged(event?.event_id, onEventDataChanged);
-
-  // Refresh-safe: resolve the event from the URL when router state is gone.
-  useEffect(() => {
-    if (event) return undefined;
-    let isActive = true;
-
-    const findEventByName = async () => {
-      try {
-        const events = await eventDB.readAllEvents();
-        if (!isActive) return;
-        const match = (events || []).find((e) => e.event_name === eventName);
-        if (match) {
-          setEvent(match);
-        } else {
-          reportInfo(
-            'This event could not be found. It may have been deleted or renamed.',
-            'Event not found',
-          );
-          navigate('/');
-        }
-      } catch (error) {
-        if (!isActive) return;
-        reportError('Could not load event details.', error);
-        navigate('/');
-      }
-    };
-
-    findEventByName();
-    return () => {
-      isActive = false;
-    };
-  }, [event, eventName, navigate]);
-
-  const handleHeatSelect = (heat: ScoringHeat) => {
-    setSelectedHeat(heat);
-  };
-
-  const handleStartScoring = () => {
-    setHasUnsavedEntry(false);
-    setIsScoring(true);
-  };
-
-  // Holds the in-flight submit so an exit path can await its REAL outcome
-  // instead of guessing. Null whenever no submit is pending.
-  const submitInFlightRef = React.useRef<Promise<boolean> | null>(null);
-  // Mirrors the ref for rendering (a ref alone would not re-render the button).
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
-  // The round-level actions below each chain a confirm dialog and one or more
-  // DB round-trips with no visible progress, and every one of them is
-  // destructive or builds a round. HeatComponent has guarded its own actions
-  // this way for a while; these had nothing.
-  const { busy: roundActionBusy, runExclusive: runRoundAction } =
-    useExclusiveAction();
-
-  // Shared guard for any exit from the scoring view that would drop an
-  // entered-but-unsubmitted finish order. Returns true when it is safe to leave.
-  const confirmDiscardEntry = async (): Promise<boolean> => {
-    // The user may have hit Submit and then immediately tried to leave. Wait
-    // for the save to actually resolve rather than assuming it succeeded: on
-    // success there is nothing left to discard, and on failure the entered
-    // order must stay on screen, because it lives only in the scoring
-    // component's local state and unmounting would lose it for good.
-    const inFlight = submitInFlightRef.current;
-    if (inFlight) {
-      return inFlight;
-    }
-    if (!isScoring || !hasUnsavedEntry) return true;
-    return confirmAction(
-      'You have entered a finish order that has not been submitted yet. ' +
-        'Leaving will discard it.',
-      'Discard finish order?',
-      {
-        confirmLabel: 'Discard',
-        cancelLabel: 'Keep scoring',
-        confirmClassName: 'btn-danger',
-      },
-    );
-  };
-
-  // Navigate away from the scoring view, confirming first if there is unsaved
-  // work. Used by the breadcrumbs and the Navbar brand so every exit path — not
-  // just "Back to Heats" — is protected.
-  const guardedNavigate = async (navFn: () => void) => {
-    if (!(await confirmDiscardEntry())) return;
-    setHasUnsavedEntry(false);
-    navFn();
-  };
-
-  const handleBackToHeats = async () => {
-    if (!(await confirmDiscardEntry())) return;
-    setHasUnsavedEntry(false);
-    setIsScoring(false);
-  };
-
-  const handleSubmitScores = async (placeNumbers: ScoredBoat[]) => {
-    if (!selectedHeat || !event) return;
-    // Resolves true only when the scores are actually persisted, so a
-    // concurrent exit attempt can wait on the real result.
-    const runSubmit = async (): Promise<boolean> => {
-      // SHRS 3.2 warning: in a multi-heat qualifying series each heat group
-      // should only ever race once before redistribution. Warn any time the
-      // user tries to score a second (or later) race on a qualifying heat.
-      if (!finalSeriesStarted && numQualifyingGroups >= 2) {
-        const races = await heatRaceDB.readAllRaces(selectedHeat.heat_id);
-        if (races.length >= 1) {
-          const nextRaceNumber = races.length + 1;
-          const proceed = await confirmAction(
-            `Warning: "${selectedHeat.heat_name}" has already completed Race ${races.length}.\n\n` +
-              `According to SHRS 3.2 boats should be redistributed before racing again.\n\n` +
-              `Press OK to score Race ${nextRaceNumber} anyway, or Cancel to go back and use "Create New Heats from Leaderboard" first.`,
-            'Scoring warning',
-          );
-          if (!proceed) return false;
-        }
-      }
-
-      // Penalty math, race + score inserts, and the leaderboard recompute all
-      // happen atomically in the main process (see submitHeatRaceScoresAtomic).
-      const result = (await heatRaceDB.submitHeatRaceScoresAtomic({
-        event_id: event.event_id,
-        heat_id: selectedHeat.heat_id,
-        placeNumbers,
-        isFinalSeries: finalSeriesStarted,
-      })) as {
-        ok?: boolean;
-        reason?: string;
-        unmatched?: Array<string | number>;
-        raceNumber?: number;
-      };
-
-      if (result?.ok === false) {
-        if (result.reason === 'UNMATCHED_SAILS') {
-          reportWarning(
-            `Cannot save scores because these sail numbers are not in ${selectedHeat.heat_name}: ${(result.unmatched ?? []).join(', ')}.\n\n` +
-              'What to do:\n' +
-              '1) Go back to heats and re-open scoring for this heat.\n' +
-              '2) Check that each sail number belongs to the selected heat.\n' +
-              '3) Re-enter the race results and submit again.',
-            'Invalid sail number mapping',
-          );
-        } else {
-          // Not a refusal the app knows: treat it as a fault (code + log).
-          reportError(
-            'Could not save race scores. Nothing was saved.',
-            new TypeError(`submit refused: ${String(result.reason)}`),
-          );
-        }
-        return false;
-      }
-
-      setHasUnsavedEntry(false);
-      setIsScoring(false);
-      setSelectedHeat({ ...selectedHeat, raceNumber: result.raceNumber });
-      reportInfo(
-        `Race scores for "${selectedHeat.heat_name}" were saved.`,
-        'Scores submitted',
-      );
-      return true;
-    };
-
-    // Publish the promise BEFORE awaiting it: runSubmit() only runs up to its
-    // first await synchronously, so no click can interleave before the guard
-    // can see it.
-    const pending = runSubmit().catch((error) => {
-      reportError('Could not save race scores.', error);
-      return false;
-    });
-    submitInFlightRef.current = pending;
-    setIsSubmitting(true);
-    try {
-      await pending;
-    } finally {
-      submitInFlightRef.current = null;
-      setIsSubmitting(false);
-    }
-  };
-
-  const createNewHeatsBasedOnLeaderboard = async () => {
-    if (!event) return;
-    if (finalSeriesStarted) {
-      reportInfo(
-        'Cannot create new heats based on leaderboard after the final series has started.',
-        'Action blocked',
-      );
-      return;
-    }
-
-    const confirmed = await confirmAction(
-      'Create new heats based on the current leaderboard?\n\nAll heats in the current round must have the same number of races.',
-      'Create New Heats',
-    );
-    if (!confirmed) return;
-
-    try {
-      const result = (await heatRaceDB.createNewHeatsBasedOnLeaderboard(
-        event.event_id,
-      )) as { advisory?: string } | null;
-      if (result?.advisory) {
-        reportInfo(result.advisory, 'SHRS advisory');
-      }
-      refreshHeats();
-    } catch (error) {
-      const message = getErrorMessage(error);
-      if (message.includes('has not raced yet')) {
-        // Names the heat that still has to race.
-        reportInfo(message, 'Nothing to redistribute');
-        return;
-      }
-      reportError('Could not create new heats from leaderboard.', error);
-    }
-  };
-
-  // Contextual action: invoked from inside the selected heat card.
-  const undoLastScoredRace = async (heat: ScoringHeat) => {
-    // If a later round was already built from this round's results, undoing
-    // this race would leave that round seeded from results that no longer
-    // exist (SHRS 3.1(2)). The main process refuses it; say so up front
-    // instead of asking for a confirmation that can only fail.
-    if (event) {
-      let laterRoundNames: string[] = [];
-      try {
-        const allHeats = await heatRaceDB.readAllHeats(event.event_id);
-        const nameMatch = heat.heat_name.match(/Heat ([A-Z]+)(\d+)/);
-        if (nameMatch) {
-          const [, base, suffixText] = nameMatch;
-          const suffix = parseInt(suffixText, 10);
-          laterRoundNames = (allHeats || [])
-            .filter((other) => {
-              const otherMatch = other.heat_name.match(/Heat ([A-Z]+)(\d+)/);
-              return (
-                otherMatch != null &&
-                otherMatch[1] === base &&
-                parseInt(otherMatch[2], 10) > suffix
-              );
-            })
-            .map((other) => other.heat_name);
-        }
-      } catch (_error) {
-        // Best-effort pre-check only — the main process enforces the rule.
-      }
-      if (laterRoundNames.length > 0) {
-        reportInfo(
-          `The next round (${laterRoundNames.join(', ')}) was already built from this round's results, so this race can't be undone on its own.\n\nUse "Undo Heat Redistribution" first, then undo the race.`,
-          'Undo not possible yet',
-        );
-        return;
-      }
-    }
-
-    const confirmed = await confirmAction(
-      `Undo the last scored race in "${heat.heat_name}"?\n\nThis will permanently delete that race's scores.`,
-      'Undo Last Race',
-      { confirmLabel: 'Undo race', confirmClassName: 'btn-danger' },
-    );
-    if (!confirmed) return;
-
-    try {
-      const result = (await heatRaceDB.undoLastScoredRaceForHeat(
-        heat.heat_id,
-      )) as { raceNumber?: number; heatName?: string; removedScores?: number };
-      refreshHeats();
-      reportInfo(
-        `Race ${result.raceNumber} in "${result.heatName}" has been undone.\n${result.removedScores} score(s) removed.`,
-        'Success',
-      );
-    } catch (error) {
-      reportError('Could not undo last race for selected heat.', error);
-    }
-  };
-
-  const undoLatestHeatRedistribution = async () => {
-    if (!event) return;
-    const confirmed = await confirmAction(
-      'Undo latest heat redistribution?\n\nThis will delete the latest qualifying heats and all their boat assignments. This cannot be undone.',
-      'Undo Heat Redistribution',
-      { confirmLabel: 'Undo redistribution', confirmClassName: 'btn-danger' },
-    );
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      const result = (await heatRaceDB.undoLatestHeatRedistribution(
-        event.event_id,
-      )) as { removedHeats?: number; removedAssignments?: number };
-      refreshHeats();
-      reportInfo(
-        `Heat redistribution undone. Removed ${result.removedHeats} heats and ${result.removedAssignments} assignments.`,
-        'Success',
-      );
-    } catch (error) {
-      reportError('Could not undo latest heat redistribution.', error);
-    }
-  };
-
-  // One at a time, and visibly so — see useExclusiveAction.
-  const handleCreateNewHeatsBasedOnLeaderboard = () =>
-    runRoundAction(createNewHeatsBasedOnLeaderboard);
-  const handleUndoLastScoredRace = (heat: ScoringHeat) =>
-    runRoundAction(() => undoLastScoredRace(heat));
-  const handleUndoLatestHeatRedistribution = () =>
-    runRoundAction(undoLatestHeatRedistribution);
-
-  const checkFinalSeriesStarted = useCallback(async () => {
-    if (!event?.event_id) return;
-
-    try {
-      const allHeats = await heatRaceDB.readAllHeats(event.event_id);
-      const finalHeats = allHeats.filter((heat) => heat.heat_type === 'Final');
-      // Can go back to false: going back in the history can undo the start.
-      setFinalSeriesStarted(finalHeats.length > 0);
-    } catch (error) {
-      reportError('Could not check final series status.', error);
-    }
-  }, [event?.event_id]);
-
-  useEffect(() => {
-    checkFinalSeriesStarted();
-  }, [checkFinalSeriesStarted]);
-
-  // Warn before closing/reloading the window while a finish order is entered but
-  // not submitted, so it can't be lost to an accidental close.
-  useEffect(() => {
-    if (!(isScoring && hasUnsavedEntry)) return undefined;
-    const handler = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = '';
-    };
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
-  }, [isScoring, hasUnsavedEntry]);
 
   if (!event) {
     return <LoadingState label="Loading event…" />;
   }
 
+  const goToEvent = () =>
+    navigate(`/event/${event.event_name}`, { state: { event } });
+
   return (
     <div>
       <Navbar
-        onNavigateHome={() => guardedNavigate(() => navigate('/'))}
-        historyEventId={event?.event_id ?? null}
+        onNavigateHome={() => scoring.guardedNavigate(() => navigate('/'))}
+        historyEventId={event.event_id}
       />
 
       <main id="main-content" className="page-wrapper" tabIndex={-1}>
@@ -425,17 +86,14 @@ function HeatRacePage() {
           items={[
             {
               label: 'Home',
-              onClick: () => guardedNavigate(() => navigate('/')),
+              onClick: () => scoring.guardedNavigate(() => navigate('/')),
             },
             {
-              label: event?.event_name || 'Event',
-              onClick: () =>
-                guardedNavigate(() =>
-                  navigate(`/event/${event.event_name}`, { state: { event } }),
-                ),
+              label: event.event_name || 'Event',
+              onClick: () => scoring.guardedNavigate(goToEvent),
             },
             isScoring
-              ? { label: 'Heat Race', onClick: handleBackToHeats }
+              ? { label: 'Heat Race', onClick: scoring.backToHeats }
               : { label: 'Heat Race' },
             ...(isScoring ? [{ label: 'Score Race' }] : []),
           ]}
@@ -448,9 +106,7 @@ function HeatRacePage() {
           <button
             type="button"
             className="btn-ghost back-link"
-            onClick={() =>
-              navigate(`/event/${event.event_name}`, { state: { event } })
-            }
+            onClick={goToEvent}
           >
             <i className="fa fa-arrow-left" aria-hidden="true" /> Back to Event
           </button>
@@ -463,7 +119,7 @@ function HeatRacePage() {
                 aria-hidden="true"
                 style={{ color: '#2471A3' }}
               />
-              {event?.event_name || 'Race Scoring'}
+              {event.event_name || 'Race Scoring'}
             </h1>
 
             {/* ── Round-level management actions ─── */}
@@ -472,18 +128,18 @@ function HeatRacePage() {
               <div className="heatrace-actions">
                 <button
                   type="button"
-                  onClick={handleCreateNewHeatsBasedOnLeaderboard}
-                  disabled={roundActionBusy}
-                  aria-busy={roundActionBusy}
+                  onClick={rounds.createNewHeats}
+                  disabled={rounds.roundActionBusy}
+                  aria-busy={rounds.roundActionBusy}
                 >
                   Create New Heats from Leaderboard
                 </button>
                 <button
                   type="button"
                   className="btn-secondary"
-                  onClick={handleUndoLatestHeatRedistribution}
-                  disabled={roundActionBusy}
-                  aria-busy={roundActionBusy}
+                  onClick={rounds.undoRedistribution}
+                  disabled={rounds.roundActionBusy}
+                  aria-busy={rounds.roundActionBusy}
                 >
                   Undo Heat Redistribution
                 </button>
@@ -506,10 +162,10 @@ function HeatRacePage() {
             <HeatComponent
               event={event}
               refreshToken={heatsRefreshToken}
-              onHeatSelect={handleHeatSelect}
-              onStartScoring={handleStartScoring}
-              onUndoLastRace={handleUndoLastScoredRace}
-              rowActionsDisabled={roundActionBusy}
+              onHeatSelect={scoring.selectHeat}
+              onStartScoring={scoring.startScoring}
+              onUndoLastRace={rounds.undoLastRace}
+              rowActionsDisabled={rounds.roundActionBusy}
               onQualifyingGroupCountChange={setNumQualifyingGroups}
               onFinalSeriesStateChange={setFinalSeriesStarted}
               clickable
@@ -520,9 +176,9 @@ function HeatRacePage() {
             <button
               type="button"
               className="btn-ghost back-link"
-              onClick={handleBackToHeats}
-              disabled={isSubmitting}
-              aria-busy={isSubmitting}
+              onClick={scoring.backToHeats}
+              disabled={scoring.isSubmitting}
+              aria-busy={scoring.isSubmitting}
             >
               <i className="fa fa-arrow-left" aria-hidden="true" /> Back to
               Heats
@@ -551,8 +207,8 @@ function HeatRacePage() {
             {selectedHeat && (
               <ScoringInputComponent
                 heat={selectedHeat}
-                onSubmit={handleSubmitScores}
-                onDirtyChange={setHasUnsavedEntry}
+                onSubmit={scoring.submitScores}
+                onDirtyChange={scoring.setHasUnsavedEntry}
               />
             )}
           </>
