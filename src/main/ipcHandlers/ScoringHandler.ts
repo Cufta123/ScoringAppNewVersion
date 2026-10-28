@@ -10,11 +10,9 @@ import {
   recomputeEventLeaderboard,
   recomputeFinalLeaderboard,
 } from '../functions/leaderboardRecompute';
-import {
-  getScoringPenaltyPoints,
-  normalizeScoreStatus,
-  scoringPenaltyStatuses,
-} from '../functions/scoreStatus';
+import scoreSubmittedBoat, {
+  penaltyHeatSize,
+} from '../functions/submittedRaceScore';
 import { lockDiscardProfileForRace } from '../functions/eventSettings';
 import { assertQualifyingHeatIsOpen } from '../functions/seriesGuards';
 import {
@@ -30,7 +28,6 @@ import {
   getMaxHeatSize,
   seedRaceWithDefaultDnsScores,
 } from '../functions/raceScoring';
-import { sanitizePositiveInteger } from '../functions/validation';
 
 // Atomically score a whole race: create the next race for the heat, apply the
 // SHRS 5.2 / RRS 44.3(c)/T1 penalty math, persist every boat's score in a
@@ -125,8 +122,7 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
 
   const heatType = isFinalHeat ? 'Final' : 'Qualifying';
   const maxHeatSize = getMaxHeatSize(event_id, heatType);
-  const heatSizeForPenalty = maxHeatSize || placeNumbers.length;
-  const penaltyPlace = heatSizeForPenalty + 1;
+  const heatSizeForPenalty = penaltyHeatSize(maxHeatSize, placeNumbers.length);
 
   const existingRaceCount = (
     db
@@ -134,6 +130,13 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
       .get(heat_id) as { count: number }
   ).count;
   const nextRaceNumber = existingRaceCount + 1;
+
+  // Each boat's place, points and status, worked out before anything is
+  // written (a bad place or code is refused here, with nothing to roll back).
+  const scored = placeNumbers.map((entry) => ({
+    boat: boatFor(entry.boatNumber)!,
+    score: scoreSubmittedBoat(entry, heatSizeForPenalty),
+  }));
 
   const updateScoreStmt = db.prepare(
     'UPDATE Scores SET position = ?, points = ?, status = ? WHERE race_id = ? AND boat_id = ?',
@@ -150,53 +153,11 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
     raceId = Number(raceResult.lastInsertRowid);
     seedRaceWithDefaultDnsScores(raceId, heat_id);
 
-    let hasFinisher = false;
-    placeNumbers.forEach(({ boatNumber, place, status }) => {
-      const boat = boatFor(boatNumber)!;
-      const normalizedStatus = normalizeScoreStatus(status);
-
-      let position: number;
-      let points: number;
-      if (normalizedStatus === 'FINISHED') {
-        // BK-6: a FINISHED place must be a positive integer; a 0 / NaN place
-        // would otherwise be written straight to Scores.position/points.
-        const finishingPlace = sanitizePositiveInteger(
-          place,
-          `The place of sail ${String(boatNumber)}`,
-        );
-        position = finishingPlace;
-        points = finishingPlace;
-        hasFinisher = true;
-      } else if (scoringPenaltyStatuses.has(normalizedStatus)) {
-        // ZFP/SCP/T1: keep finishing place, add the scoring-penalty places.
-        const finishingPlace = sanitizePositiveInteger(
-          place,
-          `The place of sail ${String(boatNumber)}`,
-        );
-        position = finishingPlace;
-        points = getScoringPenaltyPoints(
-          finishingPlace,
-          heatSizeForPenalty,
-          normalizedStatus,
-        );
-      } else {
-        // Non-scoring penalties (DNF/DNS/...) take the penalty score AND the
-        // shared penalty position (largest-heat size + 1) per SHRS 5.2, so
-        // their `place` is discarded and must NOT be sanitized — the old
-        // `place || penaltyPlace` tolerated a falsy place, and a legacy caller
-        // may send 0/'' for "no place".
-        // BK-3: the frontend always sends a sequential `place` (>=1), so the
-        // old `place || penaltyPlace` never fell through to penaltyPlace and
-        // these boats were stored with sequential positions (5, 6, …)
-        // instead of the shared penaltyPlace. Points were already correct.
-        position = penaltyPlace;
-        points = penaltyPlace;
-      }
-
+    scored.forEach(({ boat, score }) => {
       const updated = updateScoreStmt.run(
-        position,
-        points,
-        normalizedStatus,
+        score.position,
+        score.points,
+        score.status,
         raceId,
         boat.boat_id,
       );
@@ -204,14 +165,14 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
         insertScoreStmt.run(
           raceId,
           boat.boat_id,
-          position,
-          points,
-          normalizedStatus,
+          score.position,
+          score.points,
+          score.status,
         );
       }
     });
 
-    if (hasFinisher) {
+    if (scored.some(({ score }) => score.finished)) {
       applyRaceTieScoring(raceId);
     }
     lockDiscardProfileForRace(raceId);
