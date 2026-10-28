@@ -299,6 +299,8 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
 
   it('caps SCP score at maxBoats+1', async () => {
     currentScenario.maxBoats = 5;
+    // The penalty is given at the place she finished (5th of 5).
+    currentScenario.currentPosition = 5;
     const handler = handlerRegistry.updateRaceResult;
     await handler({}, 99, 500, 'B1', 5, false, 'SCP');
 
@@ -314,6 +316,7 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
 
   it('scores ZFP without artificial minimum in small heats (RRS 44.3(c))', async () => {
     currentScenario.maxBoats = 5;
+    currentScenario.currentPosition = 2;
     const handler = handlerRegistry.updateRaceResult;
     await handler({}, 99, 500, 'B1', 2, false, 'ZFP');
 
@@ -328,6 +331,7 @@ describe('HeatRaceHandler updateRaceResult scoring edge cases', () => {
   });
 
   it('scores T1 as finishingPosition + 30% (RRS Appendix T1) with cap at maxBoats+1', async () => {
+    currentScenario.currentPosition = 4;
     const handler = handlerRegistry.updateRaceResult;
     await handler({}, 99, 500, 'B1', 4, false, 'T1');
 

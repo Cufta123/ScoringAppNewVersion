@@ -6,7 +6,12 @@
  */
 import { db } from '../../../public/Database/DBManager';
 import computeTiePlacements from '../../shared/raceTieScoring';
-import applyRaceColumnEdit from '../../shared/raceColumnEdit';
+import applyRaceColumnEdit, {
+  holdsPlace,
+  keepsProvidedPoints,
+  scoreRaceColumn,
+  type RaceCell,
+} from '../../shared/raceColumnEdit';
 import { captureRaceAssignmentSnapshotIfMissing } from './assignmentShield';
 import {
   recomputeEventLeaderboard,
@@ -382,8 +387,8 @@ export function applyRaceResultUpdate(
   const isScoringPenalty = scoringPenaltyStatuses.has(status);
   // RRS A10: DPI points are set by the protest committee, so — like RDG — the
   // frontend-provided value is kept verbatim and never auto-derived to
-  // (largest heat + 1). Grouped with RDG under `keepsProvidedPoints`.
-  const keepsProvidedPoints = isRdg || status === 'DPI';
+  // (largest heat + 1). Grouped with RDG under `pcSetPoints`.
+  const pcSetPoints = isRdg || status === 'DPI';
 
   // Determine heat info used by SHRS 5.2 / 44.3(c) scoring.
   const heatRow = db
@@ -437,7 +442,7 @@ export function applyRaceResultUpdate(
   if (isNonScoringPenaltyStatus) {
     finalPosition = maxBoats + 1;
     points = finalPosition;
-  } else if (keepsProvidedPoints) {
+  } else if (pcSetPoints) {
     finalPosition = sanitizePositiveFinite(new_position, positionContext);
     points = finalPosition;
   } else {
@@ -493,14 +498,14 @@ export function applyRaceResultUpdate(
   const placeLimit = Math.max(raceRows.length, maxBoats);
   if (
     !isNonScoringPenaltyStatus &&
-    !keepsProvidedPoints &&
+    !pcSetPoints &&
     finalPosition > placeLimit
   ) {
     throw new Error(
       `${positionContext} must be 1 to ${placeLimit} (received ${finalPosition}).`,
     );
   }
-  if (keepsProvidedPoints && finalPosition > MAX_PROVIDED_POINTS) {
+  if (pcSetPoints && finalPosition > MAX_PROVIDED_POINTS) {
     throw new Error(
       `${positionContext} cannot be more than ${MAX_PROVIDED_POINTS} points (received ${finalPosition}).`,
     );
@@ -591,3 +596,153 @@ export const recomputeLeaderboardsForRace = (race_id: number) => {
     recomputeFinalLeaderboard(row.event_id);
   }
 };
+
+/** One boat's result in a race, as the leaderboard edit screen shows it. */
+export interface RaceColumnCell {
+  boatId: number;
+  /** Finishing place, or the points for RDG3/DPI (ignored for other codes). */
+  position: number;
+  status: string;
+  /** RDG2 only: the races averaged. */
+  rdgRaceIds?: unknown;
+}
+
+/**
+ * Save a whole race exactly as the leaderboard edit screen shows it. The
+ * screen built these places with shared/raceColumnEdit; here they are checked
+ * and scored again from the rules (scoreRaceColumn), so the stored points
+ * never depend on numbers the renderer computed.
+ *
+ * Replaces replaying each edit on its own, which applied the edits in a
+ * different order from the screen when a cell was edited twice, and so could
+ * save a different race from the one shown.
+ */
+export function applyRaceColumnState(
+  event_id: any,
+  race_id: any,
+  sentCells: RaceColumnCell[],
+) {
+  const raceId = Number(race_id);
+  const heatRow = db
+    .prepare(
+      `SELECT h.heat_id, h.heat_type FROM Heats h
+       JOIN Races r ON r.heat_id = h.heat_id
+       WHERE r.race_id = ? AND h.event_id = ?`,
+    )
+    .get(raceId, event_id) as
+    | { heat_id: number; heat_type: string }
+    | undefined;
+  if (!heatRow) {
+    throw new Error(`Race ${raceId} is not part of event ${event_id}.`);
+  }
+  const maxBoats = getMaxHeatSize(event_id, heatRow.heat_type);
+
+  const raceRows = db
+    .prepare(
+      `SELECT score_id, boat_id, position, points,
+              COALESCE(status, 'FINISHED') AS status
+       FROM Scores WHERE race_id = ? ORDER BY score_id ASC`,
+    )
+    .all(raceId) as {
+    score_id: number;
+    boat_id: number;
+    position: number;
+    points: number;
+    status: string;
+  }[];
+  const indexOfBoat = new Map(
+    raceRows.map((row, i) => [String(row.boat_id), i]),
+  );
+
+  const cells: RaceCell[] = raceRows.map((row) => ({
+    position: row.position,
+    points: row.points,
+    status: normalizeScoreStatus(row.status),
+  }));
+  const sentByIndex = new Map<number, RaceColumnCell>();
+  sentCells.forEach((sent) => {
+    const i = indexOfBoat.get(String(sent.boatId));
+    if (i == null) {
+      throw new Error(`Boat ${sent.boatId} did not sail race ${raceId}.`);
+    }
+    if (sentByIndex.has(i)) {
+      throw new Error(`Boat ${sent.boatId} appears twice in race ${raceId}.`);
+    }
+    sentByIndex.set(i, sent);
+    const status = normalizeScoreStatus(sent.status);
+    const context = `Race ${raceId}, boat ${sent.boatId}`;
+    if (holdsPlace(status)) {
+      const place = sanitizePositiveInteger(sent.position, `${context} place`);
+      if (place > raceRows.length) {
+        throw new Error(
+          `${context}: place ${place} but only ${raceRows.length} boats sailed this race.`,
+        );
+      }
+      cells[i] = { position: place, points: place, status };
+    } else if (keepsProvidedPoints(status)) {
+      const points = sanitizePositiveFinite(sent.position, `${context} points`);
+      if (points > MAX_PROVIDED_POINTS) {
+        throw new Error(
+          `${context}: ${points} points is more than ${MAX_PROVIDED_POINTS}.`,
+        );
+      }
+      cells[i] = { position: points, points, status };
+    } else {
+      cells[i] = { ...cells[i], status };
+    }
+  });
+
+  const scored = scoreRaceColumn(cells, maxBoats);
+
+  // SHRS 3.1(v): a protest decision must not change heat assignments, so the
+  // order before it is frozen; a race-office correction un-freezes the boat.
+  sentByIndex.forEach((_sent, i) => {
+    const before = raceRows[i];
+    const changed =
+      scored[i].position !== before.position ||
+      scored[i].status !== normalizeScoreStatus(before.status);
+    if (!changed) return;
+    if (protestCommitteeStatuses.has(scored[i].status)) {
+      captureRaceAssignmentSnapshotIfMissing(
+        heatRow.heat_id,
+        raceId,
+        before.boat_id,
+      );
+    } else {
+      unshieldBoatFromAssignmentSnapshot(raceId, before.boat_id);
+    }
+  });
+
+  const writeRow = db.prepare(
+    'UPDATE Scores SET position = ?, points = ?, status = ? WHERE score_id = ?',
+  );
+  scored.forEach((cell, i) => {
+    const row = raceRows[i];
+    if (
+      cell.position === row.position &&
+      cell.points === row.points &&
+      cell.status === row.status
+    ) {
+      return;
+    }
+    writeRow.run(cell.position, cell.points, cell.status, row.score_id);
+  });
+
+  sentByIndex.forEach((sent, i) => {
+    const row = raceRows[i];
+    const { status } = scored[i];
+    if (status === 'RDG2' && Array.isArray(sent.rdgRaceIds)) {
+      const ids = sent.rdgRaceIds
+        .map(Number)
+        .filter((id) => Number.isFinite(id));
+      db.prepare('UPDATE Scores SET rdg_race_ids = ? WHERE score_id = ?').run(
+        ids.length > 0 ? JSON.stringify(ids) : null,
+        row.score_id,
+      );
+    } else if (status !== 'RDG2' && row.status === 'RDG2') {
+      db.prepare(
+        'UPDATE Scores SET rdg_race_ids = NULL WHERE score_id = ?',
+      ).run(row.score_id);
+    }
+  });
+}

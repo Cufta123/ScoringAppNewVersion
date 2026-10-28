@@ -288,13 +288,6 @@ test('tour', async () => {
   await window.getByRole('button', { name: /Save Changes/i }).click();
   await window.waitForTimeout(400);
   await snap('leaderboard-save-dialog');
-  if (await window.getByRole('dialog').count()) {
-    await window
-      .getByRole('dialog')
-      .getByRole('button', { name: /Switch places/ })
-      .click()
-      .catch(() => {});
-  }
   await window.waitForTimeout(600);
   await snap('leaderboard-after-save');
   await dismissToasts(window);

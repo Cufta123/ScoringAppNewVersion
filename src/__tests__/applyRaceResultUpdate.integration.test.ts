@@ -235,7 +235,7 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
     });
   });
 
-  describe('manual place move — the shift toggle', () => {
+  describe('a new place moves the boat; the boats in between make room', () => {
     it('ripples the boats between old and new place when shift is ON', () => {
       db = seed(finishers(4));
       // Move the 4th boat up to 2nd: the boats it passes drop one place.
@@ -257,13 +257,50 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
       expect(race[4]).toEqual([4, 4, 'FINISHED']);
     });
 
-    it('moves only the edited boat when shift is OFF, leaving a tie', () => {
+    it('moves the same way with the old shift flag off: no duplicate place', () => {
+      // The "Shift other boats" toggle is gone: off, it left two boats on one
+      // place and the edit screen showed a different race from the one saved.
       db = seed(finishers(4));
       applyRaceResultUpdate(EVENT_ID, RACE_ID, 4, 2, false, 'FINISHED');
       const race = readRace(db);
-      // Deliberate manual override: boat 2 keeps place 2 and the tie stands.
-      expect(race[2]).toEqual([2, 2, 'FINISHED']);
+      expect(race[1]).toEqual([1, 1, 'FINISHED']);
       expect(race[4]).toEqual([2, 2, 'FINISHED']);
+      expect(race[2]).toEqual([3, 3, 'FINISHED']);
+      expect(race[3]).toEqual([4, 4, 'FINISHED']);
+    });
+
+    it('puts a boat that had no place into the order; the rest move down', () => {
+      db = seed(
+        [
+          { boat_id: 1, position: 1, points: 1, status: 'FINISHED' },
+          { boat_id: 2, position: 2, points: 2, status: 'FINISHED' },
+          { boat_id: 3, position: 3, points: 3, status: 'FINISHED' },
+          { boat_id: 4, position: 11, points: 11, status: 'DNF' },
+        ],
+        10,
+      );
+      // Found to have finished 2nd after all.
+      applyRaceResultUpdate(EVENT_ID, RACE_ID, 4, 2, false, 'FINISHED');
+      const race = readRace(db);
+      expect(race[1]).toEqual([1, 1, 'FINISHED']);
+      expect(race[4]).toEqual([2, 2, 'FINISHED']);
+      expect(race[2]).toEqual([3, 3, 'FINISHED']);
+      expect(race[3]).toEqual([4, 4, 'FINISHED']);
+    });
+
+    it('keeps a dead heat when a tied boat only gets a ZFP', () => {
+      db = seed(
+        [
+          { boat_id: 1, position: 1, points: 1.5, status: 'FINISHED' },
+          { boat_id: 2, position: 1, points: 1.5, status: 'FINISHED' },
+          { boat_id: 3, position: 3, points: 3, status: 'FINISHED' },
+        ],
+        10,
+      );
+      applyRaceResultUpdate(EVENT_ID, RACE_ID, 2, 1, false, 'ZFP');
+      const race = readRace(db);
+      expect(race[1]).toEqual([1, 1.5, 'FINISHED']);
+      expect(race[2]).toEqual([1, 3.2, 'ZFP']);
       expect(race[3]).toEqual([3, 3, 'FINISHED']);
     });
 
@@ -424,27 +461,33 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
     });
   });
 
-  describe('RRS A6.1 — displacement happens for exactly four statuses', () => {
-    // Replaces the property-based test that asserted on generated SQL.
-    const DISPLACING = ['DSQ', 'RET', 'DNE', 'DGM'];
-    const NON_DISPLACING = ['DNF', 'DNS', 'OCS', 'BFD', 'UFD', 'DNC', 'NSC'];
+  describe('a code with no finishing place moves the boats behind up', () => {
+    // RRS A6.1 for DSQ/RET/DNE/DGM, and the same for every other code with
+    // no finishing place: a boat that did not start or finish never held the
+    // place, so the result equals entering her with that code in the first
+    // place. (BFD, UFD, OCS, DNF … used to leave the boats behind a place
+    // too low.)
+    const NO_PLACE = [
+      'DSQ',
+      'RET',
+      'DNE',
+      'DGM',
+      'DNF',
+      'DNS',
+      'OCS',
+      'BFD',
+      'UFD',
+      'DNC',
+      'NSC',
+    ];
 
-    it.each(DISPLACING)('%s promotes the boat behind', (status) => {
+    it.each(NO_PLACE)('%s promotes the boats behind', (status) => {
       db = seed(finishers(3), 10);
       applyRaceResultUpdate(EVENT_ID, RACE_ID, 1, 1, false, status);
       expect(readRace(db)[2][0]).toBe(1);
       expect(readRace(db)[3][0]).toBe(2);
+      expect(readRace(db)[1]).toEqual([11, 11, status]);
     });
-
-    it.each(NON_DISPLACING)(
-      '%s leaves the boats behind where they are',
-      (status) => {
-        db = seed(finishers(3), 10);
-        applyRaceResultUpdate(EVENT_ID, RACE_ID, 1, 1, false, status);
-        expect(readRace(db)[2][0]).toBe(2);
-        expect(readRace(db)[3][0]).toBe(3);
-      },
-    );
   });
 
   it('rejects an edit for a boat with no result in the race', () => {

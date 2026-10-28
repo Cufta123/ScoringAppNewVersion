@@ -67,6 +67,7 @@ import {
   hasFinalSeriesStarted,
 } from '../functions/seriesGuards';
 import {
+  applyRaceColumnState,
   applyRaceResultUpdate,
   applyRaceTieScoring,
   ensureCompleteRaceScoresForEvent,
@@ -1612,6 +1613,13 @@ handle(
 
       const tx = db.transaction(() => {
         safeOperations.forEach((operation) => {
+          // The leaderboard edit screen sends each touched race whole, as it
+          // shows it (see applyRaceColumnState).
+          if (Array.isArray(operation.cells)) {
+            applyRaceColumnState(event_id, operation.raceId, operation.cells);
+            lockDiscardProfileForRace(Number(operation.raceId));
+            return;
+          }
           // Each operation carries the shift-toggle state from when the user
           // made that edit, so the write replays exactly what the renderer
           // previewed. The call-level flag remains as fallback for callers
