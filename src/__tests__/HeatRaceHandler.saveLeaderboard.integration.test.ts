@@ -286,11 +286,12 @@ describe('saveLeaderboardRaceResultsAtomic (real SQLite, FKs on)', () => {
 
     it('keeps a protest-DSQ boat shielded when others are corrected, and gives her the contested place', async () => {
       await save(db, raceB, b1, 1, 'DSQ');
-      // Live: b2 1st, b3 2nd. Correct b2 and b3 the other way round: b3 is now
-      // live 1st, the place b1 holds frozen.
-      await save(db, raceB, b2, 2, 'FINISHED');
+      // Live: b2 1st, b3 2nd. The office corrects b3 to 1st: she is live 1st,
+      // the place b1 holds frozen (b2 only moved down as a consequence).
+      await save(db, raceB, b3, 1, 'FINISHED');
 
       expect(shield()?.has(String(b1))).toBe(true);
+      expect(shield()?.has(String(b3))).toBe(false);
       expect(await nextRound()).toEqual({
         b1: 'Heat B2',
         b3: 'Heat A2',
@@ -299,9 +300,13 @@ describe('saveLeaderboardRaceResultsAtomic (real SQLite, FKs on)', () => {
     });
 
     it('drops the snapshot once the last shielded boat is corrected', async () => {
+      // The DSQ froze all three boats; the promoted two stay frozen until the
+      // race office corrects them, each on her own.
       await save(db, raceB, b1, 1, 'DSQ');
       await save(db, raceB, b1, 1, 'FINISHED');
-      await save(db, raceB, b2, 2, 'FINISHED');
+      expect(shield()?.size).toBe(2);
+      await save(db, raceB, b2, 3, 'FINISHED');
+      expect(shield()?.size).toBe(1);
       await save(db, raceB, b3, 3, 'FINISHED');
       expect(shield()).toBeUndefined();
       expect(
@@ -311,14 +316,19 @@ describe('saveLeaderboardRaceResultsAtomic (real SQLite, FKs on)', () => {
 
     it('freezes a boat at her pre-decision place when a later decision names her', async () => {
       await save(db, raceB, b1, 1, 'DSQ');
-      // b2 is live 1st now (promoted); the committee then disqualifies her too.
+      // b2 is live 1st now (promoted, frozen at 2nd); the committee then
+      // disqualifies her too. She keeps the place she held before ANY decision.
       await save(db, raceB, b2, 1, 'DSQ');
 
       expect(shield()?.get(String(b2))).toEqual({
-        position: 1,
+        position: 2,
         status: 'FINISHED',
       });
       expect(shield()?.has(String(b1))).toBe(true);
+      expect(shield()?.get(String(b3))).toEqual({
+        position: 3,
+        status: 'FINISHED',
+      });
     });
 
     it('puts the frozen rows back in memory when the save fails', async () => {

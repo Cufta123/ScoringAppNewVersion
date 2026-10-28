@@ -373,6 +373,58 @@ export interface RaceColumnCell {
   status: string;
   /** RDG2 only: the races averaged. */
   rdgRaceIds?: unknown;
+  /**
+   * The user typed in this cell on the edit screen, as opposed to the boat only
+   * moving because another cell was edited (RRS A6.1 promotion, a place
+   * ripple). Only edited cells are protest decisions or race-office
+   * corrections for SHRS 3.1.5. Absent from older clients: see
+   * `decideAssignmentShields`.
+   */
+  edited?: boolean;
+}
+
+/**
+ * SHRS 3.1(v) / 3.1.5: who the saved race freezes and who it un-shields. Pure:
+ * it reads the race as stored and as scored, changes nothing, and depends on no
+ * row order.
+ *
+ * - `decisions`: edited cells that changed to a protest-committee status. The
+ *   pre-decision order is frozen for them AND for every boat that moved in this
+ *   save (`moved`), because a DSQ promotes the boats behind her (RRS A6.1) and
+ *   the decision must not reorder their next-round assignment.
+ * - `corrections`: edited cells that changed to anything else. A race-office
+ *   correction un-shields that boat only; boats that merely moved keep their
+ *   freeze (the old per-boat save did the same).
+ *
+ * A cell without an `edited` flag (an older client) counts as edited when its
+ * status changed. That never misses a protest code, never un-shields a boat
+ * only because she was promoted, and leaves every shield alone when only places
+ * changed, which the old data cannot tell apart from a ripple. The renderer
+ * always sends the flag.
+ */
+function decideAssignmentShields(
+  before: { boat_id: number; position: number; status: string }[],
+  scored: { position: number; status: string }[],
+  sentByIndex: Map<number, RaceColumnCell>,
+) {
+  const decisions: number[] = [];
+  const corrections: number[] = [];
+  const moved: number[] = [];
+  before.forEach((row, i) => {
+    const statusChanged = scored[i].status !== normalizeScoreStatus(row.status);
+    if (!statusChanged && scored[i].position === row.position) return;
+    moved.push(row.boat_id);
+    const sent = sentByIndex.get(i);
+    if (!sent) return;
+    const edited =
+      typeof sent.edited === 'boolean' ? sent.edited : statusChanged;
+    if (!edited) return;
+    (protestCommitteeStatuses.has(scored[i].status)
+      ? decisions
+      : corrections
+    ).push(row.boat_id);
+  });
+  return { decisions, corrections, moved };
 }
 
 /**
@@ -476,22 +528,22 @@ export function applyRaceColumnState(
 
   // SHRS 3.1(v): a protest decision must not change heat assignments, so the
   // order before it is frozen; a race-office correction un-freezes the boat.
-  sentByIndex.forEach((_sent, i) => {
-    const before = raceRows[i];
-    const changed =
-      scored[i].position !== before.position ||
-      scored[i].status !== normalizeScoreStatus(before.status);
-    if (!changed) return;
-    if (protestCommitteeStatuses.has(scored[i].status)) {
-      captureRaceAssignmentSnapshotIfMissing(
-        heatRow.heat_id,
-        raceId,
-        before.boat_id,
-      );
-    } else {
-      unshieldBoatFromAssignmentSnapshot(raceId, before.boat_id);
-    }
-  });
+  // Decided from the cells the user edited, all captures before any un-shield,
+  // and before the write, so the outcome does not depend on row order and the
+  // freeze records the order as it was before this save.
+  const { decisions, corrections, moved } = decideAssignmentShields(
+    raceRows,
+    scored,
+    sentByIndex,
+  );
+  if (decisions.length > 0) {
+    new Set([...decisions, ...moved]).forEach((boatId) =>
+      captureRaceAssignmentSnapshotIfMissing(heatRow.heat_id, raceId, boatId),
+    );
+  }
+  corrections.forEach((boatId) =>
+    unshieldBoatFromAssignmentSnapshot(raceId, boatId),
+  );
 
   const writeRow = db.prepare(
     'UPDATE Scores SET position = ?, points = ?, status = ? WHERE score_id = ?',
