@@ -103,6 +103,29 @@ function HelpModal({ open, onClose }: HelpModalProps) {
           </section>
 
           <section>
+            <h4>Fixing a mistake</h4>
+            <ul>
+              <li>
+                <strong>A wrong result:</strong> on the leaderboard press{' '}
+                <em>Edit Results</em>, type the right place or pick the code,
+                then <em>Save Changes</em>. What you see is what is saved.
+              </li>
+              <li>
+                <strong>A race entered wrongly:</strong> on the scoring page
+                select the heat and press <em>Undo Race</em>, then score it
+                again.
+              </li>
+              <li>
+                <strong>Go back further:</strong> open <em>History</em> and
+                press <em>Go back to here</em> on the last entry that was still
+                right. The app lists everything it will take back and asks
+                first; a backup is saved, and <em>Undo going back</em> returns
+                you to where you were.
+              </li>
+            </ul>
+          </section>
+
+          <section>
             <h4>Key terms</h4>
             <dl className="help-terms">
               <dt>Qualifying vs Final Series</dt>

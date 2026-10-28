@@ -1043,6 +1043,34 @@ describe('useLeaderboard scoring/edit flow', () => {
     });
   });
 
+  it('refuses to save an edit started before the history changed the results', async () => {
+    const {
+      notifyEventDataChanged,
+    } = require('../renderer/utils/eventDataChanged');
+    const { result } = renderHook(() => useLeaderboard(1));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () => {
+      await result.current.toggleEditMode();
+    });
+    act(() => {
+      result.current.handleRaceChange('b2', 0, null, 'DSQ');
+    });
+    // Someone went back in the history (another screen).
+    act(() => notifyEventDataChanged(1));
+    expect(reportWarning).toHaveBeenCalledWith(
+      expect.stringMatching(/changed in the history while you were editing/),
+      'Results changed',
+    );
+    await act(async () => {
+      await result.current.handleSave();
+    });
+    // Saving would have put the old results back over the restored ones.
+    expect(
+      window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic,
+    ).not.toHaveBeenCalled();
+    expect(result.current.editMode).toBe(true);
+  });
+
   describe('invalid typed results', () => {
     it('Save refuses while a cell holds an impossible place, and names it', async () => {
       const { result } = renderHook(() => useLeaderboard(1));

@@ -304,6 +304,12 @@ test('tour', async () => {
     .first()
     .click();
   await snap('history');
+  await window
+    .getByRole('button', { name: /^Go back to here/ })
+    .nth(2)
+    .click();
+  await snap('history-go-back-question');
+  await window.keyboard.press('Escape');
   await window.keyboard.press('Escape');
   await window.getByRole('button', { name: /Help/i }).first().click();
   await snap('help');

@@ -2349,3 +2349,60 @@ input[type='checkbox'] {
   height: 20px;
   flex-shrink: 0;
 }
+
+/* ── History: go back to an earlier point ────────────────── */
+.history-go-back {
+  min-height: 36px;
+  padding: 4px 12px;
+  font-size: 0.88rem;
+}
+.history-confirm {
+  margin: 8px 0 12px;
+  padding: 14px 16px;
+  border: 2px solid var(--danger);
+  border-left-width: 8px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-light);
+  color: var(--text);
+}
+.history-confirm h4 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  color: var(--text);
+}
+.history-confirm p {
+  margin: 6px 0;
+  color: var(--text);
+}
+.history-confirm ul {
+  margin: 4px 0 8px 20px;
+  list-style: disc;
+}
+.history-confirm-note {
+  font-size: 0.92rem;
+}
+.history-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+}
+/* The history fits the window with the question open: the list scrolls,
+   the title, the question and Close stay in view. */
+.history-modal {
+  display: flex;
+  flex-direction: column;
+  max-height: 94vh;
+}
+.history-modal .help-modal-body {
+  flex: 1 1 auto;
+  min-height: 120px;
+  max-height: none;
+  overflow-y: auto;
+}
+.help-modal-body .history-entry.history-target {
+  outline: 3px solid var(--danger);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-light);
+}

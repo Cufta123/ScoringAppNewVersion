@@ -7,6 +7,7 @@ import { normalizeDiscardConfigString } from '../functions/discardConfig';
 import handle from './handle';
 import { readEventHistory } from '../functions/changeJournal';
 import revertHistoryAction from '../functions/revertHistoryAction';
+import restoreToHistoryPoint from '../functions/restoreToHistoryPoint';
 
 interface SqliteError extends Error {
   code: string;
@@ -49,6 +50,10 @@ handle('readEventHistory', async (event, event_id) =>
 
 handle('revertHistoryAction', async (event, event_id, action_id) =>
   revertHistoryAction(Number(event_id), Number(action_id)),
+);
+
+handle('restoreEventToHistoryPoint', async (event, event_id, action_id) =>
+  restoreToHistoryPoint(Number(event_id), Number(action_id)),
 );
 
 handle('readAllEvents', async () => {

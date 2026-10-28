@@ -407,6 +407,20 @@ const MIGRATIONS = [
       db.exec(COUNTED_RACES_VIEW);
     },
   },
+  {
+    version: 6,
+    name: 'history: going back to an earlier point',
+    // An action that took the event back to the state right after another
+    // action records which one. See restoreToHistoryPoint.ts.
+    up(db) {
+      addMissingColumns(db, 'ChangeActions', [
+        {
+          name: 'restores_to_action_id',
+          sql: 'ALTER TABLE ChangeActions ADD COLUMN restores_to_action_id INTEGER;',
+        },
+      ]);
+    },
+  },
 ];
 
 const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

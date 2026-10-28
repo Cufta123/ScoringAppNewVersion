@@ -104,6 +104,18 @@ export interface EventDB {
     eventId: number,
     actionId: number,
   ): Promise<{ success: true; actionId: number | null }>;
+  /**
+   * Take the event back to how it was right after one history entry: every
+   * later change is put back, all or nothing (a backup is saved first).
+   */
+  restoreEventToHistoryPoint(
+    eventId: number,
+    actionId: number,
+  ): Promise<{
+    success: true;
+    actionId: number | null;
+    undoneActions: number;
+  }>;
   associateBoatWithEvent(boatId: number, eventId: number): Promise<unknown>;
   removeBoatFromEvent(boatId: number, eventId: number): Promise<unknown>;
 }

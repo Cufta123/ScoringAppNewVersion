@@ -9,6 +9,7 @@ import Breadcrumbs from '../../components/shared/Breadcrumbs';
 import LoadingState from '../../components/shared/LoadingState';
 import './EventPage.css';
 import HeatComponent from '../../components/HeatComponent';
+import { useEventDataChanged } from '../../utils/eventDataChanged';
 import printStartingList from '../../utils/printStartingList';
 import {
   reportError,
@@ -131,6 +132,15 @@ function EventPage() {
       checkIfRaceHappened();
     }
   }, [event, fetchBoatsWithSailors, fetchAllBoats, checkIfRaceHappened]);
+
+  // Going back in the history (or an undo there) changed entries, heats or
+  // races behind this page: load them again.
+  const [heatsRefreshToken, setHeatsRefreshToken] = useState(0);
+  useEventDataChanged(eventId ?? undefined, () => {
+    fetchBoatsWithSailors();
+    checkIfRaceHappened();
+    setHeatsRefreshToken((token) => token + 1);
+  });
 
   const handleAddSailor = () => {
     fetchBoatsWithSailors();
@@ -431,7 +441,11 @@ function EventPage() {
         </div>
 
         {/* ── Heat overview ─── */}
-        <HeatComponent event={event} clickable={false} />
+        <HeatComponent
+          event={event}
+          clickable={false}
+          refreshToken={heatsRefreshToken}
+        />
       </main>
     </div>
   );

@@ -593,6 +593,28 @@ For most feature/fix requests, do this in order:
   fleet and the overall (5.5); and that a leaderboard correction saves exactly
   what was shown and equals entering the corrected finish. `ORACLE_SEEDS` /
   `EDIT_SEEDS` raise the number of random events (default 40 / 30).
+- **Go back to a point in the history** (`restoreEventToHistoryPoint`,
+  `functions/restoreToHistoryPoint.ts`, migration 6 adds
+  `ChangeActions.restores_to_action_id`): puts back every journalled change
+  of the event made after the chosen action, newest first, in one
+  transaction, then rebuilds the standings (both caches are cleared, so going
+  back past the final series start leaves no final standings). Each row must
+  be exactly as the change being put back left it, or nothing changes (a row
+  altered outside the journal, or a boat since deleted from the app, is
+  refused with a plain message). A `before-going-back-*` backup is written
+  first (never pruned); if it fails nothing is changed. Going back is itself
+  an action, undone by going back to the entry just before it ("Undo going
+  back"). Not taken back: sailor/boat details (global by design).
+  `shared/history/restore.ts` works out which entries are in effect
+  (`undoneActions`, following undo chains and earlier go-backs) and what a
+  go-back would take back and bring back (`restorePreview`), which the
+  dialog lists before asking. Afterwards the event, scoring and leaderboard
+  pages reload (`useEventDataChanged`); a scoring view whose heat changed is
+  closed, and a leaderboard edit started before is refused on Save.
+  `restoreToHistoryPoint.integration.test.ts` checks, over random sessions,
+  that going back to any earlier entry gives exactly the state recorded then,
+  that another event is untouched, and that "Undo going back" returns.
+
 - **Shared sail numbers** (`shared/boatKeys.ts`): sail numbers are national,
   so ITA 12 and CRO 12 can both race. Heats are built by boat_id; in scoring a
   boat is named by her sail number where it is unique in the heat, else by
