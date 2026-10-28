@@ -48,6 +48,7 @@ jest.mock('../renderer/utils/registerPdfUnicodeFont', () => jest.fn());
 
 const mockChoice = { current: 'extra' };
 jest.mock('../renderer/utils/userFeedback', () => ({
+  ...jest.requireActual('../renderer/utils/userFeedback'),
   confirmAction: jest.fn().mockResolvedValue(true),
   confirmChoice: jest.fn(() => Promise.resolve(mockChoice.current)),
   reportError: jest.fn(),

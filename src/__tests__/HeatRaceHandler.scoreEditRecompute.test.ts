@@ -227,13 +227,13 @@ describe('BK-7 — single-score edit/delete re-scores ties and recomputes', () =
   it('updateScore rejects a 0 / NaN position with a descriptive error (BK-6)', async () => {
     await expect(
       handlerRegistry.updateScore({}, 1, 0, 1, 'FINISHED'),
-    ).rejects.toThrow(/must be a positive integer/);
+    ).rejects.toThrow(/must be a whole number of 1 or more/);
     await expect(
       handlerRegistry.updateScore({}, 1, Number.NaN, 1, 'FINISHED'),
-    ).rejects.toThrow(/must be a positive integer/);
+    ).rejects.toThrow(/must be a whole number of 1 or more/);
     await expect(
       handlerRegistry.updateScore({}, 1, 1, 0, 'FINISHED'),
-    ).rejects.toThrow(/must be a positive number/);
+    ).rejects.toThrow(/must be a number above 0/);
   });
 
   it('updateScore accepts a fractional RDG/DPI position and points (protest-committee-set)', async () => {

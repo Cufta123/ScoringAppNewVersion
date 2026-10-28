@@ -7,6 +7,7 @@ import ScoringInputComponent from '../renderer/components/ScoringInputComponent'
 import { reportError, reportWarning } from '../renderer/utils/userFeedback';
 
 jest.mock('../renderer/utils/userFeedback', () => ({
+  ...jest.requireActual('../renderer/utils/userFeedback'),
   reportError: jest.fn(),
   reportInfo: jest.fn(),
   reportWarning: jest.fn(),

@@ -40,9 +40,24 @@ db.pragma('journal_mode = WAL');
  */
 function failStartup(error) {
   console.error('Database could not be opened:', error);
+  const detail = error && error.message ? error.message : String(error);
+  const code = `${(error && error.code) || ''} ${detail}`;
+  let plain = '';
+  if (/CORRUPT|NOTADB|malformed|not a database/i.test(code)) {
+    plain =
+      'The data file is damaged. Restore the latest backup from the backups folder below (copy it over the database file while the app is closed).\n\n';
+  } else if (/BUSY|LOCKED|locked/i.test(code)) {
+    plain =
+      'The data file is in use, probably because the app is already open. Close the other window and start the app again.\n\n';
+  } else if (/FULL|ENOSPC/i.test(code)) {
+    plain = 'The disk is full. Free some space and start the app again.\n\n';
+  } else if (/READONLY|CANTOPEN|EACCES|EPERM|EROFS/i.test(code)) {
+    plain =
+      'The data file cannot be opened for writing. Check that the drive is connected and not read-only.\n\n';
+  }
   dialog.showErrorBox(
     'IOM Regatta Manager cannot open its database',
-    `${error && error.message ? error.message : String(error)}\n\n` +
+    `${plain}${detail}\n\n` +
       `Database: ${dbPath}\n` +
       `Backups: ${backupDirFor(dbPath)}\n\n` +
       'No changes have been made after the last successful step. ' +

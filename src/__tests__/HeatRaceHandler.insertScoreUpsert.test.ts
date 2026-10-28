@@ -143,7 +143,7 @@ describe('HeatRaceHandler insertScore upsert behavior', () => {
   it('rejects a fractional FINISHED position (must be a positive integer, BK-6)', async () => {
     const handler = handlerRegistry.insertScore;
     await expect(handler({}, 500, 42, 4.5, 4.5, 'FINISHED')).rejects.toThrow(
-      /must be a positive integer/,
+      /must be a whole number of 1 or more/,
     );
   });
 });

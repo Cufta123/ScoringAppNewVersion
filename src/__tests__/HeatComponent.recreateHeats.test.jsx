@@ -19,6 +19,7 @@ const reportInfoMock = jest.fn();
 const reportErrorMock = jest.fn();
 const reportWarningMock = jest.fn();
 jest.mock('../renderer/utils/userFeedback', () => ({
+  ...jest.requireActual('../renderer/utils/userFeedback'),
   confirmAction: jest.fn(async () => true),
   reportInfo: (...args) => reportInfoMock(...args),
   reportError: (...args) => reportErrorMock(...args),

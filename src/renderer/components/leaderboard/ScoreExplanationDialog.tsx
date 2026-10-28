@@ -7,6 +7,7 @@ import type {
   SeriesBlock,
 } from '../../../shared/scoring/explain';
 import { roundPoints } from '../../../shared/points';
+import { describeError } from '../../utils/userFeedback';
 
 export interface ExplainTarget {
   boatId: number;
@@ -161,7 +162,7 @@ function ScoreExplanationDialog({
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err));
+          setError(describeError(err, 'explaining a score'));
         }
       });
     return () => {

@@ -14,6 +14,7 @@ jest.mock(
 );
 jest.mock('../renderer/utils/printNewHeats', () => jest.fn(async () => {}));
 jest.mock('../renderer/utils/userFeedback', () => ({
+  ...jest.requireActual('../renderer/utils/userFeedback'),
   confirmAction: jest.fn(async () => true),
   reportInfo: jest.fn(),
   reportError: jest.fn(),

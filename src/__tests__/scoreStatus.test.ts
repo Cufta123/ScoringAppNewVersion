@@ -45,7 +45,7 @@ describe('normalizeScoreStatus', () => {
 
   it('throws on an unsupported status', () => {
     expect(() => normalizeScoreStatus('NOPE')).toThrow(
-      'Unsupported score status: NOPE',
+      '"NOPE" is not a result code this app knows.',
     );
   });
 
@@ -252,7 +252,7 @@ describe('getHeatBaseFromName', () => {
 
   it('throws on an unrecognised heat name', () => {
     expect(() => getHeatBaseFromName('Group 1')).toThrow(
-      'Invalid heat name format: Group 1',
+      'The heat name "Group 1" is not in the expected form',
     );
   });
 });

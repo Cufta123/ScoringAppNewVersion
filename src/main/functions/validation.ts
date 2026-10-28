@@ -44,6 +44,17 @@ export function detectDuplicateSailNumbers(
     .map(([sail, boatIds]) => ({ sail, boatIds }));
 }
 
+/** ", not 3.5" — what was entered, when there was something to show. */
+function given(value: unknown): string {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return `, not ${value}`;
+  }
+  if (typeof value === 'string' && value.trim() && value.length <= 20) {
+    return `, not "${value.trim()}"`;
+  }
+  return ' (it was empty)';
+}
+
 /**
  * Coerce `value` to a finite integer >= 1, or throw a descriptive error.
  * Used for finishing places and derived penalty positions/points, which are
@@ -56,7 +67,7 @@ export function sanitizePositiveInteger(
   const num = Number(value);
   if (!Number.isFinite(num) || !Number.isInteger(num) || num < 1) {
     throw new Error(
-      `${context} must be a positive integer (received ${JSON.stringify(value)}).`,
+      `${context} must be a whole number of 1 or more${given(value)}.`,
     );
   }
   return num;
@@ -74,9 +85,7 @@ export function sanitizePositiveFinite(
 ): number {
   const num = Number(value);
   if (!Number.isFinite(num) || num <= 0) {
-    throw new Error(
-      `${context} must be a positive number (received ${JSON.stringify(value)}).`,
-    );
+    throw new Error(`${context} must be a number above 0${given(value)}.`);
   }
   return num;
 }

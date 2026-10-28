@@ -32,7 +32,9 @@ function checkedColumns(table: string, names: string[]): string[] {
   const known = columnsOf(table);
   names.forEach((name) => {
     if (!known.has(name)) {
-      throw new Error(`Unknown column ${table}.${name} in the history.`);
+      throw new Error(
+        'This change cannot be undone automatically: its history entry has data this version of the app does not recognise.',
+      );
     }
   });
   return names;

@@ -11,7 +11,9 @@ export function buildEventSnapshot(event_id: number) {
     .get(event_id);
 
   if (!eventRow) {
-    throw new Error('Event not found for snapshot export.');
+    throw new Error(
+      'This event no longer exists, so it cannot be exported. Go back to the event list.',
+    );
   }
 
   return {
@@ -80,17 +82,23 @@ export function restoreEventSnapshot(
   },
 ) {
   if (!snapshot || typeof snapshot !== 'object') {
-    throw new Error('Invalid snapshot payload.');
+    throw new Error(
+      'This file is not an event backup made by this app, so nothing was restored.',
+    );
   }
 
   if (Number(snapshot.event_id) !== Number(event_id)) {
-    throw new Error('Snapshot does not belong to this event.');
+    throw new Error(
+      'This backup file belongs to a different event, so nothing was restored. Open that event and restore it there.',
+    );
   }
 
   const tables = snapshot.tables || {};
   const eventRows = Array.isArray(tables.Events) ? tables.Events : [];
   if (eventRows.length !== 1) {
-    throw new Error('Snapshot is missing event metadata.');
+    throw new Error(
+      'This backup file is incomplete (the event details are missing), so nothing was restored.',
+    );
   }
 
   const tx = db.transaction(() => {

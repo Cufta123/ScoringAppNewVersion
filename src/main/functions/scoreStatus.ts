@@ -100,7 +100,11 @@ export function normalizeScoreStatus(status: unknown): string {
     return 'FINISHED';
   }
   if (!allowedScoreStatuses.has(normalized)) {
-    throw new Error(`Unsupported score status: ${status}`);
+    throw new Error(
+      `"${status}" is not a result code this app knows. Use a place, or one of: ${[
+        ...allowedScoreStatuses,
+      ].join(', ')}.`,
+    );
   }
   return normalized;
 }
@@ -162,7 +166,9 @@ export function compareSeededRows(left: SeededRow, right: SeededRow): number {
 export function getHeatBaseFromName(heat_name: string): string {
   const match = heat_name.match(/Heat\s+([A-Z]+)/);
   if (!match) {
-    throw new Error(`Invalid heat name format: ${heat_name}`);
+    throw new Error(
+      `The heat name "${heat_name}" is not in the expected form (for example "Heat A1").`,
+    );
   }
   return match[1];
 }

@@ -14,7 +14,7 @@ import {
   undoneActions,
 } from '../../shared/history/restore';
 import { notifyEventDataChanged } from '../utils/eventDataChanged';
-import { plainReason } from '../utils/userFeedback';
+import { plainReason, describeError } from '../utils/userFeedback';
 
 interface EventHistoryDialogProps {
   eventId: number;
@@ -157,7 +157,7 @@ function EventHistoryDialog({
         })
         .catch((err: unknown) => {
           if (isActive()) {
-            setError(err instanceof Error ? err.message : String(err));
+            setError(describeError(err, 'loading the history'));
           }
         }),
     [eventId],

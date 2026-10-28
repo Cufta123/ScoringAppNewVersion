@@ -565,7 +565,7 @@ describe('submitHeatRaceScoresAtomic handler', () => {
           isFinalSeries: false,
         },
       ),
-    ).rejects.toThrow(/must be a positive integer/);
+    ).rejects.toThrow(/must be a whole number of 1 or more/);
     // The invalid place must never be persisted as a 0/0 score.
     const written = [...state.scores.values()];
     expect(written.some((s) => s.position === 0 || s.points === 0)).toBe(false);

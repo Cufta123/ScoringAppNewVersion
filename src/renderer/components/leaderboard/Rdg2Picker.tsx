@@ -250,6 +250,11 @@ function Rdg2Picker({
           type="button"
           onClick={confirmRdg2}
           disabled={totalSelected === 0}
+          title={
+            totalSelected === 0
+              ? 'Tick at least one race to average'
+              : undefined
+          }
           style={{
             flex: 1,
             fontSize: '0.9rem',

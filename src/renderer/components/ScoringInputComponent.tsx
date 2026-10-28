@@ -1,6 +1,11 @@
 /* eslint-disable no-nested-ternary */
 import React, { useState, useEffect } from 'react';
-import { reportError, reportInfo, reportWarning } from '../utils/userFeedback';
+import {
+  reportError,
+  reportInfo,
+  reportWarning,
+  describeError,
+} from '../utils/userFeedback';
 import { POSITION_KEEPING_PENALTIES } from '../utils/penaltyOrder';
 import {
   buildPlaceNumbers,
@@ -210,9 +215,7 @@ function ScoringInputComponent({
         setFetchError(null);
       } catch (error) {
         if (!isActive) return;
-        const message =
-          error instanceof Error ? error.message : 'Unknown error';
-        setFetchError(message);
+        setFetchError(describeError(error, 'loading the boats of a heat'));
         reportError('Could not load boats for selected heat.', error);
       }
     };

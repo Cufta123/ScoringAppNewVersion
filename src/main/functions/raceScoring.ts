@@ -28,6 +28,7 @@ import {
   scoringPenaltyStatuses,
 } from './scoreStatus';
 import { sanitizePositiveFinite, sanitizePositiveInteger } from './validation';
+import { boatLabel, raceLabel } from './labels';
 
 /**
  * SHRS 5.2: Get the number of boats in the largest heat for an event.
@@ -429,7 +430,9 @@ export function applyRaceResultUpdate(
   // BK-6: guard against NaN/0/negative before writing. RDG/DPI are PC-set and
   // may be fractional or < 1 (CMP C-23/C-24), so they only need to be finite and
   // positive; every other status writes a finishing place (positive whole number).
-  const positionContext = `Position for ${status}`;
+  let positionContext = `The place for ${status}`;
+  if (pcSetPoints) positionContext = `The points for ${status}`;
+  else if (status === 'FINISHED') positionContext = 'The place';
   // BK-6: non-scoring penalties (DNF/DNS/DSQ/...) are always scored at
   // maxBoats + 1 (SHRS 5.2), so their provided position is discarded and must
   // NOT be validated — a legacy caller may send 0/'' for "no place". Only
@@ -464,7 +467,7 @@ export function applyRaceResultUpdate(
 
   if (!currentResult) {
     throw new Error(
-      `Current result not found for race_id: ${race_id}, boat_id: ${boat_id}`,
+      `${boatLabel(boat_id)} has no result in ${raceLabel(race_id)} any more (the race may have been undone in the meantime). Reload the page.`,
     );
   }
   const currentPosition = currentResult.position;
@@ -502,12 +505,12 @@ export function applyRaceResultUpdate(
     finalPosition > placeLimit
   ) {
     throw new Error(
-      `${positionContext} must be 1 to ${placeLimit} (received ${finalPosition}).`,
+      `${positionContext} must be 1 to ${placeLimit}, not ${finalPosition}.`,
     );
   }
   if (pcSetPoints && finalPosition > MAX_PROVIDED_POINTS) {
     throw new Error(
-      `${positionContext} cannot be more than ${MAX_PROVIDED_POINTS} points (received ${finalPosition}).`,
+      `${positionContext} cannot be more than ${MAX_PROVIDED_POINTS}, not ${finalPosition}.`,
     );
   }
 
@@ -516,7 +519,7 @@ export function applyRaceResultUpdate(
   );
   if (editedIndex === -1) {
     throw new Error(
-      `Current result not found for race_id: ${race_id}, boat_id: ${boat_id}`,
+      `${boatLabel(boat_id)} has no result in ${raceLabel(race_id)} any more (the race may have been undone in the meantime). Reload the page.`,
     );
   }
 
@@ -633,7 +636,9 @@ export function applyRaceColumnState(
     | { heat_id: number; heat_type: string }
     | undefined;
   if (!heatRow) {
-    throw new Error(`Race ${raceId} is not part of event ${event_id}.`);
+    throw new Error(
+      'One of the edited races is no longer part of this event (it may have been undone in the meantime). Reload the leaderboard and make the change again.',
+    );
   }
   const maxBoats = getMaxHeatSize(event_id, heatRow.heat_type);
 
@@ -663,27 +668,37 @@ export function applyRaceColumnState(
   sentCells.forEach((sent) => {
     const i = indexOfBoat.get(String(sent.boatId));
     if (i == null) {
-      throw new Error(`Boat ${sent.boatId} did not sail race ${raceId}.`);
+      throw new Error(
+        `${boatLabel(sent.boatId)} did not sail ${raceLabel(raceId)}, so it has no result there to change. Reload the leaderboard.`,
+      );
     }
     if (sentByIndex.has(i)) {
-      throw new Error(`Boat ${sent.boatId} appears twice in race ${raceId}.`);
+      throw new Error(
+        `${boatLabel(sent.boatId)} appears twice in ${raceLabel(raceId)}. Reload the leaderboard and make the change again.`,
+      );
     }
     sentByIndex.set(i, sent);
     const status = normalizeScoreStatus(sent.status);
-    const context = `Race ${raceId}, boat ${sent.boatId}`;
+    const context = `${boatLabel(sent.boatId)} in ${raceLabel(raceId)}`;
     if (holdsPlace(status)) {
-      const place = sanitizePositiveInteger(sent.position, `${context} place`);
+      const place = sanitizePositiveInteger(
+        sent.position,
+        `The place of ${context}`,
+      );
       if (place > raceRows.length) {
         throw new Error(
-          `${context}: place ${place} but only ${raceRows.length} boats sailed this race.`,
+          `${context}: place ${place} is not possible, only ${raceRows.length} boats sailed this race.`,
         );
       }
       cells[i] = { position: place, points: place, status };
     } else if (keepsProvidedPoints(status)) {
-      const points = sanitizePositiveFinite(sent.position, `${context} points`);
+      const points = sanitizePositiveFinite(
+        sent.position,
+        `The points of ${context}`,
+      );
       if (points > MAX_PROVIDED_POINTS) {
         throw new Error(
-          `${context}: ${points} points is more than ${MAX_PROVIDED_POINTS}.`,
+          `${context}: ${points} points is more than the ${MAX_PROVIDED_POINTS} allowed.`,
         );
       }
       cells[i] = { position: points, points, status };

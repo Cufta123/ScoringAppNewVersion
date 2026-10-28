@@ -174,7 +174,9 @@ handle('insertHeatBoat', async (event, heat_id, boat_id) => {
     | undefined;
 
   if (!heatRow) {
-    throw new Error('Heat not found.');
+    throw new Error(
+      'This heat no longer exists (it may have been removed in the meantime). Reload the page.',
+    );
   }
 
   // Used to place a late entry (UnassignedEntriesNotice). Only safe where it
@@ -487,7 +489,9 @@ handle('insertRace', async (event, heat_id, race_number) => {
     .get(heat_id) as { event_id?: number } | undefined;
 
   if (heatRow?.event_id == null) {
-    throw new Error('Heat not found.');
+    throw new Error(
+      'This heat no longer exists (it may have been removed in the meantime). Reload the page.',
+    );
   }
 
   // BK-5: the race INSERT and the default DNS seed must commit together — a
@@ -523,7 +527,9 @@ handle(
         .get(race_id) as { event_id?: number } | undefined;
 
       if (raceRow?.event_id == null) {
-        throw new Error('Race not found.');
+        throw new Error(
+          'This race no longer exists (it may have been undone in the meantime). Reload the page.',
+        );
       }
 
       const normalizedStatus = normalizeScoreStatus(status);
@@ -537,9 +543,9 @@ handle(
       const keepsProvidedPoints =
         rdgStatuses.includes(normalizedStatus) || normalizedStatus === 'DPI';
       const safePosition = keepsProvidedPoints
-        ? sanitizePositiveFinite(position, 'Position')
-        : sanitizePositiveInteger(position, 'Position');
-      const safePoints = sanitizePositiveFinite(points, 'Points');
+        ? sanitizePositiveFinite(position, 'The points')
+        : sanitizePositiveInteger(position, 'The place');
+      const safePoints = sanitizePositiveFinite(points, 'The points');
 
       // BK-5: the UPDATE-or-INSERT, A7 tie re-scoring and discard-profile lock
       // must commit together — an unwrapped UPDATE-then-INSERT lets two
@@ -651,7 +657,9 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
       | { event_id: number; heat_type: string; heat_name: string }
       | undefined;
     if (!heatRow) {
-      throw new Error('Heat not found.');
+      throw new Error(
+        'This heat no longer exists (it may have been removed in the meantime). Reload the page.',
+      );
     }
     // HRH M4: derive the event from the heat itself; ignore the payload value.
     const { event_id } = heatRow;
@@ -690,7 +698,7 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
     const indistinguishable = findIndistinguishableBoats(boats);
     if (indistinguishable.length > 0) {
       throw new Error(
-        `Cannot score heat ${heat_id}: ${describeIndistinguishable(indistinguishable)}.`,
+        `Cannot score ${heatRow.heat_name}: ${describeIndistinguishable(indistinguishable)}.`,
       );
     }
 
@@ -706,7 +714,7 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
       if (!boat) return;
       if (named.has(boat.boat_id)) {
         throw new Error(
-          `Cannot score heat ${heat_id}: sail ${String(boatNumber)} is in the result twice.`,
+          `Cannot score ${heatRow.heat_name}: sail ${String(boatNumber)} is in the result twice.`,
         );
       }
       named.add(boat.boat_id);
@@ -754,7 +762,7 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
           // would otherwise be written straight to Scores.position/points.
           const finishingPlace = sanitizePositiveInteger(
             place,
-            `Place for sail ${String(boatNumber)}`,
+            `The place of sail ${String(boatNumber)}`,
           );
           position = finishingPlace;
           points = finishingPlace;
@@ -763,7 +771,7 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
           // ZFP/SCP/T1: keep finishing place, add the scoring-penalty places.
           const finishingPlace = sanitizePositiveInteger(
             place,
-            `Place for sail ${String(boatNumber)}`,
+            `The place of sail ${String(boatNumber)}`,
           );
           position = finishingPlace;
           points = getScoringPenaltyPoints(
@@ -838,9 +846,9 @@ handle('updateScore', async (event, score_id, position, points, status) => {
     const keepsProvidedPoints =
       rdgStatuses.includes(normalizedStatus) || normalizedStatus === 'DPI';
     const safePosition = keepsProvidedPoints
-      ? sanitizePositiveFinite(position, 'Position')
-      : sanitizePositiveInteger(position, 'Position');
-    const safePoints = sanitizePositiveFinite(points, 'Points');
+      ? sanitizePositiveFinite(position, 'The points')
+      : sanitizePositiveInteger(position, 'The place');
+    const safePoints = sanitizePositiveFinite(points, 'The points');
     const row = db
       .prepare('SELECT race_id FROM Scores WHERE score_id = ?')
       .get(score_id) as { race_id?: number } | undefined;
@@ -932,7 +940,7 @@ handle(
       const finalHeats = allHeats.filter((heat) => heat.heat_type === 'Final');
       if (finalHeats.length > 0) {
         throw new Error(
-          'Final series has already been started for this event.',
+          'The Final Series has already been started for this event.',
         );
       }
 
@@ -955,7 +963,7 @@ handle(
 
       if (numFinalHeats < 2) {
         throw new Error(
-          'With fewer than 2 qualifying groups, final series cannot be started.',
+          'The Final Series needs at least 2 qualifying heats. With a single heat, every boat is scored as one fleet and there is no Final Series.',
         );
       }
 
@@ -972,7 +980,7 @@ handle(
       const uniqueRaceCounts = [...new Set(raceCounts)];
       if (uniqueRaceCounts.length > 1) {
         throw new Error(
-          'Cannot start final series because latest qualifying heats have different race counts.',
+          'Cannot start the Final Series yet: the heats of the current round have not all sailed the same number of races. Score the missing races first.',
         );
       }
 
@@ -1010,7 +1018,7 @@ handle(
 
       if (leaderboard.length === 0) {
         throw new Error(
-          'Cannot start final series without qualifying leaderboard data.',
+          'Cannot start the Final Series: there are no qualifying results yet. Score the qualifying races first.',
         );
       }
 
@@ -1282,7 +1290,9 @@ handle('undoLastScoredRaceForHeat', async (event, heat_id) => {
     | undefined;
 
   if (!heatRow) {
-    throw new Error('Heat not found.');
+    throw new Error(
+      'This heat no longer exists (it may have been removed in the meantime). Reload the page.',
+    );
   }
 
   const lastRace = db
@@ -1363,7 +1373,7 @@ handle('undoLastScoredRace', async (event, event_id) => {
   const raceNumbers = [...new Set(raceRows.map((row) => row.race_number))];
   if (raceNumbers.length > 1) {
     throw new Error(
-      'Latest qualifying heats are not aligned on the same race number.',
+      'The heats of the current round have not all sailed the same number of races. Score (or undo) races until every heat is on the same race, then try again.',
     );
   }
 
@@ -1475,10 +1485,14 @@ handle(
         | { event_id: number; heat_type: string }
         | undefined;
       if (!fromHeat || !toHeat) {
-        throw new Error('Heat not found.');
+        throw new Error(
+          'This heat no longer exists (it may have been removed in the meantime). Reload the page.',
+        );
       }
       if (fromHeat.event_id !== toHeat.event_id) {
-        throw new Error('Cannot transfer a boat between different events.');
+        throw new Error(
+          'A boat can only be moved between heats of the same event.',
+        );
       }
 
       // SHRS 4.1: "Boats shall compete in the same Fleet throughout the Final
@@ -1533,6 +1547,13 @@ handle(
       // (which would drop it from the event's heats entirely).
       const transfer = db.transaction(() => {
         const deleteInfo = deleteQuery.run(from_heat_id, boat_id);
+        // The screen showed her in that heat, but she is not there any more
+        // (the heats changed since): moving her would put her in two heats.
+        if (deleteInfo.changes === 0) {
+          throw new Error(
+            'That boat is no longer in the heat it was dragged from (the heats changed in the meantime). Nothing was moved; reload the page and try again.',
+          );
+        }
         const insertInfo = insertQuery.run(to_heat_id, boat_id);
         return {
           removed: deleteInfo.changes,

@@ -58,6 +58,8 @@ Use this document first. Only search the repo when this file does not answer the
 
 - `src/main/preload.ts` exposes grouped sqlite APIs under `window.electron.sqlite.*`.
 - Wrapper throws on `false` return values, so renderer callers should expect exceptions.
+- `window.electron.appEvents` (not a sqlite group): `logError` sends a window
+  error to the error log; `onBackupStatus` reports automatic-backup failures.
 - Channel names live once in `SQLITE_CHANNELS`, grouped as the renderer consumes
   them; `type Channels` and the invoker map are derived from that list.
 
@@ -633,10 +635,35 @@ For most feature/fix requests, do this in order:
   fills the nearest free slot), and an undo from the history that left two
   boats on one place unaveraged (`revertHistoryAction` now calls
   `rescoreRace`).
-- Error toasts show the main process's reason when it is plain language
-  (`plainReason` in `userFeedback.ts`); technical messages stay in the
-  console. The main process logs uncaught errors instead of dying, and
-  reloads the window if the page process dies.
+- **Every failure reaches the user in words they can act on.** The rule:
+  - Main process: `handle()` (`src/main/ipcHandlers/handle.ts`) passes every
+    error through `explainError` (`src/shared/errors/explainError.ts`):
+    the app's own refusals (plain `new Error('…')`) go through unchanged;
+    SQLite failures (busy, disk full, read-only, I/O, damaged file, foreign
+    key, unique, not null) become plain sentences; anything else (TypeError,
+    a technical message) becomes "unexpected problem … note the code XXXX".
+  - Write refusals for the race officer: say what did not happen, why, and
+    what to do. Name heats, races and boats as the screen does (`raceLabel`,
+    `boatLabel` in `src/main/functions/labels.ts`), never by database id.
+    `isTechnicalText` lists what must never appear (ids, null/undefined,
+    SQLITE, stack frames).
+  - Every error, with its code, goes to `logs/errors.log` next to the data
+    file (`src/main/errorLog.ts`, capped at 1 MB, previous kept as
+    `errors.1.log`); Help menu > Open Error Log opens it. Window errors are
+    sent there over `app:logError`.
+  - Renderer: `reportError(title, error)` shows the title plus the reason
+    (`describeError`); use `getErrorMessage(error)` (strips Electron's
+    "Error invoking remote method" wrapping) whenever a message is matched
+    or shown, never `error.message` directly.
+  - Automatic-backup failures are told to the window (`app:backupStatus`)
+    and stay on screen until backups work again.
+  - Only one copy of the app runs at a time (`requestSingleInstanceLock`;
+    skipped when `SCORING_APP_DB_PATH` is set, as in the e2e tests).
+  - Tests: `staleScreen.errors.integration.test.ts` calls every channel with
+    ids that no longer exist and fails on any technical or "unexpected"
+    answer; the chaos test fails on a refusal worded technically.
+- The main process logs uncaught errors instead of dying, and reloads the
+  window if the page process dies.
 
 - **Outdoor readability is a requirement**: the app is used by race officers
   (often 60+) on cheap laptops in sunshine. Root font is 17px; secondary text

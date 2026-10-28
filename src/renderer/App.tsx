@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import '@fortawesome/fontawesome-free/css/all.min.css';
-import { ToastContainer } from 'react-toastify';
+import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import './App.css';
 import LandingPage from './pages/LandingPage/LandingPage';
@@ -10,30 +10,54 @@ import HeatRacePage from './pages/HeatRacePage/HeatRacePage';
 import LeaderboardPage from './pages/LeaderboardPage/LeaderboardPage';
 import ConfirmDialogHost from './components/shared/ConfirmDialogHost';
 import ErrorBoundary from './components/ErrorBoundary';
-import { reportError } from './utils/userFeedback';
+import { reportError, reportWarning } from './utils/userFeedback';
+
+const BACKUP_TOAST = 'automatic-backup-status';
 
 function App() {
   useEffect(() => {
+    // Anything no screen caught itself. The reason (or, for a fault in the
+    // app, a code that is also in the error log) is shown with it.
     const onUnhandledRejection = (event: PromiseRejectionEvent) => {
-      reportError(
-        'Something went wrong and your last action may not have been saved. Please try again — if it keeps happening, restart the app.',
-        event.reason,
-      );
+      reportError('That did not work.', event.reason);
     };
 
     const onWindowError = (event: ErrorEvent) => {
+      // Chromium reports this layout notice as an error; it is harmless.
+      if (/ResizeObserver loop/.test(event.message ?? '')) return;
+      // An error nothing caught is a fault in the app, whatever it says.
       reportError(
-        'Something went wrong and your last action may not have been saved. Please try again — if it keeps happening, restart the app.',
-        event.error || event.message,
+        'That did not work.',
+        event.error instanceof Error
+          ? event.error
+          : new TypeError(String(event.message || 'window error')),
       );
     };
 
     window.addEventListener('unhandledrejection', onUnhandledRejection);
     window.addEventListener('error', onWindowError);
 
+    // The automatic backups stopped working (disk full, folder not
+    // writable): say so until they work again.
+    const stopWatchingBackups = window.electron?.appEvents?.onBackupStatus(
+      (status) => {
+        if (status.ok) {
+          toast.dismiss(BACKUP_TOAST);
+          toast.success('Automatic backups are working again.');
+          return;
+        }
+        reportWarning(
+          `${status.reason ?? ''} Results are still saved, but no safety copies are being made until this is fixed.`.trim(),
+          'Automatic backup failed',
+          { toastId: BACKUP_TOAST },
+        );
+      },
+    );
+
     return () => {
       window.removeEventListener('unhandledrejection', onUnhandledRejection);
       window.removeEventListener('error', onWindowError);
+      stopWatchingBackups?.();
     };
   }, []);
 

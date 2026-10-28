@@ -436,7 +436,7 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
       db = seed(finishers(3));
       expect(() =>
         applyRaceResultUpdate(EVENT_ID, RACE_ID, 1, 3, false, 'FOO'),
-      ).toThrow('Unsupported score status: FOO');
+      ).toThrow('"FOO" is not a result code this app knows.');
     });
 
     it.each([0, Number.NaN])(
@@ -452,7 +452,7 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
             false,
             'FINISHED',
           ),
-        ).toThrow(/must be a positive integer/);
+        ).toThrow(/must be a whole number of 1 or more/);
       },
     );
 
@@ -465,7 +465,7 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
         db = seed(finishers(3));
         expect(() =>
           applyRaceResultUpdate(EVENT_ID, RACE_ID, 1, value, false, status),
-        ).toThrow(/must be a positive number/);
+        ).toThrow(/must be a number above 0/);
       },
     );
 
@@ -512,6 +512,6 @@ describe('applyRaceResultUpdate (real sqlite)', () => {
     db = seed(finishers(2));
     expect(() =>
       applyRaceResultUpdate(EVENT_ID, RACE_ID, 99, 1, false, 'FINISHED'),
-    ).toThrow(/not found/i);
+    ).toThrow(/has no result in .* any more/i);
   });
 });

@@ -230,7 +230,7 @@ describe('transferBoatBetweenHeats atomicity', () => {
 
     await expect(
       handlerRegistry.transferBoatBetweenHeats({}, 1, 2, 42),
-    ).rejects.toThrow(/different events/i);
+    ).rejects.toThrow(/same event/i);
     expect(state.rows).toEqual([{ heat_id: 1, boat_id: 42 }]);
   });
 

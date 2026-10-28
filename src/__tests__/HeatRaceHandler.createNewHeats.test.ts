@@ -611,7 +611,7 @@ describe('HeatRaceHandler createNewHeatsBasedOnLeaderboard', () => {
     const handler = handlerRegistry.createNewHeatsBasedOnLeaderboard;
 
     await expect(handler({}, 555)).rejects.toThrow(
-      'Latest qualifying heats are not aligned on the same race number.',
+      'have not all sailed the same number of races',
     );
     expect(insertedHeats).toHaveLength(0);
     expect(insertedHeatBoats).toHaveLength(0);
