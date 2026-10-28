@@ -314,3 +314,48 @@ test('the ZFP edit can be undone from the history, and the leaderboard follows',
     window.getByRole('row', { name: /Bob/ }).getByLabel('Race cell: (ZFP)'),
   ).toHaveCount(0);
 });
+
+test('going back to an earlier point takes the later races back, and can be undone', async () => {
+  await window.getByRole('button', { name: 'Open event history' }).click();
+  const dialog = window.getByRole('dialog', { name: 'Event history' });
+  // Newest first: the undo, the ZFP edit, race 4, race 3, … Back to race 3.
+  await dialog
+    .getByRole('button', { name: /^Go back to here: Race scored/ })
+    .nth(1)
+    .click();
+  const question = dialog.getByRole('alertdialog');
+  await expect(question).toContainText('1 × Race scored');
+  await expect(question).toContainText(
+    'A backup of the database is saved first',
+  );
+  await question.getByRole('button', { name: 'Go back', exact: true }).click();
+  await expect(dialog.getByRole('status')).toContainText(
+    'back to how it was after “Race scored”',
+  );
+  await expect(dialog.locator('.history-entry strong').first()).toContainText(
+    'Went back to after “Race scored”',
+  );
+  await dialog.getByRole('button', { name: 'Close' }).click();
+
+  // Three races, so no discard yet: Bob 2 + 2 + 2.
+  await expect(
+    window.getByRole('row', { name: /Bob/ }).getByLabel(/^Race cell:/),
+  ).toHaveCount(3);
+  await expect(netCell(/Bob/)).toHaveText('6');
+  await expect(totalCell(/Bob/)).toHaveText('6');
+
+  // Undo going back: race 4 returns.
+  await window.getByRole('button', { name: 'Open event history' }).click();
+  await dialog.getByRole('button', { name: /^Undo going back/ }).click();
+  await dialog
+    .getByRole('alertdialog')
+    .getByRole('button', { name: 'Go back', exact: true })
+    .click();
+  await expect(dialog.getByRole('status')).toContainText('back to how it was');
+  await dialog.getByRole('button', { name: 'Close' }).click();
+  await expect(
+    window.getByRole('row', { name: /Bob/ }).getByLabel(/^Race cell:/),
+  ).toHaveCount(4);
+  await expect(totalCell(/Bob/)).toHaveText('8');
+  await expect(netCell(/Bob/)).toHaveText('6');
+});

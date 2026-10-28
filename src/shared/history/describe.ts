@@ -28,6 +28,8 @@ export interface HistoryAction {
   reverts_action_id?: number | null;
   /** What the undone action was. */
   reverts_channel?: string | null;
+  /** Set when this action took the event back to right after another one. */
+  restores_to_action_id?: number | null;
 }
 
 /** What a user action was, by the IPC channel that made it. */
@@ -60,6 +62,7 @@ const ACTION_LABELS: Record<string, string> = {
   updateFinalLeaderboard: 'Standings recalculated',
   restoreEventSnapshotFromFile: 'Event restored from a backup file',
   revertHistoryAction: 'Undone from the history',
+  restoreEventToHistoryPoint: 'Went back to an earlier point',
 };
 
 /** Rows kept for exact undo but not worth a line in the history. */

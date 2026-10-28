@@ -9,10 +9,12 @@ import Navbar from '../renderer/components/Navbar';
 
 const mockReadHistory = jest.fn();
 const mockRevert = jest.fn();
+const mockRestore = jest.fn();
 jest.mock('../renderer/api/db', () => ({
   eventDB: {
     readEventHistory: (...args) => mockReadHistory(...args),
     revertHistoryAction: (...args) => mockRevert(...args),
+    restoreEventToHistoryPoint: (...args) => mockRestore(...args),
   },
 }));
 
@@ -236,5 +238,199 @@ describe('undo from the history', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       /changed again later by “Result changed”/,
     );
+  });
+});
+
+describe('go back to a point in the history', () => {
+  const heats = {
+    action_id: 1,
+    channel: 'createInitialHeatsAtomic',
+    at: '2026-05-02T11:00:00.000Z',
+    changes: [
+      {
+        change_id: 1,
+        table_name: 'Heats',
+        op: 'insert',
+        row_key: '1',
+        old_row: null,
+        new_row: { heat_id: 1, heat_name: 'Heat A1' },
+        context: {},
+      },
+    ],
+  };
+  const raced = { ...actions[1], action_id: 2 };
+  const corrected = { ...actions[0], action_id: 3 };
+  const history = [corrected, raced, heats];
+
+  beforeEach(() => {
+    mockReadHistory.mockReset();
+    mockRestore.mockReset();
+    mockRevert.mockReset();
+  });
+
+  const open = async (list = history) => {
+    mockReadHistory.mockResolvedValue(list);
+    const onClose = jest.fn();
+    render(<EventHistoryDialog eventId={4} open onClose={onClose} />);
+    await screen.findByText('Result changed');
+    return onClose;
+  };
+
+  it('is offered on every entry but the newest', async () => {
+    await open();
+    const buttons = screen.getAllByRole('button', { name: /^Go back to here/ });
+    expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual([
+      expect.stringMatching(/^Go back to here: Race scored/),
+      expect.stringMatching(/^Go back to here: Heats created/),
+    ]);
+  });
+
+  it('asks first, saying exactly what will be taken back; Cancel changes nothing', async () => {
+    await open();
+    fireEvent.click(
+      screen.getByRole('button', { name: /^Go back to here: Heats created/ }),
+    );
+    const question = screen.getByRole('alertdialog');
+    expect(question).toHaveTextContent(
+      'Go back to how the event was after “Heats created”',
+    );
+    expect(
+      within(question).getByText('1 × Result changed'),
+    ).toBeInTheDocument();
+    expect(within(question).getByText('1 × Race scored')).toBeInTheDocument();
+    expect(question).toHaveTextContent(
+      'A backup of the database is saved first',
+    );
+    // Focus lands on Cancel, the safe choice.
+    expect(
+      within(question).getByRole('button', { name: 'Cancel' }),
+    ).toHaveFocus();
+    // Other actions wait while the question is open.
+    screen
+      .getAllByRole('button', { name: /^Go back to here/ })
+      .forEach((b) => expect(b).toBeDisabled());
+
+    fireEvent.click(within(question).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(mockRestore).not.toHaveBeenCalled();
+  });
+
+  it('Escape closes the question first, then the history', async () => {
+    const onClose = await open();
+    fireEvent.click(
+      screen.getByRole('button', { name: /^Go back to here: Race scored/ }),
+    );
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('goes back, tells the other screens, and shows the step in the history', async () => {
+    const restore = {
+      action_id: 4,
+      channel: 'restoreEventToHistoryPoint',
+      restores_to_action_id: 2,
+      at: '2026-05-02T13:00:00.000Z',
+      changes: [
+        {
+          change_id: 30,
+          table_name: 'Scores',
+          op: 'update',
+          row_key: '1',
+          old_row: score(1, 3, 'DSQ'),
+          new_row: score(1, 1),
+          context: where('CRO 12'),
+        },
+      ],
+    };
+    mockReadHistory
+      .mockResolvedValueOnce(history)
+      .mockResolvedValueOnce([restore, ...history]);
+    mockRestore.mockResolvedValue({
+      success: true,
+      actionId: 4,
+      undoneActions: 1,
+    });
+    const changed = jest.fn();
+    window.addEventListener('scoring-app:event-data-changed', changed);
+    render(<EventHistoryDialog eventId={4} open onClose={jest.fn()} />);
+    await screen.findByText('Result changed');
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /^Go back to here: Race scored/ }),
+    );
+    fireEvent.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', {
+        name: 'Go back',
+      }),
+    );
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      /back to how it was after “Race scored”.*1 later action was taken back.*backup was saved/,
+    );
+    expect(mockRestore).toHaveBeenCalledWith(4, 2);
+    expect(changed).toHaveBeenCalledTimes(1);
+    window.removeEventListener('scoring-app:event-data-changed', changed);
+
+    // The step is the newest entry; what it took back is marked Undone; it
+    // can itself be undone (back to just before it, i.e. after entry 3).
+    expect(
+      await screen.findByText(/^Went back to after “Race scored”/),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Undone')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^Undo going back/ }));
+    const question = screen.getByRole('alertdialog');
+    expect(question).toHaveTextContent('after “Result changed”');
+    expect(
+      within(question).getByText('1 × Result changed'),
+    ).toBeInTheDocument();
+    expect(question).toHaveTextContent('brings back');
+  });
+
+  it('shows why going back was refused, without the technical wrapping', async () => {
+    await open();
+    mockRestore.mockRejectedValue(
+      new Error(
+        "Error invoking remote method 'restoreEventToHistoryPoint': Error: Cannot go back: the data no longer matches the history (it was changed another way). Nothing was changed; a backup was saved.",
+      ),
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: /^Go back to here: Heats created/ }),
+    );
+    fireEvent.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', {
+        name: 'Go back',
+      }),
+    );
+    const alert = await screen.findByText(
+      /^Cannot go back: the data no longer matches/,
+    );
+    expect(alert).toHaveAttribute('role', 'alert');
+    expect(alert.textContent).not.toMatch(/Error invoking/);
+    // The question stays, so the user can cancel or try again.
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+  });
+
+  it('a double click goes back once', async () => {
+    await open();
+    let finish;
+    mockRestore.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: /^Go back to here: Heats created/ }),
+    );
+    const go = within(screen.getByRole('alertdialog')).getByRole('button', {
+      name: 'Go back',
+    });
+    fireEvent.click(go);
+    fireEvent.click(go);
+    expect(mockRestore).toHaveBeenCalledTimes(1);
+    finish({ success: true, actionId: 9, undoneActions: 2 });
+    await screen.findByRole('status');
   });
 });

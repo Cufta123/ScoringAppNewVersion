@@ -34,6 +34,7 @@ const SQLITE_CHANNELS = {
     'deleteEvent',
     'readEventHistory',
     'revertHistoryAction',
+    'restoreEventToHistoryPoint',
   ],
   heatRaceDB: [
     'readAllHeats',

@@ -369,9 +369,8 @@ export default function useLeaderboard(eventId: number) {
         const heats = await heatRaceDB.readAllHeats(eventId);
         if (!isActive()) return;
         const finalHeats = heats.filter((heat) => heat.heat_type === 'Final');
-        if (finalHeats.length > 0) {
-          setFinalSeriesStarted(true);
-        }
+        // Can go back to false: going back in the history can undo the start.
+        setFinalSeriesStarted(finalHeats.length > 0);
       } catch (error) {
         if (isActive()) {
           reportError('Could not check final series status.', error);
@@ -606,8 +605,22 @@ export default function useLeaderboard(eventId: number) {
 
   // An undo from the event history changed results behind this page. Reload,
   // unless the user is editing: their unsaved edits must not be thrown away.
+  // The results changed behind this page (undo or going back in the
+  // history). While editing, the screen now shows results that are no longer
+  // there; saving them would silently put the old results back, so Save is
+  // refused until the edit is started again.
+  const editIsStaleRef = useRef(false);
   useEventDataChanged(eventId, () => {
-    if (!editMode) fetchLeaderboard();
+    if (editMode) {
+      editIsStaleRef.current = true;
+      reportWarning(
+        'The results were changed in the history while you were editing. Press Cancel Editing to see them, then edit again.',
+        'Results changed',
+      );
+      return;
+    }
+    checkFinalSeriesStarted();
+    fetchLeaderboard();
   });
 
   const hasUnsavedChanges = useMemo(() => {
@@ -651,6 +664,12 @@ export default function useLeaderboard(eventId: number) {
 
     const source = finalSeriesStarted ? leaderboard : eventLeaderboard;
     setEditableLeaderboard(cloneEntries(source));
+    if (editMode && editIsStaleRef.current) {
+      // Leaving a stale edit: show what is there now.
+      editIsStaleRef.current = false;
+      checkFinalSeriesStarted();
+      fetchLeaderboard();
+    }
     setRdgMeta({});
     setRdg2Picker(null);
     userEditsRef.current.clear();
@@ -1194,6 +1213,13 @@ export default function useLeaderboard(eventId: number) {
     // state is set only after the confirm dialog, so it cannot block a second
     // click that arrives while that dialog is open.
     if (savingRef.current) return;
+    if (editIsStaleRef.current) {
+      reportWarning(
+        'Nothing was saved: the results were changed in the history while you were editing. Press Cancel Editing to see them, then edit again.',
+        'Results changed',
+      );
+      return;
+    }
     const invalidMessages = Object.values(invalidCells);
     if (invalidMessages.length > 0) {
       reportWarning(

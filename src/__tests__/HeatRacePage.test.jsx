@@ -15,7 +15,9 @@ import {
   confirmAction,
   reportError,
   reportInfo,
+  reportWarning,
 } from '../renderer/utils/userFeedback';
+import { notifyEventDataChanged } from '../renderer/utils/eventDataChanged';
 
 jest.mock(
   '../renderer/components/Navbar',
@@ -311,6 +313,65 @@ describe('HeatRacePage', () => {
         expect.anything(),
         expect.anything(),
       );
+    });
+  });
+
+  describe('the history changed the heat being scored', () => {
+    const renderPage = () =>
+      render(
+        <MemoryRouter
+          initialEntries={[
+            { pathname: '/event/Test Event/heat-race', state: { event } },
+          ]}
+        >
+          <Routes>
+            <Route
+              path="/event/:eventName/heat-race"
+              element={<HeatRacePage />}
+            />
+          </Routes>
+        </MemoryRouter>,
+      );
+
+    it('closes the scoring of a heat that is gone, saying nothing was saved', async () => {
+      renderPage();
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Start scoring mock' }),
+      );
+      await screen.findByRole('button', { name: 'Submit scoring mock' });
+
+      // Going back in the history removed the round.
+      window.electron.sqlite.heatRaceDB.readAllHeats.mockResolvedValue([]);
+      await act(async () => {
+        notifyEventDataChanged(1);
+      });
+
+      await waitFor(() =>
+        expect(
+          screen.queryByRole('button', { name: 'Submit scoring mock' }),
+        ).not.toBeInTheDocument(),
+      );
+      expect(reportWarning).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /Heat A1 changed in the history.*Nothing was saved/,
+        ),
+        'Heat changed',
+      );
+    });
+
+    it('keeps scoring a heat the history did not touch', async () => {
+      renderPage();
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Start scoring mock' }),
+      );
+      await screen.findByRole('button', { name: 'Submit scoring mock' });
+      await act(async () => {
+        notifyEventDataChanged(1);
+      });
+      expect(
+        screen.getByRole('button', { name: 'Submit scoring mock' }),
+      ).toBeInTheDocument();
+      expect(reportWarning).not.toHaveBeenCalled();
     });
   });
 });

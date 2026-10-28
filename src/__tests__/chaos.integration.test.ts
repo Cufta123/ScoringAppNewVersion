@@ -85,6 +85,9 @@ const GUARDS: RegExp[] = [
   /No scored race found to undo/i,
   /has already raced\. Undo its race first/i, // moving a boat
   /Score the current round before/i,
+  /Nothing was changed after this point/i,
+  /No qualifying heats found for this event/i, // back to before the heats
+  /No boats are registered for this event yet/i, // back to before the entries
 ];
 
 const isGuard = (error: unknown) =>
@@ -241,6 +244,7 @@ describe('chaos: random race-office sessions keep the data whole', () => {
         .all(heatId) as { sail_number: number; country: string }[];
     const latestQualifying = () => {
       const heats = heatsNow().filter((h) => h.heat_type === 'Qualifying');
+      if (heats.length === 0) return [];
       const round = Math.max(
         ...heats.map((h) => Number(h.heat_name.match(/(\d+)$/)![1])),
       );
@@ -380,6 +384,29 @@ describe('chaos: random race-office sessions keep the data whole', () => {
           const action = pick(history as any[]);
           if (action?.action_id != null) {
             await call('revertHistoryAction', eventId, action.action_id);
+          }
+        },
+      ],
+      [
+        'create the heats',
+        1,
+        async () => {
+          if (heatsNow().length === 0) {
+            await call('createInitialHeatsAtomic', eventId, heatCount);
+          }
+        },
+      ],
+      [
+        'go back to a point in the history',
+        1,
+        async () => {
+          const history = (await call('readEventHistory', eventId)) as any[];
+          const ids = history
+            .map((a) => a.action_id)
+            .filter((id) => id != null);
+          const target = pick(ids.slice(1));
+          if (target != null) {
+            await call('restoreEventToHistoryPoint', eventId, target);
           }
         },
       ],

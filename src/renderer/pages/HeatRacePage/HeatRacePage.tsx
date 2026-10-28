@@ -41,7 +41,41 @@ function HeatRacePage() {
   const refreshHeats = useCallback(() => {
     setHeatsRefreshToken((token) => token + 1);
   }, []);
-  useEventDataChanged(event?.event_id, refreshHeats);
+  // After going back in the history (or an undo there) the heat being scored
+  // may be gone or may have been raced already; leave its scoring view then,
+  // rather than let a finish order be submitted into a heat that changed.
+  const onEventDataChanged = useCallback(async () => {
+    refreshHeats();
+    if (!event?.event_id) return;
+    try {
+      const allHeats = await heatRaceDB.readAllHeats(event.event_id);
+      setFinalSeriesStarted(
+        allHeats.some((heat) => heat.heat_type === 'Final'),
+      );
+      if (isScoring && selectedHeat) {
+        const stillThere = allHeats.some(
+          (heat) => heat.heat_id === selectedHeat.heat_id,
+        );
+        const races = stillThere
+          ? await heatRaceDB.readAllRaces(selectedHeat.heat_id)
+          : [];
+        const changed =
+          !stillThere || (races.length ?? 0) !== (selectedHeat.raceNumber ?? 0);
+        if (changed) {
+          setIsScoring(false);
+          setSelectedHeat(null);
+          setHasUnsavedEntry(false);
+          reportWarning(
+            `${selectedHeat.heat_name} changed in the history while you were scoring it, so its scoring was closed. Nothing was saved for it; open it again if it still needs scoring.`,
+            'Heat changed',
+          );
+        }
+      }
+    } catch (error) {
+      reportError('Could not reload the heats.', error);
+    }
+  }, [event?.event_id, isScoring, selectedHeat, refreshHeats]);
+  useEventDataChanged(event?.event_id, onEventDataChanged);
 
   // Refresh-safe: resolve the event from the URL when router state is gone.
   useEffect(() => {
@@ -351,9 +385,8 @@ function HeatRacePage() {
     try {
       const allHeats = await heatRaceDB.readAllHeats(event.event_id);
       const finalHeats = allHeats.filter((heat) => heat.heat_type === 'Final');
-      if (finalHeats.length > 0) {
-        setFinalSeriesStarted(true);
-      }
+      // Can go back to false: going back in the history can undo the start.
+      setFinalSeriesStarted(finalHeats.length > 0);
     } catch (error) {
       reportError('Could not check final series status.', error);
     }

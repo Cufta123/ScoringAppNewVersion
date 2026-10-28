@@ -115,7 +115,8 @@ export function readEventHistory(event_id: number): HistoryAction[] {
     .prepare(
       `SELECT c.change_id, c.action_id, c.at, c.table_name, c.op, c.row_key,
               c.old_row, c.new_row, c.context, a.channel, a.at AS action_at,
-              a.reverts_action_id, ra.channel AS reverts_channel
+              a.reverts_action_id, ra.channel AS reverts_channel,
+              a.restores_to_action_id
        FROM ChangeLog c
        LEFT JOIN ChangeActions a ON a.action_id = c.action_id
        LEFT JOIN ChangeActions ra ON ra.action_id = a.reverts_action_id
@@ -139,6 +140,7 @@ export function readEventHistory(event_id: number): HistoryAction[] {
       changes: [change],
       reverts_action_id: row.reverts_action_id ?? null,
       reverts_channel: row.reverts_channel ?? null,
+      restores_to_action_id: row.restores_to_action_id ?? null,
     });
   });
   // Inside an action, show the changes in the order they were made.
