@@ -25,3 +25,23 @@ export function getHeatGroupFromName(heat_name: string): string | null {
   const match = String(heat_name).match(/Heat\s+([A-Z]+)/);
   return match ? match[1] : null;
 }
+
+/**
+ * How many distinct qualifying heat groups ("Heat A1", "Heat B1", "Heat A2"
+ * -> 2) a set of heats has. The Final Series has this many fleets (SHRS 4.1),
+ * and fewer than 2 means the event is one fleet (SHRS 1.1). Names that are not
+ * qualifying heats are ignored. The one count behind both
+ * `getFinalSeriesEligibility` and `startFinalSeriesAtomic`.
+ */
+export function countQualifyingGroups(
+  heats: ReadonlyArray<{ heat_name: string }>,
+): number {
+  const groups = new Set<string>();
+  heats.forEach((heat) => {
+    const group = getHeatGroupFromName(heat.heat_name);
+    if (group !== null) {
+      groups.add(group);
+    }
+  });
+  return groups.size;
+}

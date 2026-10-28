@@ -1,6 +1,10 @@
 import { db } from '../../../public/Database/DBManager';
 import { findLatestHeatsBySuffix } from './creatingNewHeatsUtls';
 import { getRaceCountForHeat } from './heatQueries';
+import {
+  countQualifyingGroups,
+  getHeatRoundFromName,
+} from '../../shared/heatNames';
 import type { FinalSeriesEligibility } from '../../shared/finalSeriesEligibility';
 
 export type { FinalSeriesEligibility };
@@ -31,14 +35,7 @@ export function getFinalSeriesEligibility(
     return { ok: false, reason: 'NO_HEATS', ...empty };
   }
 
-  const uniqueGroups = new Set<string>();
-  qualifyingHeats.forEach((heat) => {
-    const match = heat.heat_name.match(/Heat ([A-Z]+)/);
-    if (match) {
-      uniqueGroups.add(match[1]);
-    }
-  });
-  const numFinalHeats = uniqueGroups.size;
+  const numFinalHeats = countQualifyingGroups(qualifyingHeats);
   if (numFinalHeats < 2) {
     return { ok: false, reason: 'SINGLE_FLEET', ...empty, numFinalHeats };
   }
@@ -89,8 +86,11 @@ export function getFinalSeriesEligibility(
   // completed round; the renderer surfaces this instead of "no races".
   const latestRoundUnsailed =
     racesFromHeats === 0 && completedQualifyingRaces > 0;
-  const suffixMatch = latestHeats[0]?.heat_name.match(/Heat [A-Z]+(\d+)/);
-  const latestRoundNumber = suffixMatch ? parseInt(suffixMatch[1], 10) : null;
+  const latestRound = latestHeats[0]
+    ? getHeatRoundFromName(latestHeats[0].heat_name)
+    : null;
+  // A name without a numeric suffix has no round number (null, not 0).
+  const latestRoundNumber = latestRound || null;
 
   // RULE-m3 / SHRS 4.2: final-fleet assignment is based on the boats' ranking in
   // the Qualifying Series, which requires at least one completed qualifying race

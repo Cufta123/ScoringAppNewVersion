@@ -1,5 +1,6 @@
 import { db } from '../../../public/Database/DBManager';
 import { getHeatBaseFromName, getHeatRoundFromName } from './scoreStatus';
+import { getHeatGroupFromName } from '../../shared/heatNames';
 
 /**
  * Server-side guards for writes that would contradict the shape of the series.
@@ -47,7 +48,7 @@ export function laterRoundHeatNames(heat: HeatRow): string[] {
       return (
         otherRound !== null &&
         otherRound > round &&
-        name.match(/Heat\s+([A-Z]+)/)?.[1] === base
+        getHeatGroupFromName(name) === base
       );
     });
 }
