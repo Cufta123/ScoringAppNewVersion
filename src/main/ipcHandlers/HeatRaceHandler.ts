@@ -46,7 +46,6 @@ import {
   getHeatRoundFromName,
   getScoringPenaltyPoints,
   normalizeScoreStatus,
-  rdgStatuses,
   scoringPenaltyStatuses,
 } from '../functions/scoreStatus';
 import handle from './handle';
@@ -62,10 +61,7 @@ import {
   getOddEvenMovementAdvisory,
 } from '../functions/raceSeeding';
 import { getAssignmentRowsForHeatRace } from '../functions/assignmentShield';
-import {
-  assertQualifyingHeatIsOpen,
-  hasFinalSeriesStarted,
-} from '../functions/seriesGuards';
+import { assertQualifyingHeatIsOpen } from '../functions/seriesGuards';
 import {
   boatsByEntryName,
   findIndistinguishableBoats,
@@ -73,18 +69,13 @@ import {
 } from '../../shared/boatKeys';
 import {
   applyRaceColumnState,
-  applyRaceResultUpdate,
   applyRaceTieScoring,
   ensureCompleteRaceScoresForEvent,
   getMaxHeatSize,
-  recomputeLeaderboardsForRace,
   seedRaceWithDefaultDnsScores,
 } from '../functions/raceScoring';
 import buildAdjustedFleetLeaderboard from '../functions/fleetTotals';
-import {
-  sanitizePositiveFinite,
-  sanitizePositiveInteger,
-} from '../functions/validation';
+import { sanitizePositiveInteger } from '../functions/validation';
 
 console.log('HeatRaceHandler.ts loaded');
 
@@ -146,15 +137,6 @@ handle('restoreEventSnapshotFromFile', async (_event, event_id) => {
     success: true,
     filePath,
   };
-});
-
-handle('insertHeat', async (event, event_id, heat_name, heat_type) => {
-  const result = db
-    .prepare(
-      'INSERT INTO Heats (event_id, heat_name, heat_type) VALUES (?, ?, ?)',
-    )
-    .run(event_id, heat_name, heat_type);
-  return { lastInsertRowid: result.lastInsertRowid };
 });
 
 handle('insertHeatBoat', async (event, heat_id, boat_id) => {
@@ -442,18 +424,6 @@ handle('recreateInitialHeatsAtomic', async (_event, event_id, num_heats) => {
   return { success: true, ...recreate() };
 });
 
-handle('deleteHeatsByEvent', async (event, event_id) => {
-  assertNoScoredRacesForEvent(event_id);
-
-  // One transaction so a failure can never leave a half-deleted event
-  // (e.g. assignments gone but heats still present).
-  const wipeHeats = db.transaction(() => wipeHeatsForEvent(event_id));
-  const result = wipeHeats();
-  console.log(
-    `Deleted ${result.heatsChanges} heat(s) and ${result.heatBoatsChanges} assignment(s) for event ID ${event_id}.`,
-  );
-  return result;
-});
 handle('readBoatsByHeat', async (event, heat_id) => {
   const boats = db
     .prepare(
@@ -482,104 +452,6 @@ handle('readAllRaces', async (event, heat_id) => {
     .all(heat_id);
   return races;
 });
-
-handle('insertRace', async (event, heat_id, race_number) => {
-  const heatRow = db
-    .prepare('SELECT event_id FROM Heats WHERE heat_id = ?')
-    .get(heat_id) as { event_id?: number } | undefined;
-
-  if (heatRow?.event_id == null) {
-    throw new Error(
-      'This heat no longer exists (it may have been removed in the meantime). Reload the page.',
-    );
-  }
-
-  // BK-5: the race INSERT and the default DNS seed must commit together — a
-  // failure between them would leave an orphan race with zero scores.
-  const insertRaceTx = db.transaction(() => {
-    const result = db
-      .prepare('INSERT INTO Races (heat_id, race_number) VALUES (?, ?)')
-      .run(heat_id, race_number);
-    seedRaceWithDefaultDnsScores(Number(result.lastInsertRowid), heat_id);
-    return { lastInsertRowid: result.lastInsertRowid };
-  });
-  return insertRaceTx();
-});
-
-handle('readAllScores', async (event, race_id) => {
-  const scores = db
-    .prepare('SELECT * FROM Scores WHERE race_id = ?')
-    .all(race_id);
-  return scores;
-});
-
-handle(
-  'insertScore',
-  async (event, race_id, boat_id, position, points, status) => {
-    try {
-      const raceRow = db
-        .prepare(
-          `SELECT h.event_id
-           FROM Races r
-           JOIN Heats h ON h.heat_id = r.heat_id
-           WHERE r.race_id = ?`,
-        )
-        .get(race_id) as { event_id?: number } | undefined;
-
-      if (raceRow?.event_id == null) {
-        throw new Error(
-          'This race no longer exists (it may have been undone in the meantime). Reload the page.',
-        );
-      }
-
-      const normalizedStatus = normalizeScoreStatus(status);
-
-      // BK-6: guard position/points against NaN/0/negative before binding so a
-      // bad payload surfaces a clear error instead of an opaque
-      // SQLITE_CONSTRAINT (better-sqlite3 stores NaN as NULL, violating NOT NULL).
-      // RDG*/DPI positions are protest-committee-set and may be fractional or
-      // < 1 (CMP C-23/C-24), so they only need to be finite and positive; every
-      // other status writes a finishing place (a positive whole number).
-      const keepsProvidedPoints =
-        rdgStatuses.includes(normalizedStatus) || normalizedStatus === 'DPI';
-      const safePosition = keepsProvidedPoints
-        ? sanitizePositiveFinite(position, 'The points')
-        : sanitizePositiveInteger(position, 'The place');
-      const safePoints = sanitizePositiveFinite(points, 'The points');
-
-      // BK-5: the UPDATE-or-INSERT, A7 tie re-scoring and discard-profile lock
-      // must commit together — an unwrapped UPDATE-then-INSERT lets two
-      // concurrent calls both see `changes === 0` and double-INSERT.
-      const insertScoreTx = db.transaction(() => {
-        const updated = db
-          .prepare(
-            'UPDATE Scores SET position = ?, points = ?, status = ? WHERE race_id = ? AND boat_id = ?',
-          )
-          .run(safePosition, safePoints, normalizedStatus, race_id, boat_id);
-
-        let result = updated;
-        if (updated.changes === 0) {
-          result = db
-            .prepare(
-              'INSERT INTO Scores (race_id, boat_id, position, points, status) VALUES (?, ?, ?, ?, ?)',
-            )
-            .run(race_id, boat_id, safePosition, safePoints, normalizedStatus);
-        }
-
-        if (normalizedStatus === 'FINISHED') {
-          applyRaceTieScoring(race_id);
-        }
-        lockDiscardProfileForRace(Number(race_id));
-        return { lastInsertRowid: result.lastInsertRowid };
-      });
-
-      return insertScoreTx();
-    } catch (error) {
-      console.error('Error inserting score:', error);
-      throw error;
-    }
-  },
-);
 
 handle('getMaxHeatSize', async (event, event_id, heat_type) => {
   return getMaxHeatSize(event_id, heat_type || undefined);
@@ -833,89 +705,6 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
     console.error('Error submitting heat race scores:', error);
     throw error;
   }
-});
-
-handle('updateScore', async (event, score_id, position, points, status) => {
-  try {
-    const normalizedStatus = normalizeScoreStatus(status);
-    // BK-6: guard position/points against NaN/0/negative before binding so a
-    // bad payload surfaces a clear error instead of an opaque
-    // SQLITE_CONSTRAINT. RDG*/DPI positions are protest-committee-set and may
-    // be fractional or < 1, so they only need to be finite and positive;
-    // every other status writes a finishing place (a positive whole number).
-    const keepsProvidedPoints =
-      rdgStatuses.includes(normalizedStatus) || normalizedStatus === 'DPI';
-    const safePosition = keepsProvidedPoints
-      ? sanitizePositiveFinite(position, 'The points')
-      : sanitizePositiveInteger(position, 'The place');
-    const safePoints = sanitizePositiveFinite(points, 'The points');
-    const row = db
-      .prepare('SELECT race_id FROM Scores WHERE score_id = ?')
-      .get(score_id) as { race_id?: number } | undefined;
-    const raceId = row?.race_id != null ? Number(row.race_id) : null;
-    // BK-7: wrap the write, tie re-scoring and recompute in one transaction so
-    // an edit that changes a finisher can't leave stale A7 tie points on the
-    // other finishers or a stale leaderboard behind. (recomputeEventLeaderboard
-    // has its own inner transaction; better-sqlite3 nests it as a savepoint.)
-    const applyUpdate = db.transaction(() => {
-      const runResult = db
-        .prepare(
-          'UPDATE Scores SET position = ?, points = ?, status = ? WHERE score_id = ?',
-        )
-        .run(safePosition, safePoints, normalizedStatus, score_id);
-      if (raceId != null) {
-        lockDiscardProfileForRace(raceId);
-        // Re-run RRS A7 tie scoring for the race so the remaining finishers
-        // get correct shared/averaged points after this edit.
-        applyRaceTieScoring(raceId);
-        // Recompute the leaderboards inside the same transaction so a
-        // recompute failure rolls back the edit instead of leaving it
-        // persisted with a stale leaderboard (BK-7).
-        recomputeLeaderboardsForRace(raceId);
-      }
-      return runResult;
-    });
-    const result = applyUpdate();
-    return { changes: result.changes };
-  } catch (error) {
-    console.error('Error updating score:', error);
-    throw error;
-  }
-});
-handle('updateEventLeaderboard', async (event, event_id) => {
-  recomputeEventLeaderboard(event_id);
-  // BK-9: return the same {success:true} contract as updateFinalLeaderboard
-  // so renderer callers that inspect the result get a consistent shape
-  // instead of `undefined`.
-  return { success: true };
-});
-
-handle('deleteScore', async (event, score_id) => {
-  // BK-7: capture the race BEFORE deleting so we can re-run tie scoring and
-  // recompute the leaderboard afterwards. Deleting a finisher's row otherwise
-  // leaves the remaining tied boats on stale averaged points and the stored
-  // leaderboard out of date.
-  const row = db
-    .prepare('SELECT race_id FROM Scores WHERE score_id = ?')
-    .get(score_id) as { race_id?: number } | undefined;
-  const raceId = row?.race_id != null ? Number(row.race_id) : null;
-  const applyDelete = db.transaction(() => {
-    const runResult = db
-      .prepare('DELETE FROM Scores WHERE score_id = ?')
-      .run(score_id);
-    if (raceId != null && runResult.changes > 0) {
-      applyRaceTieScoring(raceId);
-      // Recompute inside the same transaction, exactly as updateScore does:
-      // a recompute failure must roll the delete back rather than leave the
-      // score gone, the other finishers' A7 tie points rewritten and the
-      // stored leaderboard stale — which is what the caller sees when the
-      // IPC call rejects after the delete has already committed (BK-7).
-      recomputeLeaderboardsForRace(raceId);
-    }
-    return runResult;
-  });
-  const result = applyDelete();
-  return { changes: result.changes };
 });
 
 handle(
@@ -1345,68 +1134,6 @@ handle('undoLastScoredRaceForHeat', async (event, heat_id) => {
   };
 });
 
-handle('undoLastScoredRace', async (event, event_id) => {
-  if (hasFinalSeriesStarted(Number(event_id))) {
-    throw new Error(
-      'Cannot undo a qualifying race: the Final Series has already started, so the qualifying series is closed.',
-    );
-  }
-  const latestHeats = getLatestQualifyingHeats(event_id);
-  checkRaceCountForLatestHeats(latestHeats, db);
-
-  const latestRaceByHeatQuery = db.prepare(
-    `SELECT race_id, race_number
-     FROM Races
-     WHERE heat_id = ?
-     ORDER BY race_number DESC, race_id DESC
-     LIMIT 1`,
-  );
-
-  const raceRows = latestHeats.map((heat) => {
-    const row = latestRaceByHeatQuery.get(heat.heat_id);
-    if (!row) {
-      throw new Error('No scored race found to undo.');
-    }
-    return row;
-  });
-
-  const raceNumbers = [...new Set(raceRows.map((row) => row.race_number))];
-  if (raceNumbers.length > 1) {
-    throw new Error(
-      'The heats of the current round have not all sailed the same number of races. Score (or undo) races until every heat is on the same race, then try again.',
-    );
-  }
-
-  const raceIds = raceRows.map((row) => row.race_id);
-  const deleteScoresByRace = db.prepare('DELETE FROM Scores WHERE race_id = ?');
-  const deleteRaceById = db.prepare('DELETE FROM Races WHERE race_id = ?');
-
-  const transaction = db.transaction(() => {
-    let removedScores = 0;
-    let removedRaces = 0;
-
-    raceIds.forEach((raceId) => {
-      // Snapshot rows reference the race (FK enforced, no cascade): clear
-      // them before the race, inside the same transaction.
-      clearAssignmentSnapshot(raceId);
-      removedScores += deleteScoresByRace.run(raceId).changes;
-      removedRaces += deleteRaceById.run(raceId).changes;
-    });
-
-    recomputeEventLeaderboard(event_id);
-    return { removedScores, removedRaces };
-  });
-
-  const result = transaction();
-
-  return {
-    success: true,
-    raceNumber: raceNumbers[0],
-    removedScores: result.removedScores,
-    removedRaces: result.removedRaces,
-  };
-});
-
 handle('undoLatestHeatRedistribution', async (event, event_id) => {
   const latestHeats = getLatestQualifyingHeats(event_id);
 
@@ -1582,147 +1309,59 @@ handle(
 );
 
 handle(
-  'updateRaceResult',
-  async (
-    event,
-    event_id,
-    race_id,
-    boat_id,
-    new_position,
-    shift_positions,
-    new_status,
-  ) => {
-    try {
-      // BK-5: the sequential position/points UPDATEs, discard-profile lock and
-      // leaderboard recompute must share one transaction so a mid-write failure
-      // rolls back instead of leaving a half-updated race and a stale
-      // leaderboard. (recomputeEventLeaderboard has its own inner transaction;
-      // better-sqlite3 nests it as a savepoint.)
-      const raceId = Number(race_id);
-      // `applyRaceResultUpdate` writes the module-level cache Map directly,
-      // which a DB rollback does not undo. It both ADDS entries (capture) and
-      // REMOVES boats from an existing entry (unshield), so remembering whether
-      // the race id was present is not enough — the entry's CONTENTS must be
-      // restored, otherwise a failed save leaves a boat permanently un-shielded
-      // in memory while the DB still holds its frozen row (RULE-M21).
-      const snapshotBefore = raceAssignmentSnapshots.get(raceId);
-      const snapshotBackup = snapshotBefore ? new Map(snapshotBefore) : null;
+  'saveLeaderboardRaceResultsAtomic',
+  async (_event, event_id, operations, updateFinalLeaderboard = false) => {
+    const safeOperations = Array.isArray(operations) ? operations : [];
+    // The leaderboard edit screen sends each touched race whole, as it shows
+    // it (see applyRaceColumnState); nothing else is accepted.
+    if (safeOperations.some((operation) => !Array.isArray(operation?.cells))) {
+      throw new Error(
+        'This change did not include the whole race it belongs to, so it was not saved. Reload the leaderboard and make the change again.',
+      );
+    }
 
-      const applyUpdate = db.transaction(() => {
-        applyRaceResultUpdate(
-          event_id,
-          race_id,
-          boat_id,
-          new_position,
-          Boolean(shift_positions),
-          new_status,
-        );
-        lockDiscardProfileForRace(raceId);
-        recomputeEventLeaderboard(event_id);
+    // Rollback guard for the in-memory assignment-snapshot cache: the cache
+    // Map survives a DB rollback, so back up each touched race's frozen rows
+    // and restore them wholesale on failure. A presence-only guard is not
+    // enough because an unshield mutates an existing entry rather than adding
+    // one (RULE-M21).
+    const snapshotRaceIds = [
+      ...new Set(safeOperations.map((operation) => Number(operation.raceId))),
+    ];
+    const snapshotBackups = new Map<
+      number,
+      Map<string, FrozenAssignmentRow> | null
+    >();
+    snapshotRaceIds.forEach((raceId) => {
+      const existing = raceAssignmentSnapshots.get(raceId);
+      snapshotBackups.set(raceId, existing ? new Map(existing) : null);
+    });
+
+    const tx = db.transaction(() => {
+      safeOperations.forEach((operation) => {
+        applyRaceColumnState(event_id, operation.raceId, operation.cells);
+        lockDiscardProfileForRace(Number(operation.raceId));
       });
 
-      try {
-        applyUpdate();
-      } catch (err) {
-        if (snapshotBackup) {
-          raceAssignmentSnapshots.set(raceId, snapshotBackup);
+      recomputeEventLeaderboard(event_id);
+      if (updateFinalLeaderboard) {
+        recomputeFinalLeaderboard(event_id);
+      }
+    });
+
+    try {
+      tx();
+    } catch (error) {
+      snapshotBackups.forEach((backup, raceId) => {
+        if (backup) {
+          raceAssignmentSnapshots.set(raceId, backup);
         } else {
           raceAssignmentSnapshots.delete(raceId);
         }
-        throw err;
-      }
-
-      return { success: true };
-    } catch (err) {
-      console.error('Error updating race result:', (err as Error).message);
-      throw err;
-    }
-  },
-);
-
-handle(
-  'saveLeaderboardRaceResultsAtomic',
-  async (
-    _event,
-    event_id,
-    operations,
-    shift_positions,
-    updateFinalLeaderboard = false,
-  ) => {
-    try {
-      const safeOperations = Array.isArray(operations) ? operations : [];
-      // Rollback guard for the in-memory assignment-snapshot cache (see
-      // updateRaceResult): the cache Map survives a DB rollback, so back up each
-      // touched race's frozen rows and restore them wholesale on failure. A
-      // presence-only guard is not enough because an unshield mutates an
-      // existing entry rather than adding one (RULE-M21).
-      const snapshotRaceIds = [
-        ...new Set(safeOperations.map((operation) => Number(operation.raceId))),
-      ];
-      const snapshotBackups = new Map<
-        number,
-        Map<string, FrozenAssignmentRow> | null
-      >();
-      snapshotRaceIds.forEach((raceId) => {
-        const existing = raceAssignmentSnapshots.get(raceId);
-        snapshotBackups.set(raceId, existing ? new Map(existing) : null);
       });
-
-      const tx = db.transaction(() => {
-        safeOperations.forEach((operation) => {
-          // The leaderboard edit screen sends each touched race whole, as it
-          // shows it (see applyRaceColumnState).
-          if (Array.isArray(operation.cells)) {
-            applyRaceColumnState(event_id, operation.raceId, operation.cells);
-            lockDiscardProfileForRace(Number(operation.raceId));
-            return;
-          }
-          // Each operation carries the shift-toggle state from when the user
-          // made that edit, so the write replays exactly what the renderer
-          // previewed. The call-level flag remains as fallback for callers
-          // that don't send per-operation state.
-          const shiftForOperation =
-            operation.shiftPositions != null
-              ? Boolean(operation.shiftPositions)
-              : Boolean(shift_positions);
-          applyRaceResultUpdate(
-            event_id,
-            operation.raceId,
-            operation.boatId,
-            operation.newPosition,
-            shiftForOperation,
-            operation.entryStatus,
-            operation.rdgRaceIds,
-          );
-          lockDiscardProfileForRace(Number(operation.raceId));
-        });
-
-        recomputeEventLeaderboard(event_id);
-        if (updateFinalLeaderboard) {
-          recomputeFinalLeaderboard(event_id);
-        }
-      });
-
-      try {
-        tx();
-      } catch (error) {
-        snapshotBackups.forEach((backup, raceId) => {
-          if (backup) {
-            raceAssignmentSnapshots.set(raceId, backup);
-          } else {
-            raceAssignmentSnapshots.delete(raceId);
-          }
-        });
-        throw error;
-      }
-      return { success: true, updatedCount: safeOperations.length };
-    } catch (error) {
-      console.error(
-        'Error saving leaderboard race results atomically:',
-        (error as Error).message,
-      );
       throw error;
     }
+    return { success: true, updatedCount: safeOperations.length };
   },
 );
 
@@ -1799,12 +1438,6 @@ handle('readLeaderboard', async (event, event_id) => {
     } entries`,
   );
   return results;
-});
-
-handle('updateFinalLeaderboard', async (event, event_id) => {
-  recomputeFinalLeaderboard(event_id);
-  console.log('Final leaderboard updated successfully.');
-  return { success: true };
 });
 
 handle('readFinalLeaderboard', async (event, event_id) => {

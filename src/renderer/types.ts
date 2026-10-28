@@ -100,15 +100,6 @@ export interface RaceRow {
   race_number: number;
 }
 
-export interface ScoreRow {
-  score_id: number;
-  race_id: number;
-  boat_id: number;
-  position: number;
-  points: number;
-  status: ScoreStatus;
-}
-
 // --- Joined / denormalized read shapes --------------------------------------
 
 /**

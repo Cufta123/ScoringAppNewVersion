@@ -136,7 +136,7 @@ describe('recreateInitialHeatsAtomic', () => {
     expect(assignmentCount(db)).toBe(9);
   });
 
-  it('seeds identically to a delete followed by a fresh create', async () => {
+  it('seeds identically to creating the heats on an empty event', async () => {
     await handlerRegistry.recreateInitialHeatsAtomic({}, EVENT_ID, 3);
     const viaRecreate = db
       .prepare(
@@ -146,9 +146,9 @@ describe('recreateInitialHeatsAtomic', () => {
       )
       .all();
 
-    await handlerRegistry.deleteHeatsByEvent({}, EVENT_ID);
+    db.exec('DELETE FROM Heat_Boat; DELETE FROM Heats;');
     await handlerRegistry.createInitialHeatsAtomic({}, EVENT_ID, 3);
-    const viaDeleteThenCreate = db
+    const viaFreshCreate = db
       .prepare(
         `SELECT h.heat_name, hb.boat_id FROM Heat_Boat hb
          JOIN Heats h ON h.heat_id = hb.heat_id
@@ -156,6 +156,6 @@ describe('recreateInitialHeatsAtomic', () => {
       )
       .all();
 
-    expect(viaRecreate).toEqual(viaDeleteThenCreate);
+    expect(viaRecreate).toEqual(viaFreshCreate);
   });
 });

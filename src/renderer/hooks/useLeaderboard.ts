@@ -1325,7 +1325,6 @@ export default function useLeaderboard(eventId: number) {
         await heatRaceDB.saveLeaderboardRaceResultsAtomic(
           eventId,
           updateOperations,
-          false,
           finalSeriesStarted,
         );
 

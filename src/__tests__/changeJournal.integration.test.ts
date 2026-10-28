@@ -112,6 +112,18 @@ async function scoreHeat(
   return result.raceId as number;
 }
 
+/** Correct one boat's result in a race, as the leaderboard's Save does. */
+const editResult = (
+  eventId: number,
+  raceId: number,
+  boatId: number,
+  position: number,
+  status: string,
+) =>
+  call('saveLeaderboardRaceResultsAtomic', eventId, [
+    { raceId, cells: [{ boatId, position, status }] },
+  ]);
+
 const history = (eventId: number): Promise<HistoryAction[]> =>
   call('readEventHistory', eventId);
 
@@ -152,13 +164,13 @@ describe('change journal through the real handlers', () => {
     await call('createInitialHeatsAtomic', eventId, 2);
     const raceId = await scoreHeat(db, eventId, 'Heat A1');
     const [firstSail] = sailsIn(db, heatId(db, eventId, 'Heat A1'));
-    await call('updateRaceResult', eventId, raceId, firstSail, 1, false, 'DSQ');
+    await editResult(eventId, raceId, firstSail, 1, 'DSQ');
     await call('undoLastScoredRaceForHeat', heatId(db, eventId, 'Heat A1'));
 
     const actions = await history(eventId);
     expect(labels(actions)).toEqual([
       'Last race of a heat undone',
-      'Result changed',
+      'Results edited on the leaderboard',
       'Race scored',
       'Heats created',
       'Boat entered',
@@ -200,7 +212,7 @@ describe('change journal through the real handlers', () => {
     await call('createInitialHeatsAtomic', eventId, 2);
     await scoreHeat(db, eventId, 'Heat A1');
     await scoreHeat(db, eventId, 'Heat B1');
-    await call('updateEventLeaderboard', eventId);
+    await call('readLeaderboard', eventId);
     const tables = db
       .prepare('SELECT DISTINCT table_name FROM ChangeLog')
       .all()
@@ -327,7 +339,7 @@ describe('undoing a change from the history (real handlers)', () => {
     const { eventId, raceA, winner } = await scoredEvent();
     const before = state();
 
-    await call('updateRaceResult', eventId, raceA, winner, 1, false, 'DSQ');
+    await editResult(eventId, raceA, winner, 1, 'DSQ');
     const decided = state();
     expect(decided.shields.length).toBeGreaterThan(0);
     const decision = await newest(eventId);
@@ -336,7 +348,9 @@ describe('undoing a change from the history (real handlers)', () => {
     expect(state()).toEqual(before);
 
     const actions = await history(eventId);
-    expect(summarizeAction(actions[0]).label).toBe('Undid “Result changed”');
+    expect(summarizeAction(actions[0]).label).toBe(
+      'Undid “Results edited on the leaderboard”',
+    );
     expect(summarizeAction(actions[0]).lines).toContainEqual(
       expect.stringMatching(/→ 1 \(1 point\)$/),
     );
@@ -347,9 +361,9 @@ describe('undoing a change from the history (real handlers)', () => {
 
   it('refuses to overwrite a later change to the same result', async () => {
     const { eventId, raceA, winner } = await scoredEvent();
-    await call('updateRaceResult', eventId, raceA, winner, 1, false, 'DSQ');
+    await editResult(eventId, raceA, winner, 1, 'DSQ');
     const first = await newest(eventId);
-    await call('updateRaceResult', eventId, raceA, winner, 1, false, 'DNF');
+    await editResult(eventId, raceA, winner, 1, 'DNF');
     const second = await newest(eventId);
     const afterBoth = state();
     const historyBefore = await history(eventId);
@@ -357,7 +371,7 @@ describe('undoing a change from the history (real handlers)', () => {
     await expect(
       call('revertHistoryAction', eventId, first.action_id),
     ).rejects.toThrow(
-      /was changed again later by “Result changed”\. Undo that change first\./,
+      /was changed again later by “Results edited on the leaderboard”\. Undo that change first\./,
     );
     // A refused undo changes nothing and leaves no trace.
     expect(state()).toEqual(afterBoth);
@@ -381,7 +395,7 @@ describe('undoing a change from the history (real handlers)', () => {
     const before = state();
 
     // Sail 4 gets average-points redress for race 1...
-    await call('updateRaceResult', eventId, race1, 4, 4, false, 'RDG1');
+    await editResult(eventId, race1, 4, 4, 'RDG1');
     const redress = await newest(eventId);
     const rdgPoints = () =>
       db
@@ -414,7 +428,7 @@ describe('undoing a change from the history (real handlers)', () => {
 
   it('refuses an action of another event', async () => {
     const { eventId, raceA, winner } = await scoredEvent();
-    await call('updateRaceResult', eventId, raceA, winner, 1, false, 'DSQ');
+    await editResult(eventId, raceA, winner, 1, 'DSQ');
     const decision = await newest(eventId);
     const other = await createEvent('Other');
     await expect(

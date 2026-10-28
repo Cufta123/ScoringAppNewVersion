@@ -121,15 +121,9 @@ describe('undo, series guards and missed-round DNCs (real SQLite, FKs on)', () =
     it('undoes one heat’s race and clears its SHRS 3.1.5 snapshot', async () => {
       const raceId = await scoreHeat(db, 'Heat A1');
       const [firstBoat] = boatsIn(db, 'Heat A1');
-      await handlerRegistry.updateRaceResult(
-        {},
-        EVENT_ID,
-        raceId,
-        firstBoat,
-        1,
-        false,
-        'DSQ',
-      );
+      await handlerRegistry.saveLeaderboardRaceResultsAtomic({}, EVENT_ID, [
+        { raceId, cells: [{ boatId: firstBoat, position: 1, status: 'DSQ' }] },
+      ]);
       expect(snapshotRows(db)).toBeGreaterThan(0);
 
       await expect(
@@ -144,19 +138,23 @@ describe('undo, series guards and missed-round DNCs (real SQLite, FKs on)', () =
     it('undoes a whole round that carries a protest decision', async () => {
       const raceId = await scoreHeat(db, 'Heat A1');
       await scoreHeat(db, 'Heat B1');
-      await handlerRegistry.updateRaceResult(
-        {},
-        EVENT_ID,
-        raceId,
-        boatsIn(db, 'Heat A1')[0],
-        1,
-        false,
-        'DSQ',
-      );
+      await handlerRegistry.saveLeaderboardRaceResultsAtomic({}, EVENT_ID, [
+        {
+          raceId,
+          cells: [
+            { boatId: boatsIn(db, 'Heat A1')[0], position: 1, status: 'DSQ' },
+          ],
+        },
+      ]);
 
+      // The scoring page undoes a round heat by heat.
       await expect(
-        handlerRegistry.undoLastScoredRace({}, EVENT_ID),
-      ).resolves.toMatchObject({ success: true, removedRaces: 2 });
+        handlerRegistry.undoLastScoredRaceForHeat({}, heatId(db, 'Heat A1')),
+      ).resolves.toMatchObject({ success: true });
+      await expect(
+        handlerRegistry.undoLastScoredRaceForHeat({}, heatId(db, 'Heat B1')),
+      ).resolves.toMatchObject({ success: true });
+      expect(db.prepare('SELECT COUNT(*) AS c FROM Races').get().c).toBe(0);
       expect(snapshotRows(db)).toBe(0);
       expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
     });
@@ -197,9 +195,6 @@ describe('undo, series guards and missed-round DNCs (real SQLite, FKs on)', () =
       await scoreHeat(db, 'Heat B2');
       await handlerRegistry.startFinalSeriesAtomic({}, EVENT_ID);
 
-      await expect(
-        handlerRegistry.undoLastScoredRace({}, EVENT_ID),
-      ).rejects.toThrow(/Final Series has already started/);
       await expect(
         handlerRegistry.undoLastScoredRaceForHeat({}, heatId(db, 'Heat A2')),
       ).rejects.toThrow(/Final Series has already started/);
