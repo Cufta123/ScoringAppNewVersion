@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 // Disable no-unused-vars, broken for spread args
 /* eslint no-unused-vars: off */
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
@@ -91,8 +90,8 @@ const makeInvoker =
     invokeChannel(channel, ...args);
 
 // Wraps every exposed sqlite method so a resolved `false` (legacy failure
-// signal from some handlers) is converted to a thrown error, and any failure is
-// logged once, centrally, for diagnostics.
+// signal from some handlers) is converted to a thrown error. Failures are
+// logged once, in the main process, by `handle()`.
 const wrapSqliteApi = <T extends Record<string, any>>(api: T): T => {
   const wrapped = {} as T;
 
@@ -111,16 +110,11 @@ const wrapSqliteApi = <T extends Record<string, any>>(api: T): T => {
         }
 
         wrappedGroup[methodName] = async (...args: unknown[]) => {
-          try {
-            const result = await methodValue(...args);
-            if (result === false) {
-              throw new Error(`Operation failed: ${groupName}.${methodName}`);
-            }
-            return result;
-          } catch (error) {
-            console.error(`IPC error in ${groupName}.${methodName}:`, error);
-            throw error;
+          const result = await methodValue(...args);
+          if (result === false) {
+            throw new Error(`Operation failed: ${groupName}.${methodName}`);
           }
+          return result;
         };
       },
     );
@@ -157,7 +151,6 @@ sqlite.sailorDB.importSailors = async (...args: unknown[]) => {
   try {
     return await invokeChannel('importSailors', ...args);
   } catch (error) {
-    console.error('Error invoking importSailors IPC:', error);
     return { imported: 0, skipped: 0, errors: [toErrorMessage(error)] };
   }
 };

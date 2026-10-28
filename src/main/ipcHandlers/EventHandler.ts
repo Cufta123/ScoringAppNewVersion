@@ -42,8 +42,6 @@ const normalizeHeatOverflowPolicy = (value: unknown): string => {
   return normalized;
 };
 
-console.log('EventHandler.ts loaded');
-
 handle('readEventHistory', async (event, event_id) =>
   readEventHistory(Number(event_id)),
 );
@@ -115,7 +113,6 @@ handle(
           await delay(100 * attempt);
           return insertEventWithRetry(attempt + 1);
         }
-        log(`Error inserting event: ${error}`);
         throw error;
       }
     };
@@ -244,69 +241,68 @@ handle(
     shrs_discard_profile_final = 'standard',
     shrs_heat_overflow_policy = 'auto-increase',
   ) => {
-    try {
-      const existingEvent = db
-        .prepare(
-          `SELECT
+    const existingEvent = db
+      .prepare(
+        `SELECT
             shrs_discard_profile_qualifying,
             shrs_discard_profile_final,
             shrs_discard_locked_qualifying,
             shrs_discard_locked_final
            FROM Events
            WHERE event_id = ?`,
-        )
-        .get(event_id) as
-        | {
-            shrs_discard_profile_qualifying: string;
-            shrs_discard_profile_final: string;
-            shrs_discard_locked_qualifying: number;
-            shrs_discard_locked_final: number;
-          }
-        | undefined;
+      )
+      .get(event_id) as
+      | {
+          shrs_discard_profile_qualifying: string;
+          shrs_discard_profile_final: string;
+          shrs_discard_locked_qualifying: number;
+          shrs_discard_locked_final: number;
+        }
+      | undefined;
 
-      if (!existingEvent) {
-        throw new Error(
-          'This event no longer exists (it may have been deleted in the meantime). Go back to the event list.',
-        );
-      }
-
-      const normalizedQualifyingDiscardProfile = normalizeDiscardConfigString(
-        shrs_discard_profile_qualifying,
+    if (!existingEvent) {
+      throw new Error(
+        'This event no longer exists (it may have been deleted in the meantime). Go back to the event list.',
       );
-      const normalizedFinalDiscardProfile = normalizeDiscardConfigString(
-        shrs_discard_profile_final,
+    }
+
+    const normalizedQualifyingDiscardProfile = normalizeDiscardConfigString(
+      shrs_discard_profile_qualifying,
+    );
+    const normalizedFinalDiscardProfile = normalizeDiscardConfigString(
+      shrs_discard_profile_final,
+    );
+
+    const existingQualifyingDiscardProfile = normalizeDiscardConfigString(
+      existingEvent.shrs_discard_profile_qualifying,
+    );
+    const existingFinalDiscardProfile = normalizeDiscardConfigString(
+      existingEvent.shrs_discard_profile_final,
+    );
+
+    if (
+      existingEvent.shrs_discard_locked_qualifying === 1 &&
+      existingQualifyingDiscardProfile !== normalizedQualifyingDiscardProfile
+    ) {
+      throw new Error(
+        'The qualifying discards cannot be changed any more: a qualifying race has already been scored with the current setting.',
       );
+    }
 
-      const existingQualifyingDiscardProfile = normalizeDiscardConfigString(
-        existingEvent.shrs_discard_profile_qualifying,
+    if (
+      existingEvent.shrs_discard_locked_final === 1 &&
+      existingFinalDiscardProfile !== normalizedFinalDiscardProfile
+    ) {
+      throw new Error(
+        'The Final Series discards cannot be changed any more: a final race has already been scored with the current setting.',
       );
-      const existingFinalDiscardProfile = normalizeDiscardConfigString(
-        existingEvent.shrs_discard_profile_final,
-      );
+    }
 
-      if (
-        existingEvent.shrs_discard_locked_qualifying === 1 &&
-        existingQualifyingDiscardProfile !== normalizedQualifyingDiscardProfile
-      ) {
-        throw new Error(
-          'The qualifying discards cannot be changed any more: a qualifying race has already been scored with the current setting.',
-        );
-      }
-
-      if (
-        existingEvent.shrs_discard_locked_final === 1 &&
-        existingFinalDiscardProfile !== normalizedFinalDiscardProfile
-      ) {
-        throw new Error(
-          'The Final Series discards cannot be changed any more: a final race has already been scored with the current setting.',
-        );
-      }
-
-      // shrs_version is deliberately NOT written here: an event keeps the rule
-      // version it was created under. Rewriting it on every edit would make a
-      // future rule version silently re-label (and re-score) old events.
-      db.prepare(
-        `UPDATE Events
+    // shrs_version is deliberately NOT written here: an event keeps the rule
+    // version it was created under. Rewriting it on every edit would make a
+    // future rule version silently re-label (and re-score) old events.
+    db.prepare(
+      `UPDATE Events
          SET event_name = ?,
              event_location = ?,
              start_date = ?,
@@ -316,22 +312,18 @@ handle(
              shrs_discard_profile_final = ?,
              shrs_heat_overflow_policy = ?
          WHERE event_id = ?`,
-      ).run(
-        event_name,
-        event_location,
-        start_date,
-        end_date,
-        normalizeAssignmentMode(shrs_qualifying_assignment_mode),
-        normalizedQualifyingDiscardProfile,
-        normalizedFinalDiscardProfile,
-        normalizeHeatOverflowPolicy(shrs_heat_overflow_policy),
-        event_id,
-      );
-      return { success: true };
-    } catch (error) {
-      console.error('Error updating event:', error);
-      throw error;
-    }
+    ).run(
+      event_name,
+      event_location,
+      start_date,
+      end_date,
+      normalizeAssignmentMode(shrs_qualifying_assignment_mode),
+      normalizedQualifyingDiscardProfile,
+      normalizedFinalDiscardProfile,
+      normalizeHeatOverflowPolicy(shrs_heat_overflow_policy),
+      event_id,
+    );
+    return { success: true };
   },
 );
 
