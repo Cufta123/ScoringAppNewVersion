@@ -746,3 +746,46 @@ export function applyRaceColumnState(
     }
   });
 }
+
+/**
+ * Score a stored race again from its places and codes (RRS A7 shared places,
+ * 44.3(c), SHRS 5.2), writing only what changes. For writes that put rows
+ * back one by one — an undo from the history restores each row as it was,
+ * and two boats can then share a place that was not shared before.
+ */
+export function rescoreRace(race_id: number) {
+  const heat = db
+    .prepare(
+      `SELECT h.event_id, h.heat_type FROM Races r JOIN Heats h ON h.heat_id = r.heat_id
+       WHERE r.race_id = ?`,
+    )
+    .get(race_id) as { event_id: number; heat_type: string } | undefined;
+  if (!heat) return;
+  const rows = db
+    .prepare(
+      `SELECT score_id, position, points, COALESCE(status, 'FINISHED') AS status
+       FROM Scores WHERE race_id = ? ORDER BY score_id ASC`,
+    )
+    .all(race_id) as {
+    score_id: number;
+    position: number;
+    points: number;
+    status: string;
+  }[];
+  const scored = scoreRaceColumn(
+    rows.map((row) => ({
+      position: row.position,
+      points: row.points,
+      status: normalizeScoreStatus(row.status),
+    })),
+    getMaxHeatSize(heat.event_id, heat.heat_type),
+  );
+  const write = db.prepare(
+    'UPDATE Scores SET position = ?, points = ? WHERE score_id = ?',
+  );
+  scored.forEach((cell, i) => {
+    if (cell.position !== rows[i].position || cell.points !== rows[i].points) {
+      write.run(cell.position, cell.points, rows[i].score_id);
+    }
+  });
+}

@@ -10,6 +10,7 @@ import {
   recomputeFinalLeaderboard,
 } from './leaderboardRecompute';
 import { hasFinalSeriesStarted } from './seriesGuards';
+import { rescoreRace } from './raceScoring';
 import { invalidateAssignmentSnapshotCache } from './raceAssignmentSnapshot';
 import {
   RevertStep,
@@ -113,11 +114,31 @@ export default function revertHistoryAction(
             lastOfAction,
           );
           const by = later ? ` by “${actionLabel(later.channel)}”` : '';
+          // The SHRS 3.1.5 rows are internal: name what they mean.
+          const what =
+            step.table === 'Scores'
+              ? describeChange(step.change)
+              : 'the heat order frozen by this protest decision (SHRS 3.1.5)';
           throw new Error(
-            `Cannot undo: ${describeChange(step.change)} was changed again later${by}. Undo that change first.`,
+            `Cannot undo: ${what} was changed again later${by}. Undo that change first.`,
           );
         }
         apply(step);
+      });
+      // Rows come back one by one, so score each touched race again: a place
+      // shared with a boat a later action moved there must split its points
+      // (RRS A7).
+      const touchedRaces = new Set<number>();
+      steps.forEach((step) => {
+        if (step.table !== 'Scores') return;
+        const row = step.row ?? step.expected;
+        if (row?.race_id != null) touchedRaces.add(Number(row.race_id));
+      });
+      touchedRaces.forEach((raceId) => {
+        const exists = db
+          .prepare('SELECT 1 FROM Races WHERE race_id = ?')
+          .get(raceId);
+        if (exists) rescoreRace(raceId);
       });
       recomputeEventLeaderboard(event_id);
       if (hasFinalSeriesStarted(event_id)) recomputeFinalLeaderboard(event_id);

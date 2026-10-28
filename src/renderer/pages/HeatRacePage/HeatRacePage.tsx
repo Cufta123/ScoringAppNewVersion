@@ -243,7 +243,7 @@ function HeatRacePage() {
       refreshHeats();
     } catch (error) {
       const message = error instanceof Error ? error.message : '';
-      if (message.includes('No races found for heat')) {
+      if (message.includes('has not raced yet')) {
         reportInfo(
           'The current round has not been raced yet — score each heat before creating the next round.',
           'Nothing to redistribute',

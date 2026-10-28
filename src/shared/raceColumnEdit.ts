@@ -168,9 +168,30 @@ export default function applyRaceColumnEdit(
     sharing.forEach((n, position) => {
       if (place > position && place <= position + n - 1) place = position;
     });
-    others((cell) =>
-      cell.position >= place ? { ...cell, position: cell.position + 1 } : cell,
-    );
+    // Make room at `place` by moving boats into the nearest free slot: down
+    // when one is free below the last boat, else up into a slot a redressed
+    // boat left free above her place.
+    const occupied = new Set<number>();
+    sharing.forEach((n, position) => {
+      for (let p = position; p < position + n; p += 1) occupied.add(p);
+    });
+    let freeAfter = place;
+    while (occupied.has(freeAfter)) freeAfter += 1;
+    let freeBefore = place - 1;
+    while (freeBefore >= 1 && occupied.has(freeBefore)) freeBefore -= 1;
+    if (occupied.has(place) && freeAfter > cells.length && freeBefore >= 1) {
+      others((cell) =>
+        cell.position > freeBefore && cell.position <= place
+          ? { ...cell, position: cell.position - 1 }
+          : cell,
+      );
+    } else {
+      others((cell) =>
+        cell.position >= place && cell.position < freeAfter
+          ? { ...cell, position: cell.position + 1 }
+          : cell,
+      );
+    }
     next[index] = { position: place, points: place, status: newStatus };
   } else if (keepsProvidedPoints(newStatus)) {
     next[index] = {
@@ -186,5 +207,41 @@ export default function applyRaceColumnEdit(
     };
   }
 
-  return scoreRaceColumn(next, maxBoats);
+  return scoreRaceColumn(fitPlacesInRace(next), maxBoats);
+}
+
+/**
+ * Keep every place inside the race. A gap left by redress is kept while it
+ * fits, but if giving a boat back a place would push another past the last
+ * boat (3 boats, places 1, 3 and 4), the places close up instead.
+ */
+function fitPlacesInRace(cells: RaceCell[]): RaceCell[] {
+  const holders = cells
+    .map((cell, index) => ({ cell, index }))
+    .filter(({ cell }) => holdsPlace(cell.status))
+    .sort((a, b) => a.cell.position - b.cell.position || a.index - b.index);
+  const sharing = new Map<number, number>();
+  holders.forEach(({ cell }) => {
+    sharing.set(cell.position, (sharing.get(cell.position) ?? 0) + 1);
+  });
+  let lastEnd = 0;
+  sharing.forEach((n, position) => {
+    lastEnd = Math.max(lastEnd, position + n - 1);
+  });
+  if (lastEnd <= cells.length) return cells;
+
+  const next = cells.map((cell) => ({ ...cell }));
+  let cursor = 1;
+  let i = 0;
+  while (i < holders.length) {
+    const { position } = holders[i].cell;
+    let j = i;
+    while (j < holders.length && holders[j].cell.position === position) {
+      next[holders[j].index].position = cursor;
+      j += 1;
+    }
+    cursor += j - i;
+    i = j;
+  }
+  return next;
 }
