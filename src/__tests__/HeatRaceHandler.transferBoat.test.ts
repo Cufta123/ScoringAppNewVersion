@@ -50,7 +50,11 @@ const dbMock = {
   },
   prepare: (rawSql: string): PrepareStatement => {
     const sql = norm(rawSql);
-    if (sql.startsWith('SELECT event_id, heat_type FROM Heats')) {
+    if (
+      sql.startsWith(
+        'SELECT heat_id, heat_name, event_id, heat_type FROM Heats',
+      )
+    ) {
       return {
         get: (heatId: number) => state.heats[heatId],
       };

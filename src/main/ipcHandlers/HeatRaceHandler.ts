@@ -34,7 +34,9 @@ import {
 } from '../functions/raceAssignmentSnapshot';
 import {
   getLatestQualifyingHeats,
+  getLatestRaceForHeat,
   getRaceCountForHeat,
+  requireHeat,
 } from '../functions/heatQueries';
 import { getFinalSeriesEligibility } from '../functions/finalSeriesEligibility';
 import {
@@ -138,26 +140,7 @@ handle('restoreEventSnapshotFromFile', async (_event, event_id) => {
 });
 
 handle('insertHeatBoat', async (event, heat_id, boat_id) => {
-  const heatRow = db
-    .prepare(
-      `SELECT h.heat_id, h.heat_name, h.heat_type, h.event_id
-       FROM Heats h
-       WHERE h.heat_id = ?`,
-    )
-    .get(heat_id) as
-    | {
-        heat_id: number;
-        heat_name: string;
-        heat_type: string;
-        event_id: number;
-      }
-    | undefined;
-
-  if (!heatRow) {
-    throw new Error(
-      'This heat no longer exists (it may have been removed in the meantime). Reload the page.',
-    );
-  }
+  const heatRow = requireHeat(heat_id);
 
   // Used to place a late entry (UnassignedEntriesNotice). Only safe where it
   // cannot rewrite a result: an entered boat, into a qualifying heat of the
@@ -217,16 +200,6 @@ handle('insertHeatBoat', async (event, heat_id, boat_id) => {
   return { lastInsertRowid: result.lastInsertRowid };
 });
 
-// First-round heat creation, atomically: validates up front (boats exist, the
-// SHRS 20-boat cap holds), seeds boats by SHRS 3 order and assigns them with
-// the SHRS 3.1 serpentine — all in one transaction so a failure can never
-// leave half-created heats behind (the old renderer-side per-row IPC loop
-// could die at the 21st boat of a heat with no rollback).
-/**
- * Validate an initial-heat split and work out where every boat goes, WITHOUT
- * writing anything. Separated from the insert so "recreate" can prove the new
- * split is buildable before it throws the current heats away.
- */
 /** "CRO 12 (boats 4, 9)" — for an error a race officer can act on. */
 function describeIndistinguishable(
   groups: Array<{ name: string; boatIds: Array<number | string> }>,
@@ -240,6 +213,11 @@ function describeIndistinguishable(
     .join('; ');
 }
 
+/**
+ * Validate an initial-heat split and work out where every boat goes, WITHOUT
+ * writing anything. Separated from the insert so "recreate" can prove the new
+ * split is buildable before it throws the current heats away.
+ */
 function planInitialHeats(event_id: any, num_heats: any) {
   const numHeats = Number(num_heats);
   if (!Number.isInteger(numHeats) || numHeats < 1 || numHeats > 26) {
@@ -292,17 +270,24 @@ function planInitialHeats(event_id: any, num_heats: any) {
   return { numHeats, boats, heatIndices };
 }
 
+/** The two statements every heat builder uses; prepare once, run in loops. */
+function prepareHeatWriters() {
+  return {
+    insertHeatStmt: db.prepare(
+      'INSERT INTO Heats (event_id, heat_name, heat_type) VALUES (?, ?, ?)',
+    ),
+    insertHeatBoatStmt: db.prepare(
+      'INSERT INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)',
+    ),
+  };
+}
+
 /** Write a plan from `planInitialHeats`. Caller supplies the transaction. */
 function insertPlannedInitialHeats(
   event_id: any,
   plan: ReturnType<typeof planInitialHeats>,
 ) {
-  const insertHeatStmt = db.prepare(
-    'INSERT INTO Heats (event_id, heat_name, heat_type) VALUES (?, ?, ?)',
-  );
-  const insertHeatBoatStmt = db.prepare(
-    'INSERT INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)',
-  );
+  const { insertHeatStmt, insertHeatBoatStmt } = prepareHeatWriters();
   const heatIds: number[] = [];
   for (let i = 0; i < plan.numHeats; i += 1) {
     const heatName = `Heat ${String.fromCharCode(65 + i)}1`;
@@ -379,6 +364,11 @@ function wipeHeatsForEvent(event_id: any) {
   };
 }
 
+// First-round heat creation, atomically: validates up front (boats exist, the
+// SHRS 20-boat cap holds), seeds boats by SHRS 3 order and assigns them with
+// the SHRS 3.1 serpentine — all in one transaction so a failure can never
+// leave half-created heats behind (the old renderer-side per-row IPC loop
+// could die at the 21st boat of a heat with no rollback).
 handle('createInitialHeatsAtomic', async (_event, event_id, num_heats) => {
   const existingHeats = db
     .prepare('SELECT COUNT(*) AS count FROM Heats WHERE event_id = ?')
@@ -513,18 +503,7 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
     isFinalSeries?: boolean;
   };
 
-  const heatRow = db
-    .prepare(
-      'SELECT event_id, heat_type, heat_name FROM Heats WHERE heat_id = ?',
-    )
-    .get(heat_id) as
-    | { event_id: number; heat_type: string; heat_name: string }
-    | undefined;
-  if (!heatRow) {
-    throw new Error(
-      'This heat no longer exists (it may have been removed in the meantime). Reload the page.',
-    );
-  }
+  const heatRow = requireHeat(heat_id);
   // HRH M4: derive the event from the heat itself; ignore the payload value.
   const { event_id } = heatRow;
   if (payloadEventId != null && Number(payloadEventId) !== event_id) {
@@ -533,15 +512,7 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
     );
   }
   const isFinalHeat = heatRow.heat_type === 'Final';
-  assertQualifyingHeatIsOpen(
-    {
-      heat_id: Number(heat_id),
-      heat_name: heatRow.heat_name,
-      event_id,
-      heat_type: heatRow.heat_type,
-    },
-    'score a race',
-  );
+  assertQualifyingHeatIsOpen(heatRow, 'score a race');
 
   const boats = db
     .prepare(
@@ -606,6 +577,13 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
   ).count;
   const nextRaceNumber = existingRaceCount + 1;
 
+  const updateScoreStmt = db.prepare(
+    'UPDATE Scores SET position = ?, points = ?, status = ? WHERE race_id = ? AND boat_id = ?',
+  );
+  const insertScoreStmt = db.prepare(
+    'INSERT INTO Scores (race_id, boat_id, position, points, status) VALUES (?, ?, ?, ?, ?)',
+  );
+
   let raceId = 0;
   const writeScores = db.transaction(() => {
     const raceResult = db
@@ -657,15 +635,21 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
         points = penaltyPlace;
       }
 
-      const updated = db
-        .prepare(
-          'UPDATE Scores SET position = ?, points = ?, status = ? WHERE race_id = ? AND boat_id = ?',
-        )
-        .run(position, points, normalizedStatus, raceId, boat.boat_id);
+      const updated = updateScoreStmt.run(
+        position,
+        points,
+        normalizedStatus,
+        raceId,
+        boat.boat_id,
+      );
       if (updated.changes === 0) {
-        db.prepare(
-          'INSERT INTO Scores (race_id, boat_id, position, points, status) VALUES (?, ?, ?, ?, ?)',
-        ).run(raceId, boat.boat_id, position, points, normalizedStatus);
+        insertScoreStmt.run(
+          raceId,
+          boat.boat_id,
+          position,
+          points,
+          normalizedStatus,
+        );
       }
     });
 
@@ -853,17 +837,18 @@ handle(
       adjustedLeaderboard.length / finalHeatCount,
     );
     const extraBoats = adjustedLeaderboard.length % finalHeatCount;
+    const { insertHeatStmt, insertHeatBoatStmt } = prepareHeatWriters();
     const transaction = db.transaction(() => {
       const insertedFinalHeatIds: number[] = [];
       for (let i = 0; i < finalHeatCount; i += 1) {
         // SHRS 4.1 fleet naming, shared with the ranking precedence used by
         // the leaderboard reads so "Fleet 5" is always ranked 5th (RULE-m2).
         const fleetName = fleetNameForIndex(i);
-        const insertResult = db
-          .prepare(
-            'INSERT INTO Heats (event_id, heat_name, heat_type) VALUES (?, ?, ?)',
-          )
-          .run(event_id, `Final ${fleetName}`, 'Final');
+        const insertResult = insertHeatStmt.run(
+          event_id,
+          `Final ${fleetName}`,
+          'Final',
+        );
         insertedFinalHeatIds.push(Number(insertResult.lastInsertRowid));
       }
 
@@ -877,9 +862,7 @@ handle(
         boatIndex += boatsInFleet;
 
         fleetSlice.forEach((boat) => {
-          db.prepare(
-            'INSERT INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)',
-          ).run(insertedFinalHeatIds[i], boat.boat_id);
+          insertHeatBoatStmt.run(insertedFinalHeatIds[i], boat.boat_id);
         });
       }
 
@@ -934,20 +917,19 @@ handle('createNewHeatsBasedOnLeaderboard', async (event, event_id) => {
   const assignmentMode = getEventQualifyingAssignmentMode(event_id);
   const assignments: { heatId: number; boatId: string }[] = [];
   if (assignmentMode === 'pre-assigned') {
+    const boatsInHeatQuery = db.prepare(
+      `SELECT hb.boat_id, b.country, b.sail_number
+       FROM Heat_Boat hb
+       JOIN Boats b ON b.boat_id = hb.boat_id
+       WHERE hb.heat_id = ?`,
+    );
     sortedLatestHeats.forEach((heat) => {
       const sourceIndex = heatIndexById.get(heat.heat_id);
       if (sourceIndex === undefined) {
         return;
       }
 
-      const boatsInHeat = db
-        .prepare(
-          `SELECT hb.boat_id, b.country, b.sail_number
-           FROM Heat_Boat hb
-           JOIN Boats b ON b.boat_id = hb.boat_id
-           WHERE hb.heat_id = ?`,
-        )
-        .all(heat.heat_id) as {
+      const boatsInHeat = boatsInHeatQuery.all(heat.heat_id) as {
         boat_id: string;
         country: string | null;
         sail_number: string | number | null;
@@ -1009,12 +991,7 @@ handle('createNewHeatsBasedOnLeaderboard', async (event, event_id) => {
   // Persist the new heats and their boat assignments atomically so a failure
   // can never leave half-created heats behind.
   const heatIds: any[] = [];
-  const insertHeatStmt = db.prepare(
-    'INSERT INTO Heats (event_id, heat_name, heat_type) VALUES (?, ?, ?)',
-  );
-  const insertHeatBoatStmt = db.prepare(
-    'INSERT INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)',
-  );
+  const { insertHeatStmt, insertHeatBoatStmt } = prepareHeatWriters();
   const persistNewHeats = db.transaction(() => {
     nextHeatNames.forEach((heatName) => {
       const { lastInsertRowid: newHeatId } = insertHeatStmt.run(
@@ -1039,34 +1016,8 @@ handle('createNewHeatsBasedOnLeaderboard', async (event, event_id) => {
 });
 
 handle('undoLastScoredRaceForHeat', async (event, heat_id) => {
-  const heatRow = db
-    .prepare(
-      'SELECT h.heat_id, h.heat_name, h.event_id, h.heat_type FROM Heats h WHERE h.heat_id = ?',
-    )
-    .get(heat_id) as
-    | {
-        heat_id: number;
-        heat_name: string;
-        event_id: number;
-        heat_type: string;
-      }
-    | undefined;
-
-  if (!heatRow) {
-    throw new Error(
-      'This heat no longer exists (it may have been removed in the meantime). Reload the page.',
-    );
-  }
-
-  const lastRace = db
-    .prepare(
-      `SELECT race_id, race_number
-       FROM Races
-       WHERE heat_id = ?
-       ORDER BY race_number DESC, race_id DESC
-       LIMIT 1`,
-    )
-    .get(heat_id) as { race_id: number; race_number: number } | undefined;
+  const heatRow = requireHeat(heat_id);
+  const lastRace = getLatestRaceForHeat(heat_id);
 
   if (!lastRace) {
     throw new Error(
@@ -1175,20 +1126,8 @@ handle(
       return { success: true };
     }
 
-    const heatQuery = db.prepare(
-      'SELECT event_id, heat_type FROM Heats WHERE heat_id = ?',
-    );
-    const fromHeat = heatQuery.get(from_heat_id) as
-      | { event_id: number; heat_type: string }
-      | undefined;
-    const toHeat = heatQuery.get(to_heat_id) as
-      | { event_id: number; heat_type: string }
-      | undefined;
-    if (!fromHeat || !toHeat) {
-      throw new Error(
-        'This heat no longer exists (it may have been removed in the meantime). Reload the page.',
-      );
-    }
+    const fromHeat = requireHeat(from_heat_id);
+    const toHeat = requireHeat(to_heat_id);
     if (fromHeat.event_id !== toHeat.event_id) {
       throw new Error(
         'A boat can only be moved between heats of the same event.',
