@@ -156,11 +156,23 @@ function operationFor(
   );
   return {
     raceId,
+    // Like the real screen: only the cell the user typed in is flagged edited;
+    // the boats that merely moved as a consequence (A6.1 promotion, ripple)
+    // are not.
     cells: cells.map((cell, i) => ({
       boatId: rows[i].boat_id,
       position: cell.position,
       status: cell.status,
+      edited: rows[i].boat_id === boatId,
     })),
+  };
+}
+
+/** The same payload as an older client would send it: no `edited` flags. */
+function withoutEditedFlags(operation: ReturnType<typeof operationFor>) {
+  return {
+    ...operation,
+    cells: operation.cells.map(({ edited: _edited, ...cell }) => cell),
   };
 }
 
@@ -342,6 +354,199 @@ describe('saveLeaderboardRaceResultsAtomic (real SQLite, FKs on)', () => {
       expect(
         db.prepare('SELECT COUNT(*) AS c FROM RaceAssignmentSnapshots').get().c,
       ).toBe(0);
+    });
+  });
+
+  describe('SHRS 3.1.5 — only the cells the user edited decide the shield', () => {
+    // Four boats per heat, so a DSQ of the winner promotes THREE boats (RRS
+    // A6.1). Those boats' places change because of the protest decision, so
+    // they must stay frozen at their pre-protest place; only a cell the user
+    // typed in can be a "decision" or a "correction".
+    let raceB: number;
+    let b1: number;
+    let b2: number;
+    let b3: number;
+    let b4: number;
+    let control: Record<number, string>;
+
+    /**
+     * b1..b4 are Heat B1's boats in finishing order. Scores are stored in the
+     * heat's boat order, so with `winnerLast` the winner has the HIGHEST score_id.
+     */
+    async function playRoundOne(winnerLast: boolean) {
+      await handlerRegistry.createInitialHeatsAtomic({}, EVENT_ID, 3);
+      await scoreHeat(db, 'Heat A1');
+      const boats = boatsIn(db, 'Heat B1');
+      const finishing = winnerLast ? [...boats].reverse() : boats;
+      const result = await handlerRegistry.submitHeatRaceScoresAtomic(
+        {},
+        {
+          heat_id: heatId(db, 'Heat B1'),
+          placeNumbers: finishing.map((boat, index) => ({
+            boatNumber: boat,
+            place: index + 1,
+            status: 'FINISHED',
+          })),
+        },
+      );
+      expect(result.ok).toBe(true);
+      raceB = result.raceId;
+      await scoreHeat(db, 'Heat C1');
+      [b1, b2, b3, b4] = finishing;
+    }
+
+    /** Heat of every boat in round 2. */
+    async function roundTwo(): Promise<Record<number, string>> {
+      await handlerRegistry.createNewHeatsBasedOnLeaderboard({}, EVENT_ID);
+      const rows = db
+        .prepare(
+          `SELECT hb.boat_id, h.heat_name FROM Heat_Boat hb JOIN Heats h ON h.heat_id = hb.heat_id
+           WHERE h.event_id = ? AND h.heat_name LIKE '%2'`,
+        )
+        .all(EVENT_ID);
+      return Object.fromEntries(
+        rows.map((row: any) => [row.boat_id, row.heat_name]),
+      );
+    }
+
+    /** Round 2 of an event with no protest at all, then a fresh event after round 1. */
+    async function setUp(winnerLast = false) {
+      db = seed(12);
+      await playRoundOne(winnerLast);
+      control = await roundTwo();
+      db.close();
+      invalidateAssignmentSnapshotCache();
+      db = seed(12);
+      await playRoundOne(winnerLast);
+    }
+
+    const shield = () => raceAssignmentSnapshots.get(raceB);
+    const frozenPlaces = () =>
+      Object.fromEntries(
+        [...(shield() ?? new Map())].map(([boat, row]) => [
+          boat,
+          [row.position, row.status],
+        ]),
+      );
+    const byId = (boats: number[]) => [...boats].sort((x, y) => x - y);
+    const persistedBoats = (): number[] =>
+      db
+        .prepare(
+          'SELECT boat_id FROM RaceAssignmentSnapshots WHERE race_id = ? ORDER BY boat_id',
+        )
+        .all(raceB)
+        .map((row: any) => row.boat_id);
+
+    it.each([
+      ['the winner has the lowest score_id', false],
+      ['the winner has the highest score_id', true],
+    ])(
+      'a DSQ of the winner keeps all four boats at their pre-protest place (%s)',
+      async (_label, reverse) => {
+        await setUp(reverse);
+        await save(db, raceB, b1, 1, 'DSQ');
+
+        // The three promoted boats are live 1, 2, 3 now, but were 2, 3, 4.
+        const live = raceRows(db, raceB);
+        expect(live.find((row: any) => row.boat_id === b2).position).toBe(1);
+        expect(frozenPlaces()).toEqual({
+          [b1]: [1, 'FINISHED'],
+          [b2]: [2, 'FINISHED'],
+          [b3]: [3, 'FINISHED'],
+          [b4]: [4, 'FINISHED'],
+        });
+        expect(persistedBoats()).toEqual(byId([b1, b2, b3, b4]));
+
+        // The next round is exactly the round without any protest.
+        expect(await roundTwo()).toEqual(control);
+      },
+    );
+
+    it('an office correction of one boat un-shields only that boat', async () => {
+      await setUp();
+      await save(db, raceB, b1, 1, 'DSQ');
+      // Live b2 1st, b3 2nd, b4 3rd. The race office puts b3 3rd (b4 2nd).
+      await save(db, raceB, b3, 3, 'FINISHED');
+
+      expect(Object.keys(frozenPlaces()).map(Number).sort()).toEqual(
+        [b1, b2, b4].sort(),
+      );
+      expect(persistedBoats()).toEqual(byId([b1, b2, b4]));
+      // b4 only moved as a consequence of that correction: still frozen at 4.
+      expect(frozenPlaces()[b4]).toEqual([4, 'FINISHED']);
+    });
+
+    it('a decision reversed to FINISHED by the race office un-shields only the reversed boat', async () => {
+      await setUp();
+      await save(db, raceB, b1, 1, 'DSQ');
+      await save(db, raceB, b1, 1, 'FINISHED');
+
+      expect(Object.keys(frozenPlaces()).map(Number).sort()).toEqual(
+        [b2, b3, b4].sort(),
+      );
+      // Everyone is back where they started, so the round is the control round.
+      expect(await roundTwo()).toEqual(control);
+    });
+
+    it('a second decision freezes a promoted boat an earlier correction had un-shielded', async () => {
+      await setUp();
+      await save(db, raceB, b1, 1, 'DSQ');
+      // Live b2, b3, b4. The office swaps b3 and b4: b3 is un-shielded, at 3rd.
+      await save(db, raceB, b3, 3, 'FINISHED');
+      // The committee disqualifies b2 (live 1st): b4 and b3 are promoted. b3
+      // has no frozen row, so she must be frozen now at the place she held
+      // before THIS decision, or the decision would reorder her.
+      await save(db, raceB, b2, 1, 'DSQ');
+
+      expect(frozenPlaces()[b3]).toEqual([3, 'FINISHED']);
+      expect(frozenPlaces()[b2]).toEqual([2, 'FINISHED']);
+    });
+
+    describe('a payload without `edited` flags (an older client)', () => {
+      // Safest reading: a cell counts as edited when its STATUS changed. A
+      // protest code is then never missed (the freeze is kept), and a boat
+      // that only moved is never un-shielded. A place-only change cannot be
+      // told from a ripple, so it leaves every shield as it is.
+      it('still freezes the whole race on a DSQ of the winner', async () => {
+        await setUp();
+        await handlerRegistry.saveLeaderboardRaceResultsAtomic({}, EVENT_ID, [
+          withoutEditedFlags(operationFor(db, raceB, b1, 1, 'DSQ')),
+        ]);
+        expect(Object.keys(frozenPlaces())).toHaveLength(4);
+        expect(await roundTwo()).toEqual(control);
+      });
+
+      it('un-shields only the boat whose status the office changed', async () => {
+        await setUp();
+        await save(db, raceB, b1, 1, 'DSQ');
+        await handlerRegistry.saveLeaderboardRaceResultsAtomic({}, EVENT_ID, [
+          withoutEditedFlags(operationFor(db, raceB, b1, 1, 'FINISHED')),
+        ]);
+        expect(Object.keys(frozenPlaces()).map(Number).sort()).toEqual(
+          [b2, b3, b4].sort(),
+        );
+      });
+
+      it('leaves the shields alone when only places changed', async () => {
+        await setUp();
+        await save(db, raceB, b1, 1, 'DSQ');
+        await handlerRegistry.saveLeaderboardRaceResultsAtomic({}, EVENT_ID, [
+          withoutEditedFlags(operationFor(db, raceB, b3, 3, 'FINISHED')),
+        ]);
+        expect(Object.keys(frozenPlaces())).toHaveLength(4);
+      });
+    });
+
+    it('puts the frozen rows back in memory when a save with promoted boats fails', async () => {
+      await setUp();
+      await expect(
+        handlerRegistry.saveLeaderboardRaceResultsAtomic({}, EVENT_ID, [
+          operationFor(db, raceB, b1, 1, 'DSQ'),
+          { raceId: 987654, cells: [] },
+        ]),
+      ).rejects.toThrow();
+      expect(shield()).toBeUndefined();
+      expect(persistedBoats()).toEqual([]);
     });
   });
 
