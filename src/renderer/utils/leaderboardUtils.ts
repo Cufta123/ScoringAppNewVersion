@@ -38,6 +38,15 @@ export const RDG_TYPES = ['RDG1', 'RDG2', 'RDG3'];
 export type { RawLeaderboardEntry };
 
 /**
+ * Deep copy of leaderboard rows, so an edit draft never aliases the saved rows.
+ * The rows are plain JSON data. (A JSON round trip rather than structuredClone,
+ * which the jsdom test environment does not provide; it returns `any`, so this
+ * keeps callers strongly typed.)
+ */
+export const cloneEntries = (rows: LeaderboardEntry[]): LeaderboardEntry[] =>
+  JSON.parse(JSON.stringify(rows));
+
+/**
  * A race cell without the parentheses that mark a discarded score: "(7)" -> "7".
  */
 export const stripExclusionParens = (value: unknown): string =>
