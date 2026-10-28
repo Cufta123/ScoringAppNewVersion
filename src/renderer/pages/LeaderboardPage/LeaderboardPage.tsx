@@ -1,10 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import {
-  useLocation,
-  useNavigate,
-  useParams,
-  type NavigateOptions,
-} from 'react-router-dom';
+import { useNavigate, useParams, type NavigateOptions } from 'react-router-dom';
 import Navbar from '../../components/Navbar';
 import useLeaderboard from '../../hooks/useLeaderboard';
 import LeaderboardToolbar from '../../components/leaderboard/LeaderboardToolbar';
@@ -19,14 +14,10 @@ import ScoreExplanationDialog, {
 import Breadcrumbs from '../../components/shared/Breadcrumbs';
 import EmptyState from '../../components/shared/EmptyState';
 import LoadingState from '../../components/shared/LoadingState';
-import {
-  confirmAction,
-  reportError,
-  reportInfo,
-} from '../../utils/userFeedback';
+import { confirmAction } from '../../utils/userFeedback';
 import './LeaderboardPage.css';
-import { eventDB } from '../../api/db';
-import type { EventRow, LeaderboardEntry } from '../../types';
+import type { LeaderboardEntry } from '../../types';
+import useRouteEvent from '../../hooks/useRouteEvent';
 import { sailorFullName } from '../../utils/sailorName';
 
 interface LeaderboardContentProps {
@@ -305,45 +296,10 @@ function LeaderboardContent({
 }
 
 function LeaderboardPage() {
-  const location = useLocation();
   const navigate = useNavigate();
   const { eventName } = useParams();
-  const [event, setEvent] = useState<EventRow | null>(
-    (location.state as { event?: EventRow } | null)?.event || null,
-  );
+  const event = useRouteEvent(eventName);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-
-  // Refresh-safe: resolve the event from the URL when router state is gone.
-  useEffect(() => {
-    if (event) return undefined;
-    let isActive = true;
-
-    const findEventByName = async () => {
-      try {
-        const events = await eventDB.readAllEvents();
-        if (!isActive) return;
-        const match = (events || []).find((e) => e.event_name === eventName);
-        if (match) {
-          setEvent(match);
-        } else {
-          reportInfo(
-            'This event could not be found. It may have been deleted or renamed.',
-            'Event not found',
-          );
-          navigate('/');
-        }
-      } catch (error) {
-        if (!isActive) return;
-        reportError('Could not load event details.', error);
-        navigate('/');
-      }
-    };
-
-    findEventByName();
-    return () => {
-      isActive = false;
-    };
-  }, [event, eventName, navigate]);
 
   if (!event) {
     return <LoadingState label="Loading event…" />;

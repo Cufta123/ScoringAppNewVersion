@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Select from 'react-select';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import SailorForm from '../../components/SailorForm';
 import SailorList from '../../components/SailorList';
 import SailorImport from '../../components/SailorImport';
@@ -19,7 +19,8 @@ import {
 } from '../../utils/userFeedback';
 import { checkRaceHappened } from '../../utils/raceStatus';
 import { eventDB, sailorDB } from '../../api/db';
-import type { EventBoatRow, EventRow } from '../../types';
+import type { EventBoatRow } from '../../types';
+import useRouteEvent from '../../hooks/useRouteEvent';
 import { sailorFullName } from '../../utils/sailorName';
 
 type MappedEventBoat = EventBoatRow & {
@@ -36,46 +37,10 @@ interface BoatOption {
 }
 
 function EventPage() {
-  const location = useLocation();
   const navigate = useNavigate();
   const { name } = useParams();
-  const [event, setEvent] = useState<EventRow | null>(
-    (location.state as { event?: EventRow } | null)?.event || null,
-  );
+  const event = useRouteEvent(name);
   const eventId = event?.event_id;
-
-  // Refresh-safe: when opened without router state (e.g. after a reload),
-  // resolve the event from the URL instead of bouncing to the landing page.
-  useEffect(() => {
-    if (event) return undefined;
-    let isActive = true;
-
-    const findEventByName = async () => {
-      try {
-        const events = await eventDB.readAllEvents();
-        if (!isActive) return;
-        const match = (events || []).find((e) => e.event_name === name);
-        if (match) {
-          setEvent(match);
-        } else {
-          reportInfo(
-            'This event could not be found. It may have been deleted or renamed.',
-            'Event not found',
-          );
-          navigate('/');
-        }
-      } catch (error) {
-        if (!isActive) return;
-        reportError('Could not load event details.', error);
-        navigate('/');
-      }
-    };
-
-    findEventByName();
-    return () => {
-      isActive = false;
-    };
-  }, [event, name, navigate]);
 
   const [boats, setBoats] = useState<MappedEventBoat[]>([]);
   const [boatsLoading, setBoatsLoading] = useState(true);
