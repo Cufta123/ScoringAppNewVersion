@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { heatRaceDB } from '../../api/db';
-import useModalFocus from '../../hooks/useModalFocus';
+import useDialogFocus from '../../hooks/useDialogFocus';
 import type {
   BoatScoreExplanation,
   ExplainedRace,
@@ -144,6 +144,7 @@ function ScoreExplanationDialog({
   target,
   onClose,
 }: ScoreExplanationDialogProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const [explanation, setExplanation] = useState<BoatScoreExplanation | null>(
     null,
@@ -171,7 +172,7 @@ function ScoreExplanationDialog({
     };
   }, [eventId, target]);
 
-  useModalFocus(Boolean(target), closeRef, onClose);
+  useDialogFocus(dialogRef, Boolean(target), onClose, closeRef);
 
   if (!target) return null;
 
@@ -223,6 +224,7 @@ function ScoreExplanationDialog({
       }}
     >
       <div
+        ref={dialogRef}
         className="feedback-modal help-modal explain-modal"
         role="dialog"
         aria-modal="true"
