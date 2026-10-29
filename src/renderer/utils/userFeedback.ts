@@ -1,6 +1,6 @@
 import React from 'react';
 import { toast } from 'react-toastify';
-import type { ToastOptions } from 'react-toastify';
+import type { ToastOptions, ToastPosition } from 'react-toastify';
 import ToastMessage from '../components/shared/ToastMessage';
 import { requestConfirm, type ConfirmChoice } from './confirmController';
 import {
@@ -88,6 +88,21 @@ export const toastKey = (kind: ToastKind, title: string, body = ''): string =>
   `${kind}|${title}|${body}`;
 
 /**
+ * Where a toast appears on the screen being shown now. Bottom-LEFT everywhere
+ * (it covers only names and ranks there), except the scoring screen
+ * (`/heat-race`): its boat table runs down the left and, with boats missing,
+ * is longer than the finish-order column on the right, so a left toast would
+ * cover exactly the amber "Not scored" rows the judge must click next. The
+ * right column's lower area is free. Read from the route at the moment the
+ * toast is shown, so no call site has to know.
+ */
+export const toastPosition = (): ToastPosition =>
+  typeof window !== 'undefined' &&
+  /\/heat-race(?:[/?]|$)/.test(window.location?.hash ?? '')
+    ? 'bottom-right'
+    : 'bottom-left';
+
+/**
  * Show a toast with a bold title and the explanation under it. An identical
  * toast that is still on screen is refreshed instead of stacked.
  */
@@ -99,11 +114,12 @@ const showToast = (
   toastId = toastKey(kind, title, body),
 ): void => {
   const content = React.createElement(ToastMessage, { title, body });
+  const placed = { ...options, position: toastPosition() };
   if (toast.isActive(toastId)) {
-    toast.update(toastId, { render: content, ...options });
+    toast.update(toastId, { render: content, ...placed });
     return;
   }
-  toast[kind](content, { ...options, toastId });
+  toast[kind](content, { ...placed, toastId });
 };
 
 export const reportError = (

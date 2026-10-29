@@ -10,7 +10,11 @@ import HeatRacePage from './pages/HeatRacePage/HeatRacePage';
 import LeaderboardPage from './pages/LeaderboardPage/LeaderboardPage';
 import ConfirmDialogHost from './components/shared/ConfirmDialogHost';
 import ErrorBoundary from './components/ErrorBoundary';
-import { reportError, reportWarning } from './utils/userFeedback';
+import {
+  reportError,
+  reportWarning,
+  toastPosition,
+} from './utils/userFeedback';
 
 const BACKUP_TOAST = 'automatic-backup-status';
 
@@ -43,7 +47,9 @@ function App() {
       (status) => {
         if (status.ok) {
           toast.dismiss(BACKUP_TOAST);
-          toast.success('Automatic backups are working again.');
+          toast.success('Automatic backups are working again.', {
+            position: toastPosition(),
+          });
           return;
         }
         reportWarning(
@@ -98,6 +104,8 @@ function App() {
         </Routes>
       </ErrorBoundary>
       <ToastContainer
+        // Default placement; each toast sets its own (userFeedback
+        // toastPosition: bottom-right on the scoring screen).
         position="bottom-left"
         // At most four on screen; identical ones are merged (userFeedback).
         // Any more wait their turn instead of covering the page.

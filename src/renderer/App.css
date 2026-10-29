@@ -2026,7 +2026,7 @@ button.submit-scores-btn.is-unavailable:hover {
 
 /* Messages must be readable at a glance in sunshine: dark text, a bold
    coloured edge for the kind of message and larger type. They sit at the
-   BOTTOM LEFT, narrow (360px, under 30% of a 1280px window). Every screen puts
+   BOTTOM LEFT (bottom RIGHT on the scoring screen, see below), narrow (360px, under 30% of a 1280px window). Every screen puts
    its controls on the right or across the middle of a row: the leaderboard's
    result inputs, the row actions (Edit, Remove, Undo) and the sticky Submit
    Scores bar are right of the sail number and name, while the left edge is the
@@ -2042,6 +2042,14 @@ button.submit-scores-btn.is-unavailable:hover {
 .Toastify__toast-container--bottom-left {
   bottom: 12px;
   left: 12px;
+}
+/* Scoring screen only (userFeedback.toastPosition): there the boat table fills
+   the left, and with boats missing it is taller than the finish-order column,
+   so a left toast covers the amber "Not scored" rows the judge must click.
+   The right column's lower area is free (its Submit bar is at the top). */
+.Toastify__toast-container--bottom-right {
+  bottom: 12px;
+  right: 12px;
 }
 /* Leaderboard penalty cell: the code, then its points a step smaller, e.g.
    "ZFP 5.2" or "(DSQ 11)". Same colour as the code, so a discard stays grey. */

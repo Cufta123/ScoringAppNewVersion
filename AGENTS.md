@@ -750,9 +750,16 @@ For most feature/fix requests, do this in order:
   window opens maximised. Every colour pair a judge must read is >= 4.5:1
   (white on `--teal` 5.3, on `--danger` 5.3; compute, do not eyeball). Do not
   reintroduce pale greys, small uppercase labels, half-transparent
-  (`opacity`) disabled buttons, or top toasts. Toasts are bottom-LEFT and 360px
-  wide (result inputs, row buttons and the sticky Submit Scores bar are right
-  of the sail number and name; bottom-right and top both covered them), dark
+  (`opacity`) disabled buttons, or top toasts. Toasts are 360px wide and
+  bottom-LEFT on every screen except the scoring screen (`/heat-race`), where
+  they are bottom-RIGHT: elsewhere result inputs and row buttons are right of
+  the sail number and name, so the left covers only names and ranks (top and
+  bottom-right covered the inputs); on the scoring screen the boat table fills
+  the left and, with boats missing, is taller than the finish-order column, so
+  a left toast covers the amber "Not scored" rows the judge must click next,
+  while the lower right is free (its Submit bar is at the top). The position
+  is chosen centrally per toast (`userFeedback.toastPosition`, from the route
+  when the toast is shown); never pass `position` at a call site. Dark
   text, bold title over the body (`ToastMessage`), at most four at once, and an
   identical toast (same kind + title + body) is refreshed, not stacked
   (`userFeedback.showToast`). Errors, and warnings with no mark on the page,
