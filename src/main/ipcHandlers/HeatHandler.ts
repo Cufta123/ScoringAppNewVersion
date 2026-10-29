@@ -21,7 +21,10 @@ import {
   getOddEvenMovementAdvisory,
 } from '../functions/raceSeeding';
 import { getAssignmentRowsForHeatRace } from '../functions/assignmentShield';
-import { assertQualifyingHeatIsOpen } from '../functions/seriesGuards';
+import {
+  assertQualifyingHeatIsOpen,
+  hasFinalSeriesStarted,
+} from '../functions/seriesGuards';
 import {
   describeIndistinguishable,
   findIndistinguishableBoats,
@@ -325,6 +328,15 @@ handle('readAllRaces', async (event, heat_id) => {
 
 handle('createNewHeatsBasedOnLeaderboard', async (event, raw_event_id) => {
   const event_id = Number(raw_event_id);
+  // The qualifying series is closed once the Final Series has started (the
+  // fleets were split on its ranking, SHRS 4.2). The heats page hides this
+  // action then, but its state can be stale and the channel is reachable on
+  // its own, like every other qualifying write (assertQualifyingHeatIsOpen).
+  if (hasFinalSeriesStarted(event_id)) {
+    throw new Error(
+      'Cannot create new heats: the Final Series has already started, so the qualifying series is closed.',
+    );
+  }
   const latestHeats = getLatestQualifyingHeats(event_id);
   checkRaceCountForLatestHeats(latestHeats, db);
   const raceRows = getLatestRaceRowsForHeats(latestHeats);

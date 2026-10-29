@@ -66,6 +66,30 @@ const heatId = (db: any, name: string): number =>
     .prepare('SELECT heat_id FROM Heats WHERE event_id = ? AND heat_name = ?')
     .get(EVENT_ID, name).heat_id;
 
+const boatsIn = (db: any, name: string): number[] =>
+  db
+    .prepare(
+      'SELECT b.sail_number FROM Heat_Boat hb JOIN Boats b ON b.boat_id = hb.boat_id WHERE hb.heat_id = ? ORDER BY b.sail_number',
+    )
+    .all(heatId(db, name))
+    .map((row: { sail_number: number }) => row.sail_number);
+
+async function scoreHeat(db: any, name: string) {
+  const result = await handlerRegistry.submitHeatRaceScoresAtomic(
+    {},
+    {
+      heat_id: heatId(db, name),
+      placeNumbers: boatsIn(db, name).map((sail, index) => ({
+        boatNumber: sail,
+        place: index + 1,
+        status: 'FINISHED',
+      })),
+    },
+  );
+  expect(result.ok).toBe(true);
+  return result.raceId as number;
+}
+
 describe('correctness review (real SQLite, FKs on)', () => {
   let db: any;
 
@@ -98,6 +122,27 @@ describe('correctness review (real SQLite, FKs on)', () => {
 
       expect(inHeat).toBe(4);
       expect(listed.map((b: any) => b.boat_id).sort()).toEqual([1, 2, 3, 4]);
+    });
+  });
+
+  describe('the Final Series has started', () => {
+    it('refuses to build another qualifying round', async () => {
+      db = seed(4);
+      await handlerRegistry.createInitialHeatsAtomic({}, EVENT_ID, 2);
+      await scoreHeat(db, 'Heat A1');
+      await scoreHeat(db, 'Heat B1');
+      await handlerRegistry.startFinalSeriesAtomic({}, EVENT_ID);
+
+      await expect(
+        handlerRegistry.createNewHeatsBasedOnLeaderboard({}, EVENT_ID),
+      ).rejects.toThrow(/Final Series/);
+      expect(
+        db
+          .prepare(
+            "SELECT COUNT(*) AS c FROM Heats WHERE heat_type = 'Qualifying'",
+          )
+          .get().c,
+      ).toBe(2);
     });
   });
 });
