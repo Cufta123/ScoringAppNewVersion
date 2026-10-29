@@ -18,6 +18,7 @@ import {
   buildOverallTiePacket,
   compareOverallTiePackets,
 } from './overallTieBreak';
+import { getHeatRoundFromName } from '../../shared/heatNames';
 import type {
   TieBreakExplanation,
   TieBreakRaceGridCell,
@@ -52,9 +53,24 @@ type RaceRow = {
   points: number;
   status: string;
   heat_type: string;
+  heat_name: string;
 };
 
-type DisplayRace = RaceRow & { excluded: boolean };
+/**
+ * `round`: the qualifying round of the heat (0 in a Final fleet). Race numbers
+ * restart in every round, so A8.2 ("last race first") orders by round before
+ * race number, exactly as the ranking does (shared/scoring/series.ts).
+ */
+type DisplayRace = RaceRow & { excluded: boolean; round: number };
+
+/** Latest race first: round, then race number, then id (RRS A8.2). */
+const latestRaceFirst = (
+  l: { round?: number; raceNumber: number; raceId: number },
+  r: { round?: number; raceNumber: number; raceId: number },
+) =>
+  (r.round ?? 0) - (l.round ?? 0) ||
+  r.raceNumber - l.raceNumber ||
+  r.raceId - l.raceId;
 
 function getBoatFinalHeatName(
   event_id: number,
@@ -80,7 +96,7 @@ function getSeriesRaceDisplay(
   const rows = db
     .prepare(
       `SELECT s.race_id, r.race_number, s.points,
-              COALESCE(s.status, 'FINISHED') as status, h.heat_type
+              COALESCE(s.status, 'FINISHED') as status, h.heat_type, h.heat_name
        FROM Scores s
        JOIN Races r ON s.race_id = r.race_id
        JOIN Heats h ON r.heat_id = h.heat_id
@@ -112,7 +128,21 @@ function getSeriesRaceDisplay(
   );
   const excludeCount = capExcludeCountForBoat(seriesExcludeCount, rows.length);
   const excludedIdx = getExcludedIndexes(rows, excludeCount);
-  return rows.map((row, idx) => ({ ...row, excluded: excludedIdx.has(idx) }));
+  const round = (row: RaceRow) =>
+    heat_type === 'Qualifying' ? (getHeatRoundFromName(row.heat_name) ?? 0) : 0;
+  // In time order: round, then race number, then id.
+  return rows
+    .map((row, idx) => ({
+      ...row,
+      excluded: excludedIdx.has(idx),
+      round: round(row),
+    }))
+    .sort(
+      (l, r) =>
+        l.round - r.round ||
+        l.race_number - r.race_number ||
+        l.race_id - r.race_id,
+    );
 }
 
 // All boats with a qualifying score in the event. Needed so single-vs-multi
@@ -173,6 +203,7 @@ function buildSharedPairs(
       return {
         raceId: race.race_id,
         raceNumber: race.race_number,
+        round: race.round,
         heatType: race.heat_type,
         pointsA: race.points,
         pointsB: other.points,
@@ -182,7 +213,11 @@ function buildSharedPairs(
         displayB: other.points,
       };
     })
-    .sort((left, right) => left.raceNumber - right.raceNumber);
+    .sort(
+      (left, right) =>
+        (left.round ?? 0) - (right.round ?? 0) ||
+        left.raceNumber - right.raceNumber,
+    );
 }
 
 function buildSharedRaceGrid(
@@ -352,9 +387,7 @@ function explainQualifying(
   base.winnerBoatId = pickWinner(cmp, boatAId, boatBId);
 
   const sharedPairs = base.sharedRacePairs;
-  const a82PairsDesc = [...sharedPairs].sort(
-    (l, r) => r.raceNumber - l.raceNumber || r.raceId - l.raceId,
-  );
+  const a82PairsDesc = [...sharedPairs].sort(latestRaceFirst);
 
   let route: { rule: string; note: string };
   let stepResult: { steps: TieBreakStep[]; breakerRaceId: number | null };
@@ -480,13 +513,9 @@ function explainOverall(
   // they must lead the A8.2 order regardless of race_number (mirrors the
   // authoritative comparator in overallTieBreak.ts). Sort within each series by
   // race_number descending, then place all final pairs before qualifying pairs.
-  const byRaceDesc = (
-    l: { raceNumber: number; raceId: number },
-    r: { raceNumber: number; raceId: number },
-  ) => r.raceNumber - l.raceNumber || r.raceId - l.raceId;
   const a82PairsDesc = [
-    ...[...sharedFinalRacePairs].sort(byRaceDesc),
-    ...[...sharedQualRacePairs].sort(byRaceDesc),
+    ...[...sharedFinalRacePairs].sort(latestRaceFirst),
+    ...[...sharedQualRacePairs].sort(latestRaceFirst),
   ];
 
   let route: { rule: string; note: string };

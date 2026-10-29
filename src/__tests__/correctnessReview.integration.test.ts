@@ -177,6 +177,9 @@ describe('correctness review (real SQLite, FKs on)', () => {
       await sail('Heat A1', [Q, P, X, Y]);
       await handlerRegistry.createNewHeatsBasedOnLeaderboard({}, EVENT_ID);
       await sail('Heat A2', [P, Y, Q, X]);
+      const lastRaceId = db
+        .prepare('SELECT MAX(race_id) AS id FROM Races')
+        .get().id as number;
 
       // X and Y both total 9 with scores {2, 3, 4}; in the last race sailed Y
       // was 2nd and X 4th, so Y is ahead (RRS A8.2).
@@ -190,6 +193,23 @@ describe('correctness review (real SQLite, FKs on)', () => {
       expect(byBoat.get(X)?.total).toBe(9);
       expect(byBoat.get(Y)?.total).toBe(9);
       expect(byBoat.get(Y)!.place).toBeLessThan(byBoat.get(X)!.place);
+
+      // The compare panel names the same winner and the same deciding race.
+      const explained = await handlerRegistry.explainTieBreak(
+        {},
+        EVENT_ID,
+        X,
+        Y,
+        false,
+      );
+      expect(explained.winnerBoatId).toBe(String(Y));
+      const decisive = explained.steps.find((step: any) => step.resolved);
+      expect(decisive.comparison).toMatchObject({
+        mode: 'A8.2',
+        raceId: lastRaceId,
+        scoreA: 4,
+        scoreB: 2,
+      });
     });
   });
 
