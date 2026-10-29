@@ -1711,7 +1711,8 @@ small.form-locked-note {
 
 /* Rows that can be used from the keyboard show where the focus is. */
 tr[tabindex]:focus-visible {
-  outline: 3px solid var(--ocean);
+  /* !important: a selected leaderboard row sets its own outline inline. */
+  outline: 3px solid var(--ocean) !important;
   outline-offset: -3px;
 }
 
