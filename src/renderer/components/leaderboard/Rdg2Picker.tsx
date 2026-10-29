@@ -1,5 +1,6 @@
 import React from 'react';
 import type { LeaderboardEntry, Rdg2PickerState } from '../../types';
+import useDialogFocus from '../../hooks/useDialogFocus';
 
 interface Rdg2PickerProps {
   entry: LeaderboardEntry;
@@ -31,9 +32,6 @@ interface Rdg2PickerProps {
 const PICKER_EST_HEIGHT = 420;
 const PICKER_MIN_WIDTH = 240;
 
-const FOCUSABLE_SELECTOR =
-  'button:not(:disabled), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
-
 function Rdg2Picker({
   entry,
   raceIndex,
@@ -44,7 +42,6 @@ function Rdg2Picker({
   anchorEl = null,
 }: Rdg2PickerProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
-  const lastFocusedRef = React.useRef<HTMLElement | null>(null);
   // Live anchor position. Seeded from the rect captured when the popover opened,
   // then refreshed from the anchor element on scroll/resize so the popover stays
   // glued to its cell instead of drifting or closing.
@@ -59,12 +56,6 @@ function Rdg2Picker({
         e.target instanceof Node &&
         !containerRef.current.contains(e.target)
       ) {
-        setRdg2Picker(null);
-      }
-    };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
         setRdg2Picker(null);
       }
     };
@@ -85,71 +76,20 @@ function Rdg2Picker({
       else setRdg2Picker(null);
     };
     document.addEventListener('mousedown', onMouseDown);
-    document.addEventListener('keydown', onKeyDown);
     window.addEventListener('scroll', onScroll, true);
     window.addEventListener('resize', reposition);
     return () => {
       document.removeEventListener('mousedown', onMouseDown);
-      document.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('scroll', onScroll, true);
       window.removeEventListener('resize', reposition);
     };
   }, [setRdg2Picker, anchorEl]);
 
-  // Focus trap + focus restore (mirrors the shared <AppModal />). The picker is
-  // only mounted while open, so mount/unmount maps to open/close: focus the first
-  // focusable control on open, keep Tab cycling inside the dialog, and hand focus
-  // back to the triggering cell control on close.
-  React.useEffect(() => {
-    const dialog = containerRef.current;
-    if (!dialog) return undefined;
-
-    lastFocusedRef.current = document.activeElement as HTMLElement | null;
-    const focusables = [
-      ...dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
-    ];
-    if (focusables.length > 0) {
-      focusables[0].focus();
-    } else {
-      dialog.focus();
-    }
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Tab') return;
-
-      const currentFocusable = [
-        ...dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
-      ];
-      if (currentFocusable.length === 0) {
-        event.preventDefault();
-        return;
-      }
-
-      const first = currentFocusable[0];
-      const last = currentFocusable[currentFocusable.length - 1];
-      const active = document.activeElement;
-
-      if (event.shiftKey && active === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && active === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener('keydown', onKeyDown);
-
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      if (
-        lastFocusedRef.current &&
-        typeof lastFocusedRef.current.focus === 'function'
-      ) {
-        lastFocusedRef.current.focus();
-      }
-    };
-  }, []);
+  // Focus in, Tab trapped, Escape closes, focus handed back to the cell
+  // control: the same behaviour as every other dialog.
+  useDialogFocus(containerRef, Boolean(rdg2Picker && anchorRect), () =>
+    setRdg2Picker(null),
+  );
 
   if (!rdg2Picker || !anchorRect) return null;
 

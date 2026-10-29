@@ -85,7 +85,7 @@ async function createNextRoundOfHeats(round: number): Promise<void> {
     .click();
   await window
     .getByRole('dialog')
-    .getByRole('button', { name: 'Confirm' })
+    .getByRole('button', { name: 'Create heats' })
     .click();
   await expect(
     window.locator('.heat-column', { hasText: `Heat A${round}` }),
@@ -160,7 +160,7 @@ test('starting the Final Series with an unsailed new round does not claim "no ra
   ).toHaveCount(0);
 
   // Continue past the informative prompt.
-  await unsailedDialog.getByRole('button', { name: 'Confirm' }).click();
+  await unsailedDialog.getByRole('button', { name: 'Continue' }).click();
 
   // Next is the recovery-snapshot offer — skip it.
   await expect(
@@ -168,7 +168,7 @@ test('starting the Final Series with an unsailed new round does not claim "no ra
   ).toBeVisible();
   await window
     .getByRole('dialog')
-    .getByRole('button', { name: 'Cancel' })
+    .getByRole('button', { name: 'Skip backup' })
     .click();
 
   // The legitimate Rule 4.3 prompt must still be offered (6 completed races is

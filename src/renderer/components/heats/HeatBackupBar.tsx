@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatDateTime } from '../../utils/formatDate';
 import type { SnapshotEntry } from '../../hooks/useSnapshotHistory';
 
 interface HeatBackupBarProps {
@@ -70,7 +71,7 @@ export default function HeatBackupBar({
           <ul>
             {history.map((item) => (
               <li key={`${item.fileName}-${item.savedAt}`}>
-                {item.fileName} - {new Date(item.savedAt).toLocaleString()}
+                {item.fileName} - {formatDateTime(item.savedAt)}
               </li>
             ))}
           </ul>

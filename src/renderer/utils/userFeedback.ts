@@ -133,21 +133,34 @@ export const reportInfo = (message?: string, title = 'Notice'): void => {
   showToast('info', title, message || 'Done.', {});
 };
 
+/** How long a warning whose problem is also marked on the page stays up. */
+export const INLINE_WARNING_MS = 8000;
+
 // Blocking validation the user must act on (e.g. "these sail numbers are not in
 // this heat", "some boats are not scored yet"). Unlike reportInfo these do NOT
 // auto-dismiss, so a slower reader has time to read multi-step instructions
 // before they vanish. `white-space: pre-line` on the toast body (see App.css)
 // keeps the numbered "1) … 2) …" steps on separate lines.
+//
+// `inline: true` is for a warning whose problem is ALSO marked where it is
+// (the missing boats in the boat table, the red leaderboard cells): that mark
+// is the lasting signal, so the toast closes by itself after
+// INLINE_WARNING_MS (it pauses while the pointer or keyboard focus is on it)
+// instead of sitting over the work. Say so explicitly; a warning with no
+// mark on the page must stay until it is dismissed.
 export const reportWarning = (
   message?: string,
   title = 'Please check',
-  { toastId }: { toastId?: string } = {},
+  { toastId, inline = false }: { toastId?: string; inline?: boolean } = {},
 ): void => {
   showToast(
     'warning',
     title,
     message || 'Please review your input.',
-    { autoClose: false, closeOnClick: true },
+    {
+      autoClose: inline ? INLINE_WARNING_MS : false,
+      closeOnClick: true,
+    },
     toastId,
   );
 };

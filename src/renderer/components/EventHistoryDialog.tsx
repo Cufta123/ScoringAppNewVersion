@@ -6,7 +6,8 @@ import React, {
   useState,
 } from 'react';
 import { eventDB } from '../api/db';
-import useModalFocus from '../hooks/useModalFocus';
+import useDialogFocus, { refocusIfLost } from '../hooks/useDialogFocus';
+import { formatDateTime } from '../utils/formatDate';
 import { HistoryAction, summarizeAction } from '../../shared/history/describe';
 import { whyNotRevertable } from '../../shared/history/revert';
 import {
@@ -33,15 +34,7 @@ interface GoBackTarget {
 /** Changes listed per action before "Show all" is needed. */
 const PREVIEW_LINES = 6;
 
-const formatTime = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
+const formatTime = (iso: string) => formatDateTime(iso);
 
 function HistoryEntry({
   label,
@@ -139,6 +132,8 @@ function EventHistoryDialog({
   open,
   onClose,
 }: EventHistoryDialogProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const [actions, setActions] = useState<HistoryAction[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -228,13 +223,25 @@ function EventHistoryDialog({
     target?.scrollIntoView?.({ block: 'start' });
   }, [goBackTarget]);
 
-  useModalFocus(open, closeRef, () => {
-    // A pending "go back" question is closed first, not the history.
-    setGoBackTarget((pending) => {
-      if (!pending) onClose();
-      return null;
-    });
-  });
+  useDialogFocus(
+    dialogRef,
+    open,
+    () => {
+      // A pending "go back" question is closed first, not the history.
+      setGoBackTarget((pending) => {
+        if (!pending) onClose();
+        return null;
+      });
+    },
+    closeRef,
+  );
+
+  // After an action the button that had focus (Undo, Go back to here, Go back,
+  // Cancel) is gone or disabled, and the browser would leave focus on the page
+  // behind. Move it to the dialog's heading instead.
+  useEffect(() => {
+    if (open && !busy) refocusIfLost(dialogRef.current, headingRef.current);
+  }, [open, busy, actions, goBackTarget]);
 
   const entries = useMemo(() => {
     const needle = filter.trim().toLowerCase();
@@ -379,13 +386,16 @@ function EventHistoryDialog({
       }}
     >
       <div
+        ref={dialogRef}
         className="feedback-modal help-modal explain-modal history-modal"
         role="dialog"
         aria-modal="true"
         aria-label="Event history"
         tabIndex={-1}
       >
-        <h3 className="feedback-modal-title">Event history</h3>
+        <h3 ref={headingRef} className="feedback-modal-title" tabIndex={-1}>
+          Event history
+        </h3>
         <label className="history-filter" htmlFor="event-history-filter">
           Filter by sail, heat or result
           <input

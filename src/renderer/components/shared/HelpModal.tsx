@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useRef } from 'react';
+import useDialogFocus from '../../hooks/useDialogFocus';
 import { PENALTY_DESCRIPTIONS } from '../../constants/penaltyLabels';
 
 interface HelpModalProps {
@@ -35,28 +36,9 @@ const GLOSSARY_CODES = [
  * short: what a volunteer race officer needs mid-event, not a full manual.
  */
 function HelpModal({ open, onClose }: HelpModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
-  const lastFocusedRef = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    lastFocusedRef.current = document.activeElement as HTMLElement | null;
-    closeRef.current?.focus();
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onClose();
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      if (typeof lastFocusedRef.current?.focus === 'function') {
-        lastFocusedRef.current.focus();
-      }
-    };
-  }, [open, onClose]);
+  useDialogFocus(dialogRef, open, onClose, closeRef);
 
   if (!open) return null;
 
@@ -69,6 +51,7 @@ function HelpModal({ open, onClose }: HelpModalProps) {
       }}
     >
       <div
+        ref={dialogRef}
         className="feedback-modal help-modal"
         role="dialog"
         aria-modal="true"

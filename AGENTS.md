@@ -750,14 +750,28 @@ For most feature/fix requests, do this in order:
   window opens maximised. Every colour pair a judge must read is >= 4.5:1
   (white on `--teal` 5.3, on `--danger` 5.3; compute, do not eyeball). Do not
   reintroduce pale greys, small uppercase labels, half-transparent
-  (`opacity`) disabled buttons, or top toasts. Toasts are bottom-right, dark
+  (`opacity`) disabled buttons, or top toasts. Toasts are bottom-LEFT and 360px
+  wide (result inputs, row buttons and the sticky Submit Scores bar are right
+  of the sail number and name; bottom-right and top both covered them), dark
   text, bold title over the body (`ToastMessage`), at most four at once, and an
   identical toast (same kind + title + body) is refreshed, not stacked
-  (`userFeedback.showToast`); the top of the page holds the navbar, the page
-  toolbars and the sticky Submit Scores bar, which a toast must not cover.
+  (`userFeedback.showToast`). Errors, and warnings with no mark on the page,
+  stay until dismissed; a warning whose problem is ALSO marked on the page
+  (missing boats in the boat table, red leaderboard cells) is reported with
+  `reportWarning(..., { inline: true })` and closes itself after 8 s (it
+  pauses on hover and keyboard focus). Say `inline` explicitly; never guess.
   A Submit with boats missing marks them in the boat table ("Not scored",
   `useScoringInput` `isMissingSail`). Dates on screen go through
-  `utils/formatDate.ts` (dd.mm.yyyy; stored values stay ISO).
+  `utils/formatDate.ts` (dd.mm.yyyy; `formatDateTime` for dd.mm.yyyy
+  HH:mm:ss, 24 hour; never `toLocale*String`, which shows US format). Every
+  dialog (AppModal, HelpModal, EventHistoryDialog, ScoreExplanationDialog,
+  Rdg2Picker) uses `hooks/useDialogFocus` for initial focus, the Tab trap,
+  Escape (newest dialog only) and focus restore; a new dialog must too.
+  Confirm buttons name the action ("Create heats", "Discard changes"), not
+  "Confirm"/"OK", and the safe choice is the first button, focused by default.
+  A leaderboard penalty cell shows code and points ("ZFP 5.2", "(DSQ 11)";
+  exports still show the code only). On the scoring screen Ctrl/Cmd+Enter
+  submits the race (the Submit button's title says so).
   `UI_TOUR=1 npx playwright test e2e/ui-tour.spec.ts` seeds a 30-boat event
   and saves a screenshot of every screen (to `e2e-ui-tour/`) for review.
 - **Typed results are never corrected silently.** Leaderboard cells and the

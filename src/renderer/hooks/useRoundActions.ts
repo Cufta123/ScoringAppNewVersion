@@ -45,6 +45,7 @@ export default function useRoundActions({
     const confirmed = await confirmAction(
       'Create new heats based on the current leaderboard?\n\nAll heats in the current round must have the same number of races.',
       'Create New Heats',
+      { confirmLabel: 'Create heats' },
     );
     if (!confirmed) return;
 

@@ -312,6 +312,8 @@ export default function useLeaderboardEdit(
       reportWarning(
         `Nothing was saved. Fix the results marked in red first:\n${invalidMessages.join('\n')}`,
         'Some results are not valid',
+        // The red cells and the count in the edit banner stay.
+        { inline: true },
       );
       return;
     }

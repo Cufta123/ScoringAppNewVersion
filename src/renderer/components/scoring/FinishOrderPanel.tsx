@@ -7,6 +7,12 @@ import type {
   ScoringInputState,
 } from '../../hooks/useScoringInput';
 
+/** The shortcut that submits the race from anywhere on the scoring screen. */
+const SUBMIT_SHORTCUT =
+  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
+    ? 'Cmd+Enter'
+    : 'Ctrl+Enter';
+
 interface SubmitBarProps extends ScoringProgress {
   submitting: boolean;
   onSubmit: () => void;
@@ -53,8 +59,8 @@ function SubmitBar({
           isEmpty
             ? 'No boats to score in this heat'
             : allScored
-              ? undefined
-              : 'Score every boat (a place or a penalty) before submitting'
+              ? `Submit the scores (${SUBMIT_SHORTCUT})`
+              : `Score every boat (a place or a penalty) before submitting (${SUBMIT_SHORTCUT})`
         }
         onClick={onSubmit}
       >
@@ -90,10 +96,13 @@ function AddSailRow({ onAdd }: { onAdd: (text: string) => void }) {
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            add();
-          }
+          if (e.key !== 'Enter') return;
+          // Ctrl/Cmd+Enter on an empty field submits the race (the panel
+          // listens for it); with numbers typed it only adds them, so a
+          // half-entered finish is never submitted without them.
+          if ((e.ctrlKey || e.metaKey) && text.trim() === '') return;
+          e.preventDefault();
+          add();
         }}
         placeholder="Type sail numbers (e.g. 101 205 88), press Enter"
         aria-label="Add sail numbers manually"
@@ -121,6 +130,25 @@ export default function FinishOrderPanel({
   scoring,
 }: FinishOrderPanelProps) {
   const invalidCount = scoring.invalidBoatNumbers.length;
+
+  // Ctrl/Cmd+Enter submits from anywhere on the screen, so a whole race can be
+  // scored from the keyboard: type the sail numbers, Enter, Ctrl+Enter. The
+  // same checks as the button run (missing boats are named, not submitted).
+  const submitRef = useRef(scoring.submit);
+  submitRef.current = scoring.submit;
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' || !(event.ctrlKey || event.metaKey)) return;
+      if (event.defaultPrevented || event.repeat) return;
+      // A dialog (confirmation, help, history) has its own keys.
+      if (document.querySelector('[aria-modal="true"]')) return;
+      event.preventDefault();
+      submitRef.current();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   return (
     <div className="scoring-panel scoring-panel-right">
       <h2 className="scoring-panel-title">

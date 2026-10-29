@@ -79,7 +79,7 @@ test('full advanced-settings -> 7 rounds -> final series', async () => {
         .click();
       await window
         .getByRole('dialog')
-        .getByRole('button', { name: 'Confirm' })
+        .getByRole('button', { name: 'Create heats' })
         .click();
       await expect(
         window.locator('.heat-column', { hasText: `Heat A${r}` }),
@@ -111,7 +111,7 @@ test('full advanced-settings -> 7 rounds -> final series', async () => {
   ).toBeVisible();
   await window
     .getByRole('dialog')
-    .getByRole('button', { name: 'Cancel' })
+    .getByRole('button', { name: 'Skip backup' })
     .click();
   await expect(
     window.getByRole('heading', { name: /Rule 4\.3/i }),

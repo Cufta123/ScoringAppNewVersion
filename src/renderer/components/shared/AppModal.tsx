@@ -1,7 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-
-const FOCUSABLE_SELECTOR =
-  'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+import React, { useRef } from 'react';
+import useDialogFocus from '../../hooks/useDialogFocus';
 
 interface AppModalProps {
   open: boolean;
@@ -32,67 +30,8 @@ function AppModal({
   onExtra = undefined,
 }: AppModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
-  const lastFocusedRef = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return undefined;
-
-    lastFocusedRef.current = document.activeElement as HTMLElement | null;
-    const dialog = dialogRef.current;
-    const focusables = dialog
-      ? [...dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)]
-      : [];
-
-    if (focusables.length > 0) {
-      focusables[0].focus();
-    } else if (dialog) {
-      dialog.focus();
-    }
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!dialog) return;
-
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onCancel();
-        return;
-      }
-
-      if (event.key !== 'Tab') return;
-
-      const currentFocusable = [
-        ...dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
-      ];
-      if (currentFocusable.length === 0) {
-        event.preventDefault();
-        return;
-      }
-
-      const first = currentFocusable[0];
-      const last = currentFocusable[currentFocusable.length - 1];
-      const active = document.activeElement;
-
-      if (event.shiftKey && active === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && active === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener('keydown', onKeyDown);
-
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      if (
-        lastFocusedRef.current &&
-        typeof lastFocusedRef.current.focus === 'function'
-      ) {
-        lastFocusedRef.current.focus();
-      }
-    };
-  }, [open, onCancel]);
+  // Focus in, Tab trapped, Escape cancels, focus handed back on close.
+  useDialogFocus(dialogRef, open, onCancel);
 
   if (!open) return null;
 
@@ -103,7 +42,7 @@ function AppModal({
       onClick={(event) => {
         // Dismiss only when the backdrop itself is clicked, not when a click
         // bubbles up from inside the dialog. Keyboard dismissal (Escape) and
-        // focus trapping are handled at the document level above.
+        // focus trapping are handled by useDialogFocus.
         if (event.target === event.currentTarget) onCancel();
       }}
     >

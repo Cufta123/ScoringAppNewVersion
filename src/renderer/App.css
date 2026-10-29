@@ -900,10 +900,8 @@ th.sortable:hover {
 }
 
 .sailor-form-field label {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
   color: var(--text-muted);
   margin-bottom: 5px;
 }
@@ -922,6 +920,10 @@ th.sortable:hover {
 
 .feedback-modal {
   width: min(520px, 96vw);
+  /* A long message or list scrolls inside the dialog instead of running off
+     a 720px-high window with its buttons out of reach. */
+  max-height: 94vh;
+  overflow-y: auto;
   background: var(--surface);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
@@ -1229,10 +1231,8 @@ th.sortable:hover {
 }
 
 .compare-step-state {
-  text-transform: uppercase;
-  font-size: 0.74rem;
+  font-size: 0.85rem;
   font-weight: 800;
-  letter-spacing: 0.04em;
   color: var(--text-muted);
 }
 
@@ -1639,25 +1639,29 @@ small.form-locked-note {
   width: 100%;
 }
 
+/* Widths for the half-window panel at 1280px (about 590px; 510px at 1100px):
+   "Country" and "Sail #" must fit their header, the penalty select needs room
+   for its code, and the name wraps rather than the row growing. */
 .scoring-table th:nth-child(1),
 .scoring-table td:nth-child(1) {
-  width: 36%;
+  width: 29%;
+  overflow-wrap: anywhere;
 }
 .scoring-table th:nth-child(2),
 .scoring-table td:nth-child(2) {
-  width: 12%;
+  width: 15%;
 }
 .scoring-table th:nth-child(3),
 .scoring-table td:nth-child(3) {
-  width: 16%;
+  width: 14%;
 }
 .scoring-table th:nth-child(4),
 .scoring-table td:nth-child(4) {
-  width: 14%;
+  width: 12%;
 }
 .scoring-table th:nth-child(5),
 .scoring-table td:nth-child(5) {
-  width: 22%;
+  width: 30%;
 }
 
 .scoring-table th {
@@ -1667,12 +1671,13 @@ small.form-locked-note {
   text-transform: none;
   letter-spacing: normal;
   font-size: 0.9rem;
-  padding: 8px 10px;
+  padding: 8px;
+  white-space: nowrap;
   border-bottom: 2px solid var(--border);
 }
 
 .scoring-table td {
-  padding: 8px 10px;
+  padding: 8px;
   border-bottom: 1px solid var(--bg-subtle);
 }
 
@@ -1710,16 +1715,18 @@ small.form-locked-note {
   border-left: 4px solid var(--amber-strong);
 }
 .scoring-missing-badge {
-  display: block;
-  width: fit-content;
-  margin-top: 2px;
-  padding: 1px 8px;
+  /* Beside the name, not under it: it only drops to the next line when the
+     name leaves no room, so the row does not grow just for the badge. */
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 7px;
+  vertical-align: middle;
   border-radius: var(--radius-pill);
   background: var(--amber-strong);
   color: #fff;
   font-size: 0.8rem;
   font-weight: 700;
-  line-height: 1.4;
+  line-height: 1.5;
   white-space: nowrap;
 }
 
@@ -2019,17 +2026,29 @@ button.submit-scores-btn.is-unavailable:hover {
 
 /* Messages must be readable at a glance in sunshine: dark text, a bold
    coloured edge for the kind of message and larger type. They sit at the
-   BOTTOM right: the top of the page holds the navbar, the page toolbars (Save,
-   Edit, Back) and, on the scoring screen, the sticky Submit Scores bar, which a
-   judge has just pressed when a warning appears; the bottom right only covers
-   the tail of a long list. At most four are shown at once (App.tsx) and
-   identical ones are merged (userFeedback.ts). */
+   BOTTOM LEFT, narrow (360px, under 30% of a 1280px window). Every screen puts
+   its controls on the right or across the middle of a row: the leaderboard's
+   result inputs, the row actions (Edit, Remove, Undo) and the sticky Submit
+   Scores bar are right of the sail number and name, while the left edge is the
+   rank, sail number and name, which are only read. The top holds the navbar and
+   the page toolbars, and bottom-right (tried first) sat over the result inputs
+   and the row buttons. A warning whose problem is also marked on the page
+   closes itself after 8 s (userFeedback.reportWarning `inline`); errors and
+   other warnings stay until dismissed. At most four are shown at once
+   (App.tsx) and identical ones are merged (userFeedback.ts). */
 .Toastify__toast-container {
-  width: min(420px, 94vw);
+  width: min(360px, 94vw);
 }
-.Toastify__toast-container--bottom-right {
+.Toastify__toast-container--bottom-left {
   bottom: 12px;
-  right: 12px;
+  left: 12px;
+}
+/* Leaderboard penalty cell: the code, then its points a step smaller, e.g.
+   "ZFP 5.2" or "(DSQ 11)". Same colour as the code, so a discard stays grey. */
+.penalty-points {
+  font-size: 0.82em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 /* Title as a bold first line, the explanation under it. */
 .toast-message .toast-title {
@@ -2190,10 +2209,8 @@ button.submit-scores-btn.is-unavailable:hover {
 
 .explain-excluded-tag {
   margin-left: 6px;
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
 }
 
 .explain-rule {
@@ -2493,7 +2510,7 @@ input[type='checkbox'] {
 }
 .history-modal .help-modal-body {
   flex: 1 1 auto;
-  min-height: 120px;
+  min-height: 90px;
   max-height: none;
   overflow-y: auto;
 }

@@ -2,6 +2,7 @@ import React from 'react';
 import {
   PENALTY_CODES,
   RDG_TYPES,
+  getPenaltyPointsText,
   getRaceCellDisplay,
   stripExclusionParens,
 } from '../../utils/leaderboardUtils';
@@ -71,6 +72,9 @@ function ScoreCell({
       typeof race === 'string' ? race : String(race),
       raceStatus,
     );
+
+  // A plain penalty shows its points beside the code ("ZFP 5.2").
+  const penaltyPoints = getPenaltyPointsText(entry, raceIndex, raceStatus);
 
   const isPickerOpen =
     rdg2Picker?.boatId === boatId && rdg2Picker?.raceIndex === raceIndex;
@@ -142,13 +146,16 @@ function ScoreCell({
     // bare "BFD" on the printed standings never has to be recalled from memory.
     const statusTitle =
       isPenalty || isRdgCell ? penaltyLabel(raceStatus) : undefined;
+    // "ZFP 5.2", "(DSQ 11)": the discard brackets stay around both.
+    const cellText =
+      penaltyPoints == null
+        ? displayText
+        : `${isExcluded ? '(' : ''}${raceStatus} ${penaltyPoints}${isExcluded ? ')' : ''}`;
     return (
       <td
         title={statusTitle}
         aria-label={
-          isShared
-            ? `Shared race cell: ${displayText}`
-            : `Race cell: ${displayText}`
+          isShared ? `Shared race cell: ${cellText}` : `Race cell: ${cellText}`
         }
         style={{
           ...tdStyle,
@@ -166,7 +173,16 @@ function ScoreCell({
             fontWeight: isPenalty && !isExcluded ? 600 : 'inherit',
           }}
         >
-          {displayText}
+          {penaltyPoints == null ? (
+            displayText
+          ) : (
+            <>
+              {isExcluded ? '(' : ''}
+              {raceStatus}
+              <span className="penalty-points"> {penaltyPoints}</span>
+              {isExcluded ? ')' : ''}
+            </>
+          )}
         </span>
       </td>
     );

@@ -129,7 +129,7 @@ test('advanced settings drive scoring and a 7-race series reaches the final seri
         .click();
       await window
         .getByRole('dialog')
-        .getByRole('button', { name: 'Confirm' })
+        .getByRole('button', { name: 'Create heats' })
         .click();
       await expect(
         window.locator('.heat-column', { hasText: `Heat A${round}` }),
@@ -171,7 +171,7 @@ test('advanced settings drive scoring and a 7-race series reaches the final seri
   ).toBeVisible();
   await window
     .getByRole('dialog')
-    .getByRole('button', { name: 'Cancel' })
+    .getByRole('button', { name: 'Skip backup' })
     .click();
 
   // SHRS Rule 4.3 must be offered: 7 completed races is inside its 6–7 window.

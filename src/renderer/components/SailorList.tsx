@@ -85,6 +85,17 @@ export interface SailorListSailor {
   [key: string]: unknown;
 }
 
+/** The fields a row edit can change; compared to find unsaved changes. */
+const EDITABLE_FIELDS = [
+  'country',
+  'sail_number',
+  'model',
+  'name',
+  'surname',
+  'club',
+  'category',
+] as const;
+
 interface EditedSailor {
   boat_id?: number;
   country?: string;
@@ -175,7 +186,36 @@ function SailorList({
     fetchCategories();
   }, []);
 
-  const handleEditClick = (sailor: SailorListSailor) => {
+  // Whether the open row edit differs from the saved sailor: only then is
+  // leaving it a loss worth asking about.
+  const hasUnsavedEdit = (): boolean => {
+    if (editingSailorId == null) return false;
+    const saved = sailors.find((row) => row.boat_id === editingSailorId);
+    if (!saved) return false;
+    return EDITABLE_FIELDS.some(
+      (field) =>
+        String(editedSailor[field] ?? '') !== String(saved[field] ?? ''),
+    );
+  };
+
+  const handleEditClick = async (sailor: SailorListSailor) => {
+    // Opening another row would throw away what was typed in this one.
+    if (
+      editingSailorId != null &&
+      editingSailorId !== sailor.boat_id &&
+      hasUnsavedEdit()
+    ) {
+      const discard = await confirmAction(
+        'You changed this sailor and have not saved. Discard the changes and edit the other sailor instead?',
+        'Discard unsaved changes',
+        {
+          confirmLabel: 'Discard changes',
+          cancelLabel: 'Keep editing',
+          confirmClassName: 'btn-danger',
+        },
+      );
+      if (!discard) return;
+    }
     setEditingSailorId(sailor.boat_id);
     setEditedSailor({
       ...sailor,
