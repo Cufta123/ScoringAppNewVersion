@@ -10,7 +10,6 @@ import LoadingState from '../../components/shared/LoadingState';
 import './EventPage.css';
 import HeatComponent from '../../components/HeatComponent';
 import { useEventDataChanged } from '../../utils/eventDataChanged';
-import printStartingList from '../../utils/printStartingList';
 import {
   reportError,
   reportInfo,
@@ -23,7 +22,7 @@ import type { EventBoatRow } from '../../types';
 import useRouteEvent from '../../hooks/useRouteEvent';
 import { sailorFullName } from '../../utils/sailorName';
 import { formatEventDateRange } from '../../utils/formatDate';
-import FormatSelect from '../../components/shared/FormatSelect';
+import StartingListExportDialog from '../../components/export/StartingListExportDialog';
 
 type MappedEventBoat = EventBoatRow & {
   sailor: string;
@@ -50,9 +49,7 @@ function EventPage() {
   const [selectedBoats, setSelectedBoats] = useState<readonly BoatOption[]>([]);
   const [addSailorMode, setAddSailorMode] = useState('single');
   const [raceHappened, setRaceHappened] = useState(false);
-  const [startingListFormat, setStartingListFormat] = useState<
-    'excel' | 'pdf' | 'html'
-  >('excel');
+  const [exportOpen, setExportOpen] = useState(false);
 
   const fetchBoatsWithSailors = useCallback(async () => {
     if (!eventId) return;
@@ -161,20 +158,6 @@ function EventPage() {
   const handleOpenLeaderboard = () => {
     if (!event) return;
     navigate(`/event/${event.event_name}/leaderboard`, { state: { event } });
-  };
-
-  const handlePrintStartingList = async () => {
-    if (!event) return;
-    try {
-      const boatsForEvent = await eventDB.readBoatsByEvent(event.event_id);
-      await printStartingList(
-        event,
-        Array.isArray(boatsForEvent) ? boatsForEvent : [],
-        startingListFormat,
-      );
-    } catch (error) {
-      reportError('Could not export starting list.', error);
-    }
   };
 
   const handleRemoveBoat = async (boatId: number): Promise<boolean> => {
@@ -380,15 +363,10 @@ function EventPage() {
             onRefreshSailors={fetchBoatsWithSailors}
             headerActions={
               <div className="list-header-actions">
-                <FormatSelect
-                  ariaLabel="Starting list format"
-                  value={startingListFormat}
-                  onChange={setStartingListFormat}
-                />
                 <button
                   type="button"
                   className="btn-ghost"
-                  onClick={handlePrintStartingList}
+                  onClick={() => setExportOpen(true)}
                   disabled={!Array.isArray(boats) || boats.length === 0}
                   title={
                     !Array.isArray(boats) || boats.length === 0
@@ -396,7 +374,7 @@ function EventPage() {
                       : undefined
                   }
                 >
-                  Print Starting List
+                  Export starting list…
                 </button>
               </div>
             }
@@ -409,6 +387,16 @@ function EventPage() {
           clickable={false}
           refreshToken={heatsRefreshToken}
         />
+
+        {/* Mounted only while open: each opening reads the entries as they are
+            now and starts from the options remembered for this event. */}
+        {exportOpen && (
+          <StartingListExportDialog
+            open
+            onClose={() => setExportOpen(false)}
+            event={event}
+          />
+        )}
       </main>
     </div>
   );

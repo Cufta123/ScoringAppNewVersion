@@ -3,6 +3,8 @@
  * badge, the page orientation, and the event details every header shows.
  */
 
+import type { PdfFooterText } from '../../shared/exportTypes';
+
 export type ExportLanguage = 'en' | 'hr';
 
 /** Status badge of a results sheet (Provisional is amber, Final is dark). */
@@ -66,6 +68,6 @@ export interface BuiltDocument {
   orientation: Orientation;
   /** Name without extension: "Kup_Kvarnera_2026_results". */
   fileBase: string;
-  /** Short line printed in the PDF page footer. */
-  footerTitle: string;
+  /** The words of the PDF page footer. */
+  footer: PdfFooterText;
 }

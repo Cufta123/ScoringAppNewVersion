@@ -457,7 +457,7 @@ ${scorer}
     }),
     orientation,
     fileBase: heatsFileBase(model, context),
-    footerTitle: context.event.name,
+    footer,
   };
 };
 

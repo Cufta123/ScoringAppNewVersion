@@ -5,13 +5,13 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import QualifyingTable from '../renderer/components/leaderboard/QualifyingTable';
 import { hasMixedBoatTypes } from '../renderer/utils/leaderboardUtils';
-import { buildExportData } from '../renderer/utils/leaderboardExport';
+import {
+  DEFAULT_RESULTS_OPTIONS,
+  buildResultsModel,
+} from '../renderer/exports/resultsModel';
 
 jest.mock('exceljs', () => jest.fn());
 jest.mock('file-saver', () => ({ saveAs: jest.fn() }));
-jest.mock('jspdf', () => ({ jsPDF: jest.fn() }));
-jest.mock('jspdf-autotable', () => jest.fn());
-jest.mock('../renderer/utils/registerPdfUnicodeFont', () => jest.fn());
 jest.mock(
   'react-world-flags',
   () =>
@@ -93,30 +93,26 @@ describe('leaderboard columns', () => {
   });
 
   it('the export follows the screen', () => {
-    const oneDesign = buildExportData({
-      eventId: 1,
-      finalSeriesStarted: false,
-      leaderboard: [],
-      eventLeaderboard: [entry(1, 'IOM', 1)],
-    });
-    expect(oneDesign.header).toEqual([
-      'Rank',
-      'Name',
-      'Country',
-      'Sail #',
-      'Total',
-      'Net',
-      'Q1',
-    ]);
-    expect(oneDesign.sections[0].rows[0]).toHaveLength(7);
+    const build = (eventLeaderboard) =>
+      buildResultsModel(
+        {
+          finalSeriesStarted: false,
+          leaderboard: [],
+          eventLeaderboard,
+          discardProfiles: { qualifying: 'standard', final: 'standard' },
+          clubs: {},
+        },
+        DEFAULT_RESULTS_OPTIONS,
+      );
 
-    const mixed = buildExportData({
-      eventId: 1,
-      finalSeriesStarted: false,
-      leaderboard: [],
-      eventLeaderboard: [entry(1, 'IOM', 1), entry(2, 'Marblehead', 2)],
-    });
-    expect(mixed.header.slice(4, 7)).toEqual(['Type', 'Total', 'Net']);
-    expect(mixed.sections[0].rows[1][4]).toBe('Marblehead');
+    // One design: no Type column, as on screen.
+    const oneDesign = build([entry(1, 'IOM', 1)]);
+    expect(oneDesign.showType).toBe(false);
+    expect(oneDesign.raceHeaders).toEqual(['Q1']);
+
+    // Mixed models: the Type column is there and carries each boat's model.
+    const mixed = build([entry(1, 'IOM', 1), entry(2, 'Marblehead', 2)]);
+    expect(mixed.showType).toBe(true);
+    expect(mixed.sections[0].rows[1].boatType).toBe('Marblehead');
   });
 });

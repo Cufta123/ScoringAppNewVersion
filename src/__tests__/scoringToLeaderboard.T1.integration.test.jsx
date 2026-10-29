@@ -19,9 +19,6 @@ jest.mock('exceljs', () => {
 });
 
 jest.mock('file-saver', () => ({ saveAs: jest.fn() }));
-jest.mock('jspdf', () => ({ jsPDF: jest.fn() }));
-jest.mock('jspdf-autotable', () => jest.fn());
-jest.mock('../renderer/utils/registerPdfUnicodeFont', () => jest.fn());
 
 jest.mock(
   '../renderer/components/Navbar',

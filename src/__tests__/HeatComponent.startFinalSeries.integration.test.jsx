@@ -13,7 +13,6 @@ jest.mock(
       return <span data-testid="flag" />;
     },
 );
-jest.mock('../renderer/utils/printNewHeats', () => jest.fn(async () => {}));
 
 const reportInfoMock = jest.fn();
 const reportErrorMock = jest.fn();

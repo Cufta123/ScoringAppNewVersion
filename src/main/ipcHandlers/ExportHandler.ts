@@ -107,6 +107,9 @@ const withDocumentWindow = async <T>(
         nodeIntegration: false,
         contextIsolation: true,
         webSecurity: true,
+        // Its own throw-away session: none of the app window's request hooks
+        // (or its content policy) apply to a printed page.
+        partition: 'export-document',
       },
     });
     // The page is static: it may not open windows or go anywhere else.

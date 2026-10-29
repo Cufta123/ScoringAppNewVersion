@@ -75,7 +75,6 @@ jest.mock(
       return <nav>Breadcrumbs Mock</nav>;
     },
 );
-jest.mock('../renderer/utils/printStartingList', () => jest.fn());
 jest.mock('../renderer/utils/userFeedback', () => ({
   ...jest.requireActual('../renderer/utils/userFeedback'),
   confirmAction: jest.fn(),

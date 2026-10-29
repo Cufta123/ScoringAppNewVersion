@@ -376,7 +376,7 @@ ${bodies}
     }),
     orientation,
     fileBase: `${safeFileName(context.event.name)}_starting_list`,
-    footerTitle: context.event.name,
+    footer,
   };
 };
 

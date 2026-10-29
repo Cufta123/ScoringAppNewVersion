@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React from 'react';
 
 const btnBase: React.CSSProperties = {
   padding: '6px 14px',
@@ -12,105 +12,6 @@ const btnBase: React.CSSProperties = {
   cursor: 'pointer',
 };
 
-const EXPORT_FORMATS = [
-  { key: 'excel', label: 'Excel (.xlsx)' },
-  { key: 'csv', label: 'CSV (.csv)' },
-  { key: 'txt', label: 'Plain Text (.txt)' },
-  { key: 'md', label: 'Markdown (.md)' },
-  { key: 'html', label: 'HTML (.html)' },
-  { key: 'pdf', label: 'PDF (.pdf)' },
-];
-
-interface ExportDropdownProps {
-  onExport: (key: string) => void;
-}
-
-function ExportDropdown({ onExport }: ExportDropdownProps) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node))
-        setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  return (
-    <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-label="Open export format menu"
-        style={{
-          ...btnBase,
-          border: '1px solid var(--border, #dde3ea)',
-          background: 'var(--surface, #f0f4f8)',
-          color: 'var(--navy)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-        }}
-      >
-        Export
-        <span style={{ fontSize: '0.85rem' }}>{open ? '▲' : '▼'}</span>
-      </button>
-
-      {open && (
-        <div
-          style={{
-            position: 'absolute',
-            right: 0,
-            top: 'calc(100% + 4px)',
-            background: '#fff',
-            border: '1px solid var(--border, #dde3ea)',
-            borderRadius: 'var(--radius, 6px)',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-            zIndex: 200,
-            minWidth: '160px',
-            overflow: 'hidden',
-          }}
-        >
-          {EXPORT_FORMATS.map(({ key, label }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => {
-                onExport(key);
-                setOpen(false);
-              }}
-              aria-label={`Export leaderboard as ${label}`}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                width: '100%',
-                minHeight: 44,
-                padding: '8px 14px',
-                textAlign: 'left',
-                background: 'none',
-                border: 'none',
-                fontSize: '0.9rem',
-                color: 'var(--navy)',
-                cursor: 'pointer',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--surface, #f0f4f8)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'none';
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 interface LeaderboardToolbarProps {
   finalSeriesStarted: boolean;
   editMode: boolean;
@@ -123,7 +24,8 @@ interface LeaderboardToolbarProps {
   onToggleEdit: () => void;
   onSave: () => void;
   onToggleCompare: () => void;
-  onExport: (key: string) => void;
+  /** Opens the export dialog. */
+  onExport: () => void;
 }
 
 function LeaderboardToolbar({
@@ -272,8 +174,23 @@ function LeaderboardToolbar({
           {compareMode ? 'Exit Compare' : 'Compare'}
         </button>
 
-        {/* Export */}
-        <ExportDropdown onExport={onExport} />
+        {/* Export: one dialog for every format, with a preview */}
+        <button
+          type="button"
+          onClick={onExport}
+          style={{
+            ...btnBase,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            border: '1px solid var(--border-strong)',
+            background: 'var(--surface, #f0f4f8)',
+            color: 'var(--navy)',
+          }}
+        >
+          <i className="fa fa-file-export" aria-hidden="true" />
+          Export…
+        </button>
       </div>
     </div>
   );

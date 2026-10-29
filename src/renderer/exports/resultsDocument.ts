@@ -42,6 +42,22 @@ const FILE_SUFFIX = {
   both: 'overall_results',
 } as const;
 
+/** "Event_overall_results_Q10_F4": what the sheet covers is in its name. */
+const resultsFileBase = (
+  model: ResultsModel,
+  context: DocumentContext,
+): string => {
+  const races = [
+    model.qualifyingRaces > 0 ? `Q${model.qualifyingRaces}` : '',
+    model.finalRaces > 0 ? `F${model.finalRaces}` : '',
+  ].filter(Boolean);
+  return [
+    safeFileName(context.event.name),
+    FILE_SUFFIX[model.series],
+    ...races,
+  ].join('_');
+};
+
 /** Seven race columns still fit a portrait page; more want landscape. */
 const PORTRAIT_RACE_LIMIT = 7;
 
@@ -412,7 +428,7 @@ export const buildResultsDocument = (
       context,
     }),
     orientation,
-    fileBase: `${safeFileName(context.event.name)}_${FILE_SUFFIX[model.series]}`,
-    footerTitle: context.event.name,
+    fileBase: resultsFileBase(model, context),
+    footer,
   };
 };
