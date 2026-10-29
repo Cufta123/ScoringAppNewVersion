@@ -4,7 +4,7 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import SailorForm from '../renderer/components/SailorForm';
-import { reportInfo } from '../renderer/utils/userFeedback';
+import { reportInfo, reportWarning } from '../renderer/utils/userFeedback';
 
 jest.mock(
   'react-autosuggest',
@@ -32,6 +32,7 @@ jest.mock('../renderer/utils/userFeedback', () => ({
   ...jest.requireActual('../renderer/utils/userFeedback'),
   reportError: jest.fn(),
   reportInfo: jest.fn(),
+  reportWarning: jest.fn(),
 }));
 
 describe('SailorForm', () => {
@@ -294,5 +295,59 @@ describe('SailorForm', () => {
     expect(
       screen.queryByRole('button', { name: /add sailor/i }),
     ).not.toBeInTheDocument();
+  });
+
+  describe('stray spaces in typed names', () => {
+    const fillForm = ({ first, last, club }) => {
+      fireEvent.change(screen.getByLabelText('First Name'), {
+        target: { value: first },
+      });
+      fireEvent.change(screen.getByLabelText('Surname'), {
+        target: { value: last },
+      });
+      fireEvent.change(screen.getByLabelText('Subgroup'), {
+        target: { value: 'M' },
+      });
+      fireEvent.change(screen.getByLabelText('Sail Number'), {
+        target: { value: '1234' },
+      });
+      fireEvent.change(screen.getByLabelText('Country'), {
+        target: { value: 'CRO' },
+      });
+      fireEvent.change(screen.getByLabelText('Club'), {
+        target: { value: club },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /add sailor/i }));
+    };
+
+    it('are trimmed before the sailor and the club are stored', async () => {
+      render(<SailorForm onAddSailor={jest.fn()} eventId={99} />);
+      fillForm({ first: '  Ivan ', last: 'Horvat  ', club: ' YC Split ' });
+
+      await waitFor(() => {
+        expect(
+          window.electron.sqlite.sailorDB.insertSailor,
+        ).toHaveBeenCalledWith('Ivan', 'Horvat', '', 4, expect.anything());
+      });
+      // The club is stored without the stray spaces too.
+      expect(window.electron.sqlite.sailorDB.insertClub).toHaveBeenCalledWith(
+        'YC Split',
+        'CRO',
+      );
+    });
+
+    it('a name made only of spaces is refused with a message, nothing is stored', async () => {
+      render(<SailorForm onAddSailor={jest.fn()} eventId={99} />);
+      fillForm({ first: '   ', last: 'Horvat', club: 'YC Split' });
+
+      await waitFor(() => expect(reportWarning).toHaveBeenCalled());
+      expect(reportWarning).toHaveBeenCalledWith(
+        'First name, surname and club cannot be empty or only spaces.',
+        'Missing information',
+      );
+      expect(
+        window.electron.sqlite.sailorDB.insertSailor,
+      ).not.toHaveBeenCalled();
+    });
   });
 });
