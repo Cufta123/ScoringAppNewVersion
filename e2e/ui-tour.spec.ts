@@ -18,6 +18,14 @@ import { launchApp, closeApp, dismissToasts } from './helpers';
  * save the leaderboards scrolled to the right (view, edit, RDG2 popover), to
  * check that Rank / Name / Sail # stay put. Try UI_TOUR_EXTRA_ROUNDS=6 (a
  * 10-round qualifying series). With 0 the tour is unchanged.
+ *
+ * The tour also opens the export dialog of every document type (screenshots)
+ * and saves real sample files next to the screenshots: results as PDF, Excel,
+ * HTML, CSV, text and Markdown (English), the results PDF in Croatian, the
+ * starting list PDF, the heats PDF and the scoring-sheets PDF. The app writes
+ * them without a save dialog because the tour launches it with
+ * SCORING_APP_EXPORT_DIR (honoured only together with SCORING_APP_HIDDEN=1,
+ * which launchApp sets); the tour then renames each file to a fixed name.
  */
 test.skip(process.env.UI_TOUR !== '1', 'Visual tour runs only with UI_TOUR=1');
 test.setTimeout(300_000);
@@ -32,6 +40,9 @@ const EXTRA_ROUNDS = Math.max(
 );
 /** The qualifying round that is left half sailed, then finished. */
 const LAST_ROUND = 4 + EXTRA_ROUNDS;
+
+/** Where the app drops exports (no save dialog) before the tour renames them. */
+const EXPORT_TMP = path.join(OUT, '.export-tmp');
 
 let app: ElectronApplication;
 let window: Page;
@@ -207,6 +218,93 @@ async function openRdg2PickerOfFirstRow(name: string) {
   }
 }
 
+/** The export dialog that is open now. */
+const exportDialog = () => window.getByRole('dialog', { name: /^Export / });
+
+/**
+ * Press one of the dialog's "Save as ..." buttons and keep the file the app
+ * wrote: it appears in EXPORT_TMP under its suggested name and is moved to
+ * OUT/<name>, so a second export of the same kind never overwrites the first.
+ */
+async function saveExport(format: string, name: string) {
+  fs.readdirSync(EXPORT_TMP).forEach((file) =>
+    fs.rmSync(path.join(EXPORT_TMP, file), { force: true }),
+  );
+  await exportDialog()
+    .getByRole('button', { name: `Save as ${format}` })
+    .click();
+  const deadline = Date.now() + 30_000;
+  let written = '';
+  while (Date.now() < deadline && !written) {
+    // eslint-disable-next-line no-await-in-loop
+    await window.waitForTimeout(250);
+    written = fs.readdirSync(EXPORT_TMP)[0] ?? '';
+  }
+  if (!written) {
+    const toasts = await window.locator('.Toastify__toast').allInnerTexts();
+    throw new Error(
+      `${format} export was not written. Messages on screen: ${toasts.join(' | ')}`,
+    );
+  }
+  await window.waitForTimeout(300);
+  fs.copyFileSync(path.join(EXPORT_TMP, written), path.join(OUT, name));
+}
+
+/**
+ * Wait for the export dialog, and keep toasts out of its way: a toast closed
+ * by a click that lands on the dimmed backdrop would close the dialog too.
+ */
+let toastStyle: Awaited<ReturnType<Page['addStyleTag']>> | null = null;
+async function dialogOpened() {
+  await exportDialog().waitFor();
+  toastStyle = await window.addStyleTag({
+    content: '.Toastify { visibility: hidden !important; }',
+  });
+  // The dialog remembers its options per event in localStorage, which outlives
+  // a run: start every document from English.
+  await exportDialog()
+    .getByLabel('Language of the document')
+    .selectOption('en');
+}
+
+/** Close the export dialog without exporting. */
+async function closeExportDialog() {
+  await exportDialog()
+    .getByRole('button', { name: 'Close', exact: true })
+    .click();
+  await exportDialog().waitFor({ state: 'hidden' });
+  await toastStyle?.evaluate((node) => (node as HTMLElement).remove());
+  toastStyle = null;
+  await dismissToasts(window);
+}
+
+/** Wait for the preview to be rebuilt after an option changed (debounced). */
+const settlePreview = () => window.waitForTimeout(700);
+
+/** Give the event a logo, as the dialog's "Choose logo" would store it. */
+async function giveEventALogo(eventId: number) {
+  await window.evaluate(async (id) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 420;
+    canvas.height = 160;
+    const g = canvas.getContext('2d')!;
+    g.fillStyle = '#14407a';
+    g.fillRect(8, 8, 404, 144);
+    g.fillStyle = '#ffffff';
+    g.beginPath();
+    g.moveTo(24, 110);
+    g.bezierCurveTo(100, 40, 160, 150, 230, 80);
+    g.bezierCurveTo(290, 30, 340, 120, 396, 60);
+    g.lineWidth = 12;
+    g.strokeStyle = '#ffffff';
+    g.stroke();
+    await (window as any).electron.sqlite.eventDB.saveEventExportLogo(
+      id,
+      canvas.toDataURL('image/png'),
+    );
+  }, eventId);
+}
+
 async function home() {
   await dismissToasts(window);
   await window.getByRole('button', { name: 'Go to home page' }).click();
@@ -221,6 +319,9 @@ async function openEventPage() {
 
 test.beforeAll(async () => {
   fs.mkdirSync(OUT, { recursive: true });
+  fs.rmSync(EXPORT_TMP, { recursive: true, force: true });
+  fs.mkdirSync(EXPORT_TMP, { recursive: true });
+  process.env.SCORING_APP_EXPORT_DIR = EXPORT_TMP;
   ({ app, window } = await launchApp());
   await app.evaluate(
     ({ BrowserWindow }, size) => {
@@ -232,6 +333,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await closeApp(app);
+  fs.rmSync(EXPORT_TMP, { recursive: true, force: true });
 });
 
 test('tour', async () => {
@@ -266,6 +368,37 @@ test('tour', async () => {
   await window.getByRole('heading', { name: EVENT }).waitFor();
   await snap('event-page');
   await snap('event-page-full', true);
+
+  // Export dialogs of the starting list and the heats, with the event's logo.
+  await giveEventALogo(eventId);
+  await window
+    .getByRole('button', { name: 'Export starting list…', exact: true })
+    .click();
+  await dialogOpened();
+  await settlePreview();
+  await snap('export-starting-list-dialog');
+  await saveExport('PDF', 'sample-starting-list.pdf');
+  await exportDialog()
+    .getByLabel('Group by country, with entry counts')
+    .check();
+  await settlePreview();
+  await snap('export-starting-list-grouped');
+  await closeExportDialog();
+
+  await window
+    .getByRole('button', { name: 'Export heats…', exact: true })
+    .click();
+  await dialogOpened();
+  await settlePreview();
+  await snap('export-heats-dialog');
+  await saveExport('PDF', 'sample-heats.pdf');
+  await exportDialog()
+    .getByLabel('Scoring sheets (blank Place/Notes columns)')
+    .check();
+  await settlePreview();
+  await snap('export-heats-scoring-sheets-dialog');
+  await saveExport('PDF', 'sample-heats-scoring-sheets.pdf');
+  await closeExportDialog();
 
   await window.getByRole('button', { name: /Go to Scoring/i }).click();
   await window.waitForTimeout(800);
@@ -325,6 +458,12 @@ test('tour', async () => {
     await snap('leaderboard-scrolled-right');
     await scrollTables(false);
   }
+
+  await window.getByRole('button', { name: 'Export…', exact: true }).click();
+  await dialogOpened();
+  await settlePreview();
+  await snap('export-results-dialog-qualifying');
+  await closeExportDialog();
 
   await window.getByRole('button', { name: 'Edit Results' }).click();
   await snap('leaderboard-edit');
@@ -431,6 +570,25 @@ test('tour', async () => {
     await snap('final-leaderboard-scrolled-right');
     await scrollTables(false);
   }
+  await window.getByRole('button', { name: 'Export…', exact: true }).click();
+  await dialogOpened();
+  await exportDialog().getByLabel('Include signature lines').check();
+  await settlePreview();
+  await snap('export-results-dialog-final');
+  await saveExport('PDF', 'sample-results-en.pdf');
+  await saveExport('Excel', 'sample-results-en.xlsx');
+  await saveExport('HTML', 'sample-results-en.html');
+  await saveExport('CSV', 'sample-results-en.csv');
+  await saveExport('Text', 'sample-results-en.txt');
+  await saveExport('Markdown', 'sample-results-en.md');
+  await exportDialog()
+    .getByLabel('Language of the document')
+    .selectOption('hr');
+  await settlePreview();
+  await snap('export-results-dialog-croatian');
+  await saveExport('PDF', 'sample-results-hr.pdf');
+  await closeExportDialog();
+
   await window.getByRole('button', { name: 'Edit Results' }).click();
   await snap('final-leaderboard-edit');
   if (EXTRA_ROUNDS > 0) {

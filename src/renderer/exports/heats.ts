@@ -360,7 +360,7 @@ export const buildHeatsDocument = (
     .join('');
 
   const rowHeightMm = (count: number): number =>
-    Math.round(Math.max(7.5, Math.min(11, 190 / (count + 1))) * 10) / 10;
+    Math.round(Math.max(7.5, Math.min(14, 190 / (count + 1))) * 10) / 10;
 
   const renderBlock = (heat: HeatBlock, index: number): string => {
     const rows =

@@ -100,9 +100,9 @@ export const layoutColumns = (
     rank: 10,
     country: model.showCountry ? countryWidth : 0,
     club: model.showClub ? 32 : 0,
-    sail: 15,
+    sail: 17,
     type: model.showType ? 17 : 0,
-    total: model.showTotal ? 13 : 0,
+    total: model.showTotal ? 15 : 0,
     net: model.showNet ? 13 : 0,
   };
   const fixed = Object.values(widths).reduce((sum, value) => sum + value, 0);

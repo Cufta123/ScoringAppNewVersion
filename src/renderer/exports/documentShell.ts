@@ -39,11 +39,17 @@ const STATUS_BADGE: Record<
   final: { background: '#111a2b', color: '#ffffff', border: '#111a2b' },
 };
 
-/** A string safe inside a CSS "..." literal (page footer text). */
+/**
+ * A string safe inside a CSS "..." literal (page footer text) that sits in a
+ * <style> element: quotes and backslashes are escaped, and "<" / ">" become CSS
+ * escapes, so an event called "</style><script>" can never close the element.
+ */
 export const cssString = (value: string): string =>
   `"${value
     .replace(/\\/g, '\\\\')
     .replace(/"/g, '\\"')
+    .replace(/</g, '\\3c ')
+    .replace(/>/g, '\\3e ')
     .replace(/[\r\n]+/g, ' ')}"`;
 
 /** A file name part without anything a file system dislikes. */
