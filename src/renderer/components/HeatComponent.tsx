@@ -142,6 +142,16 @@ function HeatComponent({
         fleet
         {finalSeries.pendingFinalHeats > 1 ? 's' : ''} based on current
         standings. This action <strong>cannot be undone</strong>.
+        {finalSeries.pendingRule43 !== null && (
+          <>
+            <br />
+            SHRS Rule 4.3:{' '}
+            <strong>
+              {finalSeries.pendingRule43 ? 'applied' : 'not applied'}
+            </strong>
+            .
+          </>
+        )}
       </AppModal>
 
       <HeatsHeader
