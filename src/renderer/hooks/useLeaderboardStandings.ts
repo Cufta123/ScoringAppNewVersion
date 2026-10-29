@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { eventDB, heatRaceDB } from '../api/db';
 import { reportError } from '../utils/userFeedback';
+import { hasFinalHeats } from '../utils/heatView';
 import {
   buildStandings,
   type DiscardProfiles,
@@ -68,9 +69,8 @@ export default function useLeaderboardStandings(
       try {
         const heats = await heatRaceDB.readAllHeats(eventId);
         if (!isActive()) return;
-        const finalHeats = heats.filter((heat) => heat.heat_type === 'Final');
         // Can go back to false: going back in the history can undo the start.
-        setFinalSeriesStarted(finalHeats.length > 0);
+        setFinalSeriesStarted(hasFinalHeats(heats));
       } catch (error) {
         if (isActive()) {
           reportError('Could not check final series status.', error);
