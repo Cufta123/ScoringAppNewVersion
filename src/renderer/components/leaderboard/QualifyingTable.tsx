@@ -184,7 +184,7 @@ function QualifyingTable({
                   fontWeight: 700,
                   color: 'white',
                   whiteSpace: 'nowrap',
-                  background: '#2a9d8f',
+                  background: 'var(--teal)',
                   borderLeft: '1px solid rgba(255,255,255,0.25)',
                   borderRight: '1px solid rgba(255,255,255,0.25)',
                   cursor: 'help',

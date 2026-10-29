@@ -9,18 +9,22 @@
   margin-bottom: 22px;
 }
 
-.event-header-info h1 { margin-bottom: 6px; }
+.event-header-info h1 {
+  margin-bottom: 6px;
+}
 
 .event-header-info p {
-  font-size: .9rem;
-  color: #6B849A;
+  font-size: 0.9rem;
+  color: var(--text-muted);
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-.section-block { position: relative; }
+.section-block {
+  position: relative;
+}
 
 .add-boat-form {
   display: flex;
@@ -30,4 +34,7 @@
   margin-top: 12px;
 }
 
-.add-boat-form > div { flex: 1; min-width: 260px; }
+.add-boat-form > div {
+  flex: 1;
+  min-width: 260px;
+}

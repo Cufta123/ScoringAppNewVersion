@@ -260,12 +260,14 @@ function Rdg2Picker({
             fontSize: '0.9rem',
             padding: '8px 10px',
             borderRadius: '5px',
-            background: 'var(--teal,#2a9d8f)',
-            color: '#fff',
+            // Nothing ticked yet: solid grey with muted text (a 40% transparent
+            // button was unreadable); the tooltip says what to do.
+            background:
+              totalSelected === 0 ? 'var(--bg-subtle)' : 'var(--teal,#2a9d8f)',
+            color: totalSelected === 0 ? 'var(--text-muted)' : '#fff',
             border: 'none',
-            cursor: 'pointer',
+            cursor: totalSelected === 0 ? 'not-allowed' : 'pointer',
             fontWeight: 600,
-            opacity: totalSelected === 0 ? 0.4 : 1,
           }}
         >
           Apply

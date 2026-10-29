@@ -18,11 +18,14 @@
   --ocean: #1a6fbf;
   --ocean-hover: #1459a0;
   --ocean-light: #e8f3fc;
-  --teal: #0f9478;
-  --teal-hover: #0b7a63;
+  /* Green and red are darkened so WHITE button text clears 4.5:1 (it was 3.8:1
+     on the old #0f9478 and 4.6:1 on #d63b2f, and the red failed as text on the
+     page background at 4.3:1). */
+  --teal: #0b7a63;
+  --teal-hover: #086250;
   --teal-light: #e6f6f2;
-  --danger: #d63b2f;
-  --danger-hover: #b52e24;
+  --danger: #c8352a;
+  --danger-hover: #a82a20;
   --danger-light: #fdecea;
   --amber: #e67e22;
   --amber-light: #fef3e7;
@@ -211,7 +214,8 @@ button.btn-outline:hover {
 
 button.btn-ghost {
   background: var(--ocean-light);
-  color: var(--ocean);
+  /* --ocean-hover: 6.3:1 on the pale blue (was 4.6:1, 4.1:1 when hovered). */
+  color: var(--ocean-hover);
   box-shadow: none;
 }
 button.btn-ghost:hover {
@@ -1977,14 +1981,17 @@ button.submit-scores-btn {
    on purpose so the click still surfaces the validation message explaining what
    is missing — only the appearance is disabled. */
 button.submit-scores-btn.is-unavailable {
-  background: var(--bg-subtle);
+  background: var(--surface);
   color: var(--text-muted);
+  /* Dashed edge: the button reads as "not ready yet" without relying on a
+     pale fill that is nearly the page colour in sunlight. */
+  border: 2px dashed var(--text-muted);
   box-shadow: none;
   cursor: not-allowed;
 }
 
 button.submit-scores-btn.is-unavailable:hover {
-  background: var(--bg-subtle);
+  background: var(--surface);
 }
 
 @media (max-width: 900px) {
