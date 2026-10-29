@@ -126,6 +126,7 @@ function QualifyingTable({
         </p>
       )}
       <div
+        className="leaderboard-scroll"
         style={{
           border: `1.5px solid ${QUAL_ACCENT.border}`,
           borderRadius: '10px',

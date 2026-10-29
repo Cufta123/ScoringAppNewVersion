@@ -146,6 +146,7 @@ function FinalFleetTable({
       </div>
 
       <div
+        className="leaderboard-scroll"
         style={{
           border: `1.5px solid ${fleetAccent.border}`,
           borderRadius: '10px',

@@ -15,6 +15,104 @@
   background-color: rgba(26, 111, 191, 0.1);
 }
 
+/* ── Sticky identity columns ──────────────────────────────────
+   Rank, Name and Sail # stay at the left while the race columns scroll
+   sideways (qualifying + final of a European Championship is 13-16 race
+   columns on a 1280px screen), so a judge typing a result can always see whose
+   row it is. Country sits between Name and Sail # in the DOM and just scrolls
+   away first; Sail # docks next to Name once it would leave the screen.
+   - Fixed widths (the `left` offsets depend on them). A long name is cut with
+     an ellipsis; its cell title has the full name.
+   - Body cells must be OPAQUE or the race cells show through while scrolling:
+     the row's stripe colour (--row-bg) plus its selection tint (--row-tint),
+     both set inline by leaderboardRowStyle. Hover adds the same blue tint the
+     other cells get, as a layer on top of the opaque colour.
+   - Header cells keep their fleet/qualifying colour (inline, opaque) and sit
+     above the scrolling header cells (global th z-index 2) and body cells. */
+.leaderboard-scroll {
+  --lb-rank-w: 60px;
+  --lb-name-w: 210px;
+  --lb-sail-w: 96px;
+  /* Keyboard focus / scrollIntoView must not park a cell under the sticky
+     columns. */
+  scroll-padding-left: calc(
+    var(--lb-rank-w) + var(--lb-name-w) + var(--lb-sail-w) + 8px
+  );
+}
+.lb-col-rank,
+.lb-col-name,
+.lb-col-sail {
+  position: sticky;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lb-col-rank {
+  left: 0;
+  width: var(--lb-rank-w);
+  min-width: var(--lb-rank-w);
+  max-width: var(--lb-rank-w);
+}
+.lb-col-name {
+  left: var(--lb-rank-w);
+  width: var(--lb-name-w);
+  min-width: var(--lb-name-w);
+  max-width: var(--lb-name-w);
+}
+.lb-col-sail {
+  left: calc(var(--lb-rank-w) + var(--lb-name-w));
+  width: var(--lb-sail-w);
+  min-width: var(--lb-sail-w);
+  max-width: var(--lb-sail-w);
+  /* The edge the race columns slide under: a solid rule plus a shadow. */
+  border-right: 2px solid var(--border-strong);
+  box-shadow: 4px 0 6px -3px rgba(15, 45, 74, 0.35);
+}
+th.lb-col-rank,
+th.lb-col-name,
+th.lb-col-sail {
+  z-index: 4;
+}
+td.lb-col-rank,
+td.lb-col-name,
+td.lb-col-sail {
+  z-index: 1;
+  background-color: var(--row-bg, #fff);
+  background-image: linear-gradient(
+    var(--row-tint, transparent),
+    var(--row-tint, transparent)
+  );
+}
+.leaderboard-row:hover td.lb-col-rank,
+.leaderboard-row:hover td.lb-col-name,
+.leaderboard-row:hover td.lb-col-sail {
+  background-color: var(--row-bg, #fff);
+  background-image: linear-gradient(
+    rgba(26, 111, 191, 0.1),
+    rgba(26, 111, 191, 0.1)
+  );
+}
+/* A row picked for comparing has a 2px outline that the sticky cells (a layer
+   above it) would hide at the left, top and bottom: draw it on them too. */
+.leaderboard-row[aria-selected='true'] td.lb-col-rank {
+  box-shadow:
+    inset 2px 0 0 var(--teal),
+    inset 0 2px 0 var(--teal),
+    inset 0 -2px 0 var(--teal);
+}
+.leaderboard-row[aria-selected='true'] td.lb-col-name {
+  box-shadow:
+    inset 0 2px 0 var(--teal),
+    inset 0 -2px 0 var(--teal);
+}
+.leaderboard-row[aria-selected='true'] td.lb-col-sail {
+  box-shadow:
+    4px 0 6px -3px rgba(15, 45, 74, 0.35),
+    inset 0 2px 0 var(--teal),
+    inset 0 -2px 0 var(--teal);
+}
+
 /* ── Editing results ──────────────────────────────────────── */
 .edit-mode-banner {
   display: flex;
