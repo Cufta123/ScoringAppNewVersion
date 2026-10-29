@@ -920,6 +920,10 @@ th.sortable:hover {
 
 .feedback-modal {
   width: min(520px, 96vw);
+  /* A long message or list scrolls inside the dialog instead of running off
+     a 720px-high window with its buttons out of reach. */
+  max-height: 94vh;
+  overflow-y: auto;
   background: var(--surface);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
@@ -1635,25 +1639,29 @@ small.form-locked-note {
   width: 100%;
 }
 
+/* Widths for the half-window panel at 1280px (about 590px; 510px at 1100px):
+   "Country" and "Sail #" must fit their header, the penalty select needs room
+   for its code, and the name wraps rather than the row growing. */
 .scoring-table th:nth-child(1),
 .scoring-table td:nth-child(1) {
-  width: 36%;
+  width: 29%;
+  overflow-wrap: anywhere;
 }
 .scoring-table th:nth-child(2),
 .scoring-table td:nth-child(2) {
-  width: 12%;
+  width: 15%;
 }
 .scoring-table th:nth-child(3),
 .scoring-table td:nth-child(3) {
-  width: 16%;
+  width: 14%;
 }
 .scoring-table th:nth-child(4),
 .scoring-table td:nth-child(4) {
-  width: 14%;
+  width: 12%;
 }
 .scoring-table th:nth-child(5),
 .scoring-table td:nth-child(5) {
-  width: 22%;
+  width: 30%;
 }
 
 .scoring-table th {
@@ -1663,12 +1671,13 @@ small.form-locked-note {
   text-transform: none;
   letter-spacing: normal;
   font-size: 0.9rem;
-  padding: 8px 10px;
+  padding: 8px;
+  white-space: nowrap;
   border-bottom: 2px solid var(--border);
 }
 
 .scoring-table td {
-  padding: 8px 10px;
+  padding: 8px;
   border-bottom: 1px solid var(--bg-subtle);
 }
 
@@ -1706,16 +1715,18 @@ small.form-locked-note {
   border-left: 4px solid var(--amber-strong);
 }
 .scoring-missing-badge {
-  display: block;
-  width: fit-content;
-  margin-top: 2px;
-  padding: 1px 8px;
+  /* Beside the name, not under it: it only drops to the next line when the
+     name leaves no room, so the row does not grow just for the badge. */
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 7px;
+  vertical-align: middle;
   border-radius: var(--radius-pill);
   background: var(--amber-strong);
   color: #fff;
   font-size: 0.8rem;
   font-weight: 700;
-  line-height: 1.4;
+  line-height: 1.5;
   white-space: nowrap;
 }
 
@@ -2499,7 +2510,7 @@ input[type='checkbox'] {
 }
 .history-modal .help-modal-body {
   flex: 1 1 auto;
-  min-height: 120px;
+  min-height: 90px;
   max-height: none;
   overflow-y: auto;
 }

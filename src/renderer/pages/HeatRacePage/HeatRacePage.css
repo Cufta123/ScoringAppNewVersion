@@ -20,7 +20,9 @@
 }
 
 .heat-column {
-  flex: 1 1 280px;
+  /* 330px: three cards per row in the 1200px page (four would squeeze each
+     name to ~90px and wrap it); the last row's cards keep their size. */
+  flex: 1 1 330px;
   max-width: 400px;
   background: #fff;
   border: 2px solid var(--border);

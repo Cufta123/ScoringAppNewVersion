@@ -442,6 +442,8 @@ describe('ScoringInputComponent', () => {
     expect(reportWarning).toHaveBeenCalledWith(
       expect.stringContaining('Still missing: sail 102.'),
       'Some boats are not scored yet',
+      // The boat table marks them too, so this toast closes by itself.
+      { inline: true },
     );
   });
 
