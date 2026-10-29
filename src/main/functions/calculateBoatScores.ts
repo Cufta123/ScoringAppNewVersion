@@ -1,5 +1,6 @@
 import { db } from '../../../public/Database/DBManager';
 import { getEventDiscardConfig } from './discardConfig';
+import { getHeatRoundFromName } from '../../shared/heatNames';
 import {
   compareQualifyingTie,
   isSingleHeatSeries,
@@ -31,9 +32,10 @@ export function getScoresForA81(
   event_id: number,
   boat_id: number | string,
 ): ScoreEntry[] {
-  return db
+  const rows = db
     .prepare(
-      `SELECT s.points, COALESCE(s.status, 'FINISHED') as status, s.race_id, r.race_number
+      `SELECT s.points, COALESCE(s.status, 'FINISHED') as status, s.race_id, r.race_number,
+              h.heat_name
        FROM Scores s
        JOIN Races r ON s.race_id = r.race_id
        JOIN Heats h ON r.heat_id = h.heat_id
@@ -41,7 +43,13 @@ export function getScoresForA81(
        WHERE h.event_id = ? AND s.boat_id = ? AND h.heat_type = 'Qualifying'
        ORDER BY points DESC, r.race_number ASC, s.race_id ASC`,
     )
-    .all(event_id, boat_id) as ScoreEntry[];
+    .all(event_id, boat_id) as Array<ScoreEntry & { heat_name?: string }>;
+  // The round orders races in time for RRS A8.2 (race numbers restart in
+  // every round); the heat name is not needed beyond that.
+  return rows.map(({ heat_name, ...score }) => ({
+    ...score,
+    round: getHeatRoundFromName(heat_name ?? '') ?? undefined,
+  }));
 }
 
 /** SHRS 5.7.1 vs 5.7.2 for the event (see isSingleHeatSeries). */

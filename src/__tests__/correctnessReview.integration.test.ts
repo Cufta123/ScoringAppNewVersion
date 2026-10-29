@@ -145,4 +145,45 @@ describe('correctness review (real SQLite, FKs on)', () => {
       ).toBe(2);
     });
   });
+
+  describe('RRS A8.2 with a heat that sails two races before the next round', () => {
+    it('ranks the tied boats on the race sailed last (race numbers restart every round)', async () => {
+      db = seed(4);
+      const [P, Q, X, Y] = [1, 2, 3, 4];
+      await handlerRegistry.createInitialHeatsAtomic({}, EVENT_ID, 1);
+      const sail = async (name: string, order: number[]) => {
+        const result = await handlerRegistry.submitHeatRaceScoresAtomic(
+          {},
+          {
+            heat_id: heatId(db, name),
+            placeNumbers: order.map((boatNumber, i) => ({
+              boatNumber,
+              place: i + 1,
+              status: 'FINISHED',
+            })),
+          },
+        );
+        expect(result.ok).toBe(true);
+      };
+      // Round 1: two races in Heat A1 (race numbers 1 and 2), then round 2:
+      // one race in Heat A2 (race number 1, but the last race sailed).
+      await sail('Heat A1', [P, X, Y, Q]);
+      await sail('Heat A1', [Q, P, X, Y]);
+      await handlerRegistry.createNewHeatsBasedOnLeaderboard({}, EVENT_ID);
+      await sail('Heat A2', [P, Y, Q, X]);
+
+      // X and Y both total 9 with scores {2, 3, 4}; in the last race sailed Y
+      // was 2nd and X 4th, so Y is ahead (RRS A8.2).
+      const rows = await handlerRegistry.readLeaderboard({}, EVENT_ID);
+      const byBoat = new Map<number, { total: number; place: number }>(
+        rows.map((r: any) => [
+          r.boat_id,
+          { total: r.total_points_event, place: r.place },
+        ]),
+      );
+      expect(byBoat.get(X)?.total).toBe(9);
+      expect(byBoat.get(Y)?.total).toBe(9);
+      expect(byBoat.get(Y)!.place).toBeLessThan(byBoat.get(X)!.place);
+    });
+  });
 });

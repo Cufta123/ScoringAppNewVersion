@@ -5,6 +5,7 @@
  */
 import { DiscardConfig, getExcludeCountForConfig } from '../discardProfile';
 import { fleetRank } from '../fleetNames';
+import { getHeatRoundFromName } from '../heatNames';
 import { capExcludeCountForBoat, getKeptScores } from './discards';
 import {
   BoatKey,
@@ -41,6 +42,22 @@ export interface OverallSeriesContext {
   finalFleetRaceCount: number;
 }
 
+/** Qualifying round of a score's heat; 0 for a Final fleet. */
+const roundOf = (row: Pick<OverallRaceScore, 'heat_name'>) =>
+  getHeatRoundFromName(row.heat_name) ?? 0;
+
+/**
+ * Last race first within a series. Race numbers restart in every qualifying
+ * round, so the round (from the heat name) orders races before the number.
+ */
+const latestRaceFirst = (
+  a: Pick<OverallRaceScore, 'heat_name' | 'race_number' | 'race_id'>,
+  b: Pick<OverallRaceScore, 'heat_name' | 'race_number' | 'race_id'>,
+) =>
+  roundOf(b) - roundOf(a) ||
+  b.race_number - a.race_number ||
+  b.race_id - a.race_id;
+
 function seriesPacket(
   scores: OverallRaceScore[],
   discardConfig: DiscardConfig,
@@ -55,9 +72,7 @@ function seriesPacket(
   );
   return {
     kept: getKeptScores(scores, excludeCount).sort((a, b) => a - b),
-    latestFirst: [...scores]
-      .sort((a, b) => b.race_number - a.race_number || b.race_id - a.race_id)
-      .map((entry) => entry.points),
+    latestFirst: [...scores].sort(latestRaceFirst).map((entry) => entry.points),
   };
 }
 
@@ -121,12 +136,13 @@ export function compareOverallTiePackets(
   if (a81 !== 0) return a81;
 
   // A8.2 on the shared races, from the last race back: final races first,
-  // then by race number.
+  // then latest round, then race number.
   const latestFirst = shared
     .map((raceId) => {
       const row = left.byRaceId.get(raceId) ?? right.byRaceId.get(raceId);
       return {
         raceId,
+        round: row ? roundOf(row) : 0,
         raceNumber: row?.race_number ?? Number.MIN_SAFE_INTEGER,
         seriesRank: row?.heat_type === 'Final' ? 0 : 1,
       };
@@ -134,6 +150,7 @@ export function compareOverallTiePackets(
     .sort(
       (a, b) =>
         a.seriesRank - b.seriesRank ||
+        b.round - a.round ||
         b.raceNumber - a.raceNumber ||
         b.raceId - a.raceId,
     )
