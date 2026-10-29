@@ -2,7 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Flag from 'react-world-flags';
 import { getFlagCode } from '../utils/leaderboardUtils';
 import { toSubgroupLabel } from '../../shared/subgroups';
-import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
+import {
+  confirmAction,
+  reportError,
+  reportInfo,
+  reportWarning,
+} from '../utils/userFeedback';
 import { sailorDB } from '../api/db';
 import LoadingState from './shared/LoadingState';
 import type { CategoryRow } from '../types';
@@ -190,20 +195,36 @@ function SailorList({
   const handleSave = async () => {
     // Prevent a second save while the update round-trip is still in flight.
     if (savingEdit) return;
+
+    // The same rule as the add form: no empty names, sail number or club (an
+    // edit used to be able to blank them), and stray spaces are not kept.
+    const text = (value: unknown): string => String(value ?? '').trim();
+    const name = text(editedSailor.name);
+    const surname = text(editedSailor.surname);
+    const sailNumber = text(editedSailor.sail_number);
+    const club = text(editedSailor.club);
+    if (!name || !surname || !sailNumber || !club) {
+      reportWarning(
+        'First name, surname, sail number and club cannot be empty. Nothing was saved.',
+        'Missing information',
+      );
+      return;
+    }
+
     setSavingEdit(true);
     try {
       const sailorData = {
         originalName: editedSailor.originalName,
         originalSurname: editedSailor.originalSurname,
-        name: editedSailor.name,
-        surname: editedSailor.surname,
+        name,
+        surname,
         category_name: editedSailor.category,
-        club_name: editedSailor.club,
+        club_name: club,
         originalClubName: editedSailor.originalClubName,
         boat_id: editedSailor.boat_id,
-        sail_number: editedSailor.sail_number,
+        sail_number: sailNumber,
         country: editedSailor.country,
-        model: editedSailor.model,
+        model: text(editedSailor.model),
       };
 
       const result = await sailorDB.updateSailor(sailorData);
@@ -363,6 +384,7 @@ function SailorList({
                       value={editedSailor.sail_number}
                       onChange={handleInputChange}
                       className="editable-input"
+                      aria-label="Sail number"
                     />
                   ) : (
                     sailor.sail_number
@@ -376,6 +398,7 @@ function SailorList({
                       value={editedSailor.model}
                       onChange={handleInputChange}
                       className="editable-input"
+                      aria-label="Boat model"
                     />
                   ) : (
                     sailor.model
@@ -415,6 +438,7 @@ function SailorList({
                       value={editedSailor.club}
                       onChange={handleInputChange}
                       className="editable-input"
+                      aria-label="Club"
                     />
                   ) : (
                     sailor.club
@@ -427,6 +451,7 @@ function SailorList({
                       value={editedSailor.category}
                       onChange={handleInputChange}
                       className="editable-input"
+                      aria-label="Subgroup"
                     >
                       {categories.map((category) => (
                         <option
