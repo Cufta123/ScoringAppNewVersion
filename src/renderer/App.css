@@ -2386,6 +2386,37 @@ td.heat-sail-number {
   font-weight: 800;
   font-size: 1.05rem;
 }
+
+/* Heat card table at 1366px: the flag and its country code never split onto two
+   lines, the "Sail #" header stays on one line, and a long name wraps inside
+   its own column (at spaces, hyphens, or mid-word if a single word is too long)
+   instead of pushing the other columns around. */
+.heat-column table {
+  table-layout: auto;
+}
+.heat-column th.heat-name-cell,
+.heat-column td.heat-name-cell {
+  width: 100%;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+.heat-column th.heat-country-cell,
+.heat-column td.heat-country-cell,
+.heat-column th.heat-sail-cell,
+.heat-column td.heat-sail-cell {
+  white-space: nowrap;
+  width: 1%;
+}
+.heat-column .heat-flag {
+  display: inline-block;
+  width: 26px;
+  height: auto;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.heat-column td.heat-country-cell {
+  font-weight: 600;
+}
 .heat-column.selected {
   border-width: 3px;
 }
