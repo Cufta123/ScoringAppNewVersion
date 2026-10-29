@@ -109,3 +109,67 @@ describe('SailorList: switching rows with an unsaved edit', () => {
     expect(screen.getByLabelText('First name')).toHaveValue('Ben');
   });
 });
+
+// Cancel on the row itself is the same loss, so it asks the same way.
+describe('SailorList: Cancel with an unsaved edit', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    window.electron = {
+      sqlite: {
+        sailorDB: {
+          readAllCategories: jest.fn().mockResolvedValue([]),
+          updateSailor: jest.fn(),
+        },
+      },
+    };
+    render(
+      <SailorList
+        sailors={sailors}
+        onRefreshSailors={jest.fn()}
+        onRemoveBoat={jest.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText('Edit Ana A'));
+  });
+
+  it('cancels silently when nothing was changed', async () => {
+    fireEvent.click(screen.getByLabelText('Cancel editing Ana A'));
+    await waitFor(() =>
+      expect(screen.getByLabelText('Edit Ana A')).toBeVisible(),
+    );
+    expect(confirmAction).not.toHaveBeenCalled();
+  });
+
+  it('asks first when something was changed, and keeps editing on "keep"', async () => {
+    confirmAction.mockResolvedValue(false);
+    fireEvent.change(screen.getByLabelText('First name'), {
+      target: { value: 'Anka' },
+    });
+    fireEvent.click(screen.getByLabelText('Cancel editing Ana A'));
+
+    await waitFor(() => expect(confirmAction).toHaveBeenCalledTimes(1));
+    expect(confirmAction).toHaveBeenCalledWith(
+      expect.stringContaining('not saved'),
+      'Discard unsaved changes',
+      expect.objectContaining({
+        confirmLabel: 'Discard changes',
+        cancelLabel: 'Keep editing',
+      }),
+    );
+    expect(screen.getByLabelText('Save changes for Ana A')).toBeVisible();
+    expect(screen.getByLabelText('First name')).toHaveValue('Anka');
+  });
+
+  it('reverts the row when the changes are discarded', async () => {
+    confirmAction.mockResolvedValue(true);
+    fireEvent.change(screen.getByLabelText('First name'), {
+      target: { value: 'Anka' },
+    });
+    fireEvent.click(screen.getByLabelText('Cancel editing Ana A'));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Edit Ana A')).toBeVisible(),
+    );
+    expect(screen.queryByLabelText('First name')).not.toBeInTheDocument();
+  });
+});

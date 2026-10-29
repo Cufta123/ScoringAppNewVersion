@@ -198,23 +198,26 @@ function SailorList({
     );
   };
 
+  // Throwing away typed changes is always asked first. The safe choice, "Keep
+  // editing", is the first button and has the focus (confirmAction).
+  const confirmDiscard = (question: string): Promise<boolean> =>
+    confirmAction(question, 'Discard unsaved changes', {
+      confirmLabel: 'Discard changes',
+      cancelLabel: 'Keep editing',
+      confirmClassName: 'btn-danger',
+    });
+
   const handleEditClick = async (sailor: SailorListSailor) => {
     // Opening another row would throw away what was typed in this one.
     if (
       editingSailorId != null &&
       editingSailorId !== sailor.boat_id &&
-      hasUnsavedEdit()
-    ) {
-      const discard = await confirmAction(
+      hasUnsavedEdit() &&
+      !(await confirmDiscard(
         'You changed this sailor and have not saved. Discard the changes and edit the other sailor instead?',
-        'Discard unsaved changes',
-        {
-          confirmLabel: 'Discard changes',
-          cancelLabel: 'Keep editing',
-          confirmClassName: 'btn-danger',
-        },
-      );
-      if (!discard) return;
+      ))
+    ) {
+      return;
     }
     setEditingSailorId(sailor.boat_id);
     setEditedSailor({
@@ -225,9 +228,17 @@ function SailorList({
     });
   };
 
-  // Back out of an in-progress edit without saving — the row reverts to its
-  // last-saved values instead of trapping the user into Save-or-lose-elsewhere.
-  const handleCancelEdit = () => {
+  // Back out of an in-progress edit without saving: the row reverts to its
+  // last-saved values. Typed changes are not dropped silently.
+  const handleCancelEdit = async () => {
+    if (
+      hasUnsavedEdit() &&
+      !(await confirmDiscard(
+        'You changed this sailor and have not saved. Discard the changes?',
+      ))
+    ) {
+      return;
+    }
     setEditingSailorId(null);
     setEditedSailor({});
   };
