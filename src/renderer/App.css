@@ -346,6 +346,16 @@ select.compact-select {
   box-shadow: none;
 }
 
+/* "Format" + its dropdown next to a Print / export button. */
+label.format-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 0;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
 label {
   display: block;
   font-size: 0.95rem;

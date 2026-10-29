@@ -1,7 +1,9 @@
 import React from 'react';
 import { MAX_HEAT_COUNT } from '../../utils/heatView';
+import FormatSelect from '../shared/FormatSelect';
+import type { ExportFormat } from '../shared/FormatSelect';
 
-export type NewHeatsFormat = 'excel' | 'pdf' | 'html';
+export type NewHeatsFormat = ExportFormat;
 
 interface HeatsHeaderProps {
   format: NewHeatsFormat;
@@ -28,16 +30,11 @@ export function HeatsHeader({
         Heats
       </h2>
       <div className="list-header-actions">
-        <select
-          className="compact-select"
-          aria-label="New heats format"
+        <FormatSelect
+          ariaLabel="New heats format"
           value={format}
-          onChange={(e) => onFormatChange(e.target.value as NewHeatsFormat)}
-        >
-          <option value="excel">Excel</option>
-          <option value="pdf">PDF</option>
-          <option value="html">HTML</option>
-        </select>
+          onChange={onFormatChange}
+        />
         <button
           type="button"
           className="btn-ghost"
