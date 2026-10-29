@@ -80,7 +80,11 @@ export default function EventList({
       const proceed = await confirmAction(
         'You have unsaved changes to another event. Discard them and edit this one instead?',
         'Discard unsaved changes',
-        { confirmLabel: 'Discard changes', confirmClassName: 'btn-danger' },
+        {
+          confirmLabel: 'Discard changes',
+          cancelLabel: 'Keep editing',
+          confirmClassName: 'btn-danger',
+        },
       );
       if (!proceed) return;
     }
@@ -109,7 +113,20 @@ export default function EventList({
     };
   };
 
-  const cancelEdit = () => {
+  const cancelEdit = async () => {
+    // Cancel throws away what was typed: ask, but only if something changed.
+    if (hasUnsavedEdits()) {
+      const discard = await confirmAction(
+        'You changed this event and have not saved. Discard the changes?',
+        'Discard unsaved changes',
+        {
+          confirmLabel: 'Discard changes',
+          cancelLabel: 'Keep editing',
+          confirmClassName: 'btn-danger',
+        },
+      );
+      if (!discard) return;
+    }
     setEditingId(null);
     settings.setAdvancedEnabled(false);
   };
