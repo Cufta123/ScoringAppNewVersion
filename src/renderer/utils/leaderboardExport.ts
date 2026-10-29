@@ -21,6 +21,7 @@ import {
   parseRaceNum,
 } from './leaderboardUtils';
 import escapeHtml from './escapeHtml';
+import { sumPoints } from '../../shared/points';
 import { reportError, reportInfo } from './userFeedback';
 import { eventDB } from '../api/db';
 import type { LeaderboardEntry } from '../types';
@@ -154,9 +155,8 @@ export const buildExportData = (ctx: LeaderboardExportContext): ExportData => {
       ...Array.from({ length: raceCount }, (_, i) => `Q${i + 1}`),
     ];
     const rows = (eventLeaderboard ?? []).map((e, i) => {
-      const grossTotal = (e.race_points ?? e.races ?? []).reduce(
-        (s, r) => s + parseRaceNum(r),
-        0,
+      const grossTotal = sumPoints(
+        (e.race_points ?? e.races ?? []).map(parseRaceNum),
       );
       const overall = e.computed_total ?? e.total_points_event;
       return [
@@ -216,12 +216,11 @@ export const buildExportData = (ctx: LeaderboardExportContext): ExportData => {
       const qualRacePoints = qualEntry?.race_points ?? qualRaces;
       const finalRacePoints = entry.race_points ?? finalRaces;
 
-      const qualGross = qualRacePoints.reduce((s, r) => s + parseRaceNum(r), 0);
-      const finalGross = finalRacePoints.reduce(
-        (s, r) => s + parseRaceNum(r),
-        0,
-      );
-      const gross = qualGross + finalGross;
+      // sumPoints: tenth-point scores must not print as 87.10000000000001.
+      const gross = sumPoints([
+        ...qualRacePoints.map(parseRaceNum),
+        ...finalRacePoints.map(parseRaceNum),
+      ]);
 
       const overall =
         entry.total_points_combined != null &&
