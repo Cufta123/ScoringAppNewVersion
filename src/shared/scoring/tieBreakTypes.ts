@@ -42,6 +42,8 @@ export type TieBreakRaceGridCell = {
 export type TieBreakRacePair = {
   raceId: number;
   raceNumber: number;
+  /** Qualifying round of the heat (see getHeatRoundFromName); orders races in time. */
+  round?: number;
   heatType: string;
   pointsA: number;
   pointsB: number;

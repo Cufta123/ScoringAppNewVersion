@@ -158,6 +158,14 @@ const dbMock = {
       };
     }
 
+    // hasFinalSeriesStarted: no Final heats in these scenarios.
+    if (
+      sqlContains(sql, 'SELECT COUNT(*) AS count FROM Heats') &&
+      sqlContains(sql, "heat_type = 'Final'")
+    ) {
+      return { get: jest.fn(() => ({ count: 0 })) };
+    }
+
     throw new Error(`Unhandled SQL in test mock: ${sql}`);
   }),
   transaction: jest.fn(

@@ -26,6 +26,13 @@ export interface RaceScore {
   race_id: number;
   /** Race number within its heat (qualifying heats each restart at 1). */
   race_number: number;
+  /**
+   * The qualifying round of the heat she sailed ("Heat B3" is round 3; see
+   * getHeatRoundFromName); absent for the Final Series, whose fleets keep one
+   * heat. Needed to order races in time: race_number alone restarts every
+   * round.
+   */
+  round?: number;
   points: number;
   status?: string;
 }
@@ -45,10 +52,17 @@ export interface RankedBoat<Id extends BoatKey = string> {
 const worstFirst = (a: RaceScore, b: RaceScore) =>
   b.points - a.points || a.race_number - b.race_number || a.race_id - b.race_id;
 
-/** Last race first (RRS A8.2). */
-type RaceRef = Pick<RaceScore, 'race_id' | 'race_number'>;
+/**
+ * Last race first (RRS A8.2). Race numbers restart in every qualifying round
+ * (a round is a fresh heat), so a heat that sails two races before the next
+ * round is built gives numbers 1, 2, 1 for races sailed in that order: the
+ * round comes first, then the race within it.
+ */
+type RaceRef = Pick<RaceScore, 'race_id' | 'race_number' | 'round'>;
 const latestFirst = (a: RaceRef, b: RaceRef) =>
-  b.race_number - a.race_number || b.race_id - a.race_id;
+  (b.round ?? 0) - (a.round ?? 0) ||
+  b.race_number - a.race_number ||
+  b.race_id - a.race_id;
 
 const ascending = (a: number, b: number) => a - b;
 
@@ -132,6 +146,7 @@ export function sharedRaceScores(a: RaceScore[], b: RaceScore[]) {
     .map((score) => ({
       race_id: score.race_id,
       race_number: score.race_number,
+      round: score.round,
       pointsA: score.points,
       pointsB: byRaceB.get(score.race_id)!.points,
     }))

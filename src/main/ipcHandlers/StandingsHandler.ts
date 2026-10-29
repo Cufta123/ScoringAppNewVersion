@@ -11,10 +11,7 @@ import explainTieBreak from '../functions/explainTieBreak';
 import explainBoatScore from '../functions/explainScore';
 import refreshStandings from '../functions/standings';
 import { getFinalSeriesEligibility } from '../functions/finalSeriesEligibility';
-import {
-  recomputeEventLeaderboard,
-  recomputeFinalLeaderboard,
-} from '../functions/leaderboardRecompute';
+import { recomputeEventLeaderboard } from '../functions/leaderboardRecompute';
 import { roundPoints } from '../../shared/points';
 import {
   ensureCompleteRaceScoresForEvent,
@@ -170,11 +167,10 @@ handle('readLeaderboard', async (event, raw_event_id) => {
 
 handle('readFinalLeaderboard', async (event, raw_event_id) => {
   const event_id = Number(raw_event_id);
-  // Rebuilt on every read, like readLeaderboard: never a stale table.
-  db.transaction(() => {
-    ensureCompleteRaceScoresForEvent(event_id, 'Final');
-    recomputeFinalLeaderboard(event_id);
-  })();
+  // Rebuilt on every read, like readLeaderboard: never a stale table. The
+  // query below also reads the QUALIFYING totals (the SHRS 1.5 fallback and
+  // the qualifying column), so they are rebuilt too: refreshStandings does both.
+  refreshStandings(event_id);
 
   // The final-score join is a LEFT JOIN onto a pre-filtered subquery so that
   // boats in fleets that have not raced yet (SHRS 4.5) still return a row —
