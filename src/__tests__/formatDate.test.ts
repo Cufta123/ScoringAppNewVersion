@@ -1,5 +1,6 @@
 import {
   formatDateTime,
+  formatDateTimeShort,
   formatEventDate,
   formatEventDateRange,
 } from '../renderer/utils/formatDate';
@@ -45,5 +46,21 @@ describe('formatDateTime: one date-and-time format on screen', () => {
     expect(formatDateTime(null)).toBe('');
     expect(formatDateTime('')).toBe('');
     expect(formatDateTime('yesterday')).toBe('yesterday');
+  });
+});
+
+describe('formatDateTimeShort: the "as of" moment without seconds', () => {
+  it('shows dd.mm.yyyy HH:mm in 24 hours', () => {
+    expect(formatDateTimeShort(new Date(2026, 9, 29, 9, 5, 48))).toBe(
+      '29.10.2026 09:05',
+    );
+    expect(formatDateTimeShort(new Date(2026, 0, 2, 23, 59, 59))).toBe(
+      '02.01.2026 23:59',
+    );
+  });
+
+  it('leaves a missing or unreadable value as formatDateTime does', () => {
+    expect(formatDateTimeShort(null)).toBe('');
+    expect(formatDateTimeShort('not a date')).toBe('not a date');
   });
 });

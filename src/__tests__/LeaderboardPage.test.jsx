@@ -32,10 +32,25 @@ jest.mock(
 jest.mock(
   '../renderer/components/leaderboard/LeaderboardToolbar',
   () =>
-    function () {
-      return <div>Leaderboard Toolbar Mock</div>;
+    function ({ onExport }) {
+      return (
+        <div>
+          Leaderboard Toolbar Mock
+          <button type="button" onClick={onExport}>
+            Export mock
+          </button>
+        </div>
+      );
     },
 );
+const mockExportDialog = jest.fn();
+jest.mock('../renderer/components/export/ResultsExportDialog', () => ({
+  __esModule: true,
+  default: (props) => {
+    mockExportDialog(props);
+    return <div>Export Dialog Mock</div>;
+  },
+}));
 jest.mock(
   '../renderer/components/leaderboard/SectionDivider',
   () =>
@@ -208,5 +223,35 @@ describe('LeaderboardPage', () => {
     });
 
     expect(screen.queryByText('Event Screen')).not.toBeInTheDocument();
+  });
+
+  it('exports the SAVED results, never the edit draft', () => {
+    const saved = [{ boat_id: 1, races: ['3'], name: 'Saved' }];
+    const savedQualifying = [{ boat_id: 1, races: ['4'], name: 'Saved Q' }];
+    const draft = [{ boat_id: 1, races: ['99'], name: 'Draft' }];
+    useLeaderboard.mockReturnValue({
+      ...baseLeaderboardHook,
+      editMode: true,
+      hasUnsavedChanges: true,
+      leaderboard: saved,
+      eventLeaderboard: savedQualifying,
+      editableLeaderboard: draft,
+      discardProfiles: { qualifying: 'standard', final: 'standard' },
+    });
+
+    renderLeaderboardPage({
+      pathname: '/event/Spring Cup/leaderboard',
+      state: { event },
+    });
+    expect(screen.queryByText('Export Dialog Mock')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Export mock' }));
+
+    expect(screen.getByText('Export Dialog Mock')).toBeInTheDocument();
+    const props = mockExportDialog.mock.calls.at(-1)[0];
+    expect(props.leaderboard).toBe(saved);
+    expect(props.eventLeaderboard).toBe(savedQualifying);
+    // The dialog is told there are unsaved edits, so it can say they are left out.
+    expect(props.hasUnsavedEdits).toBe(true);
+    expect(JSON.stringify(props)).not.toContain('Draft');
   });
 });
