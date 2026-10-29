@@ -218,6 +218,38 @@ export function scoringProgress(
   };
 }
 
+/**
+ * The boats that were reported missing by a failed submit AND still have
+ * neither a place nor a penalty. A boat leaves the list the moment it gets
+ * one (and comes back if that is taken away again before the next submit).
+ */
+export function stillMissingBoats(
+  marked: SailNumber[],
+  state: Pick<FinishEntryState, 'boatNumbers' | 'penalties'>,
+): SailNumber[] {
+  if (marked.length === 0) return marked;
+  const assigned = enteredBoats(state);
+  return marked.filter((sail) => !assigned.has(normalizeBoatNumber(sail)));
+}
+
+/** How many missing boats the warning names before it says "and N more". */
+const MAX_NAMED_MISSING = 6;
+
+/**
+ * The short line a failed submit shows: which boats are still missing. The
+ * boat table marks every one of them, so a long list is cut off here.
+ */
+export function missingBoatsLine(missing: SailNumber[]): string {
+  const named = missing
+    .slice(0, MAX_NAMED_MISSING)
+    .map((sail) => `sail ${sail}`)
+    .join(', ');
+  const more = missing.length - MAX_NAMED_MISSING;
+  return more > 0
+    ? `Still missing: ${named} and ${more} more.`
+    : `Still missing: ${named}.`;
+}
+
 /** Entered boats (places or penalties) that are not boats of the heat. */
 export function findSubmittedStrangers(
   validBoats: SailNumber[],

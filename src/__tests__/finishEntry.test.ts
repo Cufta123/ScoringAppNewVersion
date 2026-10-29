@@ -4,10 +4,12 @@ import {
   findSubmittedStrangers,
   formatPlaceDisplay,
   hasFinishEntry,
+  missingBoatsLine,
   moveFinisher,
   removeFinisher,
   scoringProgress,
   setBoatPenalty,
+  stillMissingBoats,
   toggleTie,
 } from '../renderer/utils/finishEntry';
 import { buildPlaceNumbers, tieKey } from '../renderer/utils/finishOrder';
@@ -191,6 +193,47 @@ describe('formatPlaceDisplay', () => {
     expect(formatPlaceDisplay(2, 'ZFP')).toBe('2 · ZFP');
     expect(formatPlaceDisplay(2, 'ZFP', { sep: ' ', placeSuffix: '.' })).toBe(
       '2. ZFP',
+    );
+  });
+});
+
+describe('stillMissingBoats: the marks a failed submit leaves', () => {
+  it('keeps the marked boats that have neither a place nor a penalty', () => {
+    expect(stillMissingBoats(['2', '3'], entryOf('1'))).toEqual(['2', '3']);
+  });
+
+  it('drops a boat once it has a place', () => {
+    expect(stillMissingBoats(['2', '3'], entryOf('1', '3'))).toEqual(['2']);
+  });
+
+  it('drops a boat once it has a penalty', () => {
+    const state = setBoatPenalty(entryOf('1'), '2', 'DNS');
+    expect(stillMissingBoats(['2', '3'], state)).toEqual(['3']);
+  });
+
+  it('brings the mark back when the place is taken away again', () => {
+    const scored = entryOf('1', '2');
+    expect(stillMissingBoats(['2'], scored)).toEqual([]);
+    expect(stillMissingBoats(['2'], removeFinisher(scored, 1))).toEqual(['2']);
+  });
+
+  it('matches numeric sail numbers against typed ones', () => {
+    const state = addFinishers(emptyFinishEntry(), [101, 102], ['101']);
+    expect(stillMissingBoats([101, 102], state)).toEqual([102]);
+  });
+});
+
+describe('missingBoatsLine', () => {
+  it('names every missing boat when there are few', () => {
+    expect(missingBoatsLine(['102', '103'])).toBe(
+      'Still missing: sail 102, sail 103.',
+    );
+  });
+
+  it('cuts a long list short and says how many more', () => {
+    const many = Array.from({ length: 10 }, (_, i) => String(100 + i));
+    expect(missingBoatsLine(many)).toBe(
+      'Still missing: sail 100, sail 101, sail 102, sail 103, sail 104, sail 105 and 4 more.',
     );
   });
 });

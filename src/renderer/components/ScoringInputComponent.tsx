@@ -35,6 +35,8 @@ function ScoringInputComponent({
         penalties={scoring.penalties}
         getPlaceDisplay={scoring.getPlaceDisplay}
         isInvalidSail={scoring.isInvalidSail}
+        isMissingSail={scoring.isMissingSail}
+        missingToken={scoring.missingToken}
         fetchError={scoring.fetchError}
         onRetry={scoring.retryFetch}
         onBoatClick={scoring.addBoat}

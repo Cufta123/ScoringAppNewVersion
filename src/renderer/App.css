@@ -26,6 +26,8 @@
   --danger-light: #fdecea;
   --amber: #e67e22;
   --amber-light: #fef3e7;
+  /* Dark amber: text/badges on white and on --amber-light (>= 4.5:1). */
+  --amber-strong: #8a4b00;
   --bg: #f0f6fc;
   --bg-subtle: #e4eef8;
   --surface: #ffffff;
@@ -1683,6 +1685,34 @@ small.form-locked-note {
 .scoring-table tbody tr.is-invalid {
   outline: 2px solid var(--danger);
   outline-offset: -2px;
+}
+
+/* A failed Submit marks the boats that still have neither a place nor a
+   penalty: amber row, thick left edge AND a text badge, so it never relies on
+   colour alone. The mark goes as soon as the boat gets a place or penalty. */
+.scoring-table tbody tr.is-missing,
+.scoring-table tbody tr.is-missing:hover {
+  background: #ffe8bf;
+  border-left: 4px solid var(--amber-strong);
+}
+.scoring-missing-badge {
+  display: block;
+  width: fit-content;
+  margin-top: 2px;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--amber-strong);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* Rows that can be used from the keyboard show where the focus is. */
+tr[tabindex]:focus-visible {
+  outline: 3px solid var(--ocean);
+  outline-offset: -3px;
 }
 
 .scoring-added-check {
