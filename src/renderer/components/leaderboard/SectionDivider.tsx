@@ -23,8 +23,8 @@ function SectionDivider({ label, marginTop = '4px' }: SectionDividerProps) {
           fontSize: '0.88rem',
           textTransform: 'uppercase',
           letterSpacing: '0.06em',
-          color: 'var(--navy)',
-          opacity: 0.5,
+          // Full-strength secondary text (11.7:1); half-transparent navy was ~3:1.
+          color: 'var(--text-secondary)',
           whiteSpace: 'nowrap',
         }}
       >

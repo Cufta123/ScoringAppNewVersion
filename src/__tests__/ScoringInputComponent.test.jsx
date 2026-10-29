@@ -440,9 +440,122 @@ describe('ScoringInputComponent', () => {
 
     expect(onSubmit).not.toHaveBeenCalled();
     expect(reportWarning).toHaveBeenCalledWith(
-      expect.stringContaining('Still missing: sail 102'),
+      expect.stringContaining('Still missing: sail 102.'),
       'Some boats are not scored yet',
     );
+  });
+
+  describe('boats missing after a failed submit', () => {
+    const setup = async () => {
+      const boats = [
+        makeBoat(1, 101, 'Ana'),
+        makeBoat(2, 102, 'Ivo'),
+        makeBoat(3, 103, 'Eva'),
+      ];
+      readBoatsByHeat.mockResolvedValueOnce(boats);
+      render(
+        <ScoringInputComponent
+          heat={makeHeat(30, 'Heat C1', boats)}
+          onSubmit={jest.fn()}
+        />,
+      );
+      await waitFor(() => expect(readBoatsByHeat).toHaveBeenCalled());
+    };
+    const rowOf = (name) => screen.getAllByText(name)[0].closest('tr');
+
+    it('marks them in the boat table with a text badge, and nothing before', async () => {
+      await setup();
+      fireEvent.click(screen.getByText('Ana Test'));
+      expect(screen.queryByText('Not scored')).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Submit Scores' }));
+
+      expect(screen.getAllByText('Not scored')).toHaveLength(2);
+      expect(rowOf('Ivo Test')).toHaveClass('is-missing');
+      expect(rowOf('Eva Test')).toHaveClass('is-missing');
+      expect(rowOf('Ana Test')).not.toHaveClass('is-missing');
+    });
+
+    it('keeps the toast short: the boats and one instruction', async () => {
+      await setup();
+      fireEvent.click(screen.getByRole('button', { name: 'Submit Scores' }));
+      const [message, title] = reportWarning.mock.calls[0];
+      expect(title).toBe('Some boats are not scored yet');
+      expect(message.split('\n')).toHaveLength(2);
+      expect(message).toContain('Still missing: sail 101, sail 102, sail 103.');
+    });
+
+    it('clears the mark of a boat as soon as it gets a place or a penalty', async () => {
+      await setup();
+      fireEvent.click(screen.getByRole('button', { name: 'Submit Scores' }));
+      expect(screen.getAllByText('Not scored')).toHaveLength(3);
+
+      fireEvent.click(screen.getByText('Ana Test'));
+      expect(rowOf('Ana Test')).not.toHaveClass('is-missing');
+      expect(screen.getAllByText('Not scored')).toHaveLength(2);
+
+      fireEvent.change(screen.getByLabelText('Penalty for sail 102'), {
+        target: { value: 'DNS' },
+      });
+      expect(rowOf('Ivo Test')).not.toHaveClass('is-missing');
+      expect(screen.getAllByText('Not scored')).toHaveLength(1);
+    });
+
+    it('scrolls the first missing boat into view on every failed submit', async () => {
+      const scrollIntoView = jest.fn();
+      window.HTMLElement.prototype.scrollIntoView = scrollIntoView;
+      try {
+        await setup();
+        fireEvent.click(screen.getByText('Ana Test'));
+        fireEvent.click(screen.getByRole('button', { name: 'Submit Scores' }));
+        expect(scrollIntoView).toHaveBeenCalledTimes(1);
+        expect(scrollIntoView.mock.instances[0]).toBe(rowOf('Ivo Test'));
+        fireEvent.click(screen.getByRole('button', { name: 'Submit Scores' }));
+        expect(scrollIntoView).toHaveBeenCalledTimes(2);
+      } finally {
+        delete window.HTMLElement.prototype.scrollIntoView;
+      }
+    });
+  });
+
+  describe('boat rows from the keyboard', () => {
+    it('are focusable and Enter or Space adds the boat', async () => {
+      const boats = [makeBoat(1, 101, 'Ana'), makeBoat(2, 102, 'Ivo')];
+      readBoatsByHeat.mockResolvedValueOnce(boats);
+      render(
+        <ScoringInputComponent
+          heat={makeHeat(31, 'Heat C2', boats)}
+          onSubmit={jest.fn()}
+        />,
+      );
+      await waitFor(() => expect(readBoatsByHeat).toHaveBeenCalled());
+      const ana = screen.getByText('Ana Test').closest('tr');
+      const ivo = screen.getByText('Ivo Test').closest('tr');
+      expect(ana).toHaveAttribute('tabindex', '0');
+
+      fireEvent.keyDown(ana, { key: 'Enter' });
+      expect(ana).toHaveClass('is-added');
+      fireEvent.keyDown(ivo, { key: ' ' });
+      expect(ivo).toHaveClass('is-added');
+    });
+
+    it('do not react to keys pressed inside the penalty select', async () => {
+      const boats = [makeBoat(1, 101, 'Ana')];
+      readBoatsByHeat.mockResolvedValueOnce(boats);
+      render(
+        <ScoringInputComponent
+          heat={makeHeat(32, 'Heat C3', boats)}
+          onSubmit={jest.fn()}
+        />,
+      );
+      await waitFor(() => expect(readBoatsByHeat).toHaveBeenCalled());
+      fireEvent.keyDown(screen.getByLabelText('Penalty for sail 101'), {
+        key: 'Enter',
+      });
+      expect(screen.getByText('Ana Test').closest('tr')).not.toHaveClass(
+        'is-added',
+      );
+    });
   });
 
   it('removing a boat clears penalty and blocks submit as incomplete', async () => {

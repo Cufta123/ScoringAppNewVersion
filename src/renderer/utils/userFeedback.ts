@@ -1,4 +1,7 @@
+import React from 'react';
 import { toast } from 'react-toastify';
+import type { ToastOptions } from 'react-toastify';
+import ToastMessage from '../components/shared/ToastMessage';
 import { requestConfirm, type ConfirmChoice } from './confirmController';
 import {
   isTechnicalText,
@@ -75,6 +78,34 @@ export const describeError = (error: unknown, where = 'window'): string => {
   return unexpectedMessage(ref);
 };
 
+type ToastKind = 'error' | 'warning' | 'info';
+
+/**
+ * A stable id for a toast: the same kind, title and body is the same toast.
+ * Clicking Submit five times then shows one warning, not five.
+ */
+export const toastKey = (kind: ToastKind, title: string, body = ''): string =>
+  `${kind}|${title}|${body}`;
+
+/**
+ * Show a toast with a bold title and the explanation under it. An identical
+ * toast that is still on screen is refreshed instead of stacked.
+ */
+const showToast = (
+  kind: ToastKind,
+  title: string,
+  body: string | undefined,
+  options: ToastOptions,
+  toastId = toastKey(kind, title, body),
+): void => {
+  const content = React.createElement(ToastMessage, { title, body });
+  if (toast.isActive(toastId)) {
+    toast.update(toastId, { render: content, ...options });
+    return;
+  }
+  toast[kind](content, { ...options, toastId });
+};
+
 export const reportError = (
   title: string | undefined,
   error?: unknown,
@@ -89,15 +120,17 @@ export const reportError = (
     title && title.trim() ? title : 'Something went wrong. Please try again.';
   const reason =
     error === undefined ? null : describeError(error, heading.slice(0, 200));
-  const message =
-    reason && reason !== heading ? `${heading}\n${reason}` : heading;
   // Errors stay on screen until dismissed so slower readers never miss them.
-  toast.error(message, { autoClose: false, closeOnClick: true });
+  showToast(
+    'error',
+    heading,
+    reason && reason !== heading ? reason : undefined,
+    { autoClose: false, closeOnClick: true },
+  );
 };
 
 export const reportInfo = (message?: string, title = 'Notice'): void => {
-  const body = message || 'Done.';
-  toast.info(`${title}: ${body}`);
+  showToast('info', title, message || 'Done.', {});
 };
 
 // Blocking validation the user must act on (e.g. "these sail numbers are not in
@@ -110,12 +143,13 @@ export const reportWarning = (
   title = 'Please check',
   { toastId }: { toastId?: string } = {},
 ): void => {
-  const body = message || 'Please review your input.';
-  toast.warning(`${title}: ${body}`, {
-    autoClose: false,
-    closeOnClick: true,
+  showToast(
+    'warning',
+    title,
+    message || 'Please review your input.',
+    { autoClose: false, closeOnClick: true },
     toastId,
-  });
+  );
 };
 
 const safeString = (value: unknown, fallback: string): string =>

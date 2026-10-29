@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { canExportEventSnapshot, heatRaceDB } from '../api/db';
 import {
   confirmAction,
+  confirmChoice,
   getErrorMessage,
   reportError,
   reportInfo,
@@ -16,6 +17,8 @@ interface PendingStart {
   finalHeats: number;
   /** SHRS 2026-1 Rule 4.3 choice, asked before the confirmation modal. */
   applyRule43: boolean;
+  /** Whether Rule 4.3 was a question at all (6-7 completed races). */
+  rule43Asked: boolean;
 }
 
 interface Options {
@@ -108,18 +111,30 @@ export default function useFinalSeriesStart({
 
       let applyRule43 = true;
       if (rule43Applies) {
-        applyRule43 = await confirmAction(
-          "SHRS 2026-1 Rule 4.3 applies for 6-7 completed qualifying races.\n\nConfirm: Apply Rule 4.3 and temporarily exclude each boat's second worst race score only for final-fleet ranking.\nCancel: Do not apply Rule 4.3 and keep ranking without this temporary second exclusion.",
+        // Three answers, because "no" is a decision with a result of its own
+        // (the fleets are drawn without the rule). Escape, a click outside the
+        // dialog and the focused Cancel button therefore STOP the start
+        // instead of quietly choosing "skip".
+        const choice = await confirmChoice(
+          "SHRS 2026-1 Rule 4.3 applies for 6-7 completed qualifying races.\n\nApply Rule 4.3: temporarily exclude each boat's second worst race score, only for ranking the boats into final fleets.\nSkip Rule 4.3: rank without this second exclusion.\nCancel: do not start the Final Series yet.",
           'Apply SHRS 2026-1 Rule 4.3?',
           {
             confirmLabel: 'Apply Rule 4.3',
-            cancelLabel: 'Skip Rule 4.3',
+            extraLabel: 'Skip Rule 4.3',
+            extraClassName: 'btn-secondary',
+            cancelLabel: 'Cancel',
             confirmClassName: 'btn-success',
           },
         );
+        if (choice === 'cancel') return;
+        applyRule43 = choice === 'confirm';
       }
 
-      setPending({ finalHeats: numFinalHeats ?? 0, applyRule43 });
+      setPending({
+        finalHeats: numFinalHeats ?? 0,
+        applyRule43,
+        rule43Asked: rule43Applies === true,
+      });
     } catch (error) {
       reportError(
         'Could not validate heats before starting final series.',
@@ -168,6 +183,8 @@ export default function useFinalSeriesStart({
   return {
     confirmOpen: pending !== null,
     pendingFinalHeats: pending?.finalHeats ?? 0,
+    /** null when Rule 4.3 did not come up for this event. */
+    pendingRule43: pending?.rule43Asked ? pending.applyRule43 : null,
     startFinalSeries,
     confirmFinalSeries,
     cancelFinalSeries,

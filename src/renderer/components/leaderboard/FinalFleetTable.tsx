@@ -11,6 +11,7 @@ import {
   IdentityHeaders,
   NetCell,
   RaceColumnHeader,
+  CompareRow,
   leaderboardRowStyle,
 } from './TablePieces';
 import {
@@ -293,10 +294,11 @@ function FinalFleetTable({
               const isSelected = selectedBoatIds.includes(entry.boat_id);
 
               return (
-                <tr
+                <CompareRow
                   key={`boat-${entry.boat_id}-${index}`}
-                  className="leaderboard-row"
-                  onClick={() =>
+                  compareMode={compareMode}
+                  isSelected={isSelected}
+                  onPick={() =>
                     onCompareRowClick(entry.boat_id, entry.placement_group)
                   }
                   style={leaderboardRowStyle(index, isSelected, compareMode)}
@@ -427,7 +429,7 @@ function FinalFleetTable({
                       {entry.computed_total ?? '–'}
                     </td>
                   )}
-                </tr>
+                </CompareRow>
               );
             })}
           </tbody>

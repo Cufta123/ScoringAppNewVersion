@@ -20,10 +20,12 @@ import {
   findSubmittedStrangers,
   formatPlaceDisplay,
   hasFinishEntry,
+  missingBoatsLine,
   moveFinisher,
   removeFinisher,
   scoringProgress,
   setBoatPenalty,
+  stillMissingBoats,
   toggleTie,
 } from '../utils/finishEntry';
 import type { FinishEntryState } from '../utils/finishEntry';
@@ -68,6 +70,12 @@ export default function useScoringInput({
   const [entry, edit] = useReducer(applyEdit, undefined, emptyFinishEntry);
   const [validBoats, setValidBoats] = useState<SailNumber[]>([]);
   const [invalidBoatNumbers, setInvalidBoatNumbers] = useState<string[]>([]);
+  // The boats the last failed submit named as missing, and a counter that
+  // changes with every failed submit (the boat table scrolls to the first one
+  // each time). A boat is shown as missing only while it still has neither a
+  // place nor a penalty (see `missingSails` below).
+  const [missingMarked, setMissingMarked] = useState<SailNumber[]>([]);
+  const [missingToken, setMissingToken] = useState(0);
   // Inline error state so a boat-fetch failure shows a persistent banner with a
   // Retry button, not just a fleeting toast.
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -101,6 +109,7 @@ export default function useScoringInput({
     edit(() => emptyFinishEntry());
     setValidBoats([]);
     setInvalidBoatNumbers([]);
+    setMissingMarked([]);
     setFetchError(null);
 
     const fetchBoats = async () => {
@@ -137,6 +146,16 @@ export default function useScoringInput({
   const progress = useMemo(
     () => scoringProgress(validBoats, entry),
     [validBoats, entry],
+  );
+  const missingSails = useMemo(
+    () =>
+      new Set(stillMissingBoats(missingMarked, entry).map(normalizeBoatNumber)),
+    [missingMarked, entry],
+  );
+  const isMissingSail = useCallback(
+    (sailNumber: SailNumber): boolean =>
+      missingSails.has(normalizeBoatNumber(sailNumber)),
+    [missingSails],
   );
   const invalidSails = useMemo(
     () => new Set(invalidBoatNumbers.map(normalizeBoatNumber)),
@@ -256,14 +275,18 @@ export default function useScoringInput({
       validBoats,
     });
     if (missingBoats.length > 0) {
+      // The boat table marks and scrolls to the missing boats, so the warning
+      // only has to say which ones and what to do about them.
+      setMissingMarked(missingBoats);
+      setMissingToken((token) => token + 1);
       reportWarning(
-        `Still missing: sail ${missingBoats.join(', sail ')}.\n\n` +
-          'Every boat needs a finishing place or a penalty before you can submit. ' +
-          'Click the missing boats in the left table to add them, or pick a penalty (e.g. DNS if a boat did not start).',
+        `${missingBoatsLine(missingBoats)}\n` +
+          'Give each a place (click its row) or a penalty such as DNS.',
         'Some boats are not scored yet',
       );
       return;
     }
+    setMissingMarked([]);
 
     try {
       // On success the parent unmounts this view; on a warning/error path it
@@ -287,6 +310,8 @@ export default function useScoringInput({
     entryKeyOf,
     boatByKey,
     isInvalidSail,
+    isMissingSail,
+    missingToken,
     getPlaceDisplay,
     addBoat,
     addTyped,

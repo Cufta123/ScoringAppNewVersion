@@ -200,6 +200,45 @@ export function NetCell({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * One leaderboard body row. While comparing it can be picked with a click, or
+ * with Enter / Space when it has the keyboard focus; rows are Tab stops only
+ * then (80 stops on a plain table would be noise). Keys pressed on a button
+ * inside the row stay with that button.
+ */
+export function CompareRow({
+  compareMode,
+  isSelected,
+  onPick,
+  style,
+  children,
+}: {
+  compareMode: boolean;
+  isSelected: boolean;
+  onPick: () => void;
+  style: React.CSSProperties;
+  children: React.ReactNode;
+}) {
+  return (
+    <tr
+      className="leaderboard-row"
+      style={style}
+      onClick={onPick}
+      tabIndex={compareMode ? 0 : undefined}
+      aria-selected={compareMode ? isSelected : undefined}
+      onKeyDown={(event) => {
+        if (!compareMode || event.target !== event.currentTarget) return;
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onPick();
+        }
+      }}
+    >
+      {children}
+    </tr>
+  );
+}
+
 /** Style of one body row: striped, highlighted when selected for comparing. */
 export const leaderboardRowStyle = (
   index: number,
@@ -212,7 +251,9 @@ export const leaderboardRowStyle = (
     background: isSelected ? 'rgba(42, 157, 143, 0.15)' : stripeBackground,
     borderBottom: '1px solid var(--border, #dde3ea)',
     cursor: compareMode ? 'pointer' : 'default',
-    outline: isSelected ? '2px solid var(--teal, #2a9d8f)' : 'none',
+    // No outline at all when not selected, so the keyboard focus ring from the
+    // stylesheet can show.
+    outline: isSelected ? '2px solid var(--teal, #2a9d8f)' : undefined,
     outlineOffset: '-2px',
   };
 };

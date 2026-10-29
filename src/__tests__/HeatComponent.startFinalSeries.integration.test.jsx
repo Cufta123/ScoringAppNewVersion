@@ -4,7 +4,7 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import HeatComponent from '../renderer/components/HeatComponent';
-import { confirmAction } from '../renderer/utils/userFeedback';
+import { confirmAction, confirmChoice } from '../renderer/utils/userFeedback';
 
 jest.mock(
   'react-world-flags',
@@ -20,12 +20,14 @@ const reportErrorMock = jest.fn();
 jest.mock('../renderer/utils/userFeedback', () => ({
   ...jest.requireActual('../renderer/utils/userFeedback'),
   confirmAction: jest.fn(async () => true),
+  confirmChoice: jest.fn(async () => 'confirm'),
   reportInfo: (...args) => reportInfoMock(...args),
   reportError: (...args) => reportErrorMock(...args),
 }));
 
 describe('HeatComponent start final series integration (UI + IPC chain)', () => {
   const confirmActionMock = confirmAction;
+  const confirmChoiceMock = confirmChoice;
 
   beforeEach(() => {
     const readAllHeats = jest.fn().mockResolvedValue([
@@ -89,6 +91,8 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
     reportErrorMock.mockReset();
     confirmActionMock.mockReset();
     confirmActionMock.mockResolvedValue(true);
+    confirmChoiceMock.mockReset();
+    confirmChoiceMock.mockResolvedValue('confirm');
   });
 
   afterEach(() => {
@@ -190,14 +194,16 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
     );
 
     await waitFor(() => {
-      expect(confirmActionMock).toHaveBeenCalledWith(
+      expect(confirmChoiceMock).toHaveBeenCalledWith(
         expect.stringContaining(
           'SHRS 2026-1 Rule 4.3 applies for 6-7 completed qualifying races.',
         ),
         'Apply SHRS 2026-1 Rule 4.3?',
         {
           confirmLabel: 'Apply Rule 4.3',
-          cancelLabel: 'Skip Rule 4.3',
+          extraLabel: 'Skip Rule 4.3',
+          extraClassName: 'btn-secondary',
+          cancelLabel: 'Cancel',
           confirmClassName: 'btn-success',
         },
       );
@@ -228,7 +234,7 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
     const shs43ChoicePromise = new Promise((resolve) => {
       resolveShs43Choice = resolve;
     });
-    confirmActionMock.mockImplementation(() => shs43ChoicePromise);
+    confirmChoiceMock.mockImplementation(() => shs43ChoicePromise);
 
     render(
       <HeatComponent
@@ -251,14 +257,16 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
     );
 
     await waitFor(() => {
-      expect(confirmActionMock).toHaveBeenCalledWith(
+      expect(confirmChoiceMock).toHaveBeenCalledWith(
         expect.stringContaining(
           'SHRS 2026-1 Rule 4.3 applies for 6-7 completed qualifying races.',
         ),
         'Apply SHRS 2026-1 Rule 4.3?',
         {
           confirmLabel: 'Apply Rule 4.3',
-          cancelLabel: 'Skip Rule 4.3',
+          extraLabel: 'Skip Rule 4.3',
+          extraClassName: 'btn-secondary',
+          cancelLabel: 'Cancel',
           confirmClassName: 'btn-success',
         },
       );
@@ -268,7 +276,7 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
       screen.queryByRole('dialog', { name: /start final series\?/i }),
     ).not.toBeInTheDocument();
 
-    resolveShs43Choice(true);
+    resolveShs43Choice('confirm');
 
     await waitFor(() => {
       expect(
@@ -277,7 +285,7 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
     });
   });
 
-  it('skips temporary second exclusion when SHRS 4.3 confirmation is declined', async () => {
+  it('skips temporary second exclusion when Skip Rule 4.3 is chosen', async () => {
     window.electron.sqlite.heatRaceDB.getFinalSeriesEligibility = jest
       .fn()
       .mockResolvedValue({
@@ -292,7 +300,7 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
           { name: 'Heat B1', count: 6 },
         ],
       });
-    confirmActionMock.mockResolvedValue(false);
+    confirmChoiceMock.mockResolvedValue('extra');
 
     render(
       <HeatComponent
@@ -358,8 +366,8 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
 
     confirmActionMock
       .mockResolvedValueOnce(true) // Proceed past the "latest round unsailed" notice.
-      .mockResolvedValueOnce(true) // Snapshot question.
-      .mockResolvedValueOnce(true); // SHRS 4.3 choice.
+      .mockResolvedValueOnce(true); // Snapshot question.
+    // (the SHRS 4.3 choice is confirmChoice, which answers 'confirm' by default)
 
     render(
       <HeatComponent
@@ -389,17 +397,110 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
     });
 
     await waitFor(() => {
-      expect(confirmActionMock).toHaveBeenCalledWith(
+      expect(confirmChoiceMock).toHaveBeenCalledWith(
         expect.stringContaining(
           'SHRS 2026-1 Rule 4.3 applies for 6-7 completed qualifying races.',
         ),
         'Apply SHRS 2026-1 Rule 4.3?',
         {
           confirmLabel: 'Apply Rule 4.3',
-          cancelLabel: 'Skip Rule 4.3',
+          extraLabel: 'Skip Rule 4.3',
+          extraClassName: 'btn-secondary',
+          cancelLabel: 'Cancel',
           confirmClassName: 'btn-success',
         },
       );
     });
   });
+
+  it('stops the start, and starts nothing, when the Rule 4.3 question is cancelled (Escape counts as Cancel)', async () => {
+    window.electron.sqlite.heatRaceDB.getFinalSeriesEligibility = jest
+      .fn()
+      .mockResolvedValue({
+        ok: true,
+        reason: 'OK',
+        numFinalHeats: 2,
+        completedQualifyingRaces: 6,
+        rule43Applies: true,
+        noRacesCompleted: false,
+        raceCountBreakdown: [
+          { name: 'Heat A1', count: 6 },
+          { name: 'Heat B1', count: 6 },
+        ],
+      });
+    confirmChoiceMock.mockResolvedValue('cancel');
+
+    render(
+      <HeatComponent
+        event={{ event_id: 77 }}
+        clickable={false}
+        onHeatSelect={jest.fn()}
+        onStartScoring={jest.fn()}
+        onQualifyingGroupCountChange={jest.fn()}
+      />,
+    );
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /start final series/i }),
+      ).toBeInTheDocument();
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: /start final series/i }),
+    );
+
+    await waitFor(() => expect(confirmChoiceMock).toHaveBeenCalledTimes(1));
+    expect(
+      screen.queryByRole('dialog', { name: /start final series\?/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      window.electron.sqlite.heatRaceDB.startFinalSeriesAtomic,
+    ).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['confirm', 'applied'],
+    ['extra', 'not applied'],
+  ])(
+    'the final confirmation repeats the Rule 4.3 choice (%s -> %s)',
+    async (choice, wording) => {
+      window.electron.sqlite.heatRaceDB.getFinalSeriesEligibility = jest
+        .fn()
+        .mockResolvedValue({
+          ok: true,
+          reason: 'OK',
+          numFinalHeats: 2,
+          completedQualifyingRaces: 6,
+          rule43Applies: true,
+          noRacesCompleted: false,
+          raceCountBreakdown: [
+            { name: 'Heat A1', count: 6 },
+            { name: 'Heat B1', count: 6 },
+          ],
+        });
+      confirmChoiceMock.mockResolvedValue(choice);
+
+      render(
+        <HeatComponent
+          event={{ event_id: 77 }}
+          clickable={false}
+          onHeatSelect={jest.fn()}
+          onStartScoring={jest.fn()}
+          onQualifyingGroupCountChange={jest.fn()}
+        />,
+      );
+      await waitFor(() => {
+        expect(
+          screen.getByRole('button', { name: /start final series/i }),
+        ).toBeInTheDocument();
+      });
+      fireEvent.click(
+        screen.getByRole('button', { name: /start final series/i }),
+      );
+
+      const dialog = await screen.findByRole('dialog', {
+        name: /start final series\?/i,
+      });
+      expect(dialog).toHaveTextContent(`SHRS Rule 4.3: ${wording}.`);
+    },
+  );
 });

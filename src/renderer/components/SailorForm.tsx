@@ -72,6 +72,19 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
       );
       return;
     }
+    // Stray spaces typed around a name or club must not make a second sailor
+    // or club ("Ana " is not "Ana"), and a field of spaces is still empty.
+    const firstName = name.trim();
+    const lastName = surname.trim();
+    const clubName = club.trim();
+    if (!firstName || !lastName || !clubName) {
+      reportWarning(
+        'First name, surname and club cannot be empty or only spaces.',
+        'Missing information',
+      );
+      return;
+    }
+
     setSubmitting(true);
     try {
       const selectedSubgroup = SUBGROUP_OPTIONS.find(
@@ -88,17 +101,17 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
 
       // Check if the club already exists
       let club_id = clubs.find(
-        (c) => c.club_name === club && c.country === selectedCountry,
+        (c) => c.club_name === clubName && c.country === selectedCountry,
       )?.club_id;
       if (!club_id) {
         try {
-          const result = await sailorDB.insertClub(club, selectedCountry);
+          const result = await sailorDB.insertClub(clubName, selectedCountry);
           club_id = result.lastInsertRowid;
 
           // Update the clubs state with the newly added club
           setClubs([
             ...clubs,
-            { club_id, club_name: club, country: selectedCountry },
+            { club_id, club_name: clubName, country: selectedCountry },
           ]);
         } catch (error) {
           // IPC strips custom error fields (e.g. `code`), so also match the
@@ -122,7 +135,7 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
           try {
             const allClubs = await sailorDB.readAllClubs();
             const existingClub = (allClubs || []).find(
-              (c) => c.club_name === club && c.country === selectedCountry,
+              (c) => c.club_name === clubName && c.country === selectedCountry,
             );
             if (!existingClub) {
               reportError(
@@ -143,14 +156,16 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
       const allSailors = await sailorDB.readAllSailors();
       let sailor_id = allSailors.find(
         (s) =>
-          s.name === name && s.surname === surname && s.birthday === birthday,
+          s.name === firstName &&
+          s.surname === lastName &&
+          s.birthday === birthday,
       )?.sailor_id;
 
       if (!sailor_id) {
         try {
           const sailorResult = await sailorDB.insertSailor(
-            name,
-            surname,
+            firstName,
+            lastName,
             birthday,
             category_id,
             club_id,
@@ -182,7 +197,7 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
       if (existingBoat) {
         const ownerName =
           `${existingBoat.name ?? ''} ${existingBoat.surname ?? ''}`.trim();
-        const typedName = `${name} ${surname}`.trim();
+        const typedName = `${firstName} ${lastName}`;
         if (ownerName && ownerName.toLowerCase() !== typedName.toLowerCase()) {
           const proceed = await confirmAction(
             `Sail ${sailNumber} (${selectedCountry}) is already registered to ` +

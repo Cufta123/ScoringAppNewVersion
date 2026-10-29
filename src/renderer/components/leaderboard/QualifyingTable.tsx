@@ -8,6 +8,7 @@ import {
   IdentityHeaders,
   NetCell,
   RaceColumnHeader,
+  CompareRow,
   leaderboardRowStyle,
 } from './TablePieces';
 import { sumPoints } from '../../../shared/points';
@@ -183,7 +184,7 @@ function QualifyingTable({
                   fontWeight: 700,
                   color: 'white',
                   whiteSpace: 'nowrap',
-                  background: '#2a9d8f',
+                  background: 'var(--teal)',
                   borderLeft: '1px solid rgba(255,255,255,0.25)',
                   borderRight: '1px solid rgba(255,255,255,0.25)',
                   cursor: 'help',
@@ -231,10 +232,11 @@ function QualifyingTable({
                 entry.computed_total ?? entry.total_points_event;
 
               return (
-                <tr
+                <CompareRow
                   key={`ev-${entry.boat_id}`}
-                  className="leaderboard-row"
-                  onClick={() => onCompareRowClick(entry.boat_id)}
+                  compareMode={compareMode}
+                  isSelected={isSelected}
+                  onPick={() => onCompareRowClick(entry.boat_id)}
                   style={leaderboardRowStyle(index, isSelected, compareMode)}
                 >
                   <IdentityCells
@@ -318,7 +320,7 @@ function QualifyingTable({
                       </td>
                     );
                   })}
-                </tr>
+                </CompareRow>
               );
             })}
           </tbody>

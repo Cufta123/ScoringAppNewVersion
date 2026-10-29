@@ -5,9 +5,6 @@ import { BOAT_DRAG_MIME, serializeBoatDrag } from '../../utils/heatView';
 import type { HeatWithBoats } from '../../utils/heatView';
 import { sailorFullName } from '../../utils/sailorName';
 
-const boatNumberColumnStyle = { maxWidth: '100px' };
-const sailorNameColumnStyle = { maxWidth: '220px' };
-
 interface HeatColumnProps {
   heat: HeatWithBoats;
   clickable: boolean;
@@ -83,12 +80,14 @@ function HeatColumn({
       <table>
         <thead>
           <tr>
-            <th scope="col" style={sailorNameColumnStyle}>
+            <th scope="col" className="heat-name-cell">
               Sailor Name
             </th>
-            <th scope="col">Country</th>
-            <th scope="col" style={boatNumberColumnStyle}>
-              Boat Number
+            <th scope="col" className="heat-country-cell">
+              Country
+            </th>
+            <th scope="col" className="heat-sail-cell">
+              Sail #
             </th>
           </tr>
         </thead>
@@ -110,15 +109,16 @@ function HeatColumn({
                   : undefined
               }
             >
-              <td style={sailorNameColumnStyle}>{sailorFullName(boat)}</td>
-              <td>
+              <td className="heat-name-cell">{sailorFullName(boat)}</td>
+              {/* Flag and code stay on one line: nowrap in the stylesheet. */}
+              <td className="heat-country-cell">
                 <Flag
                   code={getFlagCode(boat.country ?? '')}
-                  style={{ width: '30px', marginRight: '5px' }}
+                  className="heat-flag"
                 />
                 {boat.country}
               </td>
-              <td style={boatNumberColumnStyle} className="heat-sail-number">
+              <td className="heat-sail-cell heat-sail-number">
                 {boat.sail_number}
               </td>
             </tr>

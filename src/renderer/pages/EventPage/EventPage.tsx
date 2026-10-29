@@ -22,6 +22,8 @@ import { eventDB, sailorDB } from '../../api/db';
 import type { EventBoatRow } from '../../types';
 import useRouteEvent from '../../hooks/useRouteEvent';
 import { sailorFullName } from '../../utils/sailorName';
+import { formatEventDateRange } from '../../utils/formatDate';
+import FormatSelect from '../../components/shared/FormatSelect';
 
 type MappedEventBoat = EventBoatRow & {
   sailor: string;
@@ -256,9 +258,7 @@ function EventPage() {
               <i className="fa fa-calendar" aria-hidden="true" />
               {event.event_name}
             </h1>
-            <p>
-              {event.start_date} &rarr; {event.end_date}
-            </p>
+            <p>{formatEventDateRange(event.start_date, event.end_date)}</p>
           </div>
         </div>
 
@@ -380,20 +380,11 @@ function EventPage() {
             onRefreshSailors={fetchBoatsWithSailors}
             headerActions={
               <div className="list-header-actions">
-                <select
-                  className="compact-select"
-                  aria-label="Starting list format"
+                <FormatSelect
+                  ariaLabel="Starting list format"
                   value={startingListFormat}
-                  onChange={(e) =>
-                    setStartingListFormat(
-                      e.target.value as 'excel' | 'pdf' | 'html',
-                    )
-                  }
-                >
-                  <option value="excel">Excel</option>
-                  <option value="pdf">PDF</option>
-                  <option value="html">HTML</option>
-                </select>
+                  onChange={setStartingListFormat}
+                />
                 <button
                   type="button"
                   className="btn-ghost"

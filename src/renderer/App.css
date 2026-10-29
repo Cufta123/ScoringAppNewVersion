@@ -18,14 +18,19 @@
   --ocean: #1a6fbf;
   --ocean-hover: #1459a0;
   --ocean-light: #e8f3fc;
-  --teal: #0f9478;
-  --teal-hover: #0b7a63;
+  /* Green and red are darkened so WHITE button text clears 4.5:1 (it was 3.8:1
+     on the old #0f9478 and 4.6:1 on #d63b2f, and the red failed as text on the
+     page background at 4.3:1). */
+  --teal: #0b7a63;
+  --teal-hover: #086250;
   --teal-light: #e6f6f2;
-  --danger: #d63b2f;
-  --danger-hover: #b52e24;
+  --danger: #c8352a;
+  --danger-hover: #a82a20;
   --danger-light: #fdecea;
   --amber: #e67e22;
   --amber-light: #fef3e7;
+  /* Dark amber: text/badges on white and on --amber-light (>= 4.5:1). */
+  --amber-strong: #8a4b00;
   --bg: #f0f6fc;
   --bg-subtle: #e4eef8;
   --surface: #ffffff;
@@ -209,7 +214,8 @@ button.btn-outline:hover {
 
 button.btn-ghost {
   background: var(--ocean-light);
-  color: var(--ocean);
+  /* --ocean-hover: 6.3:1 on the pale blue (was 4.6:1, 4.1:1 when hovered). */
+  color: var(--ocean-hover);
   box-shadow: none;
 }
 button.btn-ghost:hover {
@@ -338,6 +344,16 @@ select.compact-select {
   padding: 6px 10px;
   border-radius: var(--radius-sm);
   box-shadow: none;
+}
+
+/* "Format" + its dropdown next to a Print / export button. */
+label.format-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 0;
+  font-size: 0.9rem;
+  white-space: nowrap;
 }
 
 label {
@@ -1685,6 +1701,35 @@ small.form-locked-note {
   outline-offset: -2px;
 }
 
+/* A failed Submit marks the boats that still have neither a place nor a
+   penalty: amber row, thick left edge AND a text badge, so it never relies on
+   colour alone. The mark goes as soon as the boat gets a place or penalty. */
+.scoring-table tbody tr.is-missing,
+.scoring-table tbody tr.is-missing:hover {
+  background: #ffe8bf;
+  border-left: 4px solid var(--amber-strong);
+}
+.scoring-missing-badge {
+  display: block;
+  width: fit-content;
+  margin-top: 2px;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--amber-strong);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* Rows that can be used from the keyboard show where the focus is. */
+tr[tabindex]:focus-visible {
+  /* !important: a selected leaderboard row sets its own outline inline. */
+  outline: 3px solid var(--ocean) !important;
+  outline-offset: -3px;
+}
+
 .scoring-added-check {
   margin-left: 6px;
   color: var(--teal-hover);
@@ -1946,14 +1991,17 @@ button.submit-scores-btn {
    on purpose so the click still surfaces the validation message explaining what
    is missing — only the appearance is disabled. */
 button.submit-scores-btn.is-unavailable {
-  background: var(--bg-subtle);
+  background: var(--surface);
   color: var(--text-muted);
+  /* Dashed edge: the button reads as "not ready yet" without relying on a
+     pale fill that is nearly the page colour in sunlight. */
+  border: 2px dashed var(--text-muted);
   box-shadow: none;
   cursor: not-allowed;
 }
 
 button.submit-scores-btn.is-unavailable:hover {
-  background: var(--bg-subtle);
+  background: var(--surface);
 }
 
 @media (max-width: 900px) {
@@ -1970,10 +2018,28 @@ button.submit-scores-btn.is-unavailable:hover {
 }
 
 /* Messages must be readable at a glance in sunshine: dark text, a bold
-   coloured edge for the kind of message, larger type, and shown at the top
-   centre where they do not cover the finish order or the Save button. */
+   coloured edge for the kind of message and larger type. They sit at the
+   BOTTOM right: the top of the page holds the navbar, the page toolbars (Save,
+   Edit, Back) and, on the scoring screen, the sticky Submit Scores bar, which a
+   judge has just pressed when a warning appears; the bottom right only covers
+   the tail of a long list. At most four are shown at once (App.tsx) and
+   identical ones are merged (userFeedback.ts). */
 .Toastify__toast-container {
-  width: min(560px, 94vw);
+  width: min(420px, 94vw);
+}
+.Toastify__toast-container--bottom-right {
+  bottom: 12px;
+  right: 12px;
+}
+/* Title as a bold first line, the explanation under it. */
+.toast-message .toast-title {
+  display: block;
+  font-weight: 800;
+  color: var(--navy);
+}
+.toast-message .toast-text {
+  margin-top: 2px;
+  white-space: pre-line;
 }
 .Toastify__toast {
   border: 2px solid var(--border-strong);
@@ -2338,6 +2404,37 @@ td.race-in-progress {
 td.heat-sail-number {
   font-weight: 800;
   font-size: 1.05rem;
+}
+
+/* Heat card table at 1366px: the flag and its country code never split onto two
+   lines, the "Sail #" header stays on one line, and a long name wraps inside
+   its own column (at spaces, hyphens, or mid-word if a single word is too long)
+   instead of pushing the other columns around. */
+.heat-column table {
+  table-layout: auto;
+}
+.heat-column th.heat-name-cell,
+.heat-column td.heat-name-cell {
+  width: 100%;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+.heat-column th.heat-country-cell,
+.heat-column td.heat-country-cell,
+.heat-column th.heat-sail-cell,
+.heat-column td.heat-sail-cell {
+  white-space: nowrap;
+  width: 1%;
+}
+.heat-column .heat-flag {
+  display: inline-block;
+  width: 26px;
+  height: auto;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.heat-column td.heat-country-cell {
+  font-weight: 600;
 }
 .heat-column.selected {
   border-width: 3px;

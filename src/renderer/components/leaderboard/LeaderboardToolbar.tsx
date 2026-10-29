@@ -137,6 +137,16 @@ function LeaderboardToolbar({
   onToggleCompare,
   onExport,
 }: LeaderboardToolbarProps) {
+  // Compare is unavailable while editing: solid grey, not half transparent.
+  let compareButtonBackground = 'var(--surface, #f0f4f8)';
+  let compareButtonColor = 'var(--navy)';
+  if (editMode) {
+    compareButtonBackground = 'var(--bg-subtle)';
+    compareButtonColor = 'var(--text-muted)';
+  } else if (compareMode) {
+    compareButtonBackground = 'var(--teal, #0f9478)';
+    compareButtonColor = '#fff';
+  }
   return (
     <div
       style={{
@@ -177,10 +187,13 @@ function LeaderboardToolbar({
             gap: '6px',
             // In edit mode this is Cancel: a plain white button, so it never
             // looks like Save (green) or a destructive action (red).
-            border: `2px solid ${editMode ? 'var(--text-secondary)' : 'var(--border, #dde3ea)'}`,
-            background: 'var(--surface, #fff)',
-            color: 'var(--navy)',
-            opacity: editDisabled ? 0.5 : 1,
+            border: `2px solid ${editMode ? 'var(--text-secondary)' : 'var(--border-strong)'}`,
+            // A disabled button is solid grey with muted text (still >= 4.5:1),
+            // never a half-transparent one that washes out in sunlight.
+            background: editDisabled
+              ? 'var(--bg-subtle)'
+              : 'var(--surface, #fff)',
+            color: editDisabled ? 'var(--text-muted)' : 'var(--navy)',
             cursor: editDisabled ? 'not-allowed' : 'pointer',
           }}
         >
@@ -218,7 +231,6 @@ function LeaderboardToolbar({
                 border: 'none',
                 background: 'var(--teal, #0f9478)',
                 color: '#fff',
-                opacity: saving ? 0.7 : 1,
                 cursor: saving ? 'progress' : 'pointer',
               }}
             >
@@ -247,12 +259,9 @@ function LeaderboardToolbar({
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
-            border: `1px solid ${compareMode ? 'var(--teal, #0f9478)' : 'var(--border, #dde3ea)'}`,
-            background: compareMode
-              ? 'var(--teal, #0f9478)'
-              : 'var(--surface, #f0f4f8)',
-            color: compareMode ? '#fff' : 'var(--navy)',
-            opacity: editMode ? 0.5 : 1,
+            border: `1px solid ${compareMode ? 'var(--teal, #0f9478)' : 'var(--border-strong)'}`,
+            background: compareButtonBackground,
+            color: compareButtonColor,
             cursor: editMode ? 'not-allowed' : 'pointer',
           }}
         >
