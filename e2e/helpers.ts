@@ -112,8 +112,8 @@ export function uniqueName(prefix: string): string {
 /**
  * Best-effort dismissal of any visible toasts.
  *
- * The app's ToastContainer is bottom-left with `pauseOnFocusLoss` /
- * `pauseOnHover`; under automation the window often isn't OS-focused, so toasts
+ * The app's toasts are bottom-left (bottom-right on the scoring screen) with
+ * `pauseOnFocusLoss` / `pauseOnHover`; under automation the window often isn't OS-focused, so toasts
  * don't auto-close and accumulate over the interactive area, intercepting
  * clicks. Clearing them between steps keeps the UI deterministic. Never throws.
  */

@@ -37,6 +37,20 @@ export function ExplainableScore({
   );
 }
 
+/**
+ * Sticky identity columns. Rank, Name and Sail # stay at the left edge while
+ * the race columns scroll sideways (a European Championship has 13-16 race
+ * columns), so a judge editing a cell always sees whose row it is. Their fixed
+ * widths and `left` offsets live in LeaderboardPage.css (`.lb-col-*`). Country
+ * sits between Name and Sail # and scrolls away first: Sail # only docks next
+ * to Name once it would otherwise leave the screen.
+ */
+const STICKY_COLUMN_CLASS: Record<string, string> = {
+  Rank: 'lb-col-rank',
+  Name: 'lb-col-name',
+  'Sail #': 'lb-col-sail',
+};
+
 /** The Rank, Name, Country, Sail # (and Type) header cells. */
 export function IdentityHeaders({
   showType,
@@ -53,6 +67,7 @@ export function IdentityHeaders({
           <th
             scope="col"
             key={h}
+            className={STICKY_COLUMN_CLASS[h]}
             style={{
               textAlign: 'left',
               padding: '9px 12px',
@@ -115,6 +130,7 @@ export function IdentityCells({
     <>
       {/* Rank */}
       <td
+        className="lb-col-rank"
         style={{
           padding: '8px 12px',
           fontWeight: 700,
@@ -124,8 +140,14 @@ export function IdentityCells({
         {rank}
       </td>
 
-      {/* Name */}
-      <td style={{ padding: '8px 12px' }}>{sailorFullName(entry)}</td>
+      {/* Name (cut with an ellipsis at the fixed column width; full on hover) */}
+      <td
+        className="lb-col-name"
+        style={{ padding: '8px 12px' }}
+        title={sailorFullName(entry)}
+      >
+        {sailorFullName(entry)}
+      </td>
 
       {/* Country + flag */}
       <td style={{ padding: '8px 12px' }}>
@@ -145,7 +167,10 @@ export function IdentityCells({
       </td>
 
       {/* Sail number */}
-      <td style={{ padding: '8px 12px', fontWeight: 600 }}>
+      <td
+        className="lb-col-sail"
+        style={{ padding: '8px 12px', fontWeight: 600 }}
+      >
         {entry.boat_number}
       </td>
 
@@ -249,11 +274,16 @@ export const leaderboardRowStyle = (
     index % 2 === 0 ? '#fff' : 'var(--surface-2, #f8fbff)';
   return {
     background: isSelected ? 'rgba(42, 157, 143, 0.15)' : stripeBackground,
+    // The sticky identity cells cannot be see-through (race cells scroll under
+    // them), so they paint the opaque stripe colour plus the selection tint as
+    // a layer on top (LeaderboardPage.css `.lb-col-*`).
+    '--row-bg': stripeBackground,
+    '--row-tint': isSelected ? 'rgba(42, 157, 143, 0.15)' : 'transparent',
     borderBottom: '1px solid var(--border, #dde3ea)',
     cursor: compareMode ? 'pointer' : 'default',
     // No outline at all when not selected, so the keyboard focus ring from the
     // stylesheet can show.
     outline: isSelected ? '2px solid var(--teal, #2a9d8f)' : undefined,
     outlineOffset: '-2px',
-  };
+  } as React.CSSProperties;
 };
