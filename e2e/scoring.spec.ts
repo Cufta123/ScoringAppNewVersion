@@ -24,7 +24,7 @@ let app: ElectronApplication;
 let window: Page;
 
 async function enterFreshScoring(): Promise<void> {
-  // leaveScoring clears lingering toasts first — bottom-right toasts can
+  // leaveScoring clears lingering toasts first — bottom-left toasts can
   // overlay the heat cards / Start Scoring button and intercept the clicks
   // below — and discards any finish order left over from the previous test.
   await leaveScoring(window);

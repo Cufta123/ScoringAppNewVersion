@@ -2036,6 +2036,13 @@ button.submit-scores-btn.is-unavailable:hover {
   bottom: 12px;
   left: 12px;
 }
+/* Leaderboard penalty cell: the code, then its points a step smaller, e.g.
+   "ZFP 5.2" or "(DSQ 11)". Same colour as the code, so a discard stays grey. */
+.penalty-points {
+  font-size: 0.82em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
 /* Title as a bold first line, the explanation under it. */
 .toast-message .toast-title {
   display: block;

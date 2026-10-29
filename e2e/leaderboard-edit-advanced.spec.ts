@@ -226,9 +226,11 @@ test('a ZFP keeps the place but scores penalty points (Total ≠ Net) and persis
   ).toBeVisible();
 
   // The ZFP race (3 pts) is Bob's worst, so it is the discarded one and renders
-  // parenthesised — "(ZFP)" — while Total still counts it and Net does not.
+  // parenthesised — "(ZFP 3)", code and points — while Total still counts it and Net does not.
   await expect(
-    window.getByRole('row', { name: /Bob/ }).getByLabel('Race cell: (ZFP)'),
+    window
+      .getByRole('row', { name: /Bob/ })
+      .getByLabel(/^Race cell: \(ZFP 3\)$/),
   ).toHaveCount(1);
   await expect(totalCell(/Bob/)).toHaveText('9');
   await expect(netCell(/Bob/)).toHaveText('6');
@@ -311,7 +313,9 @@ test('the ZFP edit can be undone from the history, and the leaderboard follows',
   await expect(totalCell(/Bob/)).toHaveText('8');
   await expect(netCell(/Bob/)).toHaveText('6');
   await expect(
-    window.getByRole('row', { name: /Bob/ }).getByLabel('Race cell: (ZFP)'),
+    window
+      .getByRole('row', { name: /Bob/ })
+      .getByLabel(/^Race cell: \(ZFP 3\)$/),
   ).toHaveCount(0);
 });
 

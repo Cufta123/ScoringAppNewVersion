@@ -312,6 +312,29 @@ export const getRaceCellDisplay = (
   return { displayText, displayColor, isPenalty, isRdgCell, isExcluded };
 };
 
+/**
+ * The points a penalty cell scored ("5.2" for a ZFP, "11" for a DSQ), so the
+ * table can show them next to the code and a judge need not open the
+ * explanation to check the number. Only for a plain penalty code: a redress
+ * (RDG) or DPI cell already shows its points, and a finish shows its place.
+ * Nothing is shown (null) when the stored points are missing, are not a
+ * number, or do not line up with the race columns: a number is never guessed.
+ */
+export const getPenaltyPointsText = (
+  entry: Pick<LeaderboardEntry, 'race_points' | 'race_statuses'> | undefined,
+  raceIndex: number,
+  raceStatus: string,
+): string | null => {
+  if (!PENALTY_CODES.includes(raceStatus)) return null;
+  if (RDG_TYPES.includes(raceStatus) || raceStatus === 'DPI') return null;
+  const points = entry?.race_points;
+  if (!points || points.length !== entry?.race_statuses?.length) return null;
+  const raw = stripExclusionParens(points[raceIndex] ?? '').trim();
+  if (raw === '' || !Number.isFinite(Number(raw))) return null;
+  // 5.0 -> "5", 5.20 -> "5.2"
+  return String(Number(raw));
+};
+
 // `border` keeps the lighter, recognisable fleet colour for the table outline;
 // `thead` is darkened so the WHITE header text clears WCAG AA (4.5:1). The
 // original shared colours (e.g. white on Gold #c8960a ≈2.6:1) failed AA.
