@@ -20,11 +20,11 @@ function SectionDivider({ label, marginTop = '4px' }: SectionDividerProps) {
       <span
         style={{
           fontWeight: 700,
-          fontSize: '0.88rem',
-          textTransform: 'uppercase',
-          letterSpacing: '0.06em',
-          // Full-strength secondary text (11.7:1); half-transparent navy was ~3:1.
-          color: 'var(--text-secondary)',
+          // Sentence case at normal size, like the "Qualifying Series" heading:
+          // small uppercase labels are hard to read outdoors (AGENTS.md).
+          fontSize: '1rem',
+          // Full-strength navy; half-transparent navy was ~3:1.
+          color: 'var(--navy)',
           whiteSpace: 'nowrap',
         }}
       >
