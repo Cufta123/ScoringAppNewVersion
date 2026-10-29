@@ -1,6 +1,7 @@
 import React from 'react';
 import Flag from 'react-world-flags';
 import type { LeaderboardEntry } from '../../types';
+import { sailorFullName } from '../../utils/sailorName';
 
 /**
  * Pieces the qualifying table and the final-fleet table render identically:
@@ -124,9 +125,7 @@ export function IdentityCells({
       </td>
 
       {/* Name */}
-      <td style={{ padding: '8px 12px' }}>
-        {entry.name} {entry.surname}
-      </td>
+      <td style={{ padding: '8px 12px' }}>{sailorFullName(entry)}</td>
 
       {/* Country + flag */}
       <td style={{ padding: '8px 12px' }}>

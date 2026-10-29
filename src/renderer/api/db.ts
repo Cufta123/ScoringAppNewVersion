@@ -112,6 +112,12 @@ export interface EventDB {
   removeBoatFromEvent(boatId: number, eventId: number): Promise<unknown>;
 }
 
+/** What the recovery-backup file dialogs report: cancelled, or where it went. */
+export interface SnapshotFileResult {
+  canceled?: boolean;
+  filePath?: string;
+}
+
 export interface HeatRaceDB {
   readAllHeats(eventId: number): Promise<HeatRow[]>;
   readBoatsByHeat(heatId: number): Promise<HeatBoatRow[]>;
@@ -144,8 +150,8 @@ export interface HeatRaceDB {
     boatId: number,
   ): Promise<BoatScoreExplanation>;
   getFinalSeriesEligibility(eventId: number): Promise<unknown>;
-  exportEventSnapshotToFile(...args: unknown[]): Promise<unknown>;
-  restoreEventSnapshotFromFile(...args: unknown[]): Promise<unknown>;
+  exportEventSnapshotToFile(eventId: number): Promise<SnapshotFileResult>;
+  restoreEventSnapshotFromFile(eventId: number): Promise<SnapshotFileResult>;
 }
 
 type IpcMethod = (...args: unknown[]) => Promise<unknown>;
@@ -165,3 +171,8 @@ function makeGroup<T extends object>(groupName: string): T {
 export const sailorDB = makeGroup<SailorDB>('sailorDB');
 export const eventDB = makeGroup<EventDB>('eventDB');
 export const heatRaceDB = makeGroup<HeatRaceDB>('heatRaceDB');
+
+/** Whether the preload offers the recovery-backup export (older builds may not). */
+export const canExportEventSnapshot = (): boolean =>
+  typeof window?.electron?.sqlite?.heatRaceDB?.exportEventSnapshotToFile ===
+  'function';

@@ -1,36 +1,22 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import Flag from 'react-world-flags';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import useExclusiveAction from '../hooks/useExclusiveAction';
-import { minimumHeatsForEntries } from '../../shared/heatSizing';
+import useHeatList from '../hooks/useHeatList';
+import useHeatManagement from '../hooks/useHeatManagement';
+import useHeatSnapshots from '../hooks/useHeatSnapshots';
+import useFinalSeriesStart from '../hooks/useFinalSeriesStart';
 import printNewHeats from '../utils/printNewHeats';
+import { getLastHeats } from '../utils/heatView';
+import type { HeatWithBoats } from '../utils/heatView';
+import { reportError } from '../utils/userFeedback';
 import AppModal from './shared/AppModal';
 import UnassignedEntriesNotice from './UnassignedEntriesNotice';
-import {
-  confirmAction,
-  reportError,
-  reportInfo,
-  reportWarning,
-  getErrorMessage,
-} from '../utils/userFeedback';
-import { getFlagCode } from '../utils/leaderboardUtils';
-import useSnapshotHistory from '../hooks/useSnapshotHistory';
-import {
-  finalSeriesBlockedMessage,
-  unsailedLatestRoundMessage,
-} from '../utils/finalSeriesMessages';
-import type { FinalSeriesEligibility } from '../utils/finalSeriesMessages';
-import { eventDB, heatRaceDB } from '../api/db';
-import type { EventRow, HeatBoatRow } from '../types';
+import HeatColumn from './heats/HeatColumn';
+import HeatBackupBar from './heats/HeatBackupBar';
+import { HeatSetupBar, HeatsHeader } from './heats/HeatControls';
+import type { NewHeatsFormat } from './heats/HeatControls';
+import type { EventRow } from '../types';
 
-/** A heat with its boats and current race count, as displayed by this view. */
-export interface HeatWithBoats {
-  heat_id: number;
-  event_id?: number;
-  heat_name: string;
-  heat_type: string;
-  boats: HeatBoatRow[];
-  raceNumber: number;
-}
+export type { HeatWithBoats };
 
 interface HeatComponentProps {
   event: EventRow;
@@ -49,9 +35,11 @@ interface HeatComponentProps {
   refreshToken?: number;
 }
 
+const ignoreHeatSelect = () => {};
+
 function HeatComponent({
   event,
-  onHeatSelect = () => {},
+  onHeatSelect = ignoreHeatSelect,
   onStartScoring = null,
   onUndoLastRace = null,
   rowActionsDisabled = false,
@@ -60,30 +48,10 @@ function HeatComponent({
   onFinalSeriesStateChange = null,
   refreshToken = 0,
 }: HeatComponentProps) {
-  const [heats, setHeats] = useState<HeatWithBoats[]>([]);
-  const [heatsLoadFailed, setHeatsLoadFailed] = useState(false);
-  // SHRS 2.1, "the number of heats shall be as few as possible". This used to
-  // default to 5 whatever the entry list said, so a club event of a dozen boats
-  // got five heats of two or three unless someone thought to change it. The
-  // default now follows the entry count; an explicit choice is never
-  // overwritten (see heatCountChosenRef).
-  const [numHeats, setNumHeats] = useState(1);
-  const heatCountChosenRef = useRef(false);
+  const eventId = event.event_id;
   const [selectedHeatId, setSelectedHeatId] = useState<number | null>(null);
-  const [heatsCreated, setHeatsCreated] = useState(false);
-  const [raceHappened, setRaceHappened] = useState(false);
   const [displayLastHeats, setDisplayLastHeats] = useState(true);
-  const [finalSeriesStarted, setFinalSeriesStarted] = useState(false);
-  const [showFinalConfirm, setShowFinalConfirm] = useState(false);
-  const [pendingFinalHeats, setPendingFinalHeats] = useState(0);
-  const [
-    pendingShs43TemporarySecondDiscard,
-    setPendingShs43TemporarySecondDiscard,
-  ] = useState(true);
-  const [numQualifyingGroups, setNumQualifyingGroups] = useState(0);
-  const [newHeatsFormat, setNewHeatsFormat] = useState<
-    'excel' | 'pdf' | 'html'
-  >('excel');
+  const [newHeatsFormat, setNewHeatsFormat] = useState<NewHeatsFormat>('excel');
 
   // Every heat-mutating action here (create/recreate/transfer/start-final/
   // restore) chains one or more DB round-trips, and Start Final Series chains
@@ -96,471 +64,63 @@ function HeatComponent({
   const { busy, runExclusive } = useExclusiveAction();
 
   const {
-    history: snapshotHistory,
-    load: loadSnapshotHistory,
-    remember: rememberSnapshot,
-  } = useSnapshotHistory(event.event_id);
+    heats,
+    loadFailed,
+    heatsCreated,
+    raceHappened,
+    numQualifyingGroups,
+    finalSeriesStarted,
+    markFinalSeriesStarted,
+    reload,
+  } = useHeatList(eventId, refreshToken);
 
-  // Seed the heat-count default from the entry list. Runs while no heats exist
-  // (the only time the control is live) and stops as soon as the user picks a
-  // value, so adding a boat cannot move a choice they already made.
+  const snapshots = useHeatSnapshots(eventId, reload);
+  const finalSeries = useFinalSeriesStart({
+    eventId,
+    finalSeriesStarted,
+    markFinalSeriesStarted,
+    reloadHeats: reload,
+    saveBackupFile: snapshots.saveBackupFile,
+  });
+  const management = useHeatManagement({
+    eventId,
+    refreshToken,
+    heats,
+    numQualifyingGroups,
+    heatsLocked: raceHappened || finalSeriesStarted,
+    reloadHeats: reload,
+    runExclusive,
+  });
+
+  // Tell the host page what the heats say, so its own copy can never go stale.
+  // Without the final-series report, starting the final series from this
+  // embedded component would leave the Heat Race page believing it is still in
+  // qualifying — final races would then be submitted and displayed with
+  // qualifying semantics.
   useEffect(() => {
-    if (heatCountChosenRef.current) return undefined;
-
-    // Heats already exist: the useful default for "Recreate Heats" is the
-    // split they are on now, so the control reflects reality instead of
-    // proposing a change nobody asked for.
-    if (heatsCreated) {
-      if (numQualifyingGroups > 0) setNumHeats(numQualifyingGroups);
-      return undefined;
-    }
-
-    let cancelled = false;
-    // Defensive on both sides: this is a convenience default, so neither a
-    // read that rejects nor an unavailable channel should take the component
-    // down. Worst case the dropdown keeps its current value, and the main
-    // process still refuses a split that breaks SHRS 2.3.
-    const seedFromEntryList = async () => {
-      try {
-        const entries = await eventDB.readBoatsByEvent(event.event_id);
-        if (cancelled) return;
-        const count = Array.isArray(entries) ? entries.length : 0;
-        setNumHeats(minimumHeatsForEntries(count));
-      } catch {
-        // Keep whatever the control already shows.
-      }
-    };
-    seedFromEntryList();
-    return () => {
-      cancelled = true;
-    };
-  }, [event.event_id, heatsCreated, numQualifyingGroups, refreshToken]);
-
-  const handleDisplayHeats = useCallback(async () => {
-    try {
-      const heatsToDisplay = await heatRaceDB.readAllHeats(event.event_id);
-      const heatDetailsPromises = heatsToDisplay.map(async (heat) => {
-        const boatsInHeat = await heatRaceDB.readBoatsByHeat(heat.heat_id);
-        const races = await heatRaceDB.readAllRaces(heat.heat_id);
-        return {
-          ...heat,
-          boats: boatsInHeat,
-          raceNumber: races.length,
-        };
-      });
-
-      const heatDetails = await Promise.all(heatDetailsPromises);
-      setHeats(heatDetails);
-      setHeatsCreated(heatDetails.length > 0);
-      setHeatsLoadFailed(false);
-
-      // Check if any race has happened
-      const anyRaceHappened = heatDetails.some((heat) => heat.raceNumber > 0);
-      setRaceHappened(anyRaceHappened);
-
-      // SHRS 1.1: count unique qualifying heat letter groups to determine
-      // whether a Final Series is applicable (requires >= 2 groups).
-      const qualifyingGroups = new Set(
-        heatDetails
-          .filter((h) => h.heat_type === 'Qualifying')
-          .map((h) => {
-            // Full base letters, consistent with the main-process group count.
-            const m = h.heat_name.match(/Heat ([A-Z]+)/);
-            return m ? m[1] : null;
-          })
-          .filter(Boolean),
-      );
-      setNumQualifyingGroups(qualifyingGroups.size);
-    } catch (error) {
-      reportError('Could not load heats for this event.', error);
-      setHeats([]);
-      setHeatsCreated(false);
-      setHeatsLoadFailed(true);
-    }
-  }, [event.event_id]);
-
-  useEffect(() => {
-    if (onQualifyingGroupCountChange) {
-      onQualifyingGroupCountChange(numQualifyingGroups);
-    }
+    onQualifyingGroupCountChange?.(numQualifyingGroups);
   }, [numQualifyingGroups, onQualifyingGroupCountChange]);
 
-  const checkFinalSeriesStarted = useCallback(async () => {
-    try {
-      const allHeats = await heatRaceDB.readAllHeats(event.event_id);
-      const finalHeats = allHeats.filter((heat) => heat.heat_type === 'Final');
-      if (finalHeats.length > 0) {
-        setFinalSeriesStarted(true);
-      }
-    } catch (error) {
-      reportError('Could not check final series status.', error);
-    }
-  }, [event.event_id]);
-
   useEffect(() => {
-    checkFinalSeriesStarted();
-  }, [checkFinalSeriesStarted]);
-
-  // Keep the host page's copy of the final-series state in sync. Without this,
-  // starting the final series from this embedded component leaves the Heat
-  // Race page believing it is still in qualifying — final races would then be
-  // submitted and displayed with qualifying semantics.
-  useEffect(() => {
-    if (onFinalSeriesStateChange) {
-      onFinalSeriesStateChange(finalSeriesStarted);
-    }
+    onFinalSeriesStateChange?.(finalSeriesStarted);
   }, [finalSeriesStarted, onFinalSeriesStateChange]);
 
-  useEffect(() => {
-    loadSnapshotHistory();
-  }, [loadSnapshotHistory]);
-
-  const handleConfirmFinalSeries = async (
-    allowOversizeConfirm?: boolean,
-    shrs43ApplyChoice?: boolean | null,
-  ) => {
-    const allowOversize = allowOversizeConfirm === true;
-    setShowFinalConfirm(false);
-
-    const applyShs43TemporarySecondDiscard =
-      shrs43ApplyChoice == null
-        ? pendingShs43TemporarySecondDiscard
-        : shrs43ApplyChoice;
-
-    try {
-      await heatRaceDB.startFinalSeriesAtomic(
-        event.event_id,
-        allowOversize,
-        applyShs43TemporarySecondDiscard,
-      );
-      setFinalSeriesStarted(true);
-      reportInfo('Final Series started successfully!', 'Success');
-      handleDisplayHeats();
-    } catch (error) {
-      const message = getErrorMessage(error);
-      if (
-        !allowOversize &&
-        message.includes('Final fleets would exceed 20 boats')
-      ) {
-        const proceed = await confirmAction(
-          'Final fleets would exceed 20 boats. Continue anyway with oversize fleets for this final-series split?',
-          'Confirm oversize final fleets',
-        );
-        if (!proceed) {
-          return;
-        }
-        await handleConfirmFinalSeries(true, applyShs43TemporarySecondDiscard);
-        return;
-      }
-      reportError('Could not start final series.', error);
-    }
-  };
-
-  const handleStartFinalSeries = async () => {
-    if (finalSeriesStarted) return;
-    try {
-      // SHRS eligibility (group counting, equal-race-count, Rule 4.3 window) is
-      // computed in the main process; the renderer only renders prompts.
-      const eligibility = (await heatRaceDB.getFinalSeriesEligibility(
-        event.event_id,
-      )) as FinalSeriesEligibility;
-
-      if (!eligibility.ok) {
-        reportInfo(
-          finalSeriesBlockedMessage(eligibility),
-          'Cannot start final series',
-        );
-        return;
-      }
-
-      const { numFinalHeats, rule43Applies } = eligibility;
-      const finalHeatCount = numFinalHeats ?? 0;
-
-      // RULE-m3: the "0 races → assign by initial seeding only" path was removed.
-      // SHRS 4.2 requires a Qualifying Series ranking to divide fleets, so the
-      // 0-race case is now rejected up front (reason NO_RACES_COMPLETED above)
-      // rather than offered as a seeding-only start.
-      if (eligibility.latestRoundUnsailed) {
-        // A new round of heats exists but has 0 races. It is NOT "no races
-        // completed" — earlier rounds were sailed. Tell the user the empty
-        // latest round is ignored and the last completed round is used.
-        const proceed = await confirmAction(
-          unsailedLatestRoundMessage(eligibility),
-          'Latest round not sailed',
-        );
-        if (!proceed) return;
-      }
-
-      const canSnapshot =
-        typeof window?.electron?.sqlite?.heatRaceDB
-          ?.exportEventSnapshotToFile === 'function';
-      if (canSnapshot) {
-        const saveSnapshotNow = await confirmAction(
-          'Before starting the Final Series, do you want to save a recovery backup file now?\n\nThis lets you restore the event later if needed.',
-          'Save recovery backup?',
-        );
-
-        if (saveSnapshotNow) {
-          const snapshotResult = (await heatRaceDB.exportEventSnapshotToFile(
-            event.event_id,
-          )) as { canceled?: boolean; filePath?: string };
-
-          if (snapshotResult?.canceled) {
-            const proceedWithoutSnapshot = await confirmAction(
-              'Backup save was canceled. Continue starting the Final Series without a backup?',
-              'Continue without backup?',
-            );
-            if (!proceedWithoutSnapshot) return;
-          } else {
-            rememberSnapshot(snapshotResult.filePath);
-            reportInfo('Recovery backup saved successfully.', 'Backup saved');
-          }
-        }
-      }
-
-      let applyShs43TemporarySecondDiscard = true;
-      if (rule43Applies) {
-        applyShs43TemporarySecondDiscard = await confirmAction(
-          "SHRS 2026-1 Rule 4.3 applies for 6-7 completed qualifying races.\n\nConfirm: Apply Rule 4.3 and temporarily exclude each boat's second worst race score only for final-fleet ranking.\nCancel: Do not apply Rule 4.3 and keep ranking without this temporary second exclusion.",
-          'Apply SHRS 2026-1 Rule 4.3?',
-          {
-            confirmLabel: 'Apply Rule 4.3',
-            cancelLabel: 'Skip Rule 4.3',
-            confirmClassName: 'btn-success',
-          },
-        );
-      }
-      setPendingShs43TemporarySecondDiscard(applyShs43TemporarySecondDiscard);
-
-      setPendingFinalHeats(finalHeatCount);
-      setShowFinalConfirm(true);
-    } catch (error) {
-      reportError(
-        'Could not validate heats before starting final series.',
-        error,
-      );
-    }
-  };
-
-  const handleCreateHeats = async () => {
-    if (raceHappened || finalSeriesStarted) {
-      reportInfo(
-        'Cannot create heats after a race has happened.',
-        'Action blocked',
-      );
-      return;
-    }
-
-    try {
-      // Validation (boats exist, SHRS 20-boat cap), SHRS 3 seeding order and
-      // the SHRS 3.1 serpentine assignment all run in the main process inside
-      // one transaction — a failure can never leave half-created heats.
-      await heatRaceDB.createInitialHeatsAtomic(event.event_id, numHeats);
-
-      reportInfo('Heats created successfully!', 'Success');
-      setHeatsCreated(true);
-      handleDisplayHeats(); // Refresh the heats display
-    } catch (error) {
-      const message = getErrorMessage(error);
-      if (message.includes('Heats already exist')) {
-        reportInfo('Heats already exist for this event.', 'Action blocked');
-        setHeatsCreated(true);
-        return;
-      }
-      // The main process throws deliberately authored, plain-language
-      // validation messages for these cases (no boats registered, the SHRS
-      // per-heat cap, an out-of-range heat count). Surface them verbatim so the
-      // user knows exactly what to change, instead of a generic "could not
-      // create" that hides the reason. Anything else is treated as a technical
-      // error and routed through reportError (detail to console only).
-      if (
-        message.includes('boats per heat') ||
-        message.includes('No boats are registered') ||
-        message.includes('Number of heats must be') ||
-        message.includes('Cannot create heats:')
-      ) {
-        reportWarning(message, 'Cannot create heats');
-        return;
-      }
-      reportError('Could not create heats.', error);
-    }
-  };
-
-  const handleRecreateHeats = async () => {
-    if (raceHappened || finalSeriesStarted) {
-      reportInfo(
-        'Cannot recreate heats after a race has happened.',
-        'Action blocked',
-      );
-      return;
-    }
-
-    const confirmed = await confirmAction(
-      'Recreate all heats?\n\nThe current heats and any manual boat moves between heats will be discarded, and boats will be re-assigned from scratch.',
-      'Recreate heats',
-      {
-        confirmLabel: 'Recreate heats',
-        cancelLabel: 'Keep current heats',
-        confirmClassName: 'btn-danger',
-      },
-    );
-    if (!confirmed) return;
-
-    try {
-      // One atomic call, not delete-then-create. Splitting it put the
-      // destructive half first, so anything that made the create fail — a
-      // duplicate sail number added since, an entry list that no longer fits
-      // the chosen heat count — left the event with NO heats, while
-      // handleCreateHeats swallowed its own validation error and reported only
-      // "Cannot create heats: …", which reads as though nothing happened.
-      await heatRaceDB.recreateInitialHeatsAtomic(event.event_id, numHeats);
-      reportInfo('Heats recreated successfully!', 'Success');
-      setHeatsCreated(true);
-      handleDisplayHeats();
-    } catch (error) {
-      const message = getErrorMessage(error);
-      // The main process authors plain-language validation messages for these;
-      // surface them verbatim so the user knows what to change. The heats they
-      // already had are untouched either way.
-      if (
-        message.includes('boats per heat') ||
-        message.includes('No boats are registered') ||
-        message.includes('Number of heats must be') ||
-        message.includes('Cannot create heats:') ||
-        message.includes('races have already been scored')
-      ) {
-        reportWarning(message, 'Heats not changed');
-        return;
-      }
-      reportError('Could not recreate heats.', error);
-    }
-  };
-
-  // Re-fetch when the event changes or when the parent bumps `refreshToken`
-  // (e.g. after creating new heats or undoing a redistribution). Driving this
-  // through a dependency keeps child state intact instead of forcing a remount.
-  useEffect(() => {
-    setRaceHappened(false); // Reset raceHappened state when event changes
-    handleDisplayHeats();
-  }, [event, handleDisplayHeats, refreshToken]);
-
-  const handleHeatClick = (heat: HeatWithBoats) => {
-    if (clickable) {
-      setSelectedHeatId(heat.heat_id);
-      onHeatSelect(heat);
-    }
-  };
-
-  const toggleDisplayMode = () => {
-    setDisplayLastHeats((prevMode) => !prevMode);
-  };
-
-  const getLastHeats = (heatsList: HeatWithBoats[]): HeatWithBoats[] => {
-    const finalHeats = heatsList.filter(
-      (heat) => heat.heat_type.toLowerCase() === 'final',
-    );
-    if (finalHeats.length > 0) {
-      return finalHeats;
-    }
-
-    const heatGroups = heatsList.reduce<Record<string, number>>((acc, heat) => {
-      const match = heat.heat_name.match(/([A-Z]+)(\d*)$/);
-      if (match) {
-        const [, group, suffix] = match;
-        const suffixNumber = suffix ? parseInt(suffix, 10) : 0;
-        if (!acc[group] || acc[group] < suffixNumber) {
-          acc[group] = suffixNumber;
-        }
-      }
-      return acc;
-    }, {});
-
-    return heatsList.filter((heat) => {
-      const match = heat.heat_name.match(/([A-Z]+)(\d*)$/);
-      if (match) {
-        const [, group, suffix] = match;
-        const suffixNumber = suffix ? parseInt(suffix, 10) : 0;
-        return suffixNumber === heatGroups[group];
-      }
-      return false;
-    });
-  };
-
-  const heatsToDisplay = displayLastHeats ? getLastHeats(heats) : heats;
-  const hasMultipleRounds = heats.length > getLastHeats(heats).length;
+  const lastHeats = useMemo(() => getLastHeats(heats), [heats]);
+  const heatsToDisplay = displayLastHeats ? lastHeats : heats;
+  const hasMultipleRounds = heats.length > lastHeats.length;
   const isFinalSeriesView =
     heatsToDisplay.length > 0 &&
     heatsToDisplay.every((heat) => heat.heat_type === 'Final');
 
-  const handleBoatTransfer = async (
-    boat: HeatBoatRow,
-    fromHeatId: number,
-    toHeatId: number,
-  ) => {
-    if (raceHappened || finalSeriesStarted) {
-      reportInfo(
-        'Cannot transfer boats after a race has happened.',
-        'Action blocked',
-      );
-      return;
-    }
+  const selectHeat = useCallback(
+    (heat: HeatWithBoats) => {
+      setSelectedHeatId(heat.heat_id);
+      onHeatSelect(heat);
+    },
+    [onHeatSelect],
+  );
 
-    // A drag-and-drop can happen by accident, and this reassigns a competitor's
-    // heat — confirm first, like every other heat-mutating action here.
-    const fromHeat = heatsToDisplay.find((h) => h.heat_id === fromHeatId);
-    const toHeat = heatsToDisplay.find((h) => h.heat_id === toHeatId);
-    const confirmed = await confirmAction(
-      `Move boat ${boat.sail_number} (${boat.name} ${boat.surname}) from ` +
-        `${fromHeat?.heat_name ?? 'its heat'} to ${toHeat?.heat_name ?? 'this heat'}?`,
-      'Move boat between heats',
-      { confirmLabel: 'Move boat', confirmClassName: 'btn-success' },
-    );
-    if (!confirmed) return;
-
-    try {
-      await heatRaceDB.transferBoatBetweenHeats(
-        fromHeatId,
-        toHeatId,
-        boat.boat_id,
-      );
-      reportInfo('Boat transferred successfully!', 'Success');
-      handleDisplayHeats(); // Refresh the heats display
-    } catch (error) {
-      reportError('Could not transfer boat between heats.', error);
-    }
-  };
-
-  const handleDragStart = (
-    e: React.DragEvent,
-    boat: HeatBoatRow,
-    fromHeatId: number,
-  ) => {
-    e.dataTransfer.setData(
-      'application/json',
-      JSON.stringify({ boat, fromHeatId }),
-    );
-  };
-  const handleDrop = async (e: React.DragEvent, toHeatId: number) => {
-    e.preventDefault();
-    // Only accept payloads created by handleDragStart — dropping anything
-    // foreign (text, files) must be ignored, not crash the handler.
-    let data: { boat?: HeatBoatRow; fromHeatId?: number };
-    try {
-      data = JSON.parse(e.dataTransfer.getData('application/json'));
-    } catch (_error) {
-      return;
-    }
-    const { boat, fromHeatId } = data ?? {};
-    if (!boat?.boat_id || fromHeatId == null) return;
-    if (fromHeatId === toHeatId) return; // dropped back onto its own heat
-    await runExclusive(() => handleBoatTransfer(boat, fromHeatId, toHeatId));
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleExportNewHeats = async () => {
+  const exportNewHeats = async () => {
     try {
       await printNewHeats(event, heatsToDisplay, newHeatsFormat);
     } catch (error) {
@@ -568,151 +128,51 @@ function HeatComponent({
     }
   };
 
-  const handleSaveSnapshot = async () => {
-    try {
-      const result = (await heatRaceDB.exportEventSnapshotToFile(
-        event.event_id,
-      )) as { canceled?: boolean; filePath?: string };
-      if (result?.canceled) return;
-      rememberSnapshot(result?.filePath);
-      reportInfo('Recovery backup saved successfully.', 'Backup saved');
-    } catch (error) {
-      reportError('Could not save recovery backup.', error);
-    }
-  };
-
-  const handleRestoreSnapshot = async () => {
-    const confirmed = await confirmAction(
-      'Restore event state from a saved backup file?\n\nCurrent heats, races and scores for this event will be replaced.',
-      'Restore backup',
-      { confirmLabel: 'Restore backup', confirmClassName: 'btn-danger' },
-    );
-
-    if (!confirmed) return;
-
-    try {
-      const result = (await heatRaceDB.restoreEventSnapshotFromFile(
-        event.event_id,
-      )) as { canceled?: boolean };
-      if (result?.canceled) return;
-
-      setFinalSeriesStarted(false);
-      await checkFinalSeriesStarted();
-      await handleDisplayHeats();
-
-      reportInfo('Event restored from backup.', 'Backup restored');
-    } catch (error) {
-      reportError('Could not restore backup.', error);
-    }
-  };
-
-  const boatNumberColumnStyle = {
-    maxWidth: '100px',
-  };
-
-  const sailorNameColumnStyle = {
-    maxWidth: '220px',
-  };
+  const canSetUp = !raceHappened && !finalSeriesStarted;
+  const canStartFinalSeries = numQualifyingGroups >= 2 && !finalSeriesStarted;
 
   return (
     <div className="section-block">
       <AppModal
-        open={showFinalConfirm}
+        open={finalSeries.confirmOpen}
         title="Start Final Series?"
         confirmLabel="Yes, Start Final Series"
         cancelLabel="Cancel"
-        onCancel={() => setShowFinalConfirm(false)}
-        onConfirm={() => runExclusive(() => handleConfirmFinalSeries())}
+        onCancel={finalSeries.cancelFinalSeries}
+        onConfirm={() => runExclusive(finalSeries.confirmFinalSeries)}
       >
-        This will create <strong>{pendingFinalHeats}</strong> final fleet
-        {pendingFinalHeats > 1 ? 's' : ''} based on current standings. This
-        action <strong>cannot be undone</strong>.
+        This will create <strong>{finalSeries.pendingFinalHeats}</strong> final
+        fleet
+        {finalSeries.pendingFinalHeats > 1 ? 's' : ''} based on current
+        standings. This action <strong>cannot be undone</strong>.
       </AppModal>
-      {/* ── Section header: title + export controls share one row ─── */}
-      <div className="section-header-row">
-        <h2>
-          <i className="fa fa-flag" aria-hidden="true" />
-          Heats
-        </h2>
-        <div className="list-header-actions">
-          <select
-            className="compact-select"
-            aria-label="New heats format"
-            value={newHeatsFormat}
-            onChange={(e) =>
-              setNewHeatsFormat(e.target.value as 'excel' | 'pdf' | 'html')
-            }
-          >
-            <option value="excel">Excel</option>
-            <option value="pdf">PDF</option>
-            <option value="html">HTML</option>
-          </select>
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={() => runExclusive(handleExportNewHeats)}
-            disabled={heatsToDisplay.length === 0 || busy}
-            title={
-              heatsToDisplay.length === 0 ? 'Create the heats first' : undefined
-            }
-          >
-            {isFinalSeriesView ? 'Print Final Series Heats' : 'Print New Heats'}
-          </button>
-        </div>
-      </div>
 
-      {/* ── Heat setup controls ─── */}
-      {(!raceHappened && !finalSeriesStarted) || hasMultipleRounds ? (
-        <div className="heat-toolbar">
-          {!raceHappened && !finalSeriesStarted && (
-            <>
-              <label htmlFor="numHeats" className="heat-count-label">
-                Number of heats
-                <select
-                  id="numHeats"
-                  value={numHeats}
-                  onChange={(e) => {
-                    heatCountChosenRef.current = true;
-                    setNumHeats(Number(e.target.value));
-                  }}
-                  disabled={raceHappened || finalSeriesStarted}
-                >
-                  {/* Match the backend's 1–26 heat limit (createInitialHeatsAtomic)
-                      so an event of up to 26×20=520 boats can be split without
-                      hitting a UI dead-end (RULE-M24). */}
-                  {[...Array(26).keys()].map((i) => (
-                    <option key={i + 1} value={i + 1}>
-                      {i + 1}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
-                type="button"
-                onClick={() =>
-                  runExclusive(
-                    heatsCreated ? handleRecreateHeats : handleCreateHeats,
-                  )
-                }
-                disabled={raceHappened || finalSeriesStarted || busy}
-              >
-                {heatsCreated ? 'Recreate Heats' : 'Create Heats'}
-              </button>
-            </>
-          )}
-          {hasMultipleRounds && (
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={toggleDisplayMode}
-            >
-              {displayLastHeats ? 'Show All Heats' : 'Show Last Heats'}
-            </button>
-          )}
-        </div>
-      ) : null}
+      <HeatsHeader
+        format={newHeatsFormat}
+        onFormatChange={setNewHeatsFormat}
+        onPrint={() => runExclusive(exportNewHeats)}
+        noHeats={heatsToDisplay.length === 0}
+        isFinalSeriesView={isFinalSeriesView}
+        busy={busy}
+      />
 
-      {heatsLoadFailed && (
+      <HeatSetupBar
+        canSetUp={canSetUp}
+        heatsCreated={heatsCreated}
+        numHeats={management.numHeats}
+        onNumHeatsChange={management.chooseHeatCount}
+        onCreateOrRecreate={() =>
+          runExclusive(
+            heatsCreated ? management.recreateHeats : management.createHeats,
+          )
+        }
+        busy={busy}
+        hasMultipleRounds={hasMultipleRounds}
+        displayLastHeats={displayLastHeats}
+        onToggleDisplayMode={() => setDisplayLastHeats((last) => !last)}
+      />
+
+      {loadFailed && (
         <div className="info-banner">
           <i
             className="fa fa-exclamation-triangle"
@@ -724,20 +184,20 @@ function HeatComponent({
         </div>
       )}
 
-      {heatsCreated && !heatsLoadFailed && (
+      {heatsCreated && !loadFailed && (
         <UnassignedEntriesNotice
-          eventId={event.event_id}
+          eventId={eventId}
           heats={heats}
           raceHappened={raceHappened}
           finalSeriesStarted={finalSeriesStarted}
           refreshKey={heats}
           busy={busy || rowActionsDisabled}
           runExclusive={runExclusive}
-          onAssigned={handleDisplayHeats}
+          onAssigned={reload}
         />
       )}
 
-      {heatsToDisplay.length === 0 && !heatsCreated && !heatsLoadFailed && (
+      {heatsToDisplay.length === 0 && !heatsCreated && !loadFailed && (
         <div className="info-banner">
           <i
             className="fa fa-info-circle"
@@ -752,184 +212,35 @@ function HeatComponent({
 
       {heatsToDisplay.length > 0 && (
         <div className="heats-container">
-          {heatsToDisplay.map((heat) => (
-            <div
-              key={heat.heat_id}
-              className={`heat-column${clickable ? ' clickable' : ''}${
-                heat.heat_id === selectedHeatId ? ' selected' : ''
-              }`}
-              onClick={() => handleHeatClick(heat)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (clickable && (e.key === 'Enter' || e.key === ' ')) {
-                  e.preventDefault();
-                  handleHeatClick(heat);
-                }
-              }}
-              onDrop={(e) => handleDrop(e, heat.heat_id)}
-              onDragOver={handleDragOver}
-            >
-              <h4 className="heat-card-title">
-                <span>{heat.heat_name}</span>
-                {/* Whether this heat still has to sail, readable at a glance. */}
-                {heat.raceNumber > 0 ? (
-                  <span className="heat-status heat-status-done">
-                    <i className="fa fa-check" aria-hidden="true" />{' '}
-                    {heat.raceNumber === 1
-                      ? 'Scored'
-                      : `${heat.raceNumber} races scored`}
-                  </span>
-                ) : (
-                  <span className="heat-status heat-status-waiting">
-                    Not scored yet
-                  </span>
-                )}
-              </h4>
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col" style={sailorNameColumnStyle}>
-                      Sailor Name
-                    </th>
-                    <th scope="col">Country</th>
-                    <th scope="col" style={boatNumberColumnStyle}>
-                      Boat Number
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {heat.boats.map((boat) => {
-                    const isDraggable = !raceHappened && !finalSeriesStarted;
-                    return (
-                      <tr
-                        key={boat.boat_id}
-                        draggable={isDraggable}
-                        onDragStart={(e) =>
-                          handleDragStart(e, boat, heat.heat_id)
-                        }
-                        style={isDraggable ? { cursor: 'grab' } : undefined}
-                        title={
-                          isDraggable
-                            ? 'Drag this boat onto another heat to move it'
-                            : undefined
-                        }
-                      >
-                        <td style={sailorNameColumnStyle}>
-                          {boat.name} {boat.surname}
-                        </td>
-                        <td>
-                          <Flag
-                            code={getFlagCode(boat.country ?? '')}
-                            style={{ width: '30px', marginRight: '5px' }}
-                          />
-                          {boat.country}
-                        </td>
-                        <td
-                          style={boatNumberColumnStyle}
-                          className="heat-sail-number"
-                        >
-                          {boat.sail_number}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              {heat.heat_id === selectedHeatId &&
-                (onStartScoring || onUndoLastRace) && (
-                  <div className="heat-card-actions">
-                    {onStartScoring && (
-                      <button
-                        type="button"
-                        className="btn-success"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onStartScoring();
-                        }}
-                      >
-                        <i className="fa fa-play" aria-hidden="true" /> Start
-                        Scoring
-                      </button>
-                    )}
-                    {onUndoLastRace && heat.raceNumber > 0 && (
-                      <button
-                        type="button"
-                        className="btn-secondary"
-                        title={`Delete Race ${heat.raceNumber} in ${heat.heat_name}`}
-                        disabled={rowActionsDisabled}
-                        aria-busy={rowActionsDisabled}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onUndoLastRace(heat);
-                        }}
-                      >
-                        <i className="fa fa-undo" aria-hidden="true" /> Undo
-                        Race {heat.raceNumber}
-                      </button>
-                    )}
-                  </div>
-                )}
-            </div>
-          ))}
+          {heatsToDisplay.map((heat) => {
+            const selected = heat.heat_id === selectedHeatId;
+            return (
+              <HeatColumn
+                key={heat.heat_id}
+                heat={heat}
+                clickable={clickable}
+                selected={selected}
+                boatsDraggable={canSetUp}
+                onSelect={selectHeat}
+                onBoatDrop={management.dropBoat}
+                onStartScoring={selected ? onStartScoring : null}
+                onUndoLastRace={selected ? onUndoLastRace : null}
+                undoDisabled={rowActionsDisabled}
+              />
+            );
+          })}
         </div>
       )}
 
-      {/* ── Phase transition: Start Final Series + its safety net ─── */}
-      {/* SHRS 1.1: Start Final Series only applies with 2+ qualifying heat
-          groups. Save/Restore Backup, however, protect any event that has
-          heats — including single-fleet events — so they must not be gated on
-          the group count. The bar shows once heats exist. */}
       {heatsCreated && (
-        <div className="final-series-bar">
-          <div className="final-series-actions">
-            {numQualifyingGroups >= 2 && !finalSeriesStarted && (
-              <button
-                type="button"
-                className="btn-success"
-                onClick={() => runExclusive(handleStartFinalSeries)}
-                disabled={busy}
-              >
-                <i className="fa fa-flag-checkered" aria-hidden="true" /> Start
-                Final Series
-              </button>
-            )}
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={() => runExclusive(handleSaveSnapshot)}
-              disabled={busy}
-            >
-              Save Backup
-            </button>
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={() => runExclusive(handleRestoreSnapshot)}
-              disabled={busy}
-            >
-              Restore Backup
-            </button>
-          </div>
-          <span className="final-series-hint">
-            {numQualifyingGroups >= 2 && !finalSeriesStarted
-              ? 'Splits the boats into final fleets (Gold/Silver/…) based on current standings. Save a backup first so you can restore the event if something goes wrong.'
-              : 'Backups let you restore the event if something goes wrong.'}
-          </span>
-        </div>
-      )}
-
-      {heatsCreated && snapshotHistory.length > 0 && (
-        <div className="snapshot-history">
-          <div className="snapshot-history-title">Recent backups</div>
-          <ul>
-            {snapshotHistory.map((item) => (
-              <li key={`${item.fileName}-${item.savedAt}`}>
-                {item.fileName} - {new Date(item.savedAt).toLocaleString()}
-              </li>
-            ))}
-          </ul>
-        </div>
+        <HeatBackupBar
+          canStartFinalSeries={canStartFinalSeries}
+          busy={busy}
+          onStartFinalSeries={() => runExclusive(finalSeries.startFinalSeries)}
+          onSaveBackup={() => runExclusive(snapshots.saveBackup)}
+          onRestoreBackup={() => runExclusive(snapshots.restoreBackup)}
+          history={snapshots.history}
+        />
       )}
     </div>
   );
