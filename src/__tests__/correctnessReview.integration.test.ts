@@ -35,6 +35,12 @@ import { EVENT_LIFECYCLE_SCHEMA } from './fixtures/eventLifecycleSchema';
 // eslint-disable-next-line import/first, import/order
 import { invalidateAssignmentSnapshotCache } from '../main/functions/raceAssignmentSnapshot';
 
+// eslint-disable-next-line import/first, import/order
+import {
+  buildEventSnapshot,
+  restoreEventSnapshot,
+} from '../main/functions/eventSnapshot';
+
 const EVENT_ID = 1;
 
 function seed(boatCount: number) {
@@ -184,6 +190,35 @@ describe('correctness review (real SQLite, FKs on)', () => {
       expect(byBoat.get(X)?.total).toBe(9);
       expect(byBoat.get(Y)?.total).toBe(9);
       expect(byBoat.get(Y)!.place).toBeLessThan(byBoat.get(X)!.place);
+    });
+  });
+
+  describe('the Final Series screen reads the qualifying standings', () => {
+    it('never shows qualifying points older than the scores (restored backup)', async () => {
+      db = seed(4);
+      await handlerRegistry.createInitialHeatsAtomic({}, EVENT_ID, 2);
+      await scoreHeat(db, 'Heat A1');
+      await scoreHeat(db, 'Heat B1');
+      await handlerRegistry.startFinalSeriesAtomic({}, EVENT_ID);
+
+      // A backup file carries the standings cache it was exported with. One
+      // made by an older build (or edited by hand) can disagree with the
+      // scores it carries.
+      const snapshot = buildEventSnapshot(EVENT_ID) as any;
+      snapshot.tables.Leaderboard.forEach((row: any) => {
+        // eslint-disable-next-line no-param-reassign
+        row.total_points_event += 40;
+      });
+      restoreEventSnapshot(EVENT_ID, snapshot);
+
+      const rows = await handlerRegistry.readFinalLeaderboard({}, EVENT_ID);
+      const qualifying = await handlerRegistry.readLeaderboard({}, EVENT_ID);
+      const expected = new Map<number, number>(
+        qualifying.map((r: any) => [r.boat_id, r.total_points_event]),
+      );
+      rows.forEach((row: any) => {
+        expect(row.qualifying_points).toBe(expected.get(row.boat_id));
+      });
     });
   });
 });
