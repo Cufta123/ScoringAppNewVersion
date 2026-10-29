@@ -122,6 +122,7 @@ export default function useScoringSession({
           const proceed = await confirmAction(
             raceAgainWarning(selectedHeat.heat_name, races.length),
             'Scoring warning',
+            { confirmLabel: 'Score anyway' },
           );
           if (!proceed) return false;
         }

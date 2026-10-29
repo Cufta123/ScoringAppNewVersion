@@ -80,6 +80,7 @@ export default function useFinalSeriesStart({
         const proceed = await confirmAction(
           unsailedLatestRoundMessage(eligibility),
           'Latest round not sailed',
+          { confirmLabel: 'Continue' },
         );
         if (!proceed) return;
       }
@@ -88,6 +89,8 @@ export default function useFinalSeriesStart({
         const saveSnapshotNow = await confirmAction(
           'Before starting the Final Series, do you want to save a recovery backup file now?\n\nThis lets you restore the event later if needed.',
           'Save recovery backup?',
+          // Cancel here would read as "stop", but it goes on without a backup.
+          { confirmLabel: 'Save backup', cancelLabel: 'Skip backup' },
         );
 
         if (saveSnapshotNow) {
@@ -103,6 +106,10 @@ export default function useFinalSeriesStart({
             const proceedWithoutSnapshot = await confirmAction(
               'Backup save was canceled. Continue starting the Final Series without a backup?',
               'Continue without backup?',
+              {
+                confirmLabel: 'Continue without backup',
+                cancelLabel: 'Go back',
+              },
             );
             if (!proceedWithoutSnapshot) return;
           }
@@ -166,6 +173,7 @@ export default function useFinalSeriesStart({
           const proceed = await confirmAction(
             'Final fleets would exceed 20 boats. Continue anyway with oversize fleets for this final-series split?',
             'Confirm oversize final fleets',
+            { confirmLabel: 'Continue anyway' },
           );
           if (proceed) await start(true);
           return;

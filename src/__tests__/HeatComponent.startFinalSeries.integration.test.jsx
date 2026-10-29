@@ -393,6 +393,7 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
       expect(confirmActionMock).toHaveBeenCalledWith(
         expect.stringContaining('The latest round of heats'),
         'Latest round not sailed',
+        { confirmLabel: 'Continue' },
       );
     });
 

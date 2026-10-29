@@ -762,7 +762,16 @@ For most feature/fix requests, do this in order:
   pauses on hover and keyboard focus). Say `inline` explicitly; never guess.
   A Submit with boats missing marks them in the boat table ("Not scored",
   `useScoringInput` `isMissingSail`). Dates on screen go through
-  `utils/formatDate.ts` (dd.mm.yyyy; stored values stay ISO).
+  `utils/formatDate.ts` (dd.mm.yyyy; `formatDateTime` for dd.mm.yyyy
+  HH:mm:ss, 24 hour; never `toLocale*String`, which shows US format). Every
+  dialog (AppModal, HelpModal, EventHistoryDialog, ScoreExplanationDialog,
+  Rdg2Picker) uses `hooks/useDialogFocus` for initial focus, the Tab trap,
+  Escape (newest dialog only) and focus restore; a new dialog must too.
+  Confirm buttons name the action ("Create heats", "Discard changes"), not
+  "Confirm"/"OK", and the safe choice is the first button, focused by default.
+  A leaderboard penalty cell shows code and points ("ZFP 5.2", "(DSQ 11)";
+  exports still show the code only). On the scoring screen Ctrl/Cmd+Enter
+  submits the race (the Submit button's title says so).
   `UI_TOUR=1 npx playwright test e2e/ui-tour.spec.ts` seeds a 30-boat event
   and saves a screenshot of every screen (to `e2e-ui-tour/`) for review.
 - **Typed results are never corrected silently.** Leaderboard cells and the

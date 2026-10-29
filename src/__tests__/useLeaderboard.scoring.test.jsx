@@ -1124,6 +1124,8 @@ describe('useLeaderboard scoring/edit flow', () => {
       expect(reportWarning).toHaveBeenCalledWith(
         expect.stringContaining('Sail 101, Q1'),
         'Some results are not valid',
+        // The red cells and the banner count stay, so the toast closes itself.
+        { inline: true },
       );
       expect(result.current.editMode).toBe(true);
 
