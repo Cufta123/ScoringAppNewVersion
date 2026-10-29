@@ -70,7 +70,10 @@ test('submit is guarded until every boat is scored, with live progress', async (
   await window
     .getByRole('button', { name: /Submit Scores/i })
     .click({ force: true });
-  await expect(window.getByText(/not scored yet|Still missing/i)).toBeVisible();
+  await expect(
+    window.getByText(/Some boats are not scored yet/i),
+  ).toBeVisible();
+  await expect(window.getByText(/Still missing/i)).toBeVisible();
 
   // Click boat rows to add them; the progress indicator tracks the count.
   await window.getByRole('row', { name: /101/ }).click();
@@ -149,7 +152,7 @@ test('manual sail-number entry rejects numbers not in the heat', async () => {
   await window.getByLabel('Add sail number to finish order').click();
 
   await expect(
-    window.getByText(/Unknown sail numbers|not in Heat/i),
+    window.getByText(/These sail numbers are not in Heat/i),
   ).toBeVisible();
   // Nothing was added to the finish order.
   await expect(window.getByText('Sail #999')).toHaveCount(0);
