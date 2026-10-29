@@ -7,6 +7,8 @@ import escapeHtml from '../utils/escapeHtml';
 import { toSubgroupLabel } from '../../shared/subgroups';
 import {
   contentWidthMm,
+  continuedBandRow,
+  renderBand,
   countryCell,
   flagStyles,
   pageFooterTexts,
@@ -30,6 +32,7 @@ import {
   writeSignatures,
   writeTitleBlock,
 } from './excelShared';
+import { allocateWidths, columnNeed } from './columnWidths';
 import { countsFor, stringsFor } from './i18n';
 import { statusLabel } from './resultsCopy';
 import type {
@@ -196,71 +199,78 @@ export const totalLine = (
 interface ListColumn {
   key: string;
   header: string;
-  mm: number | null;
-  align: 'left' | 'center';
+  /** Bold in the table (for the width estimate). */
+  bold: boolean;
+  /** May take extra room and wrap (names, clubs). */
+  flex: boolean;
   value: (row: StartingListRow) => string;
 }
 
+/**
+ * The columns of the printed list. Grouped by country, the per-row Country
+ * column is dropped: the band above each group already says it.
+ */
 const columnsOf = (
   model: StartingListModel,
   common: CommonDocumentOptions,
 ): ListColumn[] => {
   const strings = stringsFor(common.language);
-  const columns: ListColumn[] = [
-    {
-      key: 'no',
-      header: strings.entryNumber,
-      mm: 11,
-      align: 'left',
-      value: (r) => String(r.number),
-    },
-    {
-      key: 'country',
-      header: strings.country,
-      mm: 24,
-      align: 'left',
-      value: (r) => r.country,
-    },
-    {
-      key: 'sail',
-      header: strings.sailNumber,
-      mm: 20,
-      align: 'left',
-      value: (r) => r.sail,
-    },
-    {
-      key: 'sailor',
-      header: strings.sailor,
-      mm: null,
-      align: 'left',
-      value: (r) => [r.name, r.surname].filter(Boolean).join(' '),
-    },
+  const column = (
+    key: string,
+    header: string,
+    value: (row: StartingListRow) => string,
+    bold = false,
+    flex = false,
+  ): ListColumn => ({ key, header, value, bold, flex });
+  return [
+    column('no', strings.entryNumber, (r) => String(r.number)),
+    ...(model.options.groupByCountry
+      ? []
+      : [column('country', strings.country, (r) => r.country)]),
+    column('sail', strings.sailNumber, (r) => r.sail, true),
+    column(
+      'sailor',
+      strings.sailor,
+      (r) => [r.name, r.surname].filter(Boolean).join(' '),
+      true,
+      true,
+    ),
+    ...(model.showClub
+      ? [column('club', strings.club, (r) => r.club, false, true)]
+      : []),
+    ...(model.showSubgroup
+      ? [column('subgroup', strings.subgroup, (r) => r.subgroup)]
+      : []),
+    ...(model.showModel
+      ? [column('model', strings.boatModel, (r) => r.model)]
+      : []),
   ];
-  if (model.showClub)
-    columns.push({
-      key: 'club',
-      header: strings.club,
-      mm: 46,
-      align: 'left',
-      value: (r) => r.club,
-    });
-  if (model.showSubgroup)
-    columns.push({
-      key: 'subgroup',
-      header: strings.subgroup,
-      mm: 24,
-      align: 'left',
-      value: (r) => r.subgroup,
-    });
-  if (model.showModel)
-    columns.push({
-      key: 'model',
-      header: strings.boatModel,
-      mm: 30,
-      align: 'left',
-      value: (r) => r.model,
-    });
-  return columns;
+};
+
+/** Millimetre width of each column: what its longest text needs. */
+const widthsOf = (
+  columns: ListColumn[],
+  model: StartingListModel,
+  widthMm: number,
+  hasFlags: boolean,
+): number[] => {
+  const rows = model.sections.flatMap((section) => section.rows);
+  return allocateWidths(
+    columns.map((column) => {
+      const needs = columnNeed(
+        column.header,
+        rows.map(column.value),
+        column.bold,
+        column.flex,
+      );
+      // The country column holds a flag and a code, which the text estimate
+      // does not know about.
+      return column.key === 'country' && hasFlags
+        ? { ...needs, need: needs.need + 7.5, min: needs.min + 7.5 }
+        : needs;
+    }),
+    widthMm,
+  );
 };
 
 export const resolveListOrientation = (
@@ -282,11 +292,7 @@ const renderRows = (
           else if (column.key === 'country')
             inner = countryCell(value, context.flags);
           else inner = escapeHtml(value);
-          const title =
-            column.key === 'sailor' || column.key === 'club'
-              ? ` title="${escapeHtml(value)}"`
-              : '';
-          return `<td class="c-${column.key}"${title}>${inner}</td>`;
+          return `<td class="c-${column.key}">${inner}</td>`;
         })
         .join('');
       return `<tr>${cells}</tr>`;
@@ -307,39 +313,57 @@ export const buildStartingListDocument = (
   const title = startingListTitle(common);
   const footer = pageFooterTexts(common, context);
   const widthMm = contentWidthMm(orientation);
-  const fixed = columns.reduce((sum, column) => sum + (column.mm ?? 0), 0);
-  const cols = columns
-    .map((column) =>
-      column.mm === null
-        ? `<col style="width:${Math.max(40, widthMm - fixed)}mm">`
-        : `<col style="width:${column.mm}mm">`,
-    )
-    .join('');
+  const widths = widthsOf(
+    columns,
+    model,
+    widthMm,
+    Object.keys(context.flags).length > 0,
+  );
+  const cols = widths.map((width) => `<col style="width:${width}mm">`).join('');
   const head = columns
     .map((column) => `<th class="left">${escapeHtml(column.header)}</th>`)
     .join('');
 
-  // One table (so the header repeats on every page); a grouped list gets one
-  // body per country, each opened by a band row with the country's entries.
-  const bodies = model.sections
-    .map((section) => {
-      const band =
-        section.country === null
-          ? ''
-          : `<tr class="band"><td colspan="${columns.length}"><span class="group-name">${countryCell(section.country, context.flags)}</span><span class="group-meta">${escapeHtml(counts.entries(section.rows.length))}</span></td></tr>\n`;
-      const keepTogether = section.rows.length <= 14 ? ' class="together"' : '';
-      return `<tbody${keepTogether}>\n${band}${renderRows(section.rows, columns, context)}\n</tbody>`;
-    })
-    .join('\n');
+  // A grouped list is one table per country, each opened by a band with the
+  // country and its entries. The band repeats, marked "(continued)", where a
+  // country runs onto the next page (see renderBand).
+  const table = (section: StartingListSection): string => {
+    const banded = section.country !== null;
+    const label = countryCell(section.country ?? '', context.flags);
+    const colors = { background: '#0b6b57', border: '#07463a' };
+    return `<section class="group">
+${
+  banded
+    ? renderBand({
+        labelHtml: label,
+        metaHtml: escapeHtml(counts.entries(section.rows.length)),
+        ...colors,
+      })
+    : ''
+}
+<table class="list${banded ? ' has-band' : ''}">
+<colgroup>${cols}</colgroup>
+<thead>${
+      banded
+        ? continuedBandRow({
+            colspan: columns.length,
+            labelHtml: label,
+            continuedText: strings.continued,
+            ...colors,
+          })
+        : ''
+    }<tr>${head}</tr></thead>
+<tbody>
+${renderRows(section.rows, columns, context)}
+</tbody>
+</table>
+</section>`;
+  };
 
   const tables =
     model.total === 0
       ? `<p class="empty-note">${escapeHtml(strings.noEntries)}</p>`
-      : `<table class="list">
-<colgroup>${cols}</colgroup>
-<thead><tr>${head}</tr></thead>
-${bodies}
-</table>`;
+      : model.sections.map(table).join('\n');
 
   const body = [
     renderHeader({

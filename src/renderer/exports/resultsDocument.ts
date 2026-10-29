@@ -5,6 +5,8 @@
 import escapeHtml from '../utils/escapeHtml';
 import {
   contentWidthMm,
+  continuedBandRow,
+  renderBand,
   countryCell,
   flagStyles,
   pageFooterTexts,
@@ -164,9 +166,9 @@ const renderRow = (
     .join('');
   return `<tr>
 <td class="rank">${row.rank === null ? missing : row.rank}</td>
-<td class="name" title="${escapeHtml(row.name)}">${row.name ? escapeHtml(row.name) : missing}</td>
+<td class="name">${row.name ? escapeHtml(row.name) : missing}</td>
 ${model.showCountry ? `<td class="country">${countryCell(row.country, context.flags)}</td>` : ''}
-${model.showClub ? `<td class="club" title="${escapeHtml(row.club)}">${row.club ? escapeHtml(row.club) : missing}</td>` : ''}
+${model.showClub ? `<td class="club">${row.club ? escapeHtml(row.club) : missing}</td>` : ''}
 <td class="sail">${row.sail ? escapeHtml(row.sail) : missing}</td>
 ${model.showType ? `<td class="type">${row.boatType ? escapeHtml(row.boatType) : missing}</td>` : ''}
 ${model.showTotal ? `<td class="total">${number(row.total)}</td>` : ''}
@@ -181,8 +183,18 @@ const renderTable = (
   common: CommonDocumentOptions,
   context: DocumentContext,
   widths: ColumnWidths,
+  band: { labelHtml: string; background: string; border: string } | null,
 ): string => {
   const strings = stringsFor(common.language);
+  const columnCount =
+    2 +
+    (model.showCountry ? 1 : 0) +
+    (model.showClub ? 1 : 0) +
+    1 +
+    (model.showType ? 1 : 0) +
+    (model.showTotal ? 1 : 0) +
+    (model.showNet ? 1 : 0) +
+    model.raceHeaders.length;
   const cols = [
     `<col style="width:${mm(widths.rank)}">`,
     `<col>`,
@@ -226,9 +238,21 @@ const renderTable = (
     head = `<tr>${identity}${model.raceHeaders.map(raceHead).join('')}</tr>`;
   }
 
-  return `<table class="results${widths.compact ? ' compact' : ''}">
+  // The "(continued)" band row heads the table's repeating header (see
+  // renderBand): hidden under the real band on the first page, visible on the
+  // pages the fleet runs onto.
+  const continued = band
+    ? continuedBandRow({
+        colspan: columnCount,
+        labelHtml: band.labelHtml,
+        continuedText: strings.continued,
+        background: band.background,
+        border: band.border,
+      })
+    : '';
+  return `<table class="results${widths.compact ? ' compact' : ''}${band ? ' has-band' : ''}">
 <colgroup>${cols}</colgroup>
-<thead>${head}</thead>
+<thead>${continued}${head}</thead>
 <tbody>
 ${section.rows.map((row) => renderRow(row, model, common, context)).join('\n')}
 </tbody>
@@ -266,19 +290,17 @@ const renderSection = (
 ): string => {
   const pageBreak = model.options.fleetPerPage && index > 0 ? ' new-page' : '';
   if (!section.fleet) {
-    return `<section class="fleet${pageBreak}">\n${renderTable(section, model, common, context, widths)}\n</section>`;
+    return `<section class="fleet${pageBreak}">\n${renderTable(section, model, common, context, widths, null)}\n</section>`;
   }
   const color = section.color ?? { border: '#6b7c93', thead: '#566575' };
   const meta = model.finalCount
     ? ''
     : fleetSummary(section.finalCount, common.language);
-  const label = fleetLabel(section.fleet, common.language);
+  const labelHtml = escapeHtml(fleetLabel(section.fleet, common.language));
+  const colors = { background: color.thead, border: color.border };
   return `<section class="fleet${pageBreak}">
-<div class="fleet-band" style="background:${color.thead};border-left-color:${color.border}">
-<span class="fleet-name">${escapeHtml(label)}</span>
-${meta ? `<span class="fleet-meta">${escapeHtml(meta)}</span>` : ''}
-</div>
-${renderTable(section, model, common, context, widths)}
+${renderBand({ labelHtml, metaHtml: meta ? escapeHtml(meta) : undefined, ...colors })}
+${renderTable(section, model, common, context, widths, { labelHtml, ...colors })}
 </section>`;
 };
 
@@ -321,17 +343,23 @@ table.results td {
 }
 table.results tbody tr:nth-child(even) td { background: var(--zebra); }
 table.results td.rank { text-align: left; font-weight: 700; color: var(--navy); }
+/* A name or a club is never cut: it wraps onto a second line. */
+table.results td.name,
+table.results td.club {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  overflow: visible;
+}
 table.results td.name {
   text-align: left;
   font-weight: 600;
-  text-overflow: ellipsis;
 }
 table.results td.country,
 table.results td.club,
 table.results td.sail,
 table.results td.type { text-align: left; }
 table.results td.club,
-table.results td.type { color: var(--muted); text-overflow: ellipsis; }
+table.results td.type { color: var(--muted); }
 table.results td.sail { font-weight: 600; }
 table.results td.total { color: var(--muted); }
 table.results td.net {
@@ -354,19 +382,6 @@ table.results td.discarded .pp { color: var(--discard); font-weight: 400; }
 table.results td .pp { font-weight: 400; }
 .fleet { margin-bottom: 6mm; }
 .fleet.new-page { break-before: page; page-break-before: always; }
-.fleet-band {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 1.7mm 3mm;
-  border-left: 2.2mm solid;
-  color: #fff;
-  font-size: 10.5pt;
-  font-weight: 700;
-  break-after: avoid;
-  page-break-after: avoid;
-}
-.fleet-meta { font-size: 8pt; font-weight: 400; opacity: 0.92; }
 `;
 
 /** The whole results sheet. */

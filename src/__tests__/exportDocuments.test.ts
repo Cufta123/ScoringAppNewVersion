@@ -411,7 +411,9 @@ describe('results HTML document', () => {
     ).html;
     expect(built).toContain('<span class="missing">–</span>');
     expect(built).toContain('table-layout: fixed');
-    expect(built).toContain('text-overflow: ellipsis');
+    // Names wrap; nothing in a printed document is cut with an ellipsis.
+    expect(built).not.toContain('text-overflow');
+    expect(built).toContain('overflow-wrap: anywhere');
   });
 
   it('says so when there is nothing to show', () => {
@@ -1096,7 +1098,11 @@ describe('heat lists and scoring sheets', () => {
     expect(html).toContain('>Notes<');
     expect(html).toContain('Race to be sailed: Q2');
     expect(html).toContain('class="scorer"');
-    expect(html).toContain('Scorer / time');
+    // Both lines of the scorer block are labelled; none is blank.
+    expect(html).toContain(
+      '<span>Scorer</span><span class="short">Time</span>',
+    );
+    expect(html).not.toContain('<span class="short"></span>');
     expect(html).toContain(
       '<td class="c-place"></td><td class="c-notes"></td>',
     );
@@ -1176,5 +1182,154 @@ describe('penalty descriptions in both languages', () => {
   it('an unknown code has no description (never a guess)', () => {
     expect(penaltyDescription('XYZ', 'en')).toBeNull();
     expect(penaltyDescription('XYZ', 'hr')).toBeNull();
+  });
+});
+
+describe('continued bands on the next page', () => {
+  const finalWithTwoFleets = () => finalInput();
+
+  it('a fleet table repeats its band, marked (continued), in the repeating header', () => {
+    const { html } = buildResultsDocument(
+      model(finalWithTwoFleets()),
+      common(),
+      context(),
+      'auto',
+    );
+    // One real band and one hidden-then-repeated row per fleet.
+    expect((html.match(/<div class="band"/g) ?? []).length).toBe(2);
+    expect((html.match(/<tr class="cont-row">/g) ?? []).length).toBe(2);
+    expect(html).toContain(
+      'Gold Fleet <span class="cont-text">(continued)</span>',
+    );
+    expect(html).toContain(
+      'Silver Fleet <span class="cont-text">(continued)</span>',
+    );
+    // The continuation row sits inside <thead>, so it repeats like the header.
+    expect(html).toMatch(/<thead><tr class="cont-row">/);
+    expect(html).toContain(
+      'table.has-band { margin-top: calc(-1 * var(--band-h)); }',
+    );
+    expect(html).toContain('<table class="results has-band">');
+  });
+
+  it('says (nastavak) in Croatian', () => {
+    const { html } = buildResultsDocument(
+      model(finalInput()),
+      common({ language: 'hr' }),
+      context(),
+      'auto',
+    );
+    expect(html).toContain(
+      'Gold flota <span class="cont-text">(nastavak)</span>',
+    );
+  });
+
+  it('a sheet without fleets has no band at all', () => {
+    const { html } = buildResultsDocument(
+      model(qualifyingInput([entry(1, [['1', 'FINISHED', '1']])])),
+      common(),
+      context(),
+      'auto',
+    );
+    expect(html).not.toContain('<div class="band"');
+    expect(html).not.toContain('cont-row');
+  });
+
+  it('the band row spans every column of the table', () => {
+    const m = model(finalInput());
+    const { html } = buildResultsDocument(m, common(), context(), 'auto');
+    // rank, name, country, sail, total, net + Q1 Q2 F1
+    expect(html).toContain('<th class="cont-band" colspan="9"');
+  });
+
+  it('starting list: one band per country, repeated as (continued), and no Country column', () => {
+    const boats = [
+      { name: 'Ana', surname: 'A', boat_country: 'CRO', sail_number: 1 },
+      { name: 'Bo', surname: 'B', boat_country: 'GBR', sail_number: 2 },
+    ];
+    const grouped = buildStartingListModel(boats, {
+      ...DEFAULT_STARTING_LIST_OPTIONS,
+      groupByCountry: true,
+    });
+    const { html } = buildStartingListDocument(
+      grouped,
+      common(),
+      context(),
+      'auto',
+    );
+    expect((html.match(/<div class="band"/g) ?? []).length).toBe(2);
+    expect(html).toContain('CRO <span class="cont-text">(continued)</span>');
+    expect(html).toContain('GBR <span class="cont-text">(continued)</span>');
+    expect(html).not.toContain('>Country<');
+    expect(html).not.toContain('class="c-country"');
+    // The flat list keeps the Country column and has no bands.
+    const flat = buildStartingListDocument(
+      buildStartingListModel(boats, DEFAULT_STARTING_LIST_OPTIONS),
+      common(),
+      context(),
+      'auto',
+    ).html;
+    expect(flat).toContain('>Country<');
+    expect(flat).not.toContain('<div class="band"');
+    const hr = buildStartingListDocument(
+      grouped,
+      common({ language: 'hr' }),
+      context(),
+      'auto',
+    ).html;
+    expect(hr).toContain('(nastavak)');
+  });
+
+  it('the grouped starting list workbook has no Country column either', async () => {
+    const grouped = buildStartingListModel(
+      [{ name: 'Ana', surname: 'A', boat_country: 'CRO', sail_number: 1 }],
+      { ...DEFAULT_STARTING_LIST_OPTIONS, groupByCountry: true },
+    );
+    const bytes = await buildStartingListWorkbook(
+      grouped,
+      common(),
+      context(),
+      'auto',
+    );
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(bytes as unknown as ArrayBuffer);
+    const values: unknown[] = [];
+    workbook.worksheets[0].eachRow((row) =>
+      row.eachCell((cell) => values.push(cell.value)),
+    );
+    expect(values).toContain('Sail #');
+    expect(values).not.toContain('Country');
+  });
+});
+
+describe('names are never truncated in printed documents', () => {
+  const longName = 'Wolfeschlegelsteinhausenberger-Kovačević';
+  it('starting list and heat lists give names room and wrap, without ellipsis', () => {
+    const boats = [
+      {
+        name: 'Tomislav',
+        surname: longName,
+        boat_country: 'CRO',
+        club_name: 'JK Galeb',
+        sail_number: 5,
+        model: 'IOM',
+      },
+    ];
+    const list = buildStartingListDocument(
+      buildStartingListModel(boats, DEFAULT_STARTING_LIST_OPTIONS),
+      common(),
+      context(),
+      'auto',
+    ).html;
+    expect(list).not.toContain('text-overflow');
+    expect(list).toContain(`Tomislav ${longName}`);
+    const widths = [...list.matchAll(/<col style="width:([\d.]+)mm">/g)].map(
+      (m) => Number(m[1]),
+    );
+    // The widths fill the printable width of the page (190 mm portrait)...
+    expect(widths.reduce((a, b) => a + b, 0)).toBeCloseTo(190, 0);
+    // ...and the Sailor column is the widest column of the list.
+    const sailorColumn = 3; // No., Country, Sail #, Sailor
+    expect(widths[sailorColumn]).toBe(Math.max(...widths));
   });
 });

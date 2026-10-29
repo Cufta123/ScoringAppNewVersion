@@ -37,6 +37,7 @@ import {
   writeSignatures,
   writeTitleBlock,
 } from './excelShared';
+import { allocateWidths, columnNeed, type WidthColumn } from './columnWidths';
 import { countsFor, stringsFor } from './i18n';
 import type {
   BuiltDocument,
@@ -297,7 +298,6 @@ const HEATS_CSS = `
 .heat-event { font-size: 8pt; text-align: right; opacity: 0.85; }
 table.list.sheet td, table.list.sheet th { border: 0.25mm solid #8f9bb0; }
 table.list.sheet td { height: var(--row-h, 9mm); background: #fff !important; }
-table.list.sheet td.c-place { width: 26mm; }
 table.list.sheet th.writable { background: #24385c; }
 table.list.sheet td.c-sail { font-size: 11pt; }
 .scorer {
@@ -341,17 +341,37 @@ export const buildHeatsDocument = (
     place: strings.place,
     notes: strings.notes,
   };
-  const widths: Record<string, number | null> = sheets
-    ? { no: 10, sail: 22, sailor: null, country: 24, place: 26, notes: 62 }
-    : { no: 11, sail: 22, sailor: null, country: 26, subgroup: 26, model: 34 };
-  const fixed = columns.reduce((sum, key) => sum + (widths[key] ?? 0), 0);
-  const cols = columns
-    .map((key) =>
-      widths[key] === null
-        ? `<col style="width:${Math.max(40, widthMm - fixed)}mm">`
-        : `<col style="width:${widths[key]}mm">`,
-    )
-    .join('');
+  const rowValue: Record<string, (row: HeatBlockRow) => string> = {
+    no: (row) => String(row.number),
+    sail: (row) => row.sail,
+    sailor: (row) => row.sailor,
+    country: (row) => row.country,
+    subgroup: (row) => row.subgroup,
+    model: (row) => row.model,
+    place: () => '',
+    notes: () => '',
+  };
+  const allRows = model.heats.flatMap((heat) => heat.rows);
+  const hasFlags = Object.keys(context.flags).length > 0;
+  // Names are never cut: each column gets what its longest text needs, the
+  // sailor and the notes take the rest and wrap when the page is too narrow.
+  const widths = allocateWidths(
+    columns.map((key): WidthColumn => {
+      if (key === 'place') return { need: 30, min: 30, flex: false };
+      if (key === 'notes') return { need: 60, min: 40, flex: true };
+      const need = columnNeed(
+        headers[key],
+        allRows.map(rowValue[key]),
+        key === 'sail' || key === 'sailor',
+        key === 'sailor',
+      );
+      return key === 'country' && hasFlags
+        ? { ...need, need: need.need + 7.5, min: need.min + 7.5 }
+        : need;
+    }),
+    widthMm,
+  );
+  const cols = widths.map((width) => `<col style="width:${width}mm">`).join('');
   const head = columns
     .map(
       (key) =>
@@ -387,9 +407,7 @@ export const buildHeatsDocument = (
                   else if (value === '' && key !== 'place' && key !== 'notes') {
                     inner = '<span class="missing">–</span>';
                   }
-                  const titleAttr =
-                    key === 'sailor' ? ` title="${escapeHtml(value)}"` : '';
-                  return `<td class="c-${key}"${titleAttr}>${inner}</td>`;
+                  return `<td class="c-${key}">${inner}</td>`;
                 })
                 .join('');
               return `<tr>${cells}</tr>`;
@@ -400,7 +418,7 @@ export const buildHeatsDocument = (
       ? ` style="--row-h:${rowHeightMm(heat.rows.length)}mm"`
       : '';
     const scorer = sheets
-      ? `<div class="scorer"><span>${escapeHtml(strings.scorerTime)}</span><span class="short"></span></div>`
+      ? `<div class="scorer"><span>${escapeHtml(strings.scorer)}</span><span class="short">${escapeHtml(strings.time)}</span></div>`
       : '';
     return `<section class="heat${pageBreak}">
 <div class="heat-head">
@@ -571,7 +589,7 @@ export const buildHeatsWorkbook = async (
       rowNumber += 1;
       sheet.mergeCells(rowNumber, 1, rowNumber, columns.length);
       const scorer = sheet.getCell(rowNumber, 1);
-      scorer.value = `${strings.scorerTime}:  ____________________________   ______________`;
+      scorer.value = `${strings.scorer}: ____________________________     ${strings.time}: ______________`;
       scorer.font = { name: 'Calibri', size: 10, color: { argb: MUTED } };
       rowNumber += 1;
     }

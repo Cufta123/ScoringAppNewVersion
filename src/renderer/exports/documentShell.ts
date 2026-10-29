@@ -84,6 +84,35 @@ export const flagStyles = (
   return rules.join('\n');
 };
 
+/**
+ * A coloured band that opens a block of a table (a fleet, a country) and
+ * repeats, marked "(continued)", when the block runs onto the next page.
+ *
+ * CSS cannot tell the first page of a table from the following ones, so the
+ * repeating part is the table's own <thead> (it repeats natively): its first
+ * row is the "(continued)" band. On the first page that row is pulled under
+ * the real band (negative margin on the table) and hidden by it; on every
+ * later page nothing covers it. Both bands have the same fixed height.
+ */
+export const renderBand = (opts: {
+  /** HTML of the label, already escaped. */
+  labelHtml: string;
+  metaHtml?: string;
+  background: string;
+  border: string;
+}): string =>
+  `<div class="band" style="background:${opts.background};border-left-color:${opts.border}"><span class="band-name">${opts.labelHtml}</span>${opts.metaHtml ? `<span class="band-meta">${opts.metaHtml}</span>` : ''}</div>`;
+
+/** The hidden-then-repeated "(continued)" row for a table's <thead>. */
+export const continuedBandRow = (opts: {
+  colspan: number;
+  labelHtml: string;
+  continuedText: string;
+  background: string;
+  border: string;
+}): string =>
+  `<tr class="cont-row"><th class="cont-band" colspan="${opts.colspan}" style="background:${opts.background};border-left-color:${opts.border}">${opts.labelHtml} <span class="cont-text">${escapeHtml(opts.continuedText)}</span></th></tr>`;
+
 /** A flag followed by the country code, or the code alone without a flag. */
 export const countryCell = (
   code: string,
@@ -106,6 +135,7 @@ const BASE_CSS = `
   --accent: #0b6b57;
   --danger: #b3261e;
   --discard: #6b7686;
+  --band-h: 8.5mm;
 }
 * { box-sizing: border-box; }
 html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -187,6 +217,36 @@ h1, h2, h3, p { margin: 0; }
   background: center / cover no-repeat #e9edf3;
   box-shadow: 0 0 0 0.15mm rgba(20, 35, 63, 0.35);
 }
+.band {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--band-h);
+  box-sizing: border-box;
+  padding: 0 3mm;
+  border-left: 2.2mm solid;
+  color: #fff;
+  font-size: 10.5pt;
+  font-weight: 700;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+.band-meta { font-size: 8pt; font-weight: 400; }
+.band .flag, th.cont-band .flag { box-shadow: 0 0 0 0.2mm rgba(255, 255, 255, 0.7); }
+table.has-band { margin-top: calc(-1 * var(--band-h)); }
+table.has-band th.cont-band {
+  height: var(--band-h);
+  box-sizing: border-box;
+  padding: 0 3mm;
+  border-left: 2.2mm solid;
+  color: #fff;
+  font-size: 10.5pt;
+  font-weight: 700;
+  text-align: left;
+}
+table.has-band th.cont-band .cont-text { font-size: 8pt; font-weight: 400; }
 .legend {
   margin-top: 5mm;
   padding-top: 2.5mm;
@@ -260,13 +320,16 @@ table.list th {
   white-space: nowrap;
   overflow: hidden;
 }
+/* A name, a club or a note is never cut: it wraps onto a second line. */
 table.list td {
   padding: 1.5mm 2mm;
   border-bottom: 0.2mm solid var(--soft);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
+table.list td.c-no,
+table.list td.c-sail,
+table.list td.c-country,
+table.list td.c-place { white-space: nowrap; }
 table.list tbody tr { break-inside: avoid; page-break-inside: avoid; }
 table.list tbody tr:nth-child(even) td { background: var(--zebra); }
 table.list td.c-no { color: var(--muted); }
@@ -275,19 +338,6 @@ table.list td.c-sailor { font-weight: 600; }
 table.list td.c-club,
 table.list td.c-subgroup,
 table.list td.c-model { color: var(--muted); }
-table.list tbody.together { break-inside: avoid; page-break-inside: avoid; }
-table.list tr.band td {
-  padding: 1.6mm 3mm;
-  border-left: 2.2mm solid #07463a;
-  border-bottom: none;
-  background: #0b6b57 !important;
-  color: #fff;
-  font-size: 10.5pt;
-  font-weight: 700;
-}
-table.list tr.band { break-after: avoid; page-break-after: avoid; }
-table.list tr.band td .group-meta { float: right; font-size: 8.5pt; font-weight: 400; }
-table.list tr.band .flag { box-shadow: 0 0 0 0.2mm rgba(255, 255, 255, 0.7); }
 `;
 
 interface WrapOptions {

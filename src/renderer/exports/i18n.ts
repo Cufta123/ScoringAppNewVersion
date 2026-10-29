@@ -63,7 +63,9 @@ export interface Strings {
   raceToSail: string;
   place: string;
   notes: string;
-  scorerTime: string;
+  scorer: string;
+  time: string;
+  continued: string;
   sheetTitle: string;
   totalEntries: string;
   nations: string;
@@ -156,7 +158,9 @@ const EN: Strings = {
   raceToSail: 'Race to be sailed',
   place: 'Place',
   notes: 'Notes',
-  scorerTime: 'Scorer / time',
+  scorer: 'Scorer',
+  time: 'Time',
+  continued: '(continued)',
   sheetTitle: 'Scoring sheet',
   totalEntries: 'Total entries',
   nations: 'nations',
@@ -217,7 +221,9 @@ const HR: Strings = {
   raceToSail: 'Utrka koja se jedri',
   place: 'Plasman',
   notes: 'Bilješke',
-  scorerTime: 'Zapisničar / vrijeme',
+  scorer: 'Zapisničar',
+  time: 'Vrijeme',
+  continued: '(nastavak)',
   sheetTitle: 'Zapisnik bodovanja',
   totalEntries: 'Ukupno prijava',
   nations: 'država',

@@ -376,6 +376,11 @@ test('tour', async () => {
     .click();
   await dialogOpened();
   await settlePreview();
+  // Remembered options outlive a run: start from the plain list.
+  await exportDialog()
+    .getByLabel('Group by country, with entry counts')
+    .uncheck();
+  await settlePreview();
   await snap('export-starting-list-dialog');
   await saveExport('PDF', 'sample-starting-list.pdf');
   await exportDialog()
@@ -383,12 +388,17 @@ test('tour', async () => {
     .check();
   await settlePreview();
   await snap('export-starting-list-grouped');
+  await saveExport('PDF', 'sample-starting-list-grouped.pdf');
   await closeExportDialog();
 
   await window
     .getByRole('button', { name: 'Export heats…', exact: true })
     .click();
   await dialogOpened();
+  await settlePreview();
+  await exportDialog()
+    .getByLabel('Scoring sheets (blank Place/Notes columns)')
+    .uncheck();
   await settlePreview();
   await snap('export-heats-dialog');
   await saveExport('PDF', 'sample-heats.pdf');
