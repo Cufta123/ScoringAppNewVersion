@@ -30,7 +30,7 @@
    - Header cells keep their fleet/qualifying colour (inline, opaque) and sit
      above the scrolling header cells (global th z-index 2) and body cells. */
 .leaderboard-scroll {
-  --lb-rank-w: 60px;
+  --lb-rank-w: 80px;
   --lb-name-w: 210px;
   --lb-sail-w: 96px;
   /* Keyboard focus / scrollIntoView must not park a cell under the sticky
