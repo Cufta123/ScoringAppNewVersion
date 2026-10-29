@@ -1,33 +1,3 @@
-import {
-  getHeatGroupFromName,
-  getHeatRoundFromName,
-} from '../../shared/heatNames';
-
-/**
- * Names of the heats of the SAME group that belong to a later round than
- * `heatName` ("Heat A1" -> ["Heat A2", "Heat A3"]). A later round was seeded
- * from this round's results, so this round's last race can no longer be undone
- * on its own (SHRS 3.1(2)). Empty for a name that is not a qualifying heat.
- */
-export function laterRoundHeatNames(
-  allHeats: ReadonlyArray<{ heat_name: string }>,
-  heatName: string,
-): string[] {
-  const group = getHeatGroupFromName(heatName);
-  const round = getHeatRoundFromName(heatName);
-  if (group === null || round === null) return [];
-  return allHeats
-    .filter((other) => {
-      const otherRound = getHeatRoundFromName(other.heat_name);
-      return (
-        getHeatGroupFromName(other.heat_name) === group &&
-        otherRound !== null &&
-        otherRound > round
-      );
-    })
-    .map((other) => other.heat_name);
-}
-
 /** SHRS 3.2: a heat should race once per round before boats are redistributed. */
 export const raceAgainWarning = (heatName: string, racesDone: number): string =>
   `Warning: "${heatName}" has already completed Race ${racesDone}.\n\n` +

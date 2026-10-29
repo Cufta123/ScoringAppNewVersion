@@ -45,3 +45,28 @@ export function countQualifyingGroups(
   });
   return groups.size;
 }
+
+/**
+ * Names of the heats of the SAME group that belong to a later round than
+ * `heatName` ("Heat A1" -> ["Heat A2", "Heat A3"]). A later round was seeded
+ * from this round's results (SHRS 3.1(2)). Empty for a name that is not a
+ * qualifying heat.
+ */
+export function laterRoundHeatNames(
+  allHeats: ReadonlyArray<{ heat_name: string }>,
+  heatName: string,
+): string[] {
+  const group = getHeatGroupFromName(heatName);
+  const round = getHeatRoundFromName(heatName);
+  if (group === null || round === null) return [];
+  return allHeats
+    .filter((other) => {
+      const otherRound = getHeatRoundFromName(other.heat_name);
+      return (
+        getHeatGroupFromName(other.heat_name) === group &&
+        otherRound !== null &&
+        otherRound > round
+      );
+    })
+    .map((other) => other.heat_name);
+}
