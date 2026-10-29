@@ -190,6 +190,122 @@ interface ImportRow {
   eventId?: number | string;
 }
 
+/** What one imported row changed; the counters only move for rows that went through. */
+interface ImportRowOutcome {
+  created: number;
+  associated: number;
+  alreadyInEvent: number;
+}
+
+/**
+ * Import one row: upsert its club, sailor and boat and, when an event is
+ * given, enter the boat in it. Returns null for a row missing required fields.
+ * Runs inside the caller's transaction.
+ */
+function importRow(row: ImportRow): ImportRowOutcome | null {
+  const {
+    name,
+    surname,
+    birthday,
+    sail_number,
+    country,
+    model,
+    club_name,
+    category_name,
+    eventId,
+  } = row;
+
+  // model is optional (matches the single-entry form and the import UI's
+  // stated "Optional" columns); default it rather than rejecting the row.
+  if (!name || !surname || !sail_number || !country) {
+    return null;
+  }
+  const outcome = { created: 0, associated: 0, alreadyInEvent: 0 };
+  const boatModel = model || '';
+
+  // Resolve category. Accept either a full category name (e.g. "VETERAN")
+  // or a subgroup code (e.g. "M") so the CSV matches the single-entry form.
+  const resolvedCategoryName =
+    subgroupToCategoryName(category_name) || category_name || 'SENIOR';
+  const catRow = db
+    .prepare(
+      'SELECT category_id FROM Categories WHERE UPPER(category_name) = UPPER(?)',
+    )
+    .get(resolvedCategoryName) as { category_id: number } | undefined;
+  const category_id = catRow?.category_id ?? 3; // default SENIOR
+
+  // Upsert club
+  let club_id: number;
+  const existingClub = db
+    .prepare('SELECT club_id FROM Clubs WHERE club_name = ?')
+    .get(club_name) as { club_id: number } | undefined;
+  if (existingClub) {
+    club_id = existingClub.club_id;
+  } else {
+    const clubResult = db
+      .prepare('INSERT INTO Clubs (club_name, country) VALUES (?, ?)')
+      .run(club_name || 'Unknown', country);
+    club_id = clubResult.lastInsertRowid as number;
+  }
+
+  // Upsert sailor
+  let sailor_id: number;
+  const existingSailor = db
+    .prepare(
+      'SELECT sailor_id FROM Sailors WHERE name = ? AND surname = ? AND birthday = ?',
+    )
+    .get(name, surname, birthday) as { sailor_id: number } | undefined;
+  if (existingSailor) {
+    sailor_id = existingSailor.sailor_id;
+  } else {
+    const sailorResult = db
+      .prepare(
+        'INSERT INTO Sailors (name, surname, birthday, category_id, club_id) VALUES (?, ?, ?, ?, ?)',
+      )
+      .run(name, surname, birthday || '', category_id, club_id);
+    sailor_id = sailorResult.lastInsertRowid as number;
+  }
+
+  // Upsert boat
+  let boat_id: number;
+  const existingBoat = db
+    .prepare(
+      'SELECT boat_id FROM Boats WHERE CAST(sail_number AS TEXT) = ? AND UPPER(country) = UPPER(?)',
+    )
+    .get(String(sail_number), country) as { boat_id: number } | undefined;
+  if (existingBoat) {
+    boat_id = existingBoat.boat_id;
+  } else {
+    const boatResult = db
+      .prepare(
+        'INSERT INTO Boats (sail_number, country, model, sailor_id) VALUES (?, ?, ?, ?)',
+      )
+      .run(String(sail_number), country, boatModel, sailor_id);
+    boat_id = boatResult.lastInsertRowid as number;
+    outcome.created += 1;
+  }
+
+  // Associate boat with event if event_id provided
+  if (eventId) {
+    const event_id = Number(eventId);
+    const inEvent = db
+      .prepare(
+        'SELECT boat_event_id FROM Boat_Event WHERE boat_id = ? AND event_id = ?',
+      )
+      .get(boat_id, event_id) as { boat_event_id: number } | undefined;
+    if (inEvent) {
+      outcome.alreadyInEvent += 1;
+    } else {
+      db.prepare(
+        'INSERT INTO Boat_Event (boat_id, event_id) VALUES (?, ?)',
+      ).run(boat_id, event_id);
+      // A boat created by this row is already counted under `created`.
+      if (existingBoat) outcome.associated += 1;
+    }
+  }
+  return outcome;
+}
+
 handle('importSailors', (_event, rows: ImportRow[]): ImportSailorsSummary => {
   let created = 0; // new boats added to DB
   let associated = 0; // existing boats newly added to this event
@@ -201,120 +317,18 @@ handle('importSailors', (_event, rows: ImportRow[]): ImportSailorsSummary => {
   // sailor, club and boat it already wrote are rolled back with it, and the
   // counters only change for rows that went through. The outer transaction
   // still makes the whole import all-or-nothing against a crash.
+  const importRowAtomically = db.transaction(importRow);
   const importAll = db.transaction(() => {
     rows.forEach((row) => {
       try {
-        const delta = { created: 0, associated: 0, alreadyInEvent: 0 };
-        db.transaction(() => {
-          const {
-            name,
-            surname,
-            birthday,
-            sail_number,
-            country,
-            model,
-            club_name,
-            category_name,
-            eventId,
-          } = row;
-
-          // model is optional (matches the single-entry form and the import UI's
-          // stated "Optional" columns); default it rather than rejecting the row.
-          if (!name || !surname || !sail_number || !country) {
-            invalid += 1;
-            return;
-          }
-          const boatModel = model || '';
-
-          // Resolve category. Accept either a full category name (e.g. "VETERAN")
-          // or a subgroup code (e.g. "M") so the CSV matches the single-entry form.
-          const resolvedCategoryName =
-            subgroupToCategoryName(category_name) || category_name || 'SENIOR';
-          const catRow = db
-            .prepare(
-              'SELECT category_id FROM Categories WHERE UPPER(category_name) = UPPER(?)',
-            )
-            .get(resolvedCategoryName) as { category_id: number } | undefined;
-          const category_id = catRow?.category_id ?? 3; // default SENIOR
-
-          // Upsert club
-          let club_id: number;
-          const existingClub = db
-            .prepare('SELECT club_id FROM Clubs WHERE club_name = ?')
-            .get(club_name) as { club_id: number } | undefined;
-          if (existingClub) {
-            club_id = existingClub.club_id;
-          } else {
-            const clubResult = db
-              .prepare('INSERT INTO Clubs (club_name, country) VALUES (?, ?)')
-              .run(club_name || 'Unknown', country);
-            club_id = clubResult.lastInsertRowid as number;
-          }
-
-          // Upsert sailor
-          let sailor_id: number;
-          const existingSailor = db
-            .prepare(
-              'SELECT sailor_id FROM Sailors WHERE name = ? AND surname = ? AND birthday = ?',
-            )
-            .get(name, surname, birthday) as { sailor_id: number } | undefined;
-          if (existingSailor) {
-            sailor_id = existingSailor.sailor_id;
-          } else {
-            const sailorResult = db
-              .prepare(
-                'INSERT INTO Sailors (name, surname, birthday, category_id, club_id) VALUES (?, ?, ?, ?, ?)',
-              )
-              .run(name, surname, birthday || '', category_id, club_id);
-            sailor_id = sailorResult.lastInsertRowid as number;
-          }
-
-          // Upsert boat
-          let boat_id: number;
-          const existingBoat = db
-            .prepare(
-              'SELECT boat_id FROM Boats WHERE CAST(sail_number AS TEXT) = ? AND UPPER(country) = UPPER(?)',
-            )
-            .get(String(sail_number), country) as
-            | { boat_id: number }
-            | undefined;
-          if (existingBoat) {
-            boat_id = existingBoat.boat_id;
-          } else {
-            const boatResult = db
-              .prepare(
-                'INSERT INTO Boats (sail_number, country, model, sailor_id) VALUES (?, ?, ?, ?)',
-              )
-              .run(String(sail_number), country, boatModel, sailor_id);
-            boat_id = boatResult.lastInsertRowid as number;
-            delta.created += 1;
-          }
-
-          // Associate boat with event if event_id provided
-          if (eventId) {
-            const event_id = Number(eventId);
-            const inEvent = db
-              .prepare(
-                'SELECT boat_event_id FROM Boat_Event WHERE boat_id = ? AND event_id = ?',
-              )
-              .get(boat_id, event_id) as { boat_event_id: number } | undefined;
-            if (!inEvent) {
-              db.prepare(
-                'INSERT INTO Boat_Event (boat_id, event_id) VALUES (?, ?)',
-              ).run(boat_id, event_id);
-              if (!existingBoat) {
-                // already counted under created
-              } else {
-                delta.associated += 1;
-              }
-            } else {
-              delta.alreadyInEvent += 1;
-            }
-          }
-        })();
-        created += delta.created;
-        associated += delta.associated;
-        alreadyInEvent += delta.alreadyInEvent;
+        const outcome = importRowAtomically(row);
+        if (outcome === null) {
+          invalid += 1;
+          return;
+        }
+        created += outcome.created;
+        associated += outcome.associated;
+        alreadyInEvent += outcome.alreadyInEvent;
       } catch (err) {
         errors.push(
           `Row ${row.name} ${row.surname}: ${(err as Error).message}`,

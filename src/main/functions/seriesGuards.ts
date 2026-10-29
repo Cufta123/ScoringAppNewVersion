@@ -1,6 +1,5 @@
 import { db } from '../../../public/Database/DBManager';
-import { getHeatBaseFromName, getHeatRoundFromName } from './scoreStatus';
-import { getHeatGroupFromName } from '../../shared/heatNames';
+import { laterRoundHeatNames as sharedLaterRoundHeatNames } from '../../shared/heatNames';
 
 /**
  * Server-side guards for writes that would contradict the shape of the series.
@@ -32,25 +31,13 @@ export function hasFinalSeriesStarted(event_id: number): boolean {
  * letters — i.e. the rounds whose assignment was seeded from this one.
  */
 export function laterRoundHeatNames(heat: HeatRow): string[] {
-  const round = getHeatRoundFromName(heat.heat_name);
-  if (round === null) return [];
-  const base = getHeatBaseFromName(heat.heat_name);
   const heats = db
     .prepare(
       `SELECT heat_name FROM Heats
        WHERE event_id = ? AND heat_type = 'Qualifying'`,
     )
     .all(heat.event_id) as { heat_name: string }[];
-  return heats
-    .map((other) => other.heat_name)
-    .filter((name) => {
-      const otherRound = getHeatRoundFromName(name);
-      return (
-        otherRound !== null &&
-        otherRound > round &&
-        getHeatGroupFromName(name) === base
-      );
-    });
+  return sharedLaterRoundHeatNames(heats, heat.heat_name);
 }
 
 /**

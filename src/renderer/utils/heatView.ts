@@ -20,8 +20,14 @@ export const MAX_HEAT_COUNT = 26;
 
 /** Whether any heat is a Final Series fleet. */
 export const hasFinalHeats = (
-  heats: Array<Pick<HeatWithBoats, 'heat_type'>>,
+  heats: ReadonlyArray<Pick<HeatWithBoats, 'heat_type'>>,
 ): boolean => heats.some((heat) => heat.heat_type === 'Final');
+
+/** Whether the heats shown are all Final Series fleets (and there are some). */
+export const isFinalSeriesView = (
+  heats: ReadonlyArray<{ heat_type?: string | null }>,
+): boolean =>
+  heats.length > 0 && heats.every((heat) => heat.heat_type === 'Final');
 
 /** Whether any listed heat has had a race scored. */
 export const hasScoredRace = (

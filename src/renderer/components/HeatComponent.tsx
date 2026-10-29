@@ -5,7 +5,7 @@ import useHeatManagement from '../hooks/useHeatManagement';
 import useHeatSnapshots from '../hooks/useHeatSnapshots';
 import useFinalSeriesStart from '../hooks/useFinalSeriesStart';
 import printNewHeats from '../utils/printNewHeats';
-import { getLastHeats } from '../utils/heatView';
+import { getLastHeats, isFinalSeriesView } from '../utils/heatView';
 import type { HeatWithBoats } from '../utils/heatView';
 import { reportError } from '../utils/userFeedback';
 import AppModal from './shared/AppModal';
@@ -108,9 +108,6 @@ function HeatComponent({
   const lastHeats = useMemo(() => getLastHeats(heats), [heats]);
   const heatsToDisplay = displayLastHeats ? lastHeats : heats;
   const hasMultipleRounds = heats.length > lastHeats.length;
-  const isFinalSeriesView =
-    heatsToDisplay.length > 0 &&
-    heatsToDisplay.every((heat) => heat.heat_type === 'Final');
 
   const selectHeat = useCallback(
     (heat: HeatWithBoats) => {
@@ -152,7 +149,7 @@ function HeatComponent({
         onFormatChange={setNewHeatsFormat}
         onPrint={() => runExclusive(exportNewHeats)}
         noHeats={heatsToDisplay.length === 0}
-        isFinalSeriesView={isFinalSeriesView}
+        isFinalSeriesView={isFinalSeriesView(heatsToDisplay)}
         busy={busy}
       />
 

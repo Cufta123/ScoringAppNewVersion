@@ -190,16 +190,22 @@ export interface ScoringProgress {
   isEmpty: boolean;
 }
 
+/** Every boat (normalised) that has a place or a penalty entered. */
+const enteredBoats = (
+  state: Pick<FinishEntryState, 'boatNumbers' | 'penalties'>,
+): Set<string> =>
+  new Set(
+    [...state.boatNumbers, ...Object.keys(state.penalties)].map(
+      normalizeBoatNumber,
+    ),
+  );
+
 /** How many of the heat's boats already have a place or a penalty. */
 export function scoringProgress(
   validBoats: SailNumber[],
   state: Pick<FinishEntryState, 'boatNumbers' | 'penalties'>,
 ): ScoringProgress {
-  const assigned = new Set(
-    [...state.boatNumbers, ...Object.keys(state.penalties)].map(
-      normalizeBoatNumber,
-    ),
-  );
+  const assigned = enteredBoats(state);
   const scoredCount = validBoats.filter((sail) =>
     assigned.has(normalizeBoatNumber(sail)),
   ).length;
@@ -218,13 +224,7 @@ export function findSubmittedStrangers(
   state: Pick<FinishEntryState, 'boatNumbers' | 'penalties'>,
 ): string[] {
   const valid = new Set(validBoats.map(normalizeBoatNumber));
-  return [
-    ...new Set(
-      [...state.boatNumbers, ...Object.keys(state.penalties)].map(
-        normalizeBoatNumber,
-      ),
-    ),
-  ].filter((boat) => !valid.has(boat));
+  return [...enteredBoats(state)].filter((boat) => !valid.has(boat));
 }
 
 export interface PlaceFormat {

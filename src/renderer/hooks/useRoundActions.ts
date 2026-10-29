@@ -6,10 +6,8 @@ import {
   reportError,
   reportInfo,
 } from '../utils/userFeedback';
-import {
-  laterRoundBlocksUndoMessage,
-  laterRoundHeatNames,
-} from '../utils/heatRounds';
+import { laterRoundBlocksUndoMessage } from '../utils/heatRounds';
+import { laterRoundHeatNames } from '../../shared/heatNames';
 import type { EventRow } from '../types';
 import type { ScoringHeat } from './useScoringInput';
 

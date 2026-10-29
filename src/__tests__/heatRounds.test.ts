@@ -1,6 +1,6 @@
+import { laterRoundHeatNames } from '../shared/heatNames';
 import {
   laterRoundBlocksUndoMessage,
-  laterRoundHeatNames,
   raceAgainWarning,
   unmatchedSailsMessage,
 } from '../renderer/utils/heatRounds';

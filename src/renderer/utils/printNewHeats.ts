@@ -7,6 +7,7 @@ import escapeHtml from './escapeHtml';
 import { toSubgroupLabel } from '../../shared/subgroups';
 import { heatRaceDB } from '../api/db';
 import { sailorFullName } from './sailorName';
+import { isFinalSeriesView } from './heatView';
 
 interface ExportEvent {
   event_name?: string | null;
@@ -50,9 +51,6 @@ export default async function printNewHeats(
     .replace(/[^a-zA-Z0-9_-]/g, '')
     .toLowerCase();
 
-  const isFinalSeriesView =
-    heats.length > 0 && heats.every((heat) => heat.heat_type === 'Final');
-
   const visibleHeatNumbers = [
     ...new Set(
       heats
@@ -69,7 +67,7 @@ export default async function printNewHeats(
       ? visibleHeatNumbers.map((num) => `heat_${num}`).join('_')
       : 'visible_heats';
 
-  const exportBaseName = isFinalSeriesView
+  const exportBaseName = isFinalSeriesView(heats)
     ? `${safeEventName}_final_series_heats`
     : `${safeEventName}_${heatSuffix}`;
 
