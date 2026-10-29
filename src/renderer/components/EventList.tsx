@@ -11,6 +11,7 @@ import type { EventRow } from '../types';
 import useEventSettings, {
   reportInvalidSettings,
 } from '../hooks/useEventSettings';
+import { formatEventDateRange } from '../utils/formatDate';
 import AdvancedEventSettings from './AdvancedEventSettings';
 import {
   getAssignmentLabel,
@@ -339,7 +340,7 @@ export default function EventList({
                   </span>
                 </span>
                 <span className="event-item-meta">
-                  {event.start_date} &rarr; {event.end_date}
+                  {formatEventDateRange(event.start_date, event.end_date)}
                 </span>
                 <span className="event-item-meta">
                   {getAssignmentLabel(event)}

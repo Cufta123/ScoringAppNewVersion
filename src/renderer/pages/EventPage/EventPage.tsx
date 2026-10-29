@@ -22,6 +22,7 @@ import { eventDB, sailorDB } from '../../api/db';
 import type { EventBoatRow } from '../../types';
 import useRouteEvent from '../../hooks/useRouteEvent';
 import { sailorFullName } from '../../utils/sailorName';
+import { formatEventDateRange } from '../../utils/formatDate';
 
 type MappedEventBoat = EventBoatRow & {
   sailor: string;
@@ -256,9 +257,7 @@ function EventPage() {
               <i className="fa fa-calendar" aria-hidden="true" />
               {event.event_name}
             </h1>
-            <p>
-              {event.start_date} &rarr; {event.end_date}
-            </p>
+            <p>{formatEventDateRange(event.start_date, event.end_date)}</p>
           </div>
         </div>
 
