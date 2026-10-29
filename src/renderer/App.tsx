@@ -81,7 +81,7 @@ function App() {
         </Routes>
       </ErrorBoundary>
       <ToastContainer
-        position="top-right"
+        position="bottom-right"
         // At most four on screen; identical ones are merged (userFeedback).
         // Any more wait their turn instead of covering the page.
         limit={4}

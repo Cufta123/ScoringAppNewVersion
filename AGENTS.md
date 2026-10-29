@@ -746,9 +746,18 @@ For most feature/fix requests, do this in order:
 
 - **Outdoor readability is a requirement**: the app is used by race officers
   (often 60+) on cheap laptops in sunshine. Root font is 17px; secondary text
-  and borders are dark tokens (`--text-secondary`, `--border-strong`); toasts
-  are top-centre with dark text; the window opens maximised. Do not
-  reintroduce pale greys, small uppercase labels or bottom-right toasts.
+  and borders are dark tokens (`--text-secondary`, `--border-strong`); the
+  window opens maximised. Every colour pair a judge must read is >= 4.5:1
+  (white on `--teal` 5.3, on `--danger` 5.3; compute, do not eyeball). Do not
+  reintroduce pale greys, small uppercase labels, half-transparent
+  (`opacity`) disabled buttons, or top toasts. Toasts are bottom-right, dark
+  text, bold title over the body (`ToastMessage`), at most four at once, and an
+  identical toast (same kind + title + body) is refreshed, not stacked
+  (`userFeedback.showToast`); the top of the page holds the navbar, the page
+  toolbars and the sticky Submit Scores bar, which a toast must not cover.
+  A Submit with boats missing marks them in the boat table ("Not scored",
+  `useScoringInput` `isMissingSail`). Dates on screen go through
+  `utils/formatDate.ts` (dd.mm.yyyy; stored values stay ISO).
   `UI_TOUR=1 npx playwright test e2e/ui-tour.spec.ts` seeds a 30-boat event
   and saves a screenshot of every screen (to `e2e-ui-tour/`) for review.
 - **Typed results are never corrected silently.** Leaderboard cells and the

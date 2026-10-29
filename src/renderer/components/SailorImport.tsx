@@ -217,7 +217,11 @@ function SailorImport({ eventId, onImportComplete = null }: SailorImportProps) {
 
       {/* Result */}
       {result && (
-        <div className="info-banner" style={{ marginTop: '10px' }}>
+        <div
+          className="info-banner"
+          style={{ marginTop: '10px' }}
+          role="status"
+        >
           {(result.errors?.length ?? 0) > 0 && (
             <ul style={{ margin: '0 0 6px', paddingLeft: '18px' }}>
               {result.errors?.map((err) => (

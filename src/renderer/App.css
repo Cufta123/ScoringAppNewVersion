@@ -2018,15 +2018,17 @@ button.submit-scores-btn.is-unavailable:hover {
 }
 
 /* Messages must be readable at a glance in sunshine: dark text, a bold
-   coloured edge for the kind of message and larger type. They sit at the top
-   right, BELOW the navbar, so they never cover the navbar or the page's own
-   toolbar buttons (Back, History, Save…); at most four are shown at once
-   (App.tsx) and identical ones are merged (userFeedback.ts). */
+   coloured edge for the kind of message and larger type. They sit at the
+   BOTTOM right: the top of the page holds the navbar, the page toolbars (Save,
+   Edit, Back) and, on the scoring screen, the sticky Submit Scores bar, which a
+   judge has just pressed when a warning appears; the bottom right only covers
+   the tail of a long list. At most four are shown at once (App.tsx) and
+   identical ones are merged (userFeedback.ts). */
 .Toastify__toast-container {
   width: min(420px, 94vw);
 }
-.Toastify__toast-container--top-right {
-  top: 84px;
+.Toastify__toast-container--bottom-right {
+  bottom: 12px;
   right: 12px;
 }
 /* Title as a bold first line, the explanation under it. */
