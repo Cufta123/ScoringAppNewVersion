@@ -11,26 +11,30 @@ import { EditValidityProvider } from '../../components/leaderboard/editValidity'
 import ScoreExplanationDialog, {
   type ExplainTarget,
 } from '../../components/leaderboard/ScoreExplanationDialog';
+import ResultsExportDialog from '../../components/export/ResultsExportDialog';
 import Breadcrumbs from '../../components/shared/Breadcrumbs';
 import EmptyState from '../../components/shared/EmptyState';
 import LoadingState from '../../components/shared/LoadingState';
 import { confirmAction } from '../../utils/userFeedback';
 import './LeaderboardPage.css';
-import type { LeaderboardEntry } from '../../types';
+import type { EventRow, LeaderboardEntry } from '../../types';
 import useRouteEvent from '../../hooks/useRouteEvent';
 import { sailorFullName } from '../../utils/sailorName';
 
 interface LeaderboardContentProps {
-  eventId: number;
+  event: EventRow;
   onUnsavedChange?: ((hasUnsaved: boolean) => void) | null;
 }
 
 function LeaderboardContent({
-  eventId,
+  event,
   onUnsavedChange = null,
 }: LeaderboardContentProps) {
+  const eventId = event.event_id;
   const {
+    leaderboard,
     eventLeaderboard,
+    discardProfiles,
     loading,
     finalSeriesStarted,
     editMode,
@@ -56,10 +60,10 @@ function LeaderboardContent({
     handleCompareRowClick,
     reportInvalidCell,
     invalidCells,
-    exportAs,
     getFlagCode,
   } = useLeaderboard(eventId);
   const invalidCount = Object.keys(invalidCells).length;
+  const [exportOpen, setExportOpen] = useState(false);
   const [liveMessage, setLiveMessage] = useState('Leaderboard loaded.');
   const [explainTarget, setExplainTarget] = useState<ExplainTarget | null>(
     null,
@@ -166,8 +170,25 @@ function LeaderboardContent({
             setCompareMode((m) => !m);
             setSelectedBoatIds([]);
           }}
-          onExport={exportAs}
+          onExport={() => setExportOpen(true)}
         />
+
+        {/* Exports read the SAVED results (leaderboard, eventLeaderboard), never
+            the edit draft (editableLeaderboard): a mid-edit export must not
+            carry unsaved values. Mounted only while open, so each opening
+            starts from the options remembered for this event. */}
+        {exportOpen && (
+          <ResultsExportDialog
+            open
+            onClose={() => setExportOpen(false)}
+            event={event}
+            finalSeriesStarted={finalSeriesStarted}
+            leaderboard={leaderboard}
+            eventLeaderboard={eventLeaderboard}
+            discardProfiles={discardProfiles}
+            hasUnsavedEdits={hasUnsavedChanges}
+          />
+        )}
 
         {editMode && (
           <div className="edit-mode-banner" role="status">
@@ -352,7 +373,7 @@ function LeaderboardPage() {
           ]}
         />
         <LeaderboardContent
-          eventId={event.event_id}
+          event={event}
           onUnsavedChange={setHasUnsavedChanges}
         />
       </main>

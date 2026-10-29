@@ -33,6 +33,12 @@ import type {
 } from '../types';
 import type { HistoryAction } from '../../shared/history/describe';
 import type { ImportSailorsSummary } from '../../shared/importSailors';
+import type {
+  ExportFileRequest,
+  ExportPdfRequest,
+  ExportResult,
+  PrintDocumentRequest,
+} from '../../shared/exportTypes';
 
 /**
  * Result of a bulk sailor import (shared/importSailors). Every field is
@@ -110,6 +116,20 @@ export interface EventDB {
   }>;
   associateBoatWithEvent(boatId: number, eventId: number): Promise<unknown>;
   removeBoatFromEvent(boatId: number, eventId: number): Promise<unknown>;
+  /** The event's logo for the exported documents (a data URL), or null. */
+  readEventExportLogo(eventId: number): Promise<string | null>;
+  /** Store (or with null remove) the event's logo. */
+  saveEventExportLogo(
+    eventId: number,
+    logo: string | null,
+  ): Promise<{ success: true }>;
+}
+
+/** Saving and printing the exported documents (main/ipcHandlers/ExportHandler). */
+export interface ExportDB {
+  exportDocumentPdf(request: ExportPdfRequest): Promise<ExportResult>;
+  exportDocumentFile(request: ExportFileRequest): Promise<ExportResult>;
+  printDocument(request: PrintDocumentRequest): Promise<ExportResult>;
 }
 
 /** What the recovery-backup file dialogs report: cancelled, or where it went. */
@@ -171,6 +191,7 @@ function makeGroup<T extends object>(groupName: string): T {
 export const sailorDB = makeGroup<SailorDB>('sailorDB');
 export const eventDB = makeGroup<EventDB>('eventDB');
 export const heatRaceDB = makeGroup<HeatRaceDB>('heatRaceDB');
+export const exportDB = makeGroup<ExportDB>('exportDB');
 
 /** Whether the preload offers the recovery-backup export (older builds may not). */
 export const canExportEventSnapshot = (): boolean =>

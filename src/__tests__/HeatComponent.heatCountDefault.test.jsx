@@ -12,7 +12,6 @@ jest.mock(
       return <span data-testid="flag" />;
     },
 );
-jest.mock('../renderer/utils/printNewHeats', () => jest.fn(async () => {}));
 jest.mock('../renderer/utils/userFeedback', () => ({
   ...jest.requireActual('../renderer/utils/userFeedback'),
   confirmAction: jest.fn(async () => true),

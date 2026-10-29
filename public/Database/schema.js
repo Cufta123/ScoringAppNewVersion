@@ -421,6 +421,23 @@ const MIGRATIONS = [
       ]);
     },
   },
+  {
+    version: 7,
+    name: 'event logo for the exported documents',
+    // PNG / JPEG data URL, shrunk to at most 600 px by the renderer before it
+    // is saved (src/renderer/exports/logo.ts). NULL = no logo. Deliberately NOT
+    // added to the change journal: installJournalTriggers is not called, so the
+    // trigger columns stay as they were and a picture never lands in the
+    // history (and an unchanged logo never counts as an event change).
+    up(db) {
+      addMissingColumns(db, 'Events', [
+        {
+          name: 'export_logo',
+          sql: 'ALTER TABLE Events ADD COLUMN export_logo TEXT;',
+        },
+      ]);
+    },
+  },
 ];
 
 const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

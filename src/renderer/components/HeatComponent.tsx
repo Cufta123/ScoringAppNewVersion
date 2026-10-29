@@ -4,16 +4,14 @@ import useHeatList from '../hooks/useHeatList';
 import useHeatManagement from '../hooks/useHeatManagement';
 import useHeatSnapshots from '../hooks/useHeatSnapshots';
 import useFinalSeriesStart from '../hooks/useFinalSeriesStart';
-import printNewHeats from '../utils/printNewHeats';
-import { getLastHeats, isFinalSeriesView } from '../utils/heatView';
+import { getLastHeats } from '../utils/heatView';
 import type { HeatWithBoats } from '../utils/heatView';
-import { reportError } from '../utils/userFeedback';
 import AppModal from './shared/AppModal';
 import UnassignedEntriesNotice from './UnassignedEntriesNotice';
 import HeatColumn from './heats/HeatColumn';
 import HeatBackupBar from './heats/HeatBackupBar';
 import { HeatSetupBar, HeatsHeader } from './heats/HeatControls';
-import type { NewHeatsFormat } from './heats/HeatControls';
+import HeatsExportDialog from './export/HeatsExportDialog';
 import type { EventRow } from '../types';
 
 export type { HeatWithBoats };
@@ -51,7 +49,7 @@ function HeatComponent({
   const eventId = event.event_id;
   const [selectedHeatId, setSelectedHeatId] = useState<number | null>(null);
   const [displayLastHeats, setDisplayLastHeats] = useState(true);
-  const [newHeatsFormat, setNewHeatsFormat] = useState<NewHeatsFormat>('excel');
+  const [exportOpen, setExportOpen] = useState(false);
 
   // Every heat-mutating action here (create/recreate/transfer/start-final/
   // restore) chains one or more DB round-trips, and Start Final Series chains
@@ -117,14 +115,6 @@ function HeatComponent({
     [onHeatSelect],
   );
 
-  const exportNewHeats = async () => {
-    try {
-      await printNewHeats(event, heatsToDisplay, newHeatsFormat);
-    } catch (error) {
-      reportError('Could not export visible heats.', error);
-    }
-  };
-
   const canSetUp = !raceHappened && !finalSeriesStarted;
   const canStartFinalSeries = numQualifyingGroups >= 2 && !finalSeriesStarted;
 
@@ -155,13 +145,22 @@ function HeatComponent({
       </AppModal>
 
       <HeatsHeader
-        format={newHeatsFormat}
-        onFormatChange={setNewHeatsFormat}
-        onPrint={() => runExclusive(exportNewHeats)}
+        onExport={() => setExportOpen(true)}
         noHeats={heatsToDisplay.length === 0}
-        isFinalSeriesView={isFinalSeriesView(heatsToDisplay)}
         busy={busy}
       />
+
+      {/* Every heat of the event, so any round can be chosen in the dialog.
+          Mounted only while open: it starts from the latest round and the
+          options remembered for this event. */}
+      {exportOpen && (
+        <HeatsExportDialog
+          open
+          onClose={() => setExportOpen(false)}
+          event={event}
+          heats={heats}
+        />
+      )}
 
       <HeatSetupBar
         canSetUp={canSetUp}

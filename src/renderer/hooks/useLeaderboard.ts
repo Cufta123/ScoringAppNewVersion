@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { compareFleetGroups, getFlagCode } from '../utils/leaderboardUtils';
 import { reportWarning } from '../utils/userFeedback';
-import { exportLeaderboard } from '../utils/leaderboardExport';
 import { useEventDataChanged } from '../utils/eventDataChanged';
 import useLeaderboardEditSession from './useLeaderboardEditSession';
 import useLeaderboardStandings from './useLeaderboardStandings';
@@ -75,16 +74,6 @@ export default function useLeaderboard(eventId: number) {
     fetchLeaderboard();
   });
 
-  // Exporting reads finished data only, so it lives in utils/leaderboardExport
-  // as plain functions; the hook just hands it the current view.
-  const exportAs = (format: string) =>
-    exportLeaderboard(format, {
-      eventId,
-      finalSeriesStarted,
-      leaderboard,
-      eventLeaderboard,
-    });
-
   const hasEventData = eventLeaderboard.length > 0;
   // "Final data" means at least one final race has been scored — not merely
   // that fleets exist. Fleet rows now persist from the moment the final series
@@ -121,6 +110,7 @@ export default function useLeaderboard(eventId: number) {
     // State
     leaderboard,
     eventLeaderboard,
+    discardProfiles,
     loading,
     finalSeriesStarted,
     editMode,
@@ -150,7 +140,6 @@ export default function useLeaderboard(eventId: number) {
     confirmRdg2: edit.confirmRdg2,
     handleCompareRowClick: compare.handleCompareRowClick,
     reportInvalidCell: session.reportInvalidCell,
-    exportAs,
     getFlagCode,
   };
 }

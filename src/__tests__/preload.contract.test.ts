@@ -41,6 +41,7 @@ describe('preload / handler contract', () => {
     require('../main/ipcHandlers/SailorHandler');
     require('../main/ipcHandlers/EventHandler');
     require('../main/ipcHandlers/HeatRaceHandler');
+    require('../main/ipcHandlers/ExportHandler');
   });
 
   const exposedChannels = () => {
@@ -51,9 +52,10 @@ describe('preload / handler contract', () => {
     return names;
   };
 
-  it('exposes the three api groups', () => {
+  it('exposes the four api groups', () => {
     expect(Object.keys(exposed.electron.sqlite).sort()).toEqual([
       'eventDB',
+      'exportDB',
       'heatRaceDB',
       'sailorDB',
     ]);

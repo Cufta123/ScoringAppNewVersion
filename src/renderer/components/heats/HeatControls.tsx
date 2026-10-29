@@ -1,28 +1,15 @@
 import React from 'react';
 import { MAX_HEAT_COUNT } from '../../utils/heatView';
-import FormatSelect from '../shared/FormatSelect';
-import type { ExportFormat } from '../shared/FormatSelect';
-
-export type NewHeatsFormat = ExportFormat;
 
 interface HeatsHeaderProps {
-  format: NewHeatsFormat;
-  onFormatChange: (format: NewHeatsFormat) => void;
-  onPrint: () => void;
+  /** Opens the export dialog (heat lists and scoring sheets). */
+  onExport: () => void;
   noHeats: boolean;
-  isFinalSeriesView: boolean;
   busy: boolean;
 }
 
 /** Section title plus the print/export controls that share its row. */
-export function HeatsHeader({
-  format,
-  onFormatChange,
-  onPrint,
-  noHeats,
-  isFinalSeriesView,
-  busy,
-}: HeatsHeaderProps) {
+export function HeatsHeader({ onExport, noHeats, busy }: HeatsHeaderProps) {
   return (
     <div className="section-header-row">
       <h2>
@@ -30,19 +17,14 @@ export function HeatsHeader({
         Heats
       </h2>
       <div className="list-header-actions">
-        <FormatSelect
-          ariaLabel="New heats format"
-          value={format}
-          onChange={onFormatChange}
-        />
         <button
           type="button"
           className="btn-ghost"
-          onClick={onPrint}
+          onClick={onExport}
           disabled={noHeats || busy}
           title={noHeats ? 'Create the heats first' : undefined}
         >
-          {isFinalSeriesView ? 'Print Final Series Heats' : 'Print New Heats'}
+          Export heats…
         </button>
       </div>
     </div>

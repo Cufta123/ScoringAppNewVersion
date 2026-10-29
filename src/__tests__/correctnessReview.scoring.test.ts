@@ -3,7 +3,10 @@
  * reading the rules against the code; it failed before its fix.
  */
 import { normalizeDiscardConfig } from '../shared/discardProfile';
-import { buildExportData } from '../renderer/utils/leaderboardExport';
+import {
+  DEFAULT_RESULTS_OPTIONS,
+  buildResultsModel,
+} from '../renderer/exports/resultsModel';
 import type { LeaderboardEntry } from '../renderer/types';
 import { rankQualifyingSeries } from '../shared/scoring/series';
 import {
@@ -109,12 +112,24 @@ describe('exported totals carry no floating-point noise', () => {
       placement_group: 'Gold',
     }) as unknown as LeaderboardEntry;
 
-  const totalOf = (data: ReturnType<typeof buildExportData>) =>
-    data.sections[0].rows[0][data.header.indexOf('Total')];
+  const model = (input: {
+    finalSeriesStarted: boolean;
+    leaderboard: LeaderboardEntry[];
+    eventLeaderboard: LeaderboardEntry[];
+  }) =>
+    buildResultsModel(
+      {
+        ...input,
+        discardProfiles: { qualifying: 'standard', final: 'standard' },
+        clubs: {},
+      },
+      DEFAULT_RESULTS_OPTIONS,
+    );
+  const totalOf = (data: ReturnType<typeof model>) =>
+    data.sections[0].rows[0].total;
 
   it('qualifying export: Total is the exact sum of the race points', () => {
-    const data = buildExportData({
-      eventId: 1,
+    const data = model({
       finalSeriesStarted: false,
       leaderboard: [],
       eventLeaderboard: [entry(1, ['1.1', '2.2'])],
@@ -123,8 +138,7 @@ describe('exported totals carry no floating-point noise', () => {
   });
 
   it('final export: Total is the exact sum of qualifying + final points', () => {
-    const data = buildExportData({
-      eventId: 1,
+    const data = model({
       finalSeriesStarted: true,
       leaderboard: [entry(1, ['2.2'])],
       eventLeaderboard: [entry(1, ['1.1'])],

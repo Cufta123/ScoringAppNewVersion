@@ -27,6 +27,8 @@ Use this document first. Only search the repo when this file does not answer the
       explain score / tie-break, Final Series eligibility, max heat size
     - `FinalSeriesHandler.ts` — `startFinalSeriesAtomic`
     - `SnapshotHandler.ts` — event snapshot export / restore (file dialogs)
+  - `src/main/ipcHandlers/ExportHandler.ts` — saving and printing the exported
+    documents (see "Exported documents" in §10)
 - Pure/domain logic (extracted out of the handlers): `src/main/functions/`
   (see §5 for the full module map).
 - Scoring core and cross-process helpers: `src/shared/`. The series scoring
@@ -777,10 +779,49 @@ For most feature/fix requests, do this in order:
   Confirm buttons name the action ("Create heats", "Discard changes"), not
   "Confirm"/"OK", and the safe choice is the first button, focused by default.
   A leaderboard penalty cell shows code and points ("ZFP 5.2", "(DSQ 11)";
-  exports still show the code only). On the scoring screen Ctrl/Cmd+Enter
+  the exported sheets show it too, unless "Show penalty points" is off).
+  On the scoring screen Ctrl/Cmd+Enter
   submits the race (the Submit button's title says so).
   `UI_TOUR=1 npx playwright test e2e/ui-tour.spec.ts` seeds a 30-boat event
   and saves a screenshot of every screen (to `e2e-ui-tour/`) for review.
+- **Exported documents** (results, starting list, heat lists / scoring
+  sheets): one dialog (`components/export/`, opened by "Export…" on the
+  leaderboard, "Export starting list…" on the event page, "Export heats…" on
+  the heats) with the options on the left and a live preview on the right (a
+  sandboxed `<iframe srcdoc>` of the exact document, rebuilt 200 ms after the
+  last change). `src/renderer/exports/` holds pure builders from plain data and
+  options to one self-contained HTML string (`resultsDocument`, `startingList`,
+  `heats`; shared `documentShell` header / print CSS / signatures; EN and HR
+  wording in `i18n.ts`, codes and Q1/F1 labels never translated), the text
+  formats (`resultsText`: TXT, Markdown, CSV) and the styled workbooks
+  (`resultsExcel`, and the Excel writers inside `startingList` / `heats`, over
+  `excelShared`). Every format of a document is drawn from one model
+  (`resultsModel`), so they cannot disagree. All user text goes through
+  `escapeHtml` (and `cssString` inside the page-footer CSS); no external
+  resources. **PDF** = Electron renders that same HTML (`ExportHandler`:
+  temp file, hidden window with `javascript:false`, sandbox, no preload, own
+  session; `printToPDF` with the footer "Page x of y"; window and temp file
+  removed in every outcome). **Print** loads the same page in the same kind of
+  window and calls `webContents.print`. The page size and margins live in the
+  document's CSS (`@page`); on screen / print / HTML file the page numbers are
+  CSS margin boxes, for the PDF Electron's footer (`HtmlTarget`). Excel, HTML,
+  CSV, TXT and Markdown go through the main process's save dialog too
+  (`exportDocumentFile`). A cancelled dialog is `{ status: 'canceled' }`, not an
+  error. Exports read the SAVED standings only (`ResultsExportDialog` gets
+  `leaderboard` / `eventLeaderboard`, never `editableLeaderboard`; covered in
+  `LeaderboardPage.test.jsx`). Options are remembered per event and document
+  type in localStorage (`useExportOptions`, never required). The **event logo**
+  is `Events.export_logo` (migration 7; a PNG/JPEG data URL shrunk to 600 px by
+  `exports/logo.ts`, refused over 5 MB or if not a picture): kept out of
+  `readAllEvents` (own channels `readEventExportLogo` / `saveEventExportLogo`),
+  deliberately NOT in the change journal (the triggers were not reinstalled),
+  carried by event snapshots and backups. Flags come offline from
+  react-world-flags (`exports/flags.ts`), in the PDF / HTML only; Excel has the
+  country code. jsPDF / jspdf-autotable / file-saver are no longer imported by
+  the exports (still in package.json). **E2E hook**: with
+  `SCORING_APP_EXPORT_DIR` set AND `SCORING_APP_HIDDEN=1` the handler writes
+  into that directory under the suggested name without a dialog and Print does
+  nothing; `e2e/ui-tour.spec.ts` uses it to save sample files.
 - **Typed results are never corrected silently.** Leaderboard cells and the
   scoring page's place field are text inputs (a `type="number"` field changes
   on the mouse wheel / arrow keys). `utils/raceCellInput.ts` decides what is

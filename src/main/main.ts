@@ -13,6 +13,7 @@ import { resolveHtmlPath, resolvePreloadPath } from './util';
 import './ipcHandlers/SailorHandler';
 import './ipcHandlers/EventHandler';
 import './ipcHandlers/HeatRaceHandler';
+import './ipcHandlers/ExportHandler';
 import handle, { setCallObserver } from './ipcHandlers/handle';
 import { autoBackup, dbPath } from '../../public/Database/DBManager';
 import { journalObserver } from './functions/changeJournal';

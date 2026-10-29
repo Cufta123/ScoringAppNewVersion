@@ -40,3 +40,17 @@ export const formatDateTime = (
     `${two(date.getHours())}:${two(date.getMinutes())}:${two(date.getSeconds())}`
   );
 };
+
+/**
+ * A moment without the seconds: "29.10.2026 10:55", for the "Results as of"
+ * line of an exported document. Same rules as `formatDateTime`.
+ */
+export const formatDateTimeShort = (
+  value: string | number | Date | null | undefined,
+): string => {
+  const full = formatDateTime(value);
+  // "dd.mm.yyyy HH:mm:ss" -> "dd.mm.yyyy HH:mm"; anything else is left alone.
+  return /^\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}:\d{2}$/.test(full)
+    ? full.slice(0, 16)
+    : full;
+};
