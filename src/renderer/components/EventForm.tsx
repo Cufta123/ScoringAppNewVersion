@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { reportError, reportInfo } from '../utils/userFeedback';
 import { eventDB } from '../api/db';
+import useExclusiveAction from '../hooks/useExclusiveAction';
 import useEventSettings, {
   reportInvalidSettings,
 } from '../hooks/useEventSettings';
@@ -15,15 +16,12 @@ function EventForm({ onEventCreated = null }: EventFormProps) {
   const [eventLocation, setEventLocation] = useState('');
   const [eventStartDate, setEventStartDate] = useState('');
   const [eventEndDate, setEventEndDate] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  // One create at a time: the name check awaits before anything is locked, so
+  // a plain `submitting` state let two quick Enter presses both create it.
+  const { busy: submitting, runExclusive } = useExclusiveAction();
   const settings = useEventSettings();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Prevent a second create while the first round-trip is still in flight.
-    if (submitting) return;
-
+  const createEvent = async () => {
     if (eventStartDate && eventEndDate && eventEndDate < eventStartDate) {
       reportInfo(
         'The end date is before the start date. Please pick an end date that is the same day or later.',
@@ -61,7 +59,6 @@ function EventForm({ onEventCreated = null }: EventFormProps) {
       return;
     }
 
-    setSubmitting(true);
     try {
       // Store the trimmed values so what's saved matches what the duplicate
       // check above normalized — otherwise a stray trailing space passes the
@@ -81,9 +78,12 @@ function EventForm({ onEventCreated = null }: EventFormProps) {
       if (onEventCreated) onEventCreated();
     } catch (error) {
       reportError('Could not create the event.', error);
-    } finally {
-      setSubmitting(false);
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    return runExclusive(createEvent);
   };
 
   return (
