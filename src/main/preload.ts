@@ -35,6 +35,8 @@ const SQLITE_CHANNELS = {
     'readEventHistory',
     'revertHistoryAction',
     'restoreEventToHistoryPoint',
+    'readEventExportLogo',
+    'saveEventExportLogo',
   ],
   heatRaceDB: [
     'readAllHeats',
@@ -60,6 +62,7 @@ const SQLITE_CHANNELS = {
     'exportEventSnapshotToFile',
     'restoreEventSnapshotFromFile',
   ],
+  exportDB: ['exportDocumentPdf', 'exportDocumentFile', 'printDocument'],
 } as const;
 
 type SqliteChannelGroups = typeof SQLITE_CHANNELS;

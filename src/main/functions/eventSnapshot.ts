@@ -1,5 +1,6 @@
 import { db } from '../../../public/Database/DBManager';
 import { invalidateAssignmentSnapshotCache } from './raceAssignmentSnapshot';
+import { isAcceptableLogo } from './exportLogo';
 
 // Full export/restore of a single event's rows across every event-scoped table.
 // Used by the snapshot-to-file IPC handlers; kept here so the table list and
@@ -174,6 +175,18 @@ export function restoreEventSnapshot(
       eventRow.shrs_heat_overflow_policy,
       event_id,
     );
+
+    // The export logo travels with the event: the snapshot holds the whole
+    // Events row (`SELECT *`), picture included, so a restored or imported
+    // event looks the same in its documents. A snapshot from before the logo
+    // existed has no such field and leaves the current logo alone; a logo that
+    // is not a PNG/JPEG data URL (a hand-edited file) is dropped, not stored.
+    if ('export_logo' in eventRow) {
+      db.prepare('UPDATE Events SET export_logo = ? WHERE event_id = ?').run(
+        isAcceptableLogo(eventRow.export_logo) ? eventRow.export_logo : null,
+        event_id,
+      );
+    }
 
     // OR IGNORE: a snapshot taken before entries were made unique (schema
     // migration 2) can list a boat twice; keep one entry instead of aborting.

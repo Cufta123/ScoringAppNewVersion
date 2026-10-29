@@ -9,6 +9,7 @@ import { readEventHistory } from '../functions/changeJournal';
 import revertHistoryAction from '../functions/revertHistoryAction';
 import restoreToHistoryPoint from '../functions/restoreToHistoryPoint';
 import retryWhenBusy from '../functions/retryWhenBusy';
+import { isAcceptableLogo } from '../functions/exportLogo';
 import {
   normalizeHeatOverflowPolicy,
   normalizeQualifyingAssignmentMode,
@@ -26,9 +27,45 @@ handle('restoreEventToHistoryPoint', async (event, event_id, action_id) =>
   restoreToHistoryPoint(Number(event_id), Number(action_id)),
 );
 
+/**
+ * Every event column except the export logo: the logo is a picture of up to
+ * a few hundred KB, and the event list is read on every screen. It has its
+ * own channels below.
+ */
+const EVENT_COLUMNS = `event_id, event_name, event_location, start_date,
+  end_date, shrs_version, shrs_qualifying_assignment_mode,
+  shrs_discard_profile_qualifying, shrs_discard_profile_final,
+  shrs_discard_locked_qualifying, shrs_discard_locked_final,
+  shrs_heat_overflow_policy`;
+
 handle('readAllEvents', async () => {
-  const events = await db.prepare('SELECT * FROM Events').all();
+  const events = await db.prepare(`SELECT ${EVENT_COLUMNS} FROM Events`).all();
   return events;
+});
+
+handle('readEventExportLogo', async (event, raw_event_id) => {
+  const row = db
+    .prepare('SELECT export_logo FROM Events WHERE event_id = ?')
+    .get(Number(raw_event_id)) as { export_logo: string | null } | undefined;
+  return row?.export_logo ?? null;
+});
+
+handle('saveEventExportLogo', async (event, raw_event_id, logo) => {
+  const event_id = Number(raw_event_id);
+  if (logo !== null && !isAcceptableLogo(logo)) {
+    throw new Error(
+      'That logo cannot be saved: it must be a PNG or JPEG picture of at most 2 MB. Choose the picture again.',
+    );
+  }
+  const result = db
+    .prepare('UPDATE Events SET export_logo = ? WHERE event_id = ?')
+    .run(logo, event_id);
+  if (result.changes === 0) {
+    throw new Error(
+      'This event no longer exists, so the logo was not saved. Go back to the event list.',
+    );
+  }
+  return { success: true };
 });
 
 handle(
