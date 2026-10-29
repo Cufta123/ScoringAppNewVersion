@@ -54,7 +54,24 @@ function App() {
       },
     );
 
+    // A toast that closes by itself (a warning whose problem is also marked on
+    // the page) waits while the keyboard is on it, as it does for the pointer.
+    const onFocusIn = (event: FocusEvent) => {
+      if ((event.target as Element | null)?.closest?.('.Toastify__toast')) {
+        toast.pause();
+      }
+    };
+    const onFocusOut = (event: FocusEvent) => {
+      if ((event.target as Element | null)?.closest?.('.Toastify__toast')) {
+        toast.play();
+      }
+    };
+    document.addEventListener('focusin', onFocusIn);
+    document.addEventListener('focusout', onFocusOut);
+
     return () => {
+      document.removeEventListener('focusin', onFocusIn);
+      document.removeEventListener('focusout', onFocusOut);
       window.removeEventListener('unhandledrejection', onUnhandledRejection);
       window.removeEventListener('error', onWindowError);
       stopWatchingBackups?.();
@@ -81,7 +98,7 @@ function App() {
         </Routes>
       </ErrorBoundary>
       <ToastContainer
-        position="bottom-right"
+        position="bottom-left"
         // At most four on screen; identical ones are merged (userFeedback).
         // Any more wait their turn instead of covering the page.
         limit={4}

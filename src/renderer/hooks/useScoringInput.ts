@@ -263,6 +263,7 @@ export default function useScoringInput({
         `These sail numbers are not in ${heat.heat_name}: ${strangers.join(', ')}.\n\n` +
           'Remove them from finish order and score only boats in this heat.',
         'Invalid sail numbers',
+        { inline: true },
       );
       return;
     }
@@ -283,6 +284,7 @@ export default function useScoringInput({
         `${missingBoatsLine(missingBoats)}\n` +
           'Give each a place (click its row) or a penalty such as DNS.',
         'Some boats are not scored yet',
+        { inline: true },
       );
       return;
     }

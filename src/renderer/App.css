@@ -2019,17 +2019,22 @@ button.submit-scores-btn.is-unavailable:hover {
 
 /* Messages must be readable at a glance in sunshine: dark text, a bold
    coloured edge for the kind of message and larger type. They sit at the
-   BOTTOM right: the top of the page holds the navbar, the page toolbars (Save,
-   Edit, Back) and, on the scoring screen, the sticky Submit Scores bar, which a
-   judge has just pressed when a warning appears; the bottom right only covers
-   the tail of a long list. At most four are shown at once (App.tsx) and
-   identical ones are merged (userFeedback.ts). */
+   BOTTOM LEFT, narrow (360px, under 30% of a 1280px window). Every screen puts
+   its controls on the right or across the middle of a row: the leaderboard's
+   result inputs, the row actions (Edit, Remove, Undo) and the sticky Submit
+   Scores bar are right of the sail number and name, while the left edge is the
+   rank, sail number and name, which are only read. The top holds the navbar and
+   the page toolbars, and bottom-right (tried first) sat over the result inputs
+   and the row buttons. A warning whose problem is also marked on the page
+   closes itself after 8 s (userFeedback.reportWarning `inline`); errors and
+   other warnings stay until dismissed. At most four are shown at once
+   (App.tsx) and identical ones are merged (userFeedback.ts). */
 .Toastify__toast-container {
-  width: min(420px, 94vw);
+  width: min(360px, 94vw);
 }
-.Toastify__toast-container--bottom-right {
+.Toastify__toast-container--bottom-left {
   bottom: 12px;
-  right: 12px;
+  left: 12px;
 }
 /* Title as a bold first line, the explanation under it. */
 .toast-message .toast-title {
