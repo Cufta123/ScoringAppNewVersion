@@ -130,6 +130,10 @@ export interface EventSettings {
   setAssignmentMode: (value: string) => void;
   heatOverflowPolicy: string;
   setHeatOverflowPolicy: (value: string) => void;
+  /** The qualifying series has started: the assignment mode is fixed. */
+  assignmentLocked: boolean;
+  /** The Final Series is split: the final fleets setting is fixed. */
+  overflowLocked: boolean;
   qualifying: DiscardSeries;
   final: DiscardSeries;
   /**
@@ -153,6 +157,8 @@ export default function useEventSettings(): EventSettings {
   const [advancedEnabled, setAdvancedEnabled] = useState(false);
   const [assignmentMode, setAssignmentMode] = useState('progressive');
   const [heatOverflowPolicy, setHeatOverflowPolicy] = useState('auto-increase');
+  const [assignmentLocked, setAssignmentLocked] = useState(false);
+  const [overflowLocked, setOverflowLocked] = useState(false);
   const qualifying = useDiscardSeries();
   const final = useDiscardSeries();
 
@@ -176,6 +182,11 @@ export default function useEventSettings(): EventSettings {
     );
     setAssignmentMode(assignment);
     setHeatOverflowPolicy(overflow);
+    setAssignmentLocked(
+      Number(event.qualifying_started) === 1 ||
+        event.shrs_discard_locked_qualifying === 1,
+    );
+    setOverflowLocked(Number(event.final_series_started) === 1);
 
     // The panel opens expanded only when the event actually uses a
     // non-default setting, so an untouched event edits as simply as it reads.
@@ -201,6 +212,8 @@ export default function useEventSettings(): EventSettings {
     setAdvancedEnabled(false);
     setAssignmentMode('progressive');
     setHeatOverflowPolicy('auto-increase');
+    setAssignmentLocked(false);
+    setOverflowLocked(false);
     qualifying.reset();
     final.reset();
   };
@@ -235,6 +248,8 @@ export default function useEventSettings(): EventSettings {
     setAssignmentMode,
     heatOverflowPolicy,
     setHeatOverflowPolicy,
+    assignmentLocked,
+    overflowLocked,
     qualifying,
     final,
     loadFrom,

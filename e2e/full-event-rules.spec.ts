@@ -91,7 +91,7 @@ test('advanced settings drive scoring and a 7-race series reaches the final seri
     .getByLabel('Qualifying Assignment Mode')
     .selectOption('pre-assigned');
   await window
-    .getByLabel('Heat Overflow Policy')
+    .getByLabel('Final fleets over 20 boats')
     .selectOption('confirm-allow-oversize');
   await window.getByLabel('Qualifying Discards').selectOption('custom');
   await window.getByPlaceholder('e.g. 4,8,16,24').fill('3,6,9');
@@ -101,7 +101,7 @@ test('advanced settings drive scoring and a 7-race series reaches the final seri
   // The settings must persist and be reflected on the event row.
   const eventRow = window.locator('.event-row', { hasText: EVENT_NAME });
   await expect(eventRow).toContainText('Pre-Assignments');
-  await expect(eventRow).toContainText('Oversize with confirm');
+  await expect(eventRow).toContainText('Final fleets over 20 if confirmed');
 
   // ── Register 8 boats spanning 2 heats ─────────────────────────────────────
   await openEvent(window, EVENT_NAME);

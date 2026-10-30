@@ -4,6 +4,7 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import HeatComponent from '../renderer/components/HeatComponent';
+import { confirmAction } from '../renderer/utils/userFeedback';
 
 jest.mock(
   'react-world-flags',
@@ -131,5 +132,67 @@ describe('HeatComponent heat-count default', () => {
     );
 
     await waitFor(() => expect(heatSelect()).toHaveValue('1'));
+  });
+  it('says so when more heats are chosen than the boats need (SHRS 2.1)', async () => {
+    setup(12);
+    await waitFor(() => expect(heatSelect()).toHaveValue('1'));
+    expect(screen.queryByText(/as few as possible/)).not.toBeInTheDocument();
+
+    fireEvent.change(heatSelect(), { target: { value: '3' } });
+    expect(
+      screen.getByText(
+        /12 boats fit in 1 heat of at most 20\. SHRS 2\.1: the number of heats shall be as few as possible\./,
+      ),
+    ).toBeVisible();
+  });
+
+  it('asks before creating more heats than needed, and stops on "Go back"', async () => {
+    setup(12);
+    await waitFor(() => expect(heatSelect()).toHaveValue('1'));
+    fireEvent.change(heatSelect(), { target: { value: '3' } });
+    confirmAction.mockResolvedValueOnce(false);
+
+    fireEvent.click(screen.getByRole('button', { name: /create heats/i }));
+
+    await waitFor(() => expect(confirmAction).toHaveBeenCalled());
+    expect(confirmAction).toHaveBeenCalledWith(
+      expect.stringContaining('Create 3 heats anyway?'),
+      'More heats than needed',
+      expect.objectContaining({
+        confirmLabel: 'Create 3 heats',
+        cancelLabel: 'Go back',
+      }),
+    );
+    expect(
+      window.electron.sqlite.heatRaceDB.createInitialHeatsAtomic,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('creates them when confirmed', async () => {
+    setup(12);
+    await waitFor(() => expect(heatSelect()).toHaveValue('1'));
+    fireEvent.change(heatSelect(), { target: { value: '3' } });
+    confirmAction.mockResolvedValueOnce(true);
+
+    fireEvent.click(screen.getByRole('button', { name: /create heats/i }));
+
+    await waitFor(() =>
+      expect(
+        window.electron.sqlite.heatRaceDB.createInitialHeatsAtomic,
+      ).toHaveBeenCalledWith(5, 3),
+    );
+  });
+
+  it('does not ask for the fewest heats', async () => {
+    setup(12);
+    await waitFor(() => expect(heatSelect()).toHaveValue('1'));
+    confirmAction.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: /create heats/i }));
+    await waitFor(() =>
+      expect(
+        window.electron.sqlite.heatRaceDB.createInitialHeatsAtomic,
+      ).toHaveBeenCalledWith(5, 1),
+    );
+    expect(confirmAction).not.toHaveBeenCalled();
   });
 });

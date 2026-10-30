@@ -36,6 +36,8 @@ interface HeatSetupBarProps {
   canSetUp: boolean;
   heatsCreated: boolean;
   numHeats: number;
+  /** Shown when more heats are chosen than the entry list needs (SHRS 2.1). */
+  extraHeatsNote?: string | null;
   onNumHeatsChange: (count: number) => void;
   onCreateOrRecreate: () => void;
   busy: boolean;
@@ -49,6 +51,7 @@ export function HeatSetupBar({
   canSetUp,
   heatsCreated,
   numHeats,
+  extraHeatsNote = null,
   onNumHeatsChange,
   onCreateOrRecreate,
   busy,
@@ -81,6 +84,12 @@ export function HeatSetupBar({
           <button type="button" onClick={onCreateOrRecreate} disabled={busy}>
             {heatsCreated ? 'Recreate Heats' : 'Create Heats'}
           </button>
+          {extraHeatsNote && (
+            <p className="heat-count-warning" role="status">
+              <i className="fa fa-triangle-exclamation" aria-hidden="true" />{' '}
+              {extraHeatsNote}
+            </p>
+          )}
         </>
       )}
       {hasMultipleRounds && (

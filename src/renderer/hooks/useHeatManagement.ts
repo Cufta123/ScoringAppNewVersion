@@ -53,41 +53,43 @@ export default function useHeatManagement({
   // heats are already on (the useful default for "Recreate Heats"), else the
   // fewest heats the entry list allows. A choice is never overwritten.
   const [chosenHeatCount, setChosenHeatCount] = useState<number | null>(null);
-  const [entryListHeatCount, setEntryListHeatCount] = useState(1);
-  const hasChosen = chosenHeatCount !== null;
+  // Boats entered in the event; null until read (or if the read failed).
+  const [entryCount, setEntryCount] = useState<number | null>(null);
 
-  // Seed the entry-list default. Runs while no heats exist (the only time the
-  // default is shown) and stops as soon as the user picks a value, so adding a
-  // boat cannot move a choice they already made.
+  // Read the entry list size: it sets the default and the SHRS 2.1 warning.
+  // Defensive on both sides: a read that rejects or an unavailable channel
+  // must not take the component down; the main process still refuses a split
+  // that breaks SHRS 2.3.
   useEffect(() => {
-    if (hasChosen || heatsCreated) return undefined;
-
     let cancelled = false;
-    // Defensive on both sides: this is a convenience default, so neither a
-    // read that rejects nor an unavailable channel should take the component
-    // down. Worst case the dropdown keeps its current value, and the main
-    // process still refuses a split that breaks SHRS 2.3.
-    const seedFromEntryList = async () => {
+    const readEntries = async () => {
       try {
         const entries = await eventDB.readBoatsByEvent(eventId);
         if (cancelled) return;
-        const count = Array.isArray(entries) ? entries.length : 0;
-        setEntryListHeatCount(minimumHeatsForEntries(count));
+        setEntryCount(Array.isArray(entries) ? entries.length : 0);
       } catch {
         // Keep whatever the control already shows.
       }
     };
-    seedFromEntryList();
+    readEntries();
     return () => {
       cancelled = true;
     };
-  }, [eventId, hasChosen, heatsCreated, refreshToken]);
+  }, [eventId, refreshToken]);
 
-  let numHeats = entryListHeatCount;
+  const minimumHeats = minimumHeatsForEntries(entryCount ?? 0);
+  let numHeats = minimumHeats;
   if (chosenHeatCount !== null) numHeats = chosenHeatCount;
   else if (heatsCreated && numQualifyingGroups > 0) {
     numHeats = numQualifyingGroups;
   }
+  // More heats than the entry list needs: allowed (the race committee may have
+  // a reason), but SHRS 2.1 says as few as possible, so it is pointed out.
+  const moreHeatsThanNeeded =
+    entryCount !== null && entryCount > 0 && numHeats > minimumHeats;
+  const extraHeatsNote = moreHeatsThanNeeded
+    ? `${entryCount} boats fit in ${minimumHeats} heat${minimumHeats === 1 ? '' : 's'} of at most 20. SHRS 2.1: the number of heats shall be as few as possible.`
+    : null;
 
   const createHeats = useCallback(async () => {
     if (heatsLocked) {
@@ -95,6 +97,20 @@ export default function useHeatManagement({
         'Cannot create heats after a race has happened.',
         'Action blocked',
       );
+      return;
+    }
+
+    if (
+      extraHeatsNote &&
+      !(await confirmAction(
+        `${extraHeatsNote}\n\nCreate ${numHeats} heats anyway?`,
+        'More heats than needed',
+        {
+          confirmLabel: `Create ${numHeats} heats`,
+          cancelLabel: 'Go back',
+        },
+      ))
+    ) {
       return;
     }
 
@@ -124,7 +140,7 @@ export default function useHeatManagement({
     }
     reportInfo('Heats created successfully!', 'Success');
     await reloadHeats();
-  }, [heatsLocked, eventId, numHeats, reloadHeats]);
+  }, [heatsLocked, eventId, numHeats, extraHeatsNote, reloadHeats]);
 
   const recreateHeats = useCallback(async () => {
     if (heatsLocked) {
@@ -136,7 +152,9 @@ export default function useHeatManagement({
     }
 
     const confirmed = await confirmAction(
-      'Recreate all heats?\n\nThe current heats and any manual boat moves between heats will be discarded, and boats will be re-assigned from scratch.',
+      `Recreate all heats?\n\nThe current heats and any manual boat moves between heats will be discarded, and boats will be re-assigned from scratch.${
+        extraHeatsNote ? `\n\n${extraHeatsNote}` : ''
+      }`,
       'Recreate heats',
       {
         confirmLabel: 'Recreate heats',
@@ -166,7 +184,7 @@ export default function useHeatManagement({
     }
     reportInfo('Heats recreated successfully!', 'Success');
     await reloadHeats();
-  }, [heatsLocked, eventId, numHeats, reloadHeats]);
+  }, [heatsLocked, eventId, numHeats, extraHeatsNote, reloadHeats]);
 
   const transferBoat = useCallback(
     async (boat: HeatBoatRow, fromHeatId: number, toHeatId: number) => {
@@ -223,6 +241,7 @@ export default function useHeatManagement({
 
   return {
     numHeats,
+    extraHeatsNote,
     chooseHeatCount: setChosenHeatCount,
     createHeats,
     recreateHeats,

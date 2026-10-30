@@ -166,6 +166,7 @@ function HeatComponent({
         canSetUp={canSetUp}
         heatsCreated={heatsCreated}
         numHeats={management.numHeats}
+        extraHeatsNote={management.extraHeatsNote}
         onNumHeatsChange={management.chooseHeatCount}
         onCreateOrRecreate={() =>
           runExclusive(

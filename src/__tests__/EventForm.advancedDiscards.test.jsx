@@ -60,7 +60,7 @@ describe('EventForm advanced discard thresholds', () => {
       screen.queryByLabelText('Qualifying Assignment Mode'),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByLabelText('Heat Overflow Policy'),
+      screen.queryByLabelText('Final fleets over 20 boats'),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByLabelText('Qualifying Discards'),

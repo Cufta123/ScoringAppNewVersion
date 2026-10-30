@@ -45,7 +45,7 @@ test('full advanced-settings -> 7 rounds -> final series', async () => {
     .getByLabel('Qualifying Assignment Mode')
     .selectOption('pre-assigned');
   await window
-    .getByLabel('Heat Overflow Policy')
+    .getByLabel('Final fleets over 20 boats')
     .selectOption('confirm-allow-oversize');
   await window.getByLabel('Qualifying Discards').selectOption('custom');
   await window.getByPlaceholder('e.g. 4,8,16,24').fill('3,6,9');

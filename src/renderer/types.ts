@@ -69,6 +69,10 @@ export interface EventRow {
   shrs_discard_locked_qualifying: 0 | 1;
   shrs_discard_locked_final: 0 | 1;
   shrs_heat_overflow_policy: HeatOverflowPolicy;
+  /** 1 once a qualifying race was scored (readAllEvents only). */
+  qualifying_started?: 0 | 1;
+  /** 1 once the Final Series was split into fleets (readAllEvents only). */
+  final_series_started?: 0 | 1;
 }
 
 export interface ClubRow {

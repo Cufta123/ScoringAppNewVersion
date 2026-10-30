@@ -279,9 +279,19 @@ export async function addSailor(
   await expect(window.getByText(sail, { exact: true })).toBeVisible();
 }
 
-/** Create N qualifying heats on the event/heat page. */
+/**
+ * Create N qualifying heats on the event/heat page. More heats than the entry
+ * list needs (SHRS 2.1) is asked about first; the tests that do it mean it.
+ */
 export async function createHeats(window: Page, count: number): Promise<void> {
   await window.getByLabel('Number of heats').selectOption(String(count));
   await window.getByRole('button', { name: 'Create Heats' }).click();
-  await expect(window.getByText(/Heat A1/i)).toBeVisible();
+  const confirmExtra = window.getByRole('button', {
+    name: `Create ${count} heats`,
+    exact: true,
+  });
+  const created = window.getByText(/Heat A1/i);
+  await expect(confirmExtra.or(created).first()).toBeVisible();
+  if (await confirmExtra.isVisible()) await confirmExtra.click();
+  await expect(created).toBeVisible();
 }

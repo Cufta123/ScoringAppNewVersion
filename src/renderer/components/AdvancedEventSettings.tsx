@@ -81,26 +81,49 @@ export default function AdvancedEventSettings({
           <select
             id={`${idPrefix}-assignment`}
             value={settings.assignmentMode}
+            disabled={settings.assignmentLocked}
             onChange={(e) => settings.setAssignmentMode(e.target.value)}
           >
-            <option value="progressive">Progressive Assignment</option>
-            <option value="pre-assigned">Pre-Assignments</option>
+            <option value="progressive">Progressive Assignment (3.1)</option>
+            <option value="pre-assigned">Pre-Assignments (3.2)</option>
           </select>
+          <small className="form-note">
+            {settings.assignmentMode === 'pre-assigned'
+              ? 'Boats keep the heat they get for the first race for the whole qualifying series. Use the method the Notice of Race states.'
+              : 'Race 1 is seeded 1, 2, 3 … 3, 2, 1; after that boats move by the Heat Movement Table. Use the method the Notice of Race states.'}
+          </small>
+          {settings.assignmentLocked && (
+            <small className="form-locked-note">
+              Locked: the qualifying series has started with this method.
+            </small>
+          )}
         </label>
       </div>
       <div>
         <label htmlFor={`${idPrefix}-overflow`}>
-          Heat Overflow Policy
+          Final fleets over 20 boats
           <select
             id={`${idPrefix}-overflow`}
             value={settings.heatOverflowPolicy}
+            disabled={settings.overflowLocked}
             onChange={(e) => settings.setHeatOverflowPolicy(e.target.value)}
           >
-            <option value="auto-increase">Auto-increase number of heats</option>
+            <option value="auto-increase">Add a fleet (max 20 each)</option>
             <option value="confirm-allow-oversize">
-              Allow oversize only after confirm
+              Ask, allow over 20 if confirmed
             </option>
           </select>
+          <small className="form-note">
+            Used only when the Final Series is split (SHRS 2.3: at most 20 boats
+            a fleet). There are as many fleets as qualifying heats (4.1), so a
+            fleet can only pass 20 boats when boats were entered after the heats
+            were made. Qualifying heats are always kept at 20 or fewer.
+          </small>
+          {settings.overflowLocked && (
+            <small className="form-locked-note">
+              Locked: the Final Series has already been split into fleets.
+            </small>
+          )}
         </label>
       </div>
       <DiscardField

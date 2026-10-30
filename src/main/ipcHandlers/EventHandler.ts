@@ -38,8 +38,26 @@ const EVENT_COLUMNS = `event_id, event_name, event_location, start_date,
   shrs_discard_locked_qualifying, shrs_discard_locked_final,
   shrs_heat_overflow_policy`;
 
+/**
+ * Whether each series has begun, for the edit form: the qualifying assignment
+ * mode is fixed from the first qualifying race (or once the discard setting
+ * was locked by one), the overflow policy once the Final Series is split.
+ * The same facts guard `updateEvent`.
+ */
+const SERIES_STARTED_COLUMNS = `
+  (shrs_discard_locked_qualifying = 1 OR EXISTS (
+    SELECT 1 FROM Races r JOIN Heats h ON h.heat_id = r.heat_id
+    WHERE h.event_id = Events.event_id AND h.heat_type = 'Qualifying'
+  )) AS qualifying_started,
+  EXISTS (
+    SELECT 1 FROM Heats h
+    WHERE h.event_id = Events.event_id AND h.heat_type = 'Final'
+  ) AS final_series_started`;
+
 handle('readAllEvents', async () => {
-  const events = await db.prepare(`SELECT ${EVENT_COLUMNS} FROM Events`).all();
+  const events = await db
+    .prepare(`SELECT ${EVENT_COLUMNS}, ${SERIES_STARTED_COLUMNS} FROM Events`)
+    .all();
   return events;
 });
 
@@ -238,7 +256,10 @@ handle(
             shrs_discard_profile_qualifying,
             shrs_discard_profile_final,
             shrs_discard_locked_qualifying,
-            shrs_discard_locked_final
+            shrs_discard_locked_final,
+            shrs_qualifying_assignment_mode,
+            shrs_heat_overflow_policy,
+            ${SERIES_STARTED_COLUMNS}
            FROM Events
            WHERE event_id = ?`,
       )
@@ -248,6 +269,10 @@ handle(
           shrs_discard_profile_final: string;
           shrs_discard_locked_qualifying: number;
           shrs_discard_locked_final: number;
+          shrs_qualifying_assignment_mode: string | null;
+          shrs_heat_overflow_policy: string | null;
+          qualifying_started: number;
+          final_series_started: number;
         }
       | undefined;
 
@@ -289,6 +314,38 @@ handle(
       );
     }
 
+    // SHRS 3: the Notice of Race fixes progressive or pre-assignment for the
+    // whole qualifying series. Switching after a qualifying race would build
+    // the next rounds by the other method.
+    const assignmentMode = normalizeQualifyingAssignmentMode(
+      shrs_qualifying_assignment_mode,
+    );
+    if (
+      existingEvent.qualifying_started === 1 &&
+      assignmentMode !==
+        normalizeQualifyingAssignmentMode(
+          existingEvent.shrs_qualifying_assignment_mode,
+        )
+    ) {
+      throw new Error(
+        'The qualifying assignment mode cannot be changed any more: the qualifying series has started with the current one.',
+      );
+    }
+
+    // The policy is used once, when the Final Series is split into fleets.
+    const overflowPolicy = normalizeHeatOverflowPolicy(
+      shrs_heat_overflow_policy,
+    );
+    if (
+      existingEvent.final_series_started === 1 &&
+      overflowPolicy !==
+        normalizeHeatOverflowPolicy(existingEvent.shrs_heat_overflow_policy)
+    ) {
+      throw new Error(
+        'The final fleets setting cannot be changed any more: the Final Series has already been split into fleets.',
+      );
+    }
+
     // shrs_version is deliberately NOT written here: an event keeps the rule
     // version it was created under. Rewriting it on every edit would make a
     // future rule version silently re-label (and re-score) old events.
@@ -308,10 +365,10 @@ handle(
       event_location,
       start_date,
       end_date,
-      normalizeQualifyingAssignmentMode(shrs_qualifying_assignment_mode),
+      assignmentMode,
       normalizedQualifyingDiscardProfile,
       normalizedFinalDiscardProfile,
-      normalizeHeatOverflowPolicy(shrs_heat_overflow_policy),
+      overflowPolicy,
       event_id,
     );
     return { success: true };

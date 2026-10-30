@@ -393,6 +393,19 @@ Qualifying assignment (`creatingNewHeatsUtls.ts`)
   un-shields only the edited boat.
 - 3.2 — **Pre-assignment**: equal size/ability, published before racing.
   (`shrs_qualifying_assignment_mode` = `progressive` | `pre-assigned`.)
+  The app's pre-assignment keeps every boat in her round-1 heat for the whole
+  qualifying series; there is no import of a rotating published schedule.
+- The assignment mode is fixed once the qualifying series has begun (a
+  qualifying race scored, or the qualifying discard lock set), and
+  `shrs_heat_overflow_policy` once the Final Series is split: `updateEvent`
+  refuses a change, `readAllEvents` returns `qualifying_started` /
+  `final_series_started` and the edit form disables the field with a note.
+  The overflow policy (shown as "Final fleets over 20 boats") is used ONLY by
+  `planFinalFleets`; qualifying heats are always capped at 20, so it matters
+  only when boats were entered after the heats were made.
+- 2.1 — The heat count defaults to the fewest the entry list allows; choosing
+  more shows a warning under the control and asks before Create / Recreate
+  (`useHeatManagement` `extraHeatsNote`).
 
 Final Series (`calculateFinalBoatScores.ts`, `shared/fleetAssignment.ts`)
 

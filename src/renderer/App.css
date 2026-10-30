@@ -1687,6 +1687,17 @@ small.form-locked-note {
   margin-bottom: 12px;
 }
 
+.heat-count-warning {
+  flex-basis: 100%;
+  margin: 0;
+  padding: 8px 12px;
+  border-left: 4px solid var(--amber);
+  border-radius: 6px;
+  background: var(--amber-light);
+  color: var(--amber-strong);
+  font-weight: 600;
+}
+
 .heat-count-label {
   display: flex;
   align-items: center;

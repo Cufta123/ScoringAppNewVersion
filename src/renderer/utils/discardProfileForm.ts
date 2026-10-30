@@ -161,7 +161,9 @@ export const getDiscardSummary = (
 
   const { thresholds, error } = parseThresholdInput(thresholdsInput);
   if (error) return error;
-  return `Custom list active. Exclusions increase by 1 at each threshold: ${thresholds.join(', ')}.`;
+  const last = thresholds[thresholds.length - 1];
+  const most = thresholds.length;
+  return `Custom list active. Exclusions increase by 1 at each threshold: ${thresholds.join(', ')}. From ${last} races on, ${most} race${most === 1 ? '' : 's'} ${most === 1 ? 'is' : 'are'} excluded and no more are added (standard SHRS 5.4 keeps adding one every 8 races).`;
 };
 
 export const getDiscardExamples = (
@@ -178,8 +180,11 @@ export const getDiscardExamples = (
   const { thresholds, error } = parseThresholdInput(thresholdsInput);
   if (error) return '';
 
+  // The first thresholds, plus a count past the last one so the stop shows.
   const sampleRaceCounts = thresholds.slice(0, 4);
   if (sampleRaceCounts.length === 0) return '';
+  const beyond = thresholds[thresholds.length - 1] + 8;
+  sampleRaceCounts.push(beyond);
 
   return sampleRaceCounts
     .map((raceCount) => {
@@ -198,5 +203,5 @@ export const getAssignmentLabel = (event: EventRow): string =>
 
 export const getOverflowPolicyLabel = (event: EventRow): string =>
   event.shrs_heat_overflow_policy === 'confirm-allow-oversize'
-    ? 'Oversize with confirm'
-    : 'Auto-increase heats';
+    ? 'Final fleets over 20 if confirmed'
+    : 'Final fleets max 20';
