@@ -369,6 +369,22 @@ test('tour', async () => {
   await snap('event-page');
   await snap('event-page-full', true);
 
+  // The sailor edit dialog, then with a problem shown on its field.
+  await window
+    .getByRole('button', { name: /^Edit / })
+    .first()
+    .click();
+  const editDialog = window.getByRole('dialog', { name: 'Edit sailor' });
+  await editDialog.waitFor();
+  await snap('sailor-edit-dialog');
+  await editDialog.getByLabel('Sail number').fill('');
+  await editDialog.getByRole('button', { name: 'Save changes' }).click();
+  await editDialog.getByText('Enter the sail number.').waitFor();
+  await snap('sailor-edit-errors');
+  await window.keyboard.press('Escape');
+  await window.getByRole('button', { name: 'Discard changes' }).click();
+  await editDialog.waitFor({ state: 'detached' });
+
   // Export dialogs of the starting list and the heats, with the event's logo.
   await giveEventALogo(eventId);
   await window

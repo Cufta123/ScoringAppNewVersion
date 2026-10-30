@@ -2,14 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Flag from 'react-world-flags';
 import { getFlagCode } from '../utils/leaderboardUtils';
 import { toSubgroupLabel } from '../../shared/subgroups';
-import {
-  confirmAction,
-  reportError,
-  reportInfo,
-  reportWarning,
-} from '../utils/userFeedback';
+import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
 import { sailorDB } from '../api/db';
 import LoadingState from './shared/LoadingState';
+import SailorEditDialog from './SailorEditDialog';
 import type { CategoryRow } from '../types';
 import { sailorFullName } from '../utils/sailorName';
 
@@ -85,32 +81,6 @@ export interface SailorListSailor {
   [key: string]: unknown;
 }
 
-/** The fields a row edit can change; compared to find unsaved changes. */
-const EDITABLE_FIELDS = [
-  'country',
-  'sail_number',
-  'model',
-  'name',
-  'surname',
-  'club',
-  'category',
-] as const;
-
-interface EditedSailor {
-  boat_id?: number;
-  country?: string;
-  sail_number?: number | string;
-  model?: string;
-  name?: string;
-  surname?: string;
-  club?: string;
-  category?: string;
-  originalName?: string;
-  originalSurname?: string;
-  originalClubName?: string;
-  [key: string]: unknown;
-}
-
 interface SailorListProps {
   sailors: SailorListSailor[];
   /** Resolves true when the boat was removed (false/void: it was not). */
@@ -135,10 +105,8 @@ function SailorList({
   const [sortCriteria, setSortCriteria] = useState('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [editingSailorId, setEditingSailorId] = useState<number | null>(null);
-  const [editedSailor, setEditedSailor] = useState<EditedSailor>({});
   const [isExpanded, setIsExpanded] = useState(readExpanded);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
-  const [savingEdit, setSavingEdit] = useState(false);
 
   const handleSort = (col: string) => {
     if (col === sortCriteria) {
@@ -186,115 +154,12 @@ function SailorList({
     fetchCategories();
   }, []);
 
-  // Whether the open row edit differs from the saved sailor: only then is
-  // leaving it a loss worth asking about.
-  const hasUnsavedEdit = (): boolean => {
-    if (editingSailorId == null) return false;
-    const saved = sailors.find((row) => row.boat_id === editingSailorId);
-    if (!saved) return false;
-    return EDITABLE_FIELDS.some(
-      (field) =>
-        String(editedSailor[field] ?? '') !== String(saved[field] ?? ''),
-    );
-  };
-
-  // Throwing away typed changes is always asked first. The safe choice, "Keep
-  // editing", is the first button and has the focus (confirmAction).
-  const confirmDiscard = (question: string): Promise<boolean> =>
-    confirmAction(question, 'Discard unsaved changes', {
-      confirmLabel: 'Discard changes',
-      cancelLabel: 'Keep editing',
-      confirmClassName: 'btn-danger',
-    });
-
-  const handleEditClick = async (sailor: SailorListSailor) => {
-    // Opening another row would throw away what was typed in this one.
-    if (
-      editingSailorId != null &&
-      editingSailorId !== sailor.boat_id &&
-      hasUnsavedEdit() &&
-      !(await confirmDiscard(
-        'You changed this sailor and have not saved. Discard the changes and edit the other sailor instead?',
-      ))
-    ) {
-      return;
-    }
-    setEditingSailorId(sailor.boat_id);
-    setEditedSailor({
-      ...sailor,
-      originalName: sailor.name,
-      originalSurname: sailor.surname,
-      originalClubName: sailor.club,
-    });
-  };
-
-  // Back out of an in-progress edit without saving: the row reverts to its
-  // last-saved values. Typed changes are not dropped silently.
-  const handleCancelEdit = async () => {
-    if (
-      hasUnsavedEdit() &&
-      !(await confirmDiscard(
-        'You changed this sailor and have not saved. Discard the changes?',
-      ))
-    ) {
-      return;
-    }
-    setEditingSailorId(null);
-    setEditedSailor({});
-  };
-
-  const handleSave = async () => {
-    // Prevent a second save while the update round-trip is still in flight.
-    if (savingEdit) return;
-
-    // The same rule as the add form: no empty names, sail number or club (an
-    // edit used to be able to blank them), and stray spaces are not kept.
-    const text = (value: unknown): string => String(value ?? '').trim();
-    const name = text(editedSailor.name);
-    const surname = text(editedSailor.surname);
-    const sailNumber = text(editedSailor.sail_number);
-    const club = text(editedSailor.club);
-    if (!name || !surname || !sailNumber || !club) {
-      reportWarning(
-        'First name, surname, sail number and club cannot be empty. Nothing was saved.',
-        'Missing information',
-      );
-      return;
-    }
-
-    setSavingEdit(true);
-    try {
-      const sailorData = {
-        originalName: editedSailor.originalName,
-        originalSurname: editedSailor.originalSurname,
-        name,
-        surname,
-        category_name: editedSailor.category,
-        club_name: club,
-        originalClubName: editedSailor.originalClubName,
-        boat_id: editedSailor.boat_id,
-        sail_number: sailNumber,
-        country: editedSailor.country,
-        model: text(editedSailor.model),
-      };
-
-      const result = await sailorDB.updateSailor(sailorData);
-
-      if (!result) {
-        reportError('Could not save sailor changes.');
-        return;
-      }
-
-      setEditingSailorId(null);
-      setEditedSailor({});
-      onRefreshSailors();
-      reportInfo('Sailor details saved successfully.', 'Saved');
-    } catch (error) {
-      reportError('Could not save sailor changes.', error);
-    } finally {
-      setSavingEdit(false);
-    }
-  };
+  // Always the boat as saved now, so a refresh while the dialog is open
+  // (another window, an import) cannot leave it editing a stale copy.
+  const editingSailor =
+    editingSailorId == null
+      ? null
+      : (sailors.find((row) => row.boat_id === editingSailorId) ?? null);
 
   const handleRemoveWithConfirm = async (sailor: SailorListSailor) => {
     const confirmed = await confirmAction(
@@ -309,13 +174,6 @@ function SailorList({
     // and reports a failure itself.
     const removed = await onRemoveBoat(sailor.boat_id);
     if (removed === true) reportInfo('Boat removed from event.', 'Removed');
-  };
-
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
-  ) => {
-    const { name, value } = e.target;
-    setEditedSailor((prev) => ({ ...prev, [name]: value }));
   };
 
   const toggleExpand = () => {
@@ -407,169 +265,41 @@ function SailorList({
           </thead>
           <tbody>
             {sortedSailors.map((sailor) => (
-              <tr key={`${sailor.boat_id}-${sailor.sail_number}`}>
+              <tr
+                key={`${sailor.boat_id}-${sailor.sail_number}`}
+                className={
+                  editingSailorId === sailor.boat_id ? 'row-editing' : undefined
+                }
+              >
                 <td>
-                  {editingSailorId === sailor.boat_id ? (
-                    <input
-                      type="text"
-                      name="country"
-                      value={editedSailor.country}
-                      onChange={handleInputChange}
-                      className="editable-input"
+                  <div>
+                    <Flag
+                      code={getFlagCode(sailor.country)}
+                      style={{ width: '30px', marginRight: '5px' }}
                     />
-                  ) : (
-                    <div>
-                      <Flag
-                        code={getFlagCode(sailor.country)}
-                        style={{ width: '30px', marginRight: '5px' }}
-                      />
-                      <span>{sailor.country}</span>
-                    </div>
-                  )}
+                    <span>{sailor.country}</span>
+                  </div>
                 </td>
-                <td>
-                  {editingSailorId === sailor.boat_id ? (
-                    <input
-                      type="text"
-                      name="sail_number"
-                      value={editedSailor.sail_number}
-                      onChange={handleInputChange}
-                      className="editable-input"
-                      aria-label="Sail number"
-                    />
-                  ) : (
-                    sailor.sail_number
-                  )}
-                </td>
-                <td>
-                  {editingSailorId === sailor.boat_id ? (
-                    <input
-                      type="text"
-                      name="model"
-                      value={editedSailor.model}
-                      onChange={handleInputChange}
-                      className="editable-input"
-                      aria-label="Boat model"
-                    />
-                  ) : (
-                    sailor.model
-                  )}
-                </td>
-                <td>
-                  {editingSailorId === sailor.boat_id ? (
-                    <>
-                      <input
-                        type="text"
-                        name="name"
-                        value={editedSailor.name}
-                        onChange={handleInputChange}
-                        className="editable-input"
-                        placeholder="First name"
-                        aria-label="First name"
-                      />
-                      <input
-                        type="text"
-                        name="surname"
-                        value={editedSailor.surname}
-                        onChange={handleInputChange}
-                        className="editable-input"
-                        placeholder="Surname"
-                        aria-label="Surname"
-                      />
-                    </>
-                  ) : (
-                    sailorFullName(sailor)
-                  )}
-                </td>
-                <td>
-                  {editingSailorId === sailor.boat_id ? (
-                    <input
-                      type="text"
-                      name="club"
-                      value={editedSailor.club}
-                      onChange={handleInputChange}
-                      className="editable-input"
-                      aria-label="Club"
-                    />
-                  ) : (
-                    sailor.club
-                  )}
-                </td>
-                <td>
-                  {editingSailorId === sailor.boat_id ? (
-                    <select
-                      name="category"
-                      value={editedSailor.category}
-                      onChange={handleInputChange}
-                      className="editable-input"
-                      aria-label="Subgroup"
-                    >
-                      {categories.map((category) => (
-                        <option
-                          key={category.category_id}
-                          value={category.category_name}
-                        >
-                          {toSubgroupLabel(category.category_name) ||
-                            category.category_name}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    toSubgroupLabel(sailor.category) || sailor.category
-                  )}
-                </td>
+                <td>{sailor.sail_number}</td>
+                <td>{sailor.model}</td>
+                <td>{sailorFullName(sailor)}</td>
+                <td>{sailor.club}</td>
+                <td>{toSubgroupLabel(sailor.category) || sailor.category}</td>
                 <td>
                   <div className="icon-container">
-                    {editingSailorId === sailor.boat_id ? (
-                      <>
-                        <button
-                          type="button"
-                          className="icon-action-btn"
-                          aria-label={`Save changes for ${sailorFullName(sailor)}`}
-                          title="Save changes"
-                          onClick={handleSave}
-                          disabled={savingEdit}
-                        >
-                          <i
-                            className={
-                              savingEdit
-                                ? 'fa fa-spinner fa-spin'
-                                : 'fa fa-save'
-                            }
-                            aria-hidden="true"
-                            style={{ color: 'var(--teal)' }}
-                          />
-                        </button>
-                        <button
-                          type="button"
-                          className="icon-action-btn"
-                          aria-label={`Cancel editing ${sailorFullName(sailor)}`}
-                          title="Cancel editing"
-                          onClick={handleCancelEdit}
-                          disabled={savingEdit}
-                        >
-                          <i
-                            className="fa fa-xmark"
-                            aria-hidden="true"
-                            style={{ color: 'var(--text-secondary)' }}
-                          />
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        type="button"
-                        className="icon-action-btn"
-                        aria-label={`Edit ${sailorFullName(sailor)}`}
-                        title="Edit sailor and boat"
-                        onClick={() => handleEditClick(sailor)}
-                      >
-                        <i
-                          className="fa fa-pencil"
-                          aria-hidden="true"
-                          style={{ color: 'var(--ocean)' }}
-                        />
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      className="icon-action-btn"
+                      aria-label={`Edit ${sailorFullName(sailor)}`}
+                      title="Edit sailor and boat"
+                      onClick={() => setEditingSailorId(sailor.boat_id)}
+                    >
+                      <i
+                        className="fa fa-pencil"
+                        aria-hidden="true"
+                        style={{ color: 'var(--ocean)' }}
+                      />
+                    </button>
                     {canRemove && (
                       <button
                         type="button"
@@ -591,6 +321,16 @@ function SailorList({
             ))}
           </tbody>
         </table>
+      )}
+      {editingSailor && (
+        <SailorEditDialog
+          key={editingSailor.boat_id}
+          sailor={editingSailor}
+          eventSailors={sailors}
+          categories={categories}
+          onClose={() => setEditingSailorId(null)}
+          onSaved={onRefreshSailors}
+        />
       )}
     </div>
   );

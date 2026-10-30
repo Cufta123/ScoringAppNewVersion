@@ -774,12 +774,16 @@ For most feature/fix requests, do this in order:
   `utils/formatDate.ts` (dd.mm.yyyy; `formatDateTime` for dd.mm.yyyy
   HH:mm:ss, 24 hour; never `toLocale*String`, which shows US format). Every
   dialog (AppModal, HelpModal, EventHistoryDialog, ScoreExplanationDialog,
-  Rdg2Picker) uses `hooks/useDialogFocus` for initial focus, the Tab trap,
+  Rdg2Picker, SailorEditDialog) uses `hooks/useDialogFocus` for initial focus, the Tab trap,
   Escape (newest dialog only) and focus restore; a new dialog must too.
   Confirm buttons name the action ("Create heats", "Discard changes"), not
   "Confirm"/"OK", and the safe choice is the first button, focused by default.
   A leaderboard penalty cell shows code and points ("ZFP 5.2", "(DSQ 11)";
   the exported sheets show it too, unless "Show penalty points" is off).
+  A sailor is edited in `SailorEditDialog` (opened by the pencil in the
+  sailor list): labelled fields, country picked from the list with its flag,
+  each problem shown under its field, a sail number + country already in the
+  event refused, typed changes never closed away without "Discard changes".
   On the scoring screen Ctrl/Cmd+Enter
   submits the race (the Submit button's title says so).
   `UI_TOUR=1 npx playwright test e2e/ui-tour.spec.ts` seeds a 30-boat event
