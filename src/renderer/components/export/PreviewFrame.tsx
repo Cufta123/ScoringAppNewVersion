@@ -7,6 +7,42 @@ const PAGE_WIDTH_PX: Record<Orientation, number> = {
   landscape: 1123,
 };
 
+/**
+ * The preview is one long sheet, so a forced page break (each fleet or heat
+ * on its own page) would not show at all. In the preview only, mark each one
+ * with a dashed rule; the saved HTML file and the PDF are left as they are.
+ */
+const PREVIEW_CSS = `<style>
+@media screen {
+  .new-page {
+    position: relative;
+    margin-top: 14mm;
+    padding-top: 7mm;
+    border-top: 0.5mm dashed #8a97ab;
+  }
+  .new-page::before {
+    content: "New page";
+    position: absolute;
+    top: -3mm;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 0 3mm;
+    background: #fff;
+    color: #566274;
+    font-size: 7.5pt;
+    line-height: 6mm;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  html[lang="hr"] .new-page::before { content: "Nova stranica"; }
+}
+</style>`;
+
+const withPreviewCss = (html: string): string =>
+  html.includes('</head>')
+    ? html.replace('</head>', `${PREVIEW_CSS}\n</head>`)
+    : html;
+
 interface PreviewFrameProps {
   html: string;
   orientation: Orientation;
@@ -66,7 +102,7 @@ export default function PreviewFrame({ html, orientation }: PreviewFrameProps) {
           ref={frameRef}
           title="Document preview"
           sandbox="allow-same-origin"
-          srcDoc={html}
+          srcDoc={withPreviewCss(html)}
           onLoad={measure}
           style={{
             width: pageWidth,
