@@ -52,7 +52,9 @@ function freshDatabasePath(): string {
  * separate, ordinary DOM modal — see `confirmModal` below — and are never
  * auto-dismissed, so tests still assert on them.
  */
-export async function launchApp(): Promise<LaunchedApp> {
+export async function launchApp(
+  extraEnv: Record<string, string> = {},
+): Promise<LaunchedApp> {
   const app = await electron.launch({
     args: [MAIN_ENTRY],
     env: {
@@ -65,6 +67,7 @@ export async function launchApp(): Promise<LaunchedApp> {
       // transparency is not available there, so it uses a normal window.
       SCORING_APP_HIDDEN:
         process.env.CI || process.env.E2E_SHOW_WINDOW === '1' ? '' : '1',
+      ...extraEnv,
     },
   });
   const window = await app.firstWindow();

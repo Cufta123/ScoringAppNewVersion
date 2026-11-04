@@ -18,8 +18,6 @@ jest.mock('exceljs', () => {
   };
 });
 
-jest.mock('file-saver', () => ({ saveAs: jest.fn() }));
-
 jest.mock(
   '../renderer/components/Navbar',
   () =>

@@ -33,3 +33,24 @@ export function resolvePreloadPath(): string {
   }
   return path.resolve(__dirname, '../../.erb/dll/preload.js');
 }
+
+/**
+ * Whether the window may navigate from `current` to `target`: only to the same
+ * page (a reload, or another route of the hash router). Anything else, such as
+ * a file dropped on the window, would replace the app with that file, and the
+ * packaged app has no Reload in its menu to come back.
+ */
+export function isSameAppPage(target: string, current: string): boolean {
+  const withoutHash = (value: string) => value.split('#')[0];
+  return Boolean(current) && withoutHash(target) === withoutHash(current);
+}
+
+/** Only web links are handed to the system browser, never file: or app: links. */
+export function isWebLink(url: string): boolean {
+  try {
+    const { protocol } = new URL(url);
+    return protocol === 'https:' || protocol === 'http:';
+  } catch {
+    return false;
+  }
+}

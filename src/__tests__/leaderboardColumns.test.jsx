@@ -11,7 +11,6 @@ import {
 } from '../renderer/exports/resultsModel';
 
 jest.mock('exceljs', () => jest.fn());
-jest.mock('file-saver', () => ({ saveAs: jest.fn() }));
 jest.mock(
   'react-world-flags',
   () =>

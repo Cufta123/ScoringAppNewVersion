@@ -133,9 +133,21 @@ describe('a stale or mistyped screen always gets a plain answer', () => {
       ],
     ],
     ['deleteEvent', () => [GONE]],
-    ['insertBoat', () => ['', 'CRO', 'IOM', GONE]],
-    ['insertBoat', () => [12, 'CRO', 'IOM', GONE]],
-    ['insertSailor', () => ['', 'Doe', '', 1, GONE]],
+    [
+      'enterSailorInEvent',
+      () => [
+        {
+          name: 'A',
+          surname: 'B',
+          clubName: 'YC',
+          country: 'CRO',
+          sailNumber: '5',
+          categoryId: 3,
+        },
+        GONE,
+      ],
+    ],
+    ['enterSailorInEvent', () => [{ name: '' }, eventId]],
     [
       'updateSailor',
       () => [

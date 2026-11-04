@@ -2,9 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import EventForm from '../../components/EventForm';
 import EventList from '../../components/EventList';
 import Navbar from '../../components/Navbar';
-import { reportError } from '../../utils/userFeedback';
+import { reportError, reportInfo } from '../../utils/userFeedback';
+import useExclusiveAction from '../../hooks/useExclusiveAction';
 import './LandingPage.css';
-import { eventDB } from '../../api/db';
+import { eventDB, heatRaceDB } from '../../api/db';
 import type { EventRow } from '../../types';
 
 function LandingPage() {
@@ -29,6 +30,24 @@ function LandingPage() {
   useEffect(() => {
     refreshEvents();
   }, [refreshEvents]);
+
+  // A backup file as a new event: from another computer, or an event that
+  // was deleted after "Back up, then delete".
+  const { busy: importing, runExclusive } = useExclusiveAction();
+  const importEvent = () =>
+    runExclusive(async () => {
+      try {
+        const result = await heatRaceDB.importEventSnapshotFromFile();
+        if (result?.canceled) return;
+        await refreshEvents();
+        reportInfo(
+          `"${result?.eventName}" was added from the backup file, with its sailors, heats and results.`,
+          'Event imported',
+        );
+      } catch (error) {
+        reportError('Could not import the event.', error);
+      }
+    });
 
   const isFirstRun =
     !loadFailed && Array.isArray(events) && events.length === 0;
@@ -77,6 +96,24 @@ function LandingPage() {
               Your Events
             </h2>
             <EventList events={events} onEventsChanged={refreshEvents} />
+          </div>
+        )}
+
+        {Array.isArray(events) && (
+          <div className="landing-import">
+            <button
+              type="button"
+              className="btn-outline"
+              onClick={importEvent}
+              disabled={importing}
+            >
+              <i className="fa fa-file-import" aria-hidden="true" /> Import
+              event from backup…
+            </button>
+            <small>
+              A backup file from this or another computer is added as a new
+              event.
+            </small>
           </div>
         )}
 

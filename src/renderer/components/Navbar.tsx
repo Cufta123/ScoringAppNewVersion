@@ -1,7 +1,11 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import HelpModal from './shared/HelpModal';
 import EventHistoryDialog from './EventHistoryDialog';
+import {
+  requestProblemReport,
+  setReportEventContext,
+} from '../utils/problemReport';
 
 interface NavbarProps {
   onOpenLeaderboard?: (() => void) | null;
@@ -26,6 +30,11 @@ function Navbar({
   // the breadcrumbs instead of navigating away and silently dropping edits.
   const goHome = onNavigateHome || (() => navigate('/'));
   const closeHistory = useCallback(() => setHistoryOpen(false), []);
+
+  // A problem report from this page is about this page's event.
+  useEffect(() => {
+    setReportEventContext(historyEventId);
+  }, [historyEventId]);
 
   return (
     <nav className="app-navbar">
@@ -74,6 +83,19 @@ function Navbar({
           History
         </button>
       )}
+
+      <button
+        type="button"
+        onClick={requestProblemReport}
+        aria-label="Report a problem to the developer"
+        title="Something wrong? Tell the developer, with this event's data attached."
+      >
+        <i className="fa fa-bug" aria-hidden="true" />
+        <span className="navbar-label-long">Report a problem</span>
+        <span className="navbar-label-short" aria-hidden="true">
+          Problem?
+        </span>
+      </button>
 
       {/* Always available so help is reachable from every screen. */}
       <button

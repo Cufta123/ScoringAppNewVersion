@@ -13,6 +13,7 @@ const {
   hasUserData,
   writeBackup,
 } = require('./backup');
+const { resolveDataDir } = require('./dataLocation');
 
 // Define the path for the database file.
 //
@@ -22,10 +23,24 @@ const {
 // slower and later ones tripped over identity rules (a sail number registered
 // by an earlier run) that have nothing to do with the test at hand. Pointing
 // each run at a throwaway file makes it start from an empty database.
+//
+// Installed, the data lives in Electron's data folder, or in the folder an
+// earlier build (named after the template) used, if that is where the
+// results are (dataLocation.js). The app's own browser data follows it.
+const packagedDbPath = () => {
+  const dir = resolveDataDir({
+    userData: app.getPath('userData'),
+    appData: app.getPath('appData'),
+    exists: fs.existsSync,
+  });
+  if (dir !== app.getPath('userData')) app.setPath('userData', dir);
+  return path.join(dir, 'scoring_app.db');
+};
+
 const dbPath =
   process.env.SCORING_APP_DB_PATH ||
   (app.isPackaged
-    ? path.join(app.getPath('userData'), 'scoring_app.db')
+    ? packagedDbPath()
     : path.join(__dirname, 'public', 'Database', 'data', 'scoring_app.db'));
 
 const dataDir = path.dirname(dbPath);

@@ -20,8 +20,6 @@ jest.mock('exceljs', () => {
   };
 });
 
-jest.mock('file-saver', () => ({ saveAs: jest.fn() }));
-
 jest.mock('../renderer/utils/userFeedback', () => ({
   ...jest.requireActual('../renderer/utils/userFeedback'),
   confirmAction: jest.fn().mockResolvedValue(true),

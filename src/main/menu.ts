@@ -36,6 +36,15 @@ export default class MenuBuilder {
   buildHelpSubmenu(): MenuItemConstructorOptions[] {
     return [
       {
+        // Opens the form in the window (ProblemReportHost); reachable even
+        // when a screen is broken and its Navbar button is not.
+        label: 'Report a Problem…',
+        click: () => {
+          this.mainWindow.webContents.send('app:openProblemReport');
+        },
+      },
+      { type: 'separator' },
+      {
         label: 'Open Backups Folder',
         click: () => {
           fs.mkdirSync(this.backupsDir, { recursive: true });

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { logToErrorLog, reportError } from '../utils/userFeedback';
+import { requestProblemReport } from '../utils/problemReport';
 
 interface ErrorBoundaryState {
   hasError: boolean;
@@ -93,6 +94,15 @@ class ErrorBoundaryBase extends React.Component<
                   Go home
                 </button>
               )}
+              {/* The form lives outside this boundary, so it still opens. */}
+              <button
+                type="button"
+                className="btn-outline"
+                onClick={requestProblemReport}
+              >
+                <i className="fa fa-bug" aria-hidden="true" />
+                Report this problem
+              </button>
             </div>
           </div>
         </div>

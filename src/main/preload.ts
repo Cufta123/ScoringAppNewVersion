@@ -16,13 +16,12 @@ const SQLITE_CHANNELS = {
   sailorDB: [
     'readAllSailors',
     'updateSailor',
-    'insertSailor',
-    'insertClub',
-    'insertBoat',
     'readAllCategories',
     'readAllClubs',
     'readAllBoats',
     'importSailors',
+    'previewSailorImport',
+    'enterSailorInEvent',
   ],
   eventDB: [
     'readAllEvents',
@@ -61,8 +60,10 @@ const SQLITE_CHANNELS = {
     'getFinalSeriesEligibility',
     'exportEventSnapshotToFile',
     'restoreEventSnapshotFromFile',
+    'importEventSnapshotFromFile',
   ],
   exportDB: ['exportDocumentPdf', 'exportDocumentFile', 'printDocument'],
+  problemReportDB: ['captureProblemScreenshot', 'sendProblemReport'],
 } as const;
 
 type SqliteChannelGroups = typeof SQLITE_CHANNELS;
@@ -184,6 +185,14 @@ const appEvents = {
     ipcRenderer.on('app:backupStatus', subscription);
     return () => {
       ipcRenderer.removeListener('app:backupStatus', subscription);
+    };
+  },
+  /** Help > Report a Problem… in the app menu. */
+  onOpenProblemReport(listener: () => void) {
+    const subscription = () => listener();
+    ipcRenderer.on('app:openProblemReport', subscription);
+    return () => {
+      ipcRenderer.removeListener('app:openProblemReport', subscription);
     };
   },
 };

@@ -1,7 +1,3 @@
-import {
-  findIndistinguishableBoats,
-  type KeyedBoat,
-} from '../../shared/boatKeys';
 import { db } from '../../../public/Database/DBManager';
 import { normalizeDiscardConfigString } from '../functions/discardConfig';
 import handle from './handle';
@@ -10,6 +6,7 @@ import revertHistoryAction from '../functions/revertHistoryAction';
 import restoreToHistoryPoint from '../functions/restoreToHistoryPoint';
 import retryWhenBusy from '../functions/retryWhenBusy';
 import { isAcceptableLogo } from '../functions/exportLogo';
+import { refuseIndistinguishableEntry } from '../functions/sailorEntry';
 import {
   normalizeHeatOverflowPolicy,
   normalizeQualifyingAssignmentMode,
@@ -133,28 +130,7 @@ handle('associateBoatWithEvent', async (event, boat_id, event_id) => {
   // Two entries no one could tell apart (same national letters and sail
   // number) could not be scored; refuse the second here, where it can still
   // be fixed, rather than at the first heat. ITA 12 and CRO 12 are fine.
-  const boat = db
-    .prepare(
-      'SELECT boat_id, sail_number, country FROM Boats WHERE boat_id = ?',
-    )
-    .get(boat_id) as KeyedBoat | undefined;
-  if (boat) {
-    const entered = db
-      .prepare(
-        `SELECT b.boat_id, b.sail_number, b.country FROM Boats b
-         JOIN Boat_Event be ON be.boat_id = b.boat_id
-         WHERE be.event_id = ? AND b.boat_id <> ?`,
-      )
-      .all(event_id, boat_id) as KeyedBoat[];
-    const clash = findIndistinguishableBoats([...entered, boat]).find((group) =>
-      group.boatIds.some((id) => String(id) === String(boat_id)),
-    );
-    if (clash && clash.name !== '') {
-      throw new Error(
-        `Sail ${clash.name} is already entered in this event. Check the sail number and country.`,
-      );
-    }
-  }
+  refuseIndistinguishableEntry(Number(boat_id), Number(event_id));
   const result = db
     // OR IGNORE: one entry per boat per event (schema migration 2). Entering
     // a boat that is already entered is a no-op, not an error.

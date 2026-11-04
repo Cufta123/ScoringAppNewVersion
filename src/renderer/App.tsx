@@ -9,6 +9,7 @@ import EventPage from './pages/EventPage/EventPage';
 import HeatRacePage from './pages/HeatRacePage/HeatRacePage';
 import LeaderboardPage from './pages/LeaderboardPage/LeaderboardPage';
 import ConfirmDialogHost from './components/shared/ConfirmDialogHost';
+import ProblemReportHost from './components/ProblemReportHost';
 import ErrorBoundary from './components/ErrorBoundary';
 import {
   reportError,
@@ -118,6 +119,7 @@ function App() {
         draggable
         pauseOnHover
       />
+      <ProblemReportHost />
       <ConfirmDialogHost />
     </Router>
   );

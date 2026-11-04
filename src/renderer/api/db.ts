@@ -16,6 +16,10 @@
 // genuinely dynamic / not yet modelled, it is typed `unknown` so callers must
 // narrow rather than silently inheriting `any`.
 
+import type {
+  ProblemReportRequest,
+  ProblemReportResult,
+} from '../../shared/problemReport';
 import type { BoatScoreExplanation } from '../../shared/scoring/explain';
 import type {
   CategoryRow,
@@ -32,7 +36,10 @@ import type {
   TieBreakResult,
 } from '../types';
 import type { HistoryAction } from '../../shared/history/describe';
-import type { ImportSailorsSummary } from '../../shared/importSailors';
+import type {
+  ImportOwnerConflict,
+  ImportSailorsSummary,
+} from '../../shared/importSailors';
 import type {
   ExportFileRequest,
   ExportPdfRequest,
@@ -47,27 +54,48 @@ import type {
  */
 export type ImportSailorsResult = Partial<ImportSailorsSummary>;
 
+/** What the add form sends (main/functions/sailorEntry EntryInput). */
+export interface SailorEntryInput {
+  name: string;
+  surname: string;
+  birthday?: string;
+  clubName: string;
+  country: string;
+  sailNumber: string;
+  model?: string;
+  categoryId: number | null;
+}
+
+export type SailorEntryResult =
+  | {
+      status: 'entered';
+      boatId: number;
+      sailorId: number;
+      createdBoat: boolean;
+      createdSailor: boolean;
+    }
+  | { status: 'alreadyEntered'; boatId: number }
+  | { status: 'ownerConflict'; boatId: number; ownerName: string };
+
 export interface SailorDB {
   readAllSailors(): Promise<SailorWithDetails[]>;
   readAllCategories(): Promise<CategoryRow[]>;
   readAllClubs(): Promise<ClubRow[]>;
   readAllBoats(): Promise<EventBoatRow[]>;
-  insertSailor(
-    name: string,
-    surname: string,
-    birthday: string,
-    categoryId: number | null | undefined,
-    clubId: number | null | undefined,
-  ): Promise<InsertResult>;
   updateSailor(sailor: Record<string, unknown>): Promise<unknown>;
-  insertClub(clubName: string, country: string): Promise<InsertResult>;
-  insertBoat(
-    sailNumber: string | number,
-    country: string,
-    model: string,
-    sailorId: number | null | undefined,
-  ): Promise<InsertResult>;
-  importSailors(rows: unknown[]): Promise<ImportSailorsResult>;
+  importSailors(
+    rows: unknown[],
+    options?: { ownerConflicts?: 'skip' | 'use-registered' },
+  ): Promise<ImportSailorsResult>;
+  previewSailorImport(
+    rows: unknown[],
+  ): Promise<{ conflicts: ImportOwnerConflict[] }>;
+  /** Club, sailor, boat and entry in one step (main/functions/sailorEntry). */
+  enterSailorInEvent(
+    entry: SailorEntryInput,
+    eventId: number,
+    options?: { useRegisteredSailor?: boolean },
+  ): Promise<SailorEntryResult>;
 }
 
 export interface EventDB {
@@ -132,6 +160,14 @@ export interface ExportDB {
   printDocument(request: PrintDocumentRequest): Promise<ExportResult>;
 }
 
+export interface ProblemReportDB {
+  /** A JPEG data URL of the window, or null. */
+  captureProblemScreenshot(): Promise<string | null>;
+  sendProblemReport(
+    request: ProblemReportRequest,
+  ): Promise<ProblemReportResult>;
+}
+
 /** What the recovery-backup file dialogs report: cancelled, or where it went. */
 export interface SnapshotFileResult {
   canceled?: boolean;
@@ -172,6 +208,10 @@ export interface HeatRaceDB {
   getFinalSeriesEligibility(eventId: number): Promise<unknown>;
   exportEventSnapshotToFile(eventId: number): Promise<SnapshotFileResult>;
   restoreEventSnapshotFromFile(eventId: number): Promise<SnapshotFileResult>;
+  /** A backup file added as a new event (another computer, a deleted event). */
+  importEventSnapshotFromFile(): Promise<
+    SnapshotFileResult & { eventId?: number; eventName?: string }
+  >;
 }
 
 type IpcMethod = (...args: unknown[]) => Promise<unknown>;
@@ -192,6 +232,7 @@ export const sailorDB = makeGroup<SailorDB>('sailorDB');
 export const eventDB = makeGroup<EventDB>('eventDB');
 export const heatRaceDB = makeGroup<HeatRaceDB>('heatRaceDB');
 export const exportDB = makeGroup<ExportDB>('exportDB');
+export const problemReportDB = makeGroup<ProblemReportDB>('problemReportDB');
 
 /** Whether the preload offers the recovery-backup export (older builds may not). */
 export const canExportEventSnapshot = (): boolean =>

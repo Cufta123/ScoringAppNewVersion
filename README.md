@@ -10,11 +10,7 @@ Desktop app for running and scoring IOM regattas (Electron + React).
 
 ## Project Root
 
-Run all commands from:
-
-```cmd
-C:\Users\anton\OneDrive\Documents\GitHub\ScoringAppNewVersion
-```
+Run all commands from the repository folder.
 
 ## Install Dependencies
 
@@ -83,3 +79,19 @@ If you also see old files like `Scoring App Setup ...`, they are leftovers from 
 - `Missing script: start`: make sure you are in the project root (folder with this `README.md` and `package.json`).
 - Packaging errors on native modules: run `npm install` again, then `npm run package`.
 - Permission issues writing build files: use `scripts\\package-admin.cmd`.
+
+## Problem reports
+
+Help > Report a Problem… sends the user's report (with the event's data,
+history, error log and a screenshot) to the report service in
+`report-worker/`, which e-mails it to the developer. Builds need the service
+key: put it in a `.report-key` file in the repository folder (git-ignored),
+or set `IOM_REPORT_KEY`; the release workflow reads the `IOM_REPORT_KEY` repo
+secret. A build without the key keeps reports on the computer.
+
+## Data folder
+
+The installed app keeps its database, backups and error log in
+`%APPDATA%\IOM Regatta Manager` (macOS: `~/Library/Application Support/IOM
+Regatta Manager`). A computer that already has results in the folder older
+builds used (`electron-react-boilerplate`) keeps using it.

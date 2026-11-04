@@ -198,7 +198,7 @@ export default function EventList({
     // a recovery path: save a backup file before the irreversible delete.
     const choice = await confirmChoice(
       `This permanently deletes "${event.event_name}" and all its sailors, heats, races and scores. This cannot be undone.\n\n` +
-        'You can save a backup file first, so the event can be restored later if needed.',
+        'You can save a backup file first. It can be opened again later with "Import event from backup" on this page, on this or another computer.',
       'Delete event',
       {
         confirmLabel: 'Delete permanently',

@@ -2,6 +2,7 @@
  * Webpack config for production electron main process
  */
 
+import fs from 'fs';
 import path from 'path';
 import webpack from 'webpack';
 import { merge } from 'webpack-merge';
@@ -14,6 +15,22 @@ import deleteSourceMaps from '../scripts/delete-source-maps';
 
 checkNodeEnv('production');
 deleteSourceMaps();
+
+/**
+ * The problem-report service key (src/main/functions/problemReportConfig.ts):
+ * from IOM_REPORT_KEY (CI secret) or the git-ignored .report-key file.
+ * Without either the build works, but keeps reports on the computer.
+ */
+const reportKey = (): string => {
+  if (process.env.IOM_REPORT_KEY) return process.env.IOM_REPORT_KEY.trim();
+  try {
+    return fs
+      .readFileSync(path.join(webpackPaths.rootPath, '.report-key'), 'utf8')
+      .trim();
+  } catch {
+    return '';
+  }
+};
 
 const configuration: webpack.Configuration = {
   devtool: 'source-map',
@@ -66,6 +83,7 @@ const configuration: webpack.Configuration = {
 
     new webpack.DefinePlugin({
       'process.type': '"browser"',
+      'process.env.IOM_REPORT_KEY': JSON.stringify(reportKey()),
     }),
   ],
 

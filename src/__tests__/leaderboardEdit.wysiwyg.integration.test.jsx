@@ -41,7 +41,6 @@ jest.mock('../../public/Database/DBManager', () => {
 const mockDbHolderRef = mockDbHolder;
 
 jest.mock('exceljs', () => jest.fn());
-jest.mock('file-saver', () => ({ saveAs: jest.fn() }));
 
 const mockChoice = { current: 'extra' };
 jest.mock('../renderer/utils/userFeedback', () => ({

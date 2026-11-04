@@ -6,7 +6,8 @@ import path from 'path';
  * so a problem met at the regatta can be looked at afterwards: the screen
  * shows the user a reference code, the log holds the details under it.
  *
- * Nothing is sent anywhere. The file is capped at about 1 MB; the previous
+ * Nothing is sent anywhere, except as part of a problem report the user
+ * sends (Help > Report a problem). The file is capped at about 1 MB; the previous
  * one is kept as errors.1.log. Logging must never fail the action it
  * describes, so every write is best effort.
  */

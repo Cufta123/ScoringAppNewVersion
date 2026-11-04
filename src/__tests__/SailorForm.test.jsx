@@ -4,7 +4,16 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import SailorForm from '../renderer/components/SailorForm';
-import { reportInfo, reportWarning } from '../renderer/utils/userFeedback';
+import {
+  confirmAction,
+  reportError,
+  reportInfo,
+  reportWarning,
+} from '../renderer/utils/userFeedback';
+
+// The form hands everything to ONE main-process call (enterSailorInEvent),
+// which writes club, sailor, boat and entry together; what it stores is
+// tested on real SQLite in sailorEntry.integration.test.ts.
 
 jest.mock(
   'react-autosuggest',
@@ -30,256 +39,75 @@ jest.mock('react-toastify', () => ({
 
 jest.mock('../renderer/utils/userFeedback', () => ({
   ...jest.requireActual('../renderer/utils/userFeedback'),
+  confirmAction: jest.fn(),
   reportError: jest.fn(),
   reportInfo: jest.fn(),
   reportWarning: jest.fn(),
 }));
 
+const entered = {
+  status: 'entered',
+  boatId: 12,
+  sailorId: 11,
+  createdBoat: true,
+  createdSailor: true,
+};
+
+let enterSailorInEvent;
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  enterSailorInEvent = jest.fn().mockResolvedValue(entered);
+  window.electron = {
+    sqlite: {
+      sailorDB: {
+        readAllClubs: jest
+          .fn()
+          .mockResolvedValue([
+            { club_id: 1, club_name: 'YC Split', country: 'CRO' },
+          ]),
+        enterSailorInEvent,
+      },
+      heatRaceDB: {
+        readAllHeats: jest.fn().mockResolvedValue([]),
+        readAllRaces: jest.fn().mockResolvedValue([]),
+      },
+    },
+  };
+});
+
+const fillForm = ({
+  first = 'Ivan',
+  last = 'Horvat',
+  club = 'YC Split',
+  sail = '1234',
+} = {}) => {
+  fireEvent.change(screen.getByLabelText('First Name'), {
+    target: { value: first },
+  });
+  fireEvent.change(screen.getByLabelText('Surname'), {
+    target: { value: last },
+  });
+  fireEvent.change(screen.getByLabelText('Subgroup'), {
+    target: { value: 'M' },
+  });
+  fireEvent.change(screen.getByLabelText('Sail Number'), {
+    target: { value: sail },
+  });
+  fireEvent.change(screen.getByLabelText('Country'), {
+    target: { value: 'CRO' },
+  });
+  fireEvent.change(screen.getByLabelText('Boat Model'), {
+    target: { value: 'IOM' },
+  });
+  fireEvent.change(screen.getByLabelText('Club'), {
+    target: { value: club },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /add sailor/i }));
+};
+
 describe('SailorForm', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    window.electron = {
-      sqlite: {
-        sailorDB: {
-          readAllSailors: jest.fn().mockResolvedValue([]),
-          readAllClubs: jest
-            .fn()
-            .mockResolvedValue([
-              { club_id: 1, club_name: 'YC Split', country: 'CRO' },
-            ]),
-          readAllBoats: jest.fn().mockResolvedValue([]),
-          insertClub: jest.fn().mockResolvedValue({ lastInsertRowid: 10 }),
-          insertSailor: jest.fn().mockResolvedValue({ lastInsertRowid: 11 }),
-          insertBoat: jest.fn().mockResolvedValue({ lastInsertRowid: 12 }),
-        },
-        eventDB: {
-          readBoatsByEvent: jest.fn().mockResolvedValue([]),
-          associateBoatWithEvent: jest.fn().mockResolvedValue(true),
-        },
-        heatRaceDB: {
-          readAllHeats: jest.fn().mockResolvedValue([]),
-          readAllRaces: jest.fn().mockResolvedValue([]),
-        },
-      },
-    };
-  });
-
   it('blocks adding sailors when a race already happened', async () => {
-    window.electron.sqlite.heatRaceDB.readAllHeats.mockResolvedValue([
-      { heat_id: 2 },
-    ]);
-    window.electron.sqlite.heatRaceDB.readAllRaces.mockResolvedValue([
-      { race_id: 1 },
-    ]);
-
-    render(<SailorForm onAddSailor={jest.fn()} eventId={99} />);
-
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          /no more sailors can be added as a race has already happened/i,
-        ),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it('submits a new sailor and associates boat with event', async () => {
-    const onAddSailor = jest.fn();
-
-    render(<SailorForm onAddSailor={onAddSailor} eventId={99} />);
-
-    fireEvent.change(screen.getByLabelText('First Name'), {
-      target: { value: 'Ivan' },
-    });
-    fireEvent.change(screen.getByLabelText('Surname'), {
-      target: { value: 'Horvat' },
-    });
-    fireEvent.change(screen.getByLabelText('Subgroup'), {
-      target: { value: 'M' },
-    });
-    fireEvent.change(screen.getByLabelText('Sail Number'), {
-      target: { value: '1234' },
-    });
-    fireEvent.change(screen.getByLabelText('Country'), {
-      target: { value: 'CRO' },
-    });
-    fireEvent.change(screen.getByLabelText('Boat Model'), {
-      target: { value: 'IOM' },
-    });
-    fireEvent.change(screen.getByLabelText('Club'), {
-      target: { value: 'YC Split' },
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: /add sailor/i }));
-
-    await waitFor(() => {
-      expect(window.electron.sqlite.sailorDB.insertSailor).toHaveBeenCalledWith(
-        'Ivan',
-        'Horvat',
-        '',
-        4,
-        10,
-      );
-      expect(window.electron.sqlite.sailorDB.insertBoat).toHaveBeenCalledWith(
-        '1234',
-        'CRO',
-        'IOM',
-        11,
-      );
-      expect(
-        window.electron.sqlite.eventDB.associateBoatWithEvent,
-      ).toHaveBeenCalledWith(12, 99);
-      expect(onAddSailor).toHaveBeenCalled();
-      expect(reportInfo).toHaveBeenCalledWith(
-        'Sailor and boat added successfully.',
-        'Success',
-      );
-    });
-  });
-
-  it('reuses an existing boat with the same sail number + country instead of inserting a duplicate', async () => {
-    const onAddSailor = jest.fn();
-    window.electron.sqlite.sailorDB.readAllBoats.mockResolvedValue([
-      {
-        boat_id: 77,
-        sail_number: 1234,
-        boat_country: 'CRO',
-        model: 'IOM',
-        name: 'Ivan',
-        surname: 'Horvat',
-      },
-    ]);
-
-    render(<SailorForm onAddSailor={onAddSailor} eventId={99} />);
-
-    fireEvent.change(screen.getByLabelText('First Name'), {
-      target: { value: 'Ivan' },
-    });
-    fireEvent.change(screen.getByLabelText('Surname'), {
-      target: { value: 'Horvat' },
-    });
-    fireEvent.change(screen.getByLabelText('Subgroup'), {
-      target: { value: 'M' },
-    });
-    fireEvent.change(screen.getByLabelText('Sail Number'), {
-      target: { value: '1234' },
-    });
-    fireEvent.change(screen.getByLabelText('Country'), {
-      target: { value: 'CRO' },
-    });
-    fireEvent.change(screen.getByLabelText('Club'), {
-      target: { value: 'YC Split' },
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: /add sailor/i }));
-
-    await waitFor(() => {
-      expect(window.electron.sqlite.sailorDB.insertBoat).not.toHaveBeenCalled();
-      expect(
-        window.electron.sqlite.eventDB.associateBoatWithEvent,
-      ).toHaveBeenCalledWith(77, 99);
-      expect(onAddSailor).toHaveBeenCalled();
-    });
-  });
-
-  it('reports instead of re-associating when the boat is already in the event', async () => {
-    const onAddSailor = jest.fn();
-    window.electron.sqlite.sailorDB.readAllBoats.mockResolvedValue([
-      { boat_id: 77, sail_number: 1234, boat_country: 'CRO' },
-    ]);
-    window.electron.sqlite.eventDB.readBoatsByEvent.mockResolvedValue([
-      { boat_id: 77 },
-    ]);
-
-    render(<SailorForm onAddSailor={onAddSailor} eventId={99} />);
-
-    fireEvent.change(screen.getByLabelText('First Name'), {
-      target: { value: 'Ivan' },
-    });
-    fireEvent.change(screen.getByLabelText('Surname'), {
-      target: { value: 'Horvat' },
-    });
-    fireEvent.change(screen.getByLabelText('Subgroup'), {
-      target: { value: 'M' },
-    });
-    fireEvent.change(screen.getByLabelText('Sail Number'), {
-      target: { value: '1234' },
-    });
-    fireEvent.change(screen.getByLabelText('Country'), {
-      target: { value: 'CRO' },
-    });
-    fireEvent.change(screen.getByLabelText('Club'), {
-      target: { value: 'YC Split' },
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: /add sailor/i }));
-
-    await waitFor(() => {
-      expect(window.electron.sqlite.sailorDB.insertBoat).not.toHaveBeenCalled();
-      expect(
-        window.electron.sqlite.eventDB.associateBoatWithEvent,
-      ).not.toHaveBeenCalled();
-      expect(reportInfo).toHaveBeenCalledWith(
-        expect.stringMatching(/already registered/i),
-        'Already registered',
-      );
-      expect(onAddSailor).not.toHaveBeenCalled();
-    });
-  });
-
-  it('reuses existing club and does not insert duplicate club', async () => {
-    const onAddSailor = jest.fn();
-    window.electron.sqlite.sailorDB.readAllClubs.mockResolvedValue([
-      { club_id: 1, club_name: 'YC Split', country: 'CRO' },
-    ]);
-
-    render(<SailorForm onAddSailor={onAddSailor} eventId={99} />);
-
-    await waitFor(() => {
-      expect(window.electron.sqlite.sailorDB.readAllClubs).toHaveBeenCalled();
-    });
-
-    fireEvent.change(screen.getByLabelText('First Name'), {
-      target: { value: 'Luka' },
-    });
-    fireEvent.change(screen.getByLabelText('Surname'), {
-      target: { value: 'Maric' },
-    });
-    fireEvent.change(screen.getByLabelText('Subgroup'), {
-      target: { value: 'M' },
-    });
-    fireEvent.change(screen.getByLabelText('Sail Number'), {
-      target: { value: '5678' },
-    });
-    fireEvent.change(screen.getByLabelText('Country'), {
-      target: { value: 'CRO' },
-    });
-    fireEvent.change(screen.getByLabelText('Boat Model'), {
-      target: { value: 'IOM' },
-    });
-    fireEvent.change(screen.getByLabelText('Club'), {
-      target: { value: 'YC Split' },
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: /add sailor/i }));
-
-    await waitFor(() => {
-      expect(window.electron.sqlite.sailorDB.insertClub).not.toHaveBeenCalled();
-      expect(window.electron.sqlite.sailorDB.insertSailor).toHaveBeenCalledWith(
-        'Luka',
-        'Maric',
-        '',
-        4,
-        1,
-      );
-      expect(
-        window.electron.sqlite.eventDB.associateBoatWithEvent,
-      ).toHaveBeenCalledWith(12, 99);
-      expect(onAddSailor).toHaveBeenCalled();
-    });
-  });
-
-  it('renders race-started notice instead of form after races exist', async () => {
     window.electron.sqlite.heatRaceDB.readAllHeats.mockResolvedValue([
       { heat_id: 2 },
     ]);
@@ -297,57 +125,130 @@ describe('SailorForm', () => {
     ).not.toBeInTheDocument();
   });
 
-  describe('stray spaces in typed names', () => {
-    const fillForm = ({ first, last, club }) => {
-      fireEvent.change(screen.getByLabelText('First Name'), {
-        target: { value: first },
-      });
-      fireEvent.change(screen.getByLabelText('Surname'), {
-        target: { value: last },
-      });
-      fireEvent.change(screen.getByLabelText('Subgroup'), {
-        target: { value: 'M' },
-      });
-      fireEvent.change(screen.getByLabelText('Sail Number'), {
-        target: { value: '1234' },
-      });
-      fireEvent.change(screen.getByLabelText('Country'), {
-        target: { value: 'CRO' },
-      });
-      fireEvent.change(screen.getByLabelText('Club'), {
-        target: { value: club },
-      });
-      fireEvent.click(screen.getByRole('button', { name: /add sailor/i }));
-    };
+  it('enters the sailor with one call and reports success', async () => {
+    const onAddSailor = jest.fn();
+    render(<SailorForm onAddSailor={onAddSailor} eventId={99} />);
+    fillForm();
 
-    it('are trimmed before the sailor and the club are stored', async () => {
-      render(<SailorForm onAddSailor={jest.fn()} eventId={99} />);
-      fillForm({ first: '  Ivan ', last: 'Horvat  ', club: ' YC Split ' });
+    await waitFor(() => expect(onAddSailor).toHaveBeenCalled());
+    expect(enterSailorInEvent).toHaveBeenCalledTimes(1);
+    expect(enterSailorInEvent).toHaveBeenCalledWith(
+      {
+        name: 'Ivan',
+        surname: 'Horvat',
+        clubName: 'YC Split',
+        country: 'CRO',
+        sailNumber: '1234',
+        model: 'IOM',
+        categoryId: 4,
+      },
+      99,
+    );
+    expect(reportInfo).toHaveBeenCalledWith(
+      'Sailor and boat added successfully.',
+      'Success',
+    );
+  });
 
-      await waitFor(() => {
-        expect(
-          window.electron.sqlite.sailorDB.insertSailor,
-        ).toHaveBeenCalledWith('Ivan', 'Horvat', '', 4, expect.anything());
-      });
-      // The club is stored without the stray spaces too.
-      expect(window.electron.sqlite.sailorDB.insertClub).toHaveBeenCalledWith(
-        'YC Split',
-        'CRO',
-      );
+  it('asks before entering a boat registered to someone else, then enters her', async () => {
+    enterSailorInEvent
+      .mockResolvedValueOnce({
+        status: 'ownerConflict',
+        boatId: 5,
+        ownerName: 'Ana Kovač',
+      })
+      .mockResolvedValueOnce({ ...entered, createdBoat: false });
+    confirmAction.mockResolvedValue(true);
+    const onAddSailor = jest.fn();
+    render(<SailorForm onAddSailor={onAddSailor} eventId={99} />);
+    fillForm();
+
+    await waitFor(() => expect(onAddSailor).toHaveBeenCalled());
+    expect(confirmAction.mock.calls[0][0]).toMatch(
+      /already registered to Ana Kovač/,
+    );
+    expect(enterSailorInEvent).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sailNumber: '1234' }),
+      99,
+      { useRegisteredSailor: true },
+    );
+  });
+
+  it('a Cancel on that question writes nothing (the first call wrote nothing either)', async () => {
+    enterSailorInEvent.mockResolvedValueOnce({
+      status: 'ownerConflict',
+      boatId: 5,
+      ownerName: 'Ana Kovač',
     });
+    confirmAction.mockResolvedValue(false);
+    const onAddSailor = jest.fn();
+    render(<SailorForm onAddSailor={onAddSailor} eventId={99} />);
+    fillForm();
 
-    it('a name made only of spaces is refused with a message, nothing is stored', async () => {
-      render(<SailorForm onAddSailor={jest.fn()} eventId={99} />);
-      fillForm({ first: '   ', last: 'Horvat', club: 'YC Split' });
+    await waitFor(() => expect(confirmAction).toHaveBeenCalled());
+    expect(enterSailorInEvent).toHaveBeenCalledTimes(1);
+    expect(onAddSailor).not.toHaveBeenCalled();
+    expect(reportInfo).not.toHaveBeenCalled();
+  });
 
-      await waitFor(() => expect(reportWarning).toHaveBeenCalled());
+  it('says so when the boat is already in this event', async () => {
+    enterSailorInEvent.mockResolvedValue({
+      status: 'alreadyEntered',
+      boatId: 12,
+    });
+    const onAddSailor = jest.fn();
+    render(<SailorForm onAddSailor={onAddSailor} eventId={99} />);
+    fillForm();
+
+    await waitFor(() =>
+      expect(reportInfo).toHaveBeenCalledWith(
+        'Sail 1234 (CRO) is already registered in this event.',
+        'Already registered',
+      ),
+    );
+    expect(onAddSailor).not.toHaveBeenCalled();
+  });
+
+  it('shows the refusal of a sail number the event already has', async () => {
+    enterSailorInEvent.mockRejectedValue(
+      new Error(
+        'Sail CRO 1234 is already entered in this event. Check the sail number and country.',
+      ),
+    );
+    render(<SailorForm onAddSailor={jest.fn()} eventId={99} />);
+    fillForm();
+
+    await waitFor(() =>
+      expect(reportWarning).toHaveBeenCalledWith(
+        'Sail CRO 1234 is already entered in this event.',
+        'Already entered',
+      ),
+    );
+    expect(reportError).not.toHaveBeenCalled();
+  });
+
+  it('trims stray spaces before sending', async () => {
+    render(<SailorForm onAddSailor={jest.fn()} eventId={99} />);
+    fillForm({ first: '  Ivan ', last: 'Horvat  ', club: ' YC Split ' });
+
+    await waitFor(() => expect(enterSailorInEvent).toHaveBeenCalled());
+    expect(enterSailorInEvent.mock.calls[0][0]).toMatchObject({
+      name: 'Ivan',
+      surname: 'Horvat',
+      clubName: 'YC Split',
+    });
+  });
+
+  it('refuses a name made only of spaces and sends nothing', async () => {
+    render(<SailorForm onAddSailor={jest.fn()} eventId={99} />);
+    fillForm({ first: '   ' });
+
+    await waitFor(() =>
       expect(reportWarning).toHaveBeenCalledWith(
         'First name, surname and club cannot be empty or only spaces.',
         'Missing information',
-      );
-      expect(
-        window.electron.sqlite.sailorDB.insertSailor,
-      ).not.toHaveBeenCalled();
-    });
+      ),
+    );
+    expect(enterSailorInEvent).not.toHaveBeenCalled();
   });
 });

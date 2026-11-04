@@ -93,4 +93,41 @@ describe('importSailors: a failed row leaves nothing behind', () => {
     expect(count(db, 'Boats')).toBe(2);
     expect(count(db, 'Boat_Event')).toBe(2);
   });
+
+  it('rows without a club share one "Unknown" club, and cells are trimmed', async () => {
+    const summary = await handlerRegistry.importSailors({}, [
+      { ...row('Ana', 1, 1), club_name: '' },
+      { ...row('Bor', 2, 1), club_name: '   ' },
+      // Same boat as the first row, typed with stray spaces and lower case.
+      {
+        ...row('Ana', 1, 1),
+        sail_number: ' 1 ',
+        country: ' cro ',
+        club_name: '',
+      },
+    ]);
+
+    expect(summary.invalid).toBe(0);
+    expect(summary.created).toBe(2);
+    expect(summary.alreadyInEvent).toBe(1);
+    expect(db.prepare('SELECT club_name, country FROM Clubs').all()).toEqual([
+      { club_name: 'Unknown', country: 'CRO' },
+    ]);
+    expect(db.prepare('SELECT DISTINCT country FROM Boats').all()).toEqual([
+      { country: 'CRO' },
+    ]);
+  });
+
+  it('a club of the same name in another country is a different club', async () => {
+    await handlerRegistry.importSailors({}, [
+      row('Ana', 1, 1),
+      { ...row('Bor', 2, 1), country: 'SLO' },
+    ]);
+    expect(
+      db.prepare('SELECT club_name, country FROM Clubs ORDER BY country').all(),
+    ).toEqual([
+      { club_name: 'JK Split', country: 'CRO' },
+      { club_name: 'JK Split', country: 'SLO' },
+    ]);
+  });
 });

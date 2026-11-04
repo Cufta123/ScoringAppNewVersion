@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import Papa from 'papaparse';
 import { sailorDB, type ImportSailorsResult } from '../api/db';
+import type { ImportOwnerConflict } from '../../shared/importSailors';
 import { describeError } from '../utils/userFeedback';
 
 const TEMPLATE_CSV =
@@ -24,6 +25,8 @@ function SailorImport({ eventId, onImportComplete = null }: SailorImportProps) {
   const [pending, setPending] = useState<{
     rows: Record<string, string>[];
     fileName: string;
+    /** Rows whose boat is registered to someone else (asked about). */
+    conflicts: ImportOwnerConflict[];
   } | null>(null);
 
   const downloadTemplate = () => {
@@ -71,18 +74,27 @@ function SailorImport({ eventId, onImportComplete = null }: SailorImportProps) {
           });
           return;
         }
-        // Stage for the confirm step instead of importing straight away.
-        setPending({ rows: data, fileName: file.name });
+        // Stage for the confirm step instead of importing straight away,
+        // with the rows whose boat is someone else's, to ask about them.
+        const stage = (conflicts: ImportOwnerConflict[]) =>
+          setPending({ rows: data, fileName: file.name, conflicts });
+        sailorDB
+          .previewSailorImport(data)
+          .then((preview) => stage(preview?.conflicts ?? []))
+          .catch(() => stage([]));
       },
     });
   };
 
-  const confirmImport = async () => {
+  const confirmImport = async (
+    ownerConflicts: 'skip' | 'use-registered' = 'skip',
+  ) => {
     if (!pending) return;
     setBusy(true);
     try {
       const res = await sailorDB.importSailors(
         pending.rows.map((r) => ({ ...r, eventId })),
+        { ownerConflicts },
       );
       setResult(res);
       if ((res.imported ?? 0) > 0 && onImportComplete) onImportComplete();
@@ -189,20 +201,66 @@ function SailorImport({ eventId, onImportComplete = null }: SailorImportProps) {
               {pending.rows.length - 5 !== 1 ? 's' : ''}.
             </p>
           )}
-          <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+          {pending.conflicts.length > 0 && (
+            <div className="import-owner-conflicts" role="alert">
+              <p>
+                <i className="fa fa-triangle-exclamation" aria-hidden="true" />{' '}
+                <strong>
+                  {pending.conflicts.length} sail number
+                  {pending.conflicts.length !== 1 ? 's are' : ' is'} already
+                  registered to another sailor.
+                </strong>{' '}
+                Entered anyway, the boat races under the registered sailor, not
+                the name in the file.
+              </p>
+              <ul>
+                {pending.conflicts.slice(0, 8).map((conflict) => (
+                  <li key={`${conflict.line}-${conflict.sail}`}>
+                    Line {conflict.line}: {conflict.sail} — the file says{' '}
+                    <strong>{conflict.fileName}</strong>, registered to{' '}
+                    <strong>{conflict.ownerName}</strong>
+                  </li>
+                ))}
+              </ul>
+              {pending.conflicts.length > 8 && (
+                <p>…and {pending.conflicts.length - 8} more.</p>
+              )}
+            </div>
+          )}
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '10px',
+              marginTop: '12px',
+            }}
+          >
             <button
               type="button"
               className="btn-success"
-              onClick={confirmImport}
+              onClick={() => confirmImport('skip')}
               disabled={busy}
             >
               <i className="fa fa-check" aria-hidden="true" />{' '}
-              {busy
-                ? 'Importing…'
-                : `Import ${pending.rows.length} sailor${
-                    pending.rows.length !== 1 ? 's' : ''
-                  }`}
+              {(() => {
+                if (busy) return 'Importing…';
+                const count = pending.rows.length - pending.conflicts.length;
+                const what = `${count} sailor${count !== 1 ? 's' : ''}`;
+                return pending.conflicts.length > 0
+                  ? `Import ${what}, leave those out`
+                  : `Import ${what}`;
+              })()}
             </button>
+            {pending.conflicts.length > 0 && (
+              <button
+                type="button"
+                className="btn-outline"
+                onClick={() => confirmImport('use-registered')}
+                disabled={busy}
+              >
+                Import all, use the registered sailors
+              </button>
+            )}
             <button
               type="button"
               className="btn-secondary"
@@ -265,6 +323,13 @@ function SailorImport({ eventId, onImportComplete = null }: SailorImportProps) {
                 <>
                   <strong>{result.invalid}</strong> invalid row
                   {result.invalid !== 1 ? 's' : ''} skipped
+                  &nbsp;&bull;&nbsp;{' '}
+                </>
+              )}
+              {(result.ownerConflicts ?? 0) > 0 && (
+                <>
+                  <strong>{result.ownerConflicts}</strong> left out (boat
+                  registered to another sailor)
                 </>
               )}
               {result.created === 0 &&

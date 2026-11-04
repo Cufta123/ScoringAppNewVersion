@@ -28,8 +28,8 @@ npm-debug.log.*
 *.sass.d.ts
 *.scss.d.ts
 
-#ignore databse
-public/Database/data/scoring_app.db-wal
+# The developer database (npm start) holds real names: never commit it
+public/Database/data/
 
 out/
 # Playwright
@@ -41,3 +41,7 @@ out/
 .claude/settings.local.json
 .claude/deepseek/*.backup
 e2e-ui-tour/
+
+# Problem-report service key, put into the build (never commit)
+.report-key
+.scratch/

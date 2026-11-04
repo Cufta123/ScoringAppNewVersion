@@ -73,6 +73,9 @@ jobs:
         run: npm run typecheck
 
       - name: Build Webpack (React / main code)
+        # The problem-report key goes into the released app (repo secret).
+        env:
+          IOM_REPORT_KEY: ${{ secrets.IOM_REPORT_KEY }}
         run: npm run build
 
       - name: Package macOS App (ZIP, Intel + Apple Silicon)

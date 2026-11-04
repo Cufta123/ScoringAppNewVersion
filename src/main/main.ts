@@ -9,11 +9,17 @@ import {
   type OpenDialogOptions,
 } from 'electron';
 import MenuBuilder from './menu';
-import { resolveHtmlPath, resolvePreloadPath } from './util';
+import {
+  isSameAppPage,
+  isWebLink,
+  resolveHtmlPath,
+  resolvePreloadPath,
+} from './util';
 import './ipcHandlers/SailorHandler';
 import './ipcHandlers/EventHandler';
 import './ipcHandlers/HeatRaceHandler';
 import './ipcHandlers/ExportHandler';
+import { startProblemReportOutbox } from './ipcHandlers/ProblemReportHandler';
 import handle, { setCallObserver } from './ipcHandlers/handle';
 import { autoBackup, dbPath } from '../../public/Database/DBManager';
 import { journalObserver } from './functions/changeJournal';
@@ -262,8 +268,18 @@ const createWindow = async () => {
   });
 
   mainWindow.webContents.setWindowOpenHandler((edata) => {
-    shell.openExternal(edata.url);
+    if (isWebLink(edata.url)) shell.openExternal(edata.url);
     return { action: 'deny' };
+  });
+
+  // A file dropped anywhere on the window (a CSV meant for the import) made
+  // the window navigate to that file: the app vanished and, with no Reload in
+  // the packaged menu, only a restart brought it back.
+  mainWindow.webContents.on('will-navigate', (navigation, url) => {
+    const current = mainWindow?.webContents.getURL() ?? '';
+    if (isSameAppPage(url, current)) return;
+    navigation.preventDefault();
+    if (isWebLink(url)) shell.openExternal(url);
   });
 };
 
@@ -304,6 +320,8 @@ app
     // Start-up copy, then rolling copies while results are being entered.
     autoBackup.backupNow();
     autoBackup.start();
+    // Problem reports saved while offline go out once there is a connection.
+    startProblemReportOutbox();
     createWindow();
     app.on('activate', () => {
       if (mainWindow === null) createWindow();

@@ -110,26 +110,19 @@ async function seed() {
         'auto-increase',
       );
       const eventId = Number(ev.lastInsertRowid);
-      const club = await api.sailorDB.insertClub('JK Galeb', 'CRO');
       for (let i = 0; i < boats; i += 1) {
         // eslint-disable-next-line no-await-in-loop
-        const s = await api.sailorDB.insertSailor(
-          first[i % 10],
-          `${last[(i * 3) % 10]}${i > 9 ? ` ${i}` : ''}`,
-          `1965-04-0${(i % 9) + 1}`,
-          4,
-          Number(club.lastInsertRowid),
-        );
-        // eslint-disable-next-line no-await-in-loop
-        const b = await api.sailorDB.insertBoat(
-          String(100 + i * 7),
-          countries[i % 8],
-          'IOM',
-          Number(s.lastInsertRowid),
-        );
-        // eslint-disable-next-line no-await-in-loop
-        await api.eventDB.associateBoatWithEvent(
-          Number(b.lastInsertRowid),
+        await api.sailorDB.enterSailorInEvent(
+          {
+            name: first[i % 10],
+            surname: `${last[(i * 3) % 10]}${i > 9 ? ` ${i}` : ''}`,
+            birthday: `1965-04-0${(i % 9) + 1}`,
+            clubName: 'JK Galeb',
+            country: countries[i % 8],
+            sailNumber: String(100 + i * 7),
+            model: 'IOM',
+            categoryId: 4,
+          },
           eventId,
         );
       }

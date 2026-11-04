@@ -8,9 +8,7 @@
 // to keep this module the single import surface for the scoring vocabulary.
 import {
   scoringPenaltyStatuses,
-  mandatoryDisplaceStatuses,
   getScoringPenaltyPoints,
-  promotesBoatsBehind,
 } from '../../shared/scoringPenalty';
 import { compareNationalSail } from '../../shared/sailOrder';
 import { getHeatGroupFromName } from '../../shared/heatNames';
@@ -27,9 +25,7 @@ export {
   penaltyStatuses,
   rdgStatuses,
   scoringPenaltyStatuses,
-  mandatoryDisplaceStatuses,
   getScoringPenaltyPoints,
-  promotesBoatsBehind,
 };
 
 // SHRS 2026-1 (5.3) is source-of-truth for displacement order.

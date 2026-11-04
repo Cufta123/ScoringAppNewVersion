@@ -27,6 +27,8 @@ Use this document first. Only search the repo when this file does not answer the
       explain score / tie-break, Final Series eligibility, max heat size
     - `FinalSeriesHandler.ts` — `startFinalSeriesAtomic`
     - `SnapshotHandler.ts` — event snapshot export / restore (file dialogs)
+  - `src/main/ipcHandlers/ProblemReportHandler.ts` — Help > Report a problem
+    (see "Problem reports" in §10)
   - `src/main/ipcHandlers/ExportHandler.ts` — saving and printing the exported
     documents (see "Exported documents" in §10)
 - Pure/domain logic (extracted out of the handlers): `src/main/functions/`
@@ -189,7 +191,11 @@ Important migration details:
 
 DB file paths:
 
-- Packaged: under `app.getPath('userData')/scoring_app.db`
+- Packaged: under `app.getPath('userData')/scoring_app.db`, where userData is
+  `<appData>/IOM Regatta Manager` (productName in `release/app/package.json`).
+  Builds before Nov 2026 used the template's name; `public/Database/dataLocation.js`
+  keeps a computer on `<appData>/electron-react-boilerplate` when its database
+  is there (and points userData at it), so a renamed build never looks empty.
 - Dev: from `public/Database/data/scoring_app.db`
 
 ## 5. Domain Rules And Scoring Notes
@@ -270,7 +276,29 @@ in one transaction. The logic lives in focused modules under
   `raceAssignmentSnapshot.ts`.
 - `fleetTotals.ts` — `buildAdjustedFleetLeaderboard`, the SHRS 4.3
   fleet-assignment ranking adapter over `shared/fleetAssignment.ts`.
-- `eventSnapshot.ts` — full per-event export/restore. The table list here is
+- `sailorEntry.ts` — THE rule for entering a sailor and boat, used by the add
+  form (`enterSailorInEvent`, one IPC call, one transaction), the CSV import
+  and `importEventSnapshot`: a boat is letters + sail number (reused with her
+  sailor; someone else's boat answers `ownerConflict` and writes nothing until
+  called again with `useRegisteredSailor`), a sailor is name + club (+ birthday
+  when both have one), a club is name + country. The form used to make six
+  calls (insertClub/insertSailor/insertBoat/associate…): a Cancel on the
+  owner question left a sailor with no boat, and a second "Ivan Horvat" got the
+  first one's club and subgroup. Those channels are removed. The import asks
+  first (`previewSailorImport` lists the rows whose boat is someone else's;
+  `importSailors(rows, { ownerConflicts: 'skip' | 'use-registered' })`), and a
+  row without club or subgroup leaves a known sailor's as they were.
+- `eventSnapshot.ts` — full per-event export/restore. Snapshots are
+  `schemaVersion: 2` with `people` (the boats, sailors, clubs and category
+  names the event uses). `importEventSnapshot` adds a file as a NEW event
+  (landing page "Import event from backup…", IPC
+  `importEventSnapshotFromFile`): every id remapped (RDG2 `rdg_race_ids`
+  included), boats matched by letters + number through `sailorEntry`, a taken
+  name gets " (imported)", standings rebuilt; the original history is not
+  carried. This is also how a problem report's `event-snapshot.json` is opened,
+  and how an event deleted after "Back up, then delete" comes back (the
+  restore only works on an event that still exists). A v1 file without
+  `people` is refused with words. The table list here is
   the definition of "an event's data"; add new event-scoped tables to the
   export, the restore's delete, and the restore's reinsert together.
 - `raceAssignmentSnapshot.ts` — SHRS 3.1.5 pre-protest assignment cache +
@@ -834,8 +862,8 @@ For most feature/fix requests, do this in order:
   deliberately NOT in the change journal (the triggers were not reinstalled),
   carried by event snapshots and backups. Flags come offline from
   react-world-flags (`exports/flags.ts`), in the PDF / HTML only; Excel has the
-  country code. jsPDF / jspdf-autotable / file-saver are no longer imported by
-  the exports (still in package.json). **E2E hook**: with
+  country code. jsPDF / jspdf-autotable / file-saver were removed (Nov 2026).
+  **E2E hook**: with
   `SCORING_APP_EXPORT_DIR` set AND `SCORING_APP_HIDDEN=1` the handler writes
   into that directory under the suggested name without a dialog and Print does
   nothing; `e2e/ui-tour.spec.ts` uses it to save sample files.
@@ -843,11 +871,44 @@ For most feature/fix requests, do this in order:
   scoring page's place field are text inputs (a `type="number"` field changes
   on the mouse wheel / arrow keys). `utils/raceCellInput.ts` decides what is
   valid: a place is a whole number 1..boats in that race; RDG3/DPI points are
+
   > 0, <=99, one decimal, comma accepted. Invalid input stays red with the
   > range, is not applied, and Save refuses naming each cell
   > (`editValidity.tsx` context -> `useLeaderboard.invalidCells`). The main
   > process also refuses a place past the last boat of the race
   > (`applyRaceColumnState`).
+
+- **Problem reports** (Help > Report a Problem…, the Navbar's "Report a
+  problem" button, and the crash screen's "Report this problem"):
+  `ProblemReportHost` (mounted in `App.tsx`, outside the ErrorBoundary so it
+  opens when a screen crashed) captures the window first
+  (`captureProblemScreenshot`), then shows `ProblemReportDialog`: kind,
+  area (preset from the route), when, what went wrong, what they were doing,
+  what they expected, optional name and phone/e-mail, and four attachments the
+  user can switch off (event data, history, error log, screenshot + computer
+  details). The event comes from the Navbar (`setReportEventContext`). The form
+  and its rules live in `shared/problemReport.ts`. The main process
+  (`functions/problemReport.ts`) builds one payload: the event snapshot plus the
+  boats, sailors and clubs it uses (logo left out), the history as text and
+  JSON, the newest 512 KB of the error log, the JPEG. `problemReportOutbox.ts`
+  writes it to `<data folder>/problem-reports/<id>.json.gz` BEFORE sending and
+  deletes it only on a 2xx; no internet / 429 / 5xx keep it (retried 30 s after
+  start and every 10 min, `startProblemReportOutbox`), any other 4xx moves it
+  to `failed/`. The service is `report-worker/` (Cloudflare Worker + Resend,
+  own README and `node --test` tests, excluded from the app's tsconfig and
+  ESLint, deployed as `iom-report` on the developer's Cloudflare account;
+  secrets APP_KEY, RESEND_API_KEY, TO_ADDRESS). The URL is in
+  `functions/problemReportConfig.ts`; the key is NOT in the (public) repo: the
+  prod webpack config puts it in from `IOM_REPORT_KEY` or the git-ignored
+  `.report-key` file (CI: the `IOM_REPORT_KEY` repo secret), and a build
+  without it keeps reports on the computer.
+  `SCORING_APP_REPORT_URL` / `_KEY` override them; with `SCORING_APP_HIDDEN=1`
+  (e2e) nothing is sent unless a URL is given. `e2e/problem-report.spec.ts`
+  sends a real report to a stand-in server and checks what arrived.
+- The main window refuses navigation away from the app page
+  (`isSameAppPage` in `main/util.ts`): a file dropped on the window used to
+  replace the app with that file, and the packaged menu has no Reload. Only
+  http(s) links are opened in the browser (`isWebLink`).
 
 ## 11. What To Search Only If Needed
 

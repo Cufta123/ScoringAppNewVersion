@@ -1,8 +1,19 @@
 import { db } from '../../../public/Database/DBManager';
 import { subgroupToCategoryName } from '../../shared/subgroups';
 import handle from './handle';
-import type { ImportSailorsSummary } from '../../shared/importSailors';
 import retryWhenBusy from '../functions/retryWhenBusy';
+import type {
+  ImportOwnerConflict,
+  ImportSailorsSummary,
+} from '../../shared/importSailors';
+import {
+  cleanEntry,
+  enterSailor,
+  findBoat,
+  ownerConflict,
+  type EntryInput,
+  type EntryResult,
+} from '../functions/sailorEntry';
 
 handle('readAllSailors', () => {
   const rows = db
@@ -20,22 +31,6 @@ LEFT JOIN Boats b ON s.sailor_id = b.sailor_id
     )
     .all();
   return rows;
-});
-
-handle('insertClub', async (event, club_name, country) => {
-  const result = db
-    .prepare('INSERT INTO Clubs (club_name, country) VALUES (?, ?)')
-    .run(club_name, country);
-  return { lastInsertRowid: result.lastInsertRowid };
-});
-
-handle('insertBoat', async (event, sail_number, country, model, sailor_id) => {
-  const result = db
-    .prepare(
-      'INSERT INTO Boats (sail_number, country, model, sailor_id) VALUES (?, ?, ?, ?)',
-    )
-    .run(sail_number, country, model, sailor_id);
-  return { lastInsertRowid: result.lastInsertRowid };
 });
 
 handle('readAllCategories', () => {
@@ -164,20 +159,6 @@ handle('updateSailor', async (event, sailorData: SailorEdit) => {
   return applyEdit();
 });
 
-handle(
-  'insertSailor',
-  async (event, name, surname, birthday, category_id, club_id) => {
-    return retryWhenBusy(() => {
-      const result = db
-        .prepare(
-          'INSERT INTO Sailors (name, surname, birthday, category_id, club_id) VALUES (?, ?, ?, ?, ?)',
-        )
-        .run(name, surname, birthday, category_id, club_id);
-      return { lastInsertRowid: result.lastInsertRowid };
-    });
-  },
-);
-
 interface ImportRow {
   name: string;
   surname: string;
@@ -190,163 +171,181 @@ interface ImportRow {
   eventId?: number | string;
 }
 
-/** What one imported row changed; the counters only move for rows that went through. */
-interface ImportRowOutcome {
-  created: number;
-  associated: number;
-  alreadyInEvent: number;
+/** What to do with a row whose boat is registered to someone else. */
+interface ImportOptions {
+  /**
+   * 'skip' (the default) leaves those rows out; 'use-registered' enters the
+   * boat under her registered sailor, as the add form does once asked.
+   */
+  ownerConflicts?: 'skip' | 'use-registered';
 }
 
-/**
- * Import one row: upsert its club, sailor and boat and, when an event is
- * given, enter the boat in it. Returns null for a row missing required fields.
- * Runs inside the caller's transaction.
- */
-function importRow(row: ImportRow): ImportRowOutcome | null {
-  const {
-    name,
-    surname,
-    birthday,
-    sail_number,
-    country,
-    model,
-    club_name,
-    category_name,
-    eventId,
-  } = row;
+const text = (value: unknown) => String(value ?? '').trim();
 
-  // model is optional (matches the single-entry form and the import UI's
-  // stated "Optional" columns); default it rather than rejecting the row.
-  if (!name || !surname || !sail_number || !country) {
-    return null;
-  }
-  const outcome = { created: 0, associated: 0, alreadyInEvent: 0 };
-  const boatModel = model || '';
-
-  // Resolve category. Accept either a full category name (e.g. "VETERAN")
-  // or a subgroup code (e.g. "M") so the CSV matches the single-entry form.
-  const resolvedCategoryName =
-    subgroupToCategoryName(category_name) || category_name || 'SENIOR';
-  const catRow = db
+/** The subgroup of a row: a code ("M") or a full name ("VETERAN"); null if none. */
+function categoryIdForRow(categoryName: unknown): number | null {
+  const given = text(categoryName);
+  if (!given) return null;
+  const name = subgroupToCategoryName(given) || given;
+  const row = db
     .prepare(
       'SELECT category_id FROM Categories WHERE UPPER(category_name) = UPPER(?)',
     )
-    .get(resolvedCategoryName) as { category_id: number } | undefined;
-  const category_id = catRow?.category_id ?? 3; // default SENIOR
-
-  // Upsert club
-  let club_id: number;
-  const existingClub = db
-    .prepare('SELECT club_id FROM Clubs WHERE club_name = ?')
-    .get(club_name) as { club_id: number } | undefined;
-  if (existingClub) {
-    club_id = existingClub.club_id;
-  } else {
-    const clubResult = db
-      .prepare('INSERT INTO Clubs (club_name, country) VALUES (?, ?)')
-      .run(club_name || 'Unknown', country);
-    club_id = clubResult.lastInsertRowid as number;
-  }
-
-  // Upsert sailor
-  let sailor_id: number;
-  const existingSailor = db
-    .prepare(
-      'SELECT sailor_id FROM Sailors WHERE name = ? AND surname = ? AND birthday = ?',
-    )
-    .get(name, surname, birthday) as { sailor_id: number } | undefined;
-  if (existingSailor) {
-    sailor_id = existingSailor.sailor_id;
-  } else {
-    const sailorResult = db
-      .prepare(
-        'INSERT INTO Sailors (name, surname, birthday, category_id, club_id) VALUES (?, ?, ?, ?, ?)',
-      )
-      .run(name, surname, birthday || '', category_id, club_id);
-    sailor_id = sailorResult.lastInsertRowid as number;
-  }
-
-  // Upsert boat
-  let boat_id: number;
-  const existingBoat = db
-    .prepare(
-      'SELECT boat_id FROM Boats WHERE CAST(sail_number AS TEXT) = ? AND UPPER(country) = UPPER(?)',
-    )
-    .get(String(sail_number), country) as { boat_id: number } | undefined;
-  if (existingBoat) {
-    boat_id = existingBoat.boat_id;
-  } else {
-    const boatResult = db
-      .prepare(
-        'INSERT INTO Boats (sail_number, country, model, sailor_id) VALUES (?, ?, ?, ?)',
-      )
-      .run(String(sail_number), country, boatModel, sailor_id);
-    boat_id = boatResult.lastInsertRowid as number;
-    outcome.created += 1;
-  }
-
-  // Associate boat with event if event_id provided
-  if (eventId) {
-    const event_id = Number(eventId);
-    const inEvent = db
-      .prepare(
-        'SELECT boat_event_id FROM Boat_Event WHERE boat_id = ? AND event_id = ?',
-      )
-      .get(boat_id, event_id) as { boat_event_id: number } | undefined;
-    if (inEvent) {
-      outcome.alreadyInEvent += 1;
-    } else {
-      db.prepare(
-        'INSERT INTO Boat_Event (boat_id, event_id) VALUES (?, ?)',
-      ).run(boat_id, event_id);
-      // A boat created by this row is already counted under `created`.
-      if (existingBoat) outcome.associated += 1;
-    }
-  }
-  return outcome;
+    .get(name) as { category_id: number } | undefined;
+  return row?.category_id ?? null;
 }
 
-handle('importSailors', (_event, rows: ImportRow[]): ImportSailorsSummary => {
-  let created = 0; // new boats added to DB
-  let associated = 0; // existing boats newly added to this event
-  let alreadyInEvent = 0; // boats that were already in this event
-  let invalid = 0; // rows missing required fields
-  const errors: string[] = [];
+/** A CSV row as an entry, or null when a required field is missing. */
+function entryOfRow(row: ImportRow): EntryInput | null {
+  // model, birthday, club and subgroup are optional, as on the add form.
+  if (
+    !text(row.name) ||
+    !text(row.surname) ||
+    !text(row.sail_number) ||
+    !text(row.country)
+  ) {
+    return null;
+  }
+  return {
+    name: row.name,
+    surname: row.surname,
+    birthday: row.birthday,
+    clubName: row.club_name,
+    country: row.country,
+    sailNumber: row.sail_number,
+    model: row.model,
+    categoryId: categoryIdForRow(row.category_name),
+  };
+}
 
-  // Each row is its own (nested) transaction: when one fails part-way, the
-  // sailor, club and boat it already wrote are rolled back with it, and the
-  // counters only change for rows that went through. The outer transaction
-  // still makes the whole import all-or-nothing against a crash.
-  const importRowAtomically = db.transaction(importRow);
-  const importAll = db.transaction(() => {
-    rows.forEach((row) => {
-      try {
-        const outcome = importRowAtomically(row);
-        if (outcome === null) {
+const eventIdOfRow = (row: ImportRow): number | null =>
+  row.eventId ? Number(row.eventId) : null;
+
+/**
+ * The rows whose boat is registered to someone else, for the import's
+ * preview to ask about before anything is written. Reads only.
+ */
+handle('previewSailorImport', (_event, rows: ImportRow[]) => {
+  const conflicts: ImportOwnerConflict[] = [];
+  (Array.isArray(rows) ? rows : []).forEach((row, index) => {
+    const entry = entryOfRow(row);
+    if (!entry) return;
+    const clean = cleanEntry(entry);
+    const boat = findBoat(clean.sailNumber, clean.country);
+    const ownerName = boat ? ownerConflict(boat, clean) : null;
+    if (ownerName) {
+      conflicts.push({
+        line: index + 2, // the header is line 1
+        sail: `${clean.country} ${clean.sailNumber}`,
+        fileName: `${clean.name} ${clean.surname}`,
+        ownerName,
+      });
+    }
+  });
+  return { conflicts };
+});
+
+handle(
+  'importSailors',
+  (
+    _event,
+    rows: ImportRow[],
+    options: ImportOptions = {},
+  ): ImportSailorsSummary => {
+    let created = 0; // new boats added to DB
+    let associated = 0; // existing boats newly added to this event
+    let alreadyInEvent = 0; // boats that were already in this event
+    let invalid = 0; // rows missing required fields
+    let ownerConflicts = 0; // rows left out: the boat is someone else's
+    const errors: string[] = [];
+    const useRegisteredSailor = options?.ownerConflicts === 'use-registered';
+
+    // Each row is its own (nested) transaction: when one fails part-way, the
+    // sailor, club and boat it already wrote are rolled back with it, and the
+    // counters only change for rows that went through. The outer transaction
+    // still makes the whole import all-or-nothing against a crash.
+    const importRowAtomically = db.transaction(
+      (entry: EntryInput, eventId: number | null) =>
+        enterSailor(entry, eventId, { useRegisteredSailor }),
+    );
+    const importAll = db.transaction(() => {
+      rows.forEach((row) => {
+        const entry = entryOfRow(row);
+        if (!entry) {
           invalid += 1;
           return;
         }
-        created += outcome.created;
-        associated += outcome.associated;
-        alreadyInEvent += outcome.alreadyInEvent;
-      } catch (err) {
-        errors.push(
-          `Row ${row.name} ${row.surname}: ${(err as Error).message}`,
-        );
-        invalid += 1;
-      }
+        try {
+          const outcome = importRowAtomically(entry, eventIdOfRow(row));
+          if (outcome.status === 'ownerConflict') {
+            ownerConflicts += 1;
+          } else if (outcome.status === 'alreadyEntered') {
+            alreadyInEvent += 1;
+          } else if (outcome.createdBoat) {
+            created += 1;
+          } else {
+            associated += 1;
+          }
+        } catch (err) {
+          errors.push(
+            `Row ${text(row.name)} ${text(row.surname)}: ${(err as Error).message}`,
+          );
+          invalid += 1;
+        }
+      });
     });
-  });
 
-  importAll();
-  return {
-    created,
-    associated,
-    alreadyInEvent,
-    invalid,
-    errors,
-    // keep legacy fields so UI doesn't break
-    imported: created + associated,
-    skipped: alreadyInEvent + invalid,
-  };
-});
+    importAll();
+    return {
+      created,
+      associated,
+      alreadyInEvent,
+      invalid,
+      ownerConflicts,
+      errors,
+      // keep legacy fields so UI doesn't break
+      imported: created + associated,
+      skipped: alreadyInEvent + invalid + ownerConflicts,
+    };
+  },
+);
+
+/**
+ * The add form's one call: club, sailor, boat and entry in one transaction
+ * (see functions/sailorEntry.ts). Answers `ownerConflict` without writing
+ * anything when the boat is registered to someone else; the form asks and
+ * calls again with `useRegisteredSailor`.
+ */
+handle(
+  'enterSailorInEvent',
+  async (
+    _event,
+    entry: EntryInput,
+    raw_event_id,
+    options: { useRegisteredSailor?: boolean } = {},
+  ): Promise<EntryResult> => {
+    const eventId = Number(raw_event_id);
+    const exists = db
+      .prepare('SELECT 1 FROM Events WHERE event_id = ?')
+      .get(eventId);
+    if (!exists) {
+      throw new Error(
+        'This event no longer exists, so the sailor was not added. Go back to the event list.',
+      );
+    }
+    const clean = cleanEntry(entry ?? ({} as EntryInput));
+    if (!clean.name || !clean.surname || !clean.sailNumber || !clean.country) {
+      throw new Error(
+        'The sailor was not added: first name, surname, sail number and country are needed.',
+      );
+    }
+    // A backup copy running at that moment can hold the file for a moment.
+    return retryWhenBusy(() =>
+      db.transaction(() =>
+        enterSailor(clean, eventId, {
+          useRegisteredSailor: Boolean(options?.useRegisteredSailor),
+        }),
+      )(),
+    );
+  },
+);

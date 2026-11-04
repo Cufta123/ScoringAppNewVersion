@@ -1125,6 +1125,143 @@ th.sortable:hover {
   }
 }
 
+/* ── Sailor import: boats registered to someone else ─────── */
+.import-owner-conflicts {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-left: 4px solid var(--amber);
+  border-radius: 6px;
+  background: var(--amber-light);
+  color: var(--amber-strong);
+}
+
+.import-owner-conflicts p,
+.import-owner-conflicts ul {
+  margin: 4px 0;
+}
+
+/* ── Problem report dialog ────────────────────────────────── */
+/* The Navbar button says "Problem?" on narrow windows, so the bar stays on
+   one line at 1024 px with every button of the event page. */
+.navbar-label-short {
+  display: none;
+}
+
+@media (max-width: 1180px) {
+  .navbar-label-long {
+    display: none;
+  }
+  .navbar-label-short {
+    display: inline;
+  }
+}
+
+.problem-report-dialog {
+  width: min(760px, 96vw);
+}
+
+.problem-report-dialog .sailor-edit-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.problem-report-dialog .sailor-edit-grid .sailor-form-field {
+  min-height: 0;
+  margin-bottom: 10px;
+}
+
+.problem-report-text {
+  margin-bottom: 12px;
+}
+
+.problem-report-text textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--text);
+  background: var(--surface);
+  resize: vertical;
+}
+
+.problem-report-text textarea[aria-invalid='true'],
+.problem-report-dialog select[aria-invalid='true'],
+.problem-report-dialog input[aria-invalid='true'] {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(200, 53, 42, 0.14);
+}
+
+.problem-report-includes {
+  clear: both;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 12px;
+}
+
+.problem-report-include {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.problem-report-include input {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  flex: 0 0 auto;
+}
+
+.problem-report-include span {
+  display: flex;
+  flex-direction: column;
+  color: var(--text);
+}
+
+.problem-report-include small {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.problem-report-shot {
+  max-width: 260px;
+  max-height: 160px;
+  margin-left: 30px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.problem-report-send-error {
+  margin: 0;
+  padding: 10px 20px;
+  border-left: 4px solid var(--danger);
+  background: var(--danger-light);
+  color: var(--danger-hover);
+  font-weight: 600;
+}
+
+.problem-report-done {
+  padding: 18px 20px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.problem-report-done-title {
+  margin-top: 0;
+  color: var(--navy);
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+@media (max-width: 640px) {
+  .problem-report-dialog .sailor-edit-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 tr.row-editing > td {
   background: var(--ocean-light);
 }

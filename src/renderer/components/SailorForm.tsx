@@ -12,7 +12,7 @@ import { checkRaceHappened } from '../utils/raceStatus';
 
 import IOC_NATIONS from '../constants/iocNations';
 import { SUBGROUP_OPTIONS } from '../../shared/subgroups';
-import { eventDB, sailorDB } from '../api/db';
+import { sailorDB } from '../api/db';
 import type { ClubRow } from '../types';
 
 interface SailorFormProps {
@@ -85,181 +85,69 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
       return;
     }
 
+    const selectedSubgroup = SUBGROUP_OPTIONS.find(
+      (option) => option.value === subgroup,
+    );
+    if (!selectedSubgroup) {
+      reportWarning('Please select a subgroup.', 'Missing information');
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const selectedSubgroup = SUBGROUP_OPTIONS.find(
-        (option) => option.value === subgroup,
-      );
-
-      if (!selectedSubgroup) {
-        reportWarning('Please select a subgroup.', 'Missing information');
-        return;
-      }
-
-      const category_id = selectedSubgroup.categoryId;
-      const birthday = '';
-
-      // Check if the club already exists
-      let club_id = clubs.find(
-        (c) => c.club_name === clubName && c.country === selectedCountry,
-      )?.club_id;
-      if (!club_id) {
-        try {
-          const result = await sailorDB.insertClub(clubName, selectedCountry);
-          club_id = result.lastInsertRowid;
-
-          // Update the clubs state with the newly added club
-          setClubs([
-            ...clubs,
-            { club_id, club_name: clubName, country: selectedCountry },
-          ]);
-        } catch (error) {
-          // IPC strips custom error fields (e.g. `code`), so also match the
-          // message, which does survive the bridge.
-          const err = error as { code?: string; message?: string };
-          const isDuplicateClub =
-            err?.code === 'SQLITE_CONSTRAINT_UNIQUE' ||
-            /unique|already exists/i.test(String(err?.message || ''));
-
-          if (!isDuplicateClub) {
-            reportError(
-              'Could not add the club, so the sailor was not added.',
-              error,
-            );
-            return; // Exit the function gracefully
-          }
-
-          // The club already exists in the DB but was missing from local
-          // state. Re-fetch so we can resolve its id and continue instead of
-          // surfacing a misleading error.
-          try {
-            const allClubs = await sailorDB.readAllClubs();
-            const existingClub = (allClubs || []).find(
-              (c) => c.club_name === clubName && c.country === selectedCountry,
-            );
-            if (!existingClub) {
-              reportError(
-                'This club already exists but its details could not be loaded. Please try again.',
-                error,
-              );
-              return;
-            }
-            club_id = existingClub.club_id;
-            setClubs(allClubs);
-          } catch (refetchError) {
-            reportError('Could not load existing club details.', refetchError);
-            return;
-          }
-        }
-      }
-
-      const allSailors = await sailorDB.readAllSailors();
-      let sailor_id = allSailors.find(
-        (s) =>
-          s.name === firstName &&
-          s.surname === lastName &&
-          s.birthday === birthday,
-      )?.sailor_id;
-
-      if (!sailor_id) {
-        try {
-          const sailorResult = await sailorDB.insertSailor(
-            firstName,
-            lastName,
-            birthday,
-            category_id,
-            club_id,
-          );
-          sailor_id = sailorResult.lastInsertRowid;
-        } catch (error) {
-          reportError('Could not add the sailor.', error);
-          return; // Exit the function gracefully
-        }
-      }
-
-      const eventBoats = await eventDB.readBoatsByEvent(eventId);
-
-      // Reuse an existing boat with this sail number + country — the same
-      // identity rule as the CSV import — so re-submitting the form (or a
-      // double-click) never piles up duplicate boat rows in the event.
-      const allBoats = await sailorDB.readAllBoats();
-      const existingBoat = (allBoats || []).find(
-        (b) =>
-          String(b.sail_number).trim() === sailNumber.trim() &&
-          String(b.boat_country || '').toUpperCase() ===
-            selectedCountry.toUpperCase(),
-      );
-
-      // Reusing a boat also reuses ITS sailor for scoring. If that boat already
-      // belongs to a different person than the one just entered, adding it would
-      // silently attribute this entry (and its results) to the wrong sailor —
-      // so confirm before proceeding instead of failing silently.
-      if (existingBoat) {
-        const ownerName =
-          `${existingBoat.name ?? ''} ${existingBoat.surname ?? ''}`.trim();
-        const typedName = `${firstName} ${lastName}`;
-        if (ownerName && ownerName.toLowerCase() !== typedName.toLowerCase()) {
+      // One call: club, sailor, boat and entry are written together or not
+      // at all (main/functions/sailorEntry.ts). It writes nothing when the
+      // boat is registered to someone else; then we ask and call again.
+      const entry = {
+        name: firstName,
+        surname: lastName,
+        clubName,
+        country: selectedCountry,
+        sailNumber: sailNumber.trim(),
+        model: model.trim(),
+        categoryId: selectedSubgroup.categoryId,
+      };
+      let outcome;
+      try {
+        outcome = await sailorDB.enterSailorInEvent(entry, eventId);
+        if (outcome.status === 'ownerConflict') {
+          const typedName = `${firstName} ${lastName}`;
           const proceed = await confirmAction(
-            `Sail ${sailNumber} (${selectedCountry}) is already registered to ` +
-              `${ownerName}. If you add it now, this entry will be scored under ` +
-              `${ownerName}, not ${typedName}.\n\n` +
-              `Choose "Use existing sailor" to enter ${ownerName}, or Cancel to ` +
+            `Sail ${entry.sailNumber} (${selectedCountry}) is already registered to ` +
+              `${outcome.ownerName}. If you add it now, this entry will be scored under ` +
+              `${outcome.ownerName}, not ${typedName}.\n\n` +
+              `Choose "Use existing sailor" to enter ${outcome.ownerName}, or Cancel to ` +
               `correct the sail number or country.`,
             'Sail number already in use',
             { confirmLabel: 'Use existing sailor', cancelLabel: 'Cancel' },
           );
           if (!proceed) return;
+          outcome = await sailorDB.enterSailorInEvent(entry, eventId, {
+            useRegisteredSailor: true,
+          });
         }
+      } catch (error) {
+        const message = getErrorMessage(error);
+        const reason = message.match(/Sail .* is already entered[^.]*\./);
+        if (reason) {
+          reportWarning(reason[0], 'Already entered');
+        } else {
+          reportError('Could not add the sailor and boat.', error);
+        }
+        return;
       }
 
-      let boat_id: number | null = existingBoat?.boat_id ?? null;
-
-      if (boat_id == null) {
-        try {
-          const boatResult = await sailorDB.insertBoat(
-            // Store the trimmed sail number so it matches the existing-boat
-            // lookup above (which compares sailNumber.trim()); otherwise a
-            // stray space creates a boat that lookup can never find again,
-            // defeating the duplicate-boat guard on the next submit.
-            sailNumber.trim(),
-            selectedCountry,
-            model.trim(),
-            sailor_id,
-          );
-          boat_id = boatResult.lastInsertRowid;
-        } catch (error) {
-          reportError(
-            'Could not add the boat, so the entry was not added.',
-            error,
-          );
-          return; // Exit the function gracefully
-        }
-      }
-
-      const existingAssociation = eventBoats.find((b) => b.boat_id === boat_id);
-
-      if (existingAssociation) {
+      if (outcome.status === 'alreadyEntered') {
         reportInfo(
-          `Sail ${sailNumber} (${selectedCountry}) is already registered in this event.`,
+          `Sail ${entry.sailNumber} (${selectedCountry}) is already registered in this event.`,
           'Already registered',
         );
         return;
       }
 
-      if (!existingAssociation && boat_id != null) {
-        try {
-          await eventDB.associateBoatWithEvent(boat_id, eventId);
-        } catch (error) {
-          const message = getErrorMessage(error);
-          const reason = message.match(/Sail .* is already entered[^.]*\./);
-          if (reason) {
-            reportWarning(reason[0], 'Already entered');
-          } else {
-            reportError('Could not enter the boat in this event.', error);
-          }
-          return; // Exit the function gracefully
-        }
-      }
+      // New clubs show up in the suggestions for the next sailor.
+      fetchClubs();
+
       // Clear only the per-sailor fields. Country and Club are intentionally
       // retained: rosters are usually entered club-by-club / nation-by-nation,
       // so keeping them saves re-selecting the same values for every sailor.
