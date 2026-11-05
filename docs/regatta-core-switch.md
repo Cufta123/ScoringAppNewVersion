@@ -67,13 +67,20 @@ keep in step.
 - [x] Phase 2: the leaderboard reads, both explanations and the Final Series eligibility come from the library (`libraryStandings`, `libraryExplain`, `libraryEvent`). `getMaxHeatSize` stays on the tables until the writes move
 - [x] Phase 3: every scoring write goes through the library (`libraryWrite`); the event's decision log is stored (`Decisions`, migration 9, `decisionStore`), converted from the tables the first time an event is used (notes and anomalies in `EventLogs`); reads replay the stored log; the tables are the projection. Restores of backups, imports and the old history paths convert the tables again (until phase 4). A boat's details edit is a boatChanged in each of her events
 - [x] Phase 4: undo from the history and going back to a point work on the stored log (`logHistory`): an undo withdraws the action's decisions and brings back, as its own, the ones it withdrew (so undoing an undo works the same way); going back makes the log what it was right after that action, and the event's own columns come back from the journal. A point before the event's log was converted uses the row-based history and converts again. Chaos (200 sessions) and the comparison (200 events) pass
-- [ ] Phase 5 (in progress)
+- [x] Phase 5: the renderer reads the library
   - [x] The Final Series refuses a round built but not sailed (R7): the screen says to undo or sail it
   - [x] The event form reads the discard locks and `qualifying_started` from the races (R11)
-  - [x] Every read carries the library's excluded scores (`race_excluded`); the screens mark them and take the library's totals
+  - [x] Every read carries the library's excluded scores (`race_excluded`); the screens mark them and take the library's totals; the exports count discards from them
   - [x] The edit preview is the library's: each edit is saved as Save saves it, read back and rolled back (`previewLeaderboardEdit`, `libraryWrite.previewOnEvent`), and those rows replace the draft. Before, the draft kept the places from before the edit (29 of 30 random sessions); `leaderboardEdit.wysiwyg` now checks the whole draft against the leaderboard after Save, qualifying and Final
-  - [ ] The renderer's own discard / redress / column maths only gives the instant draft; move it to the library or drop it (phase 6)
-- [ ] Phase 6
+  - [x] The compare panel shows the library's SHRS steps (5.7(ii)(3))
+- [ ] Phase 6: cleanup
+  - [x] The old engine removed (calculate\*BoatScores, leaderboardRecompute, refreshStandings, the old explanations, overall, fleet split, next round, seeding, `shared/scoring/series|overall|ranking`, `shared/fleetAssignment`) and unused helpers
+  - [x] Migration 10 drops `Leaderboard` / `FinalLeaderboard`; backups no longer carry them
+  - [x] The old engine's rule scenarios ported to `packages/regatta-core/test/ported` (209 tests; the library was right in every case where they disagreed)
+  - [x] `euroIom2025.published` and `.startingHeats` replay the real sheet through the library
+  - [x] AGENTS.md
+  - [ ] The old Save path (`applyRaceColumnState`, the per-boat 3.1.5 shields in `assignmentShield`) and its test moved to the library path
+  - [ ] The renderer's instant-draft maths (`applyExclusions`, `shared/redress`) only bridges until the library's answer arrives; keep or replace with the library run in the renderer
 
 ## Conversion
 

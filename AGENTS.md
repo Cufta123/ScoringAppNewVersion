@@ -31,13 +31,16 @@ Use this document first. Only search the repo when this file does not answer the
     (see "Problem reports" in §10)
   - `src/main/ipcHandlers/ExportHandler.ts` — saving and printing the exported
     documents (see "Exported documents" in §10)
+- **The scoring rules live in `packages/regatta-core`** (SHRS 2026-1 + RRS
+  2025-2028 Appendix A): a log of decisions in, heats, scores, standings and
+  explanations out; no database, no UI. The app stores each event's log and
+  asks the library for everything else (§4, "The event is its decision
+  log"). Its own README, tests (`cd packages/regatta-core && npx jest`) and
+  rule decisions (`docs/parity/`); how the app was switched to it:
+  `docs/regatta-core-switch.md`.
 - Pure/domain logic (extracted out of the handlers): `src/main/functions/`
   (see §5 for the full module map).
-- Scoring core and cross-process helpers: `src/shared/`. The series scoring
-  rules live in `src/shared/scoring/` (`series.ts`: discards, SHRS 5.7
-  tie-break and places for qualifying and final series; `overall.ts`: SHRS
-  5.5 overall standings, fleet order and the tie-break across both series;
-  `discards.ts`; `ranking.ts`). Code in `src/shared` takes data and returns results: it must
+- Cross-process helpers: `src/shared/`. Code in `src/shared` takes data and returns results: it must
   not import main-process, renderer, database, Electron, React or Node code
   (an ESLint rule enforces this), so any future viewer can run it unchanged.
 - Preload bridge and exposed API: `src/main/preload.ts`
@@ -104,9 +107,11 @@ Key tables:
 - `Clubs`
 - `Categories` (seeded with KADET/JUNIOR/SENIOR/VETERAN/MASTER)
 - `Boat_Event` (boat-event association)
-- `Heats`, `Races`, `Scores`, `Heat_Boat`
-- `Leaderboard`, `FinalLeaderboard`
-- `GlobalLeaderboard` (retained but unused; see §10)
+- `Decisions` (the event's decision log) and `EventLogs` (migration 9)
+- `Heats`, `Races`, `Scores`, `Heat_Boat` (the projection of the log)
+- `GlobalLeaderboard` (retained but unused; see §10). `Leaderboard` and
+  `FinalLeaderboard` were dropped in migration 10: standings are worked out
+  on every read, never stored.
 - `RaceAssignmentSnapshots` (SHRS 3.1.5 pre-protest assignment order, persisted
   so the in-memory cache in `raceAssignmentSnapshot.ts` survives restarts)
 
@@ -138,8 +143,8 @@ Important migration details:
   `Scores` (and `RaceAssignmentSnapshots`, hidden in the history) append one
   `ChangeLog` row per inserted/updated/deleted row (whole row before and after
   as JSON, plus readable labels in `context`). An update that changes nothing
-  is not logged. The standings (`Leaderboard`, `FinalLeaderboard`) are not
-  journalled. Deleting
+  is not logged. The decision log is not journalled: it is its own history.
+  Deleting
   an event deletes its history. The triggers list the columns as they were
   when installed: a migration that adds a column to a journalled table must
   call `installJournalTriggers(db)` again. The IPC wrapper (`handle.ts`) groups
@@ -154,11 +159,13 @@ Important migration details:
   `updateRaceResult` / `updateScore` / `insertScore` / `deleteScore` channels,
   whose history rows stay in existing databases) — scoring a race, heats
   and entries feed later heats and keep their scoring-page Undo with its
-  guards. Rules in `shared/history/revert.ts`: every row the action changed is
-  put back as it was, in one transaction with the standings rebuild, and only
-  if no later action changed it (else the error names that action). Points the
-  rebuild re-derives (RDG1/RDG2 averages, non-finisher and 44.3(c) points) are
-  neither checked nor restored; discard locks stay set. The undo is recorded
+  guards. An action that made decisions is undone on the log
+  (`logHistory.undoActionOnLog`): its decisions are withdrawn and the ones it
+  withdrew come back, refused if a later action changed the same race (the
+  error names that action). An action from before the event's log was
+  converted is undone row by row (rules in `shared/history/revert.ts`: every
+  row put back as it was, only if no later action changed it), then the
+  tables are converted to the log again. The undo is recorded
   with `ChangeActions.reverts_action_id`, so it can be undone too. After an
   undo the dialog fires `notifyEventDataChanged`; the leaderboard (unless
   editing) and scoring pages reload via `useEventDataChanged`.
@@ -167,35 +174,37 @@ Important migration details:
   `historyDescribe.test.ts`, `historyRevert.test.ts` and
   `EventHistoryDialog.test.jsx`.
 
-- Migration 5 adds the **`CountedRaces` view** (`public/Database/views.js`),
-  the one definition of which races count in the standings: every final race,
-  and a qualifying race once EVERY heat of its round (with boats) has sailed
-  it — SHRS 1.1, "each race will consist of two or more heats". Everything
-  that scores the qualifying series joins it: the rebuild
-  (`recomputeEventLeaderboard`, redress averages), `calculateBoatScores`,
-  `getSeriesDiscardRaceCount`, the tie-breaks, `explainScore`, the fleet
-  split, the DNC backfill and `readLeaderboard`. A round still being sailed
-  leaves the standings exactly as after the last full round; its results come
-  back separately as `pending_races` and show greyed ("Q3\*") on the
-  leaderboard, outside every total. Tests that build their own schema must
-  add `COUNTED_RACES_VIEW` (`eventLifecycleSchema.ts` does).
-- **The leaderboard reads come from regatta-core** (switch phase 2, see
-  `docs/regatta-core-switch.md`). `readLeaderboard`, `readFinalLeaderboard`
-  and `readOverallLeaderboard` convert the event's tables to a decision log
-  (`functions/eventLog.ts` `eventToLog`) and return the library's places,
-  totals and race points in the old row shapes
-  (`functions/libraryStandings.ts`); the place, status and kept place shown
-  in each race are the stored ones. `refreshStandings` still runs first: it
-  completes missing DNS / DNC rows (the conversion reads them) and keeps
-  `Leaderboard` / `FinalLeaderboard` for the writers not yet on the library
-  (the Final split, the next round). The explanations (`explainBoatScore`,
-  `explainTieBreak`: `functions/libraryExplain.ts`) and
-  `getFinalSeriesEligibility` (`functions/libraryEvent.ts`) come from the
-  library too; `getMaxHeatSize` stays the count the writes score with until
-  they move. `functions/projectEvent.ts` writes the library's state into
-  the tables (phase 3); `projectEvent.roundtrip.test.ts` checks that the
-  tables convert back to the same event. Tests that mock the database for a
-  read mock `functions/libraryStandings` too.
+- Migration 5 adds the **`CountedRaces` view** (`public/Database/views.js`):
+  a qualifying race counts once EVERY heat of its round has sailed it (SHRS
+  1.1). The standings no longer read it (regatta-core counts a round the same
+  way and returns the round still being sailed as `pending_races`, shown
+  greyed "Q3\*" outside every total); the DNC completion of the tables
+  (`ensureDncScoresForMissedQualifyingRaces`, run before an event's tables
+  are converted to a log) still joins it. Tests that build their own schema
+  must add `COUNTED_RACES_VIEW` (`eventLifecycleSchema.ts` does).
+- **The event is its decision log** (`docs/regatta-core-switch.md`).
+  Every write is a decision: a handler builds it, `libraryWrite.applyToEvent`
+  replays the stored log with it (regatta-core refuses, in words, what the
+  rules do not allow), stores it (`decisionStore.saveLog`) and writes the
+  new state into `Heats` / `Races` / `Scores` / `Heat_Boat` / the Events
+  settings (`projectEvent`), all in one transaction. The tables are a
+  projection the screens and exports read; `projectEvent.roundtrip.test.ts`
+  checks that they convert back to the same event. An event made before
+  this version is converted from its tables the first time it is used
+  (`eventLog.eventToLog`; what the conversion assumed or could not express
+  is kept in `EventLogs`). A decision is never deleted: taking it back marks
+  it `withdrawn_by` the action that did; decisions are tagged with the
+  `ChangeActions` row of the call that made them.
+  Reads: `readLeaderboard`, `readFinalLeaderboard`, `readOverallLeaderboard`
+  (`libraryStandings`: the library's places, totals, race points and
+  `race_excluded`, in the old row shapes; the place, status and kept place
+  shown in each race are the projected ones), `explainBoatScore` /
+  `explainTieBreak` (`libraryExplain`), `getFinalSeriesEligibility`
+  (`libraryEvent`). Undo from the history and "go back to a point" work on
+  the log (`logHistory`); a point before the event's conversion uses the
+  row-based journal and converts again. A restored or imported backup is
+  converted from its tables. Tests that mock the database for a read mock
+  `functions/libraryStandings` too.
 
 DB file paths:
 
@@ -208,82 +217,52 @@ DB file paths:
 
 ## 5. Domain Rules And Scoring Notes
 
-The handlers (`ipcHandlers/`) only wire IPC: read, call a pure planner, write
-in one transaction. The logic lives in focused modules under
-`src/main/functions/`. Map of that directory:
+The handlers (`ipcHandlers/`) only wire IPC: turn the request into decisions
+and hand them to `applyToEvent`. What the rules say is regatta-core's; the
+modules under `src/main/functions/` connect it to the database. Map of that
+directory:
 
-- `calculateBoatScores.ts` / `calculateFinalBoatScores.ts` — load a series'
-  scores and hand them to the scoring core (`shared/scoring/series.ts`), which
-  holds the rules. `calculateBoatScores.ts` also wraps the core's qualifying
-  tie-break for the explain panel, so the panel and the ranking cannot differ.
-- `explainScore.ts` — "how was this score calculated?" for one boat (IPC
-  `explainBoatScore`): loads her races and hands them to
-  `shared/scoring/explain.ts`, which states every race's points with the rule
-  behind them (RRS A4/A7, SHRS 5.2, RRS 44.3(c)/30.2/T1, A9 redress with the
-  races averaged), the SHRS 5.4 discards, the sum, and ties (via
-  `explainTieBreak`). It uses the same discard choice and status-points rules
-  as the ranking (`shared/scoring/statusPoints.ts`), and
-  `explainBoatScore.integration.test.ts` checks its totals against the stored
-  leaderboard for every boat of 150 random events. The leaderboard's Overall
-  number opens it (`ScoreExplanationDialog.tsx`), except in edit/compare mode.
-- `creatingNewHeatsUtls.ts` — Race 1 serpentine seeding + Heat Movement Tables
-  (filename typo `Utls` is intentional, see §10).
-- `discardConfig.ts` — per-event discard profile lookup. The pure parsing/count
-  logic lives in `src/shared/discardProfile.ts` and is re-exported here, so the
-  renderer preview and the backend compute discards from one implementation.
-- `finalLeaderboardOrder.ts` — final-leaderboard ordering: SHRS 5.5 fleet
-  precedence + the SHRS 1.5 qualifying-score fallback.
+- The library and its log: `decisionStore.ts` (the `Decisions` table:
+  load, save, withdraw, tag, convert), `eventLog.ts` (tables to log, the
+  conversion of older events; `coreHeatId`), `raceSheet.ts` (a race's
+  sheet from stored rows), `libraryWrite.ts` (`currentEvent`,
+  `applyToEvent`, `previewOnEvent`: a write applied, read and rolled back),
+  `projectEvent.ts` (state to tables), `libraryStandings.ts` (the three
+  standings reads; `replayEvent`), `libraryExplain.ts` (score and tie-break
+  explanations), `libraryEvent.ts` (Final Series eligibility, largest heat),
+  `libraryCorrection.ts` (a leaderboard Save as `raceCorrected` /
+  `protestDecided` decisions; SHRS 3.1(5): who decided), `logHistory.ts`
+  (undo and go back on the log).
+- `revertHistoryAction.ts` / `restoreToHistoryPoint.ts` — undo and go back:
+  on the log, or row-based for actions before the event's conversion.
+- `changeJournal.ts` — the change journal's grouping per IPC call (§4).
+- `raceScoring.ts` — `checkedRaceColumn` (the edit screen's whole race,
+  checked and scored with `scoreRaceColumn`: what a Save sends to the
+  library), `getMaxHeatSize`, `ensureCompleteRaceScoresForEvent` (DNS / DNC
+  rows older write paths left out, completed before a conversion; RRS
+  A5.1), `rescoreRace` (row-based undo).
+- `raceSeeding.ts` — a race's results in SHRS 5.3 recording order, and
+  `getOddEvenMovementAdvisory` for the next-round screen.
+- `creatingNewHeatsUtls.ts` — finding the current round's heats
+  (`findLatestHeatsBySuffix`, `checkRaceCountForLatestHeats`); the seeding
+  and the Heat Movement Tables are the library's. Filename typo intentional
+  (§10).
+- `heatQueries.ts`, `seriesGuards.ts` — shared reads and the guards on
+  closed qualifying heats.
+- `discardConfig.ts` — re-exports `shared/discardProfile.ts` for the main
+  process.
 - `scoreStatus.ts` — status vocabulary, `normalizeScoreStatus`,
-  `getScoringPenaltyPoints` (RRS 44.3c/T1), `compareSeededRows` (SHRS 5.3 order).
-- `overallTieBreak.ts` — loads one boat's qualifying and final scores for the
-  overall tie-break; the rules and the overall ranking (`rankOverallStandings`,
-  used by `readOverallLeaderboard`) are in `shared/scoring/overall.ts`.
-- `explainTieBreak.ts` — human-readable tie-break explanations.
-- `finalSeriesEligibility.ts` — `getFinalSeriesEligibility` (whether the Final
-  Series can start; rule 4.3 window detection).
-- `leaderboardRecompute.ts` — rebuilds `Leaderboard` / `FinalLeaderboard` from
-  raw `Scores`.
-- `heatQueries.ts` — shared reads (`getLatestQualifyingHeats`,
-  `getRaceCountForHeat`).
+  `getScoringPenaltyPoints` (RRS 44.3c/T1), `compareSeededRows` (SHRS 5.3).
 - `eventSettings.ts` — per-event SHRS configuration on the Events row:
   qualifying assignment mode (3.1/3.2), heat overflow policy and
   `SHRS_MAX_BOATS_PER_HEAT` (2.3), and the discard-profile lock (5.4). The
   allowed values (`QualifyingAssignmentMode`, `HeatOverflowPolicy`) and their
-  one normalizer are in `shared/eventSettings.ts`; the event writes and these
-  reads both use it.
-- `finalFleetPlan.ts` — `planFinalFleets`: the Final Series fleet split (SHRS
-  4.1/4.2/2.3: withdrawn boats last, overflow policy, never more fleets than
-  boats, sizes as equal as possible with the earlier fleets taking the
-  remainder) from the qualifying ranking, as boat ids per fleet or a plain
-  refusal. `startFinalSeriesAtomic` reads, plans and writes.
-- `nextRoundPlan.ts` — `planNextRound`: round number, heat names and every
-  boat's heat for the next qualifying round (Heat Movement Table for
-  progressive events, carry-forward for pre-assigned ones), or the refusal when
-  nothing could be assigned. `createNewHeatsBasedOnLeaderboard` reads, plans
-  and writes.
-- `submittedRaceScore.ts` — `scoreSubmittedBoat`: one scoring-screen entry to
-  position / points / status (FINISHED keeps its place; ZFP/SCP/T1 keep the
-  place and add the penalty; every other code takes largest heat + 1, SHRS
-  5.2). `submitHeatRaceScoresAtomic` works every boat out before it opens the
-  transaction.
-- `heatWriters.ts` — the two prepared INSERTs every heat builder uses.
+  one normalizer are in `shared/eventSettings.ts`. `readAllEvents` works the
+  locks out from the races (parity R11).
+- `labels.ts` — heats, races and boats named as the screen names them.
+- `validation.ts` — input sanitising for the handlers.
 - `retryWhenBusy.ts` — retry a write a few times while SQLite reports
   `SQLITE_BUSY` (insertSailor, insertEvent).
-- `raceScoring.ts` — every write to `Scores` for a single race:
-  `applyRaceColumnState` (stores a whole corrected race from the leaderboard's
-  Save, RRS A6.1/A6.2/A7, SHRS 5.2, 3.1.5), `applyRaceTieScoring` (RRS A7),
-  `getMaxHeatSize`, `seedRaceWithDefaultDnsScores`,
-  `ensureCompleteRaceScoresForEvent` (DNS repair +
-  `ensureDncScoresForMissedQualifyingRaces`, RRS A5.1), `rescoreRace`.
-- `raceSeeding.ts` — reading a race's results back in SHRS 5.3 recording order
-  for the next round's heat movement (`getRankedBoatsInHeatForRace`,
-  `getLatestRaceRowsForHeats`, `getOddEvenMovementAdvisory`).
-- `assignmentShield.ts` — SHRS 3.1.5 per-boat freeze of the pre-protest
-  finishing order (`captureRaceAssignmentSnapshotIfMissing`,
-  `getAssignmentRowsForHeatRace`); persistence lives in
-  `raceAssignmentSnapshot.ts`.
-- `fleetTotals.ts` — `buildAdjustedFleetLeaderboard`, the SHRS 4.3
-  fleet-assignment ranking adapter over `shared/fleetAssignment.ts`.
 - `sailorEntry.ts` — THE rule for entering a sailor and boat, used by the add
   form (`enterSailorInEvent`, one IPC call, one transaction), the CSV import
   and `importEventSnapshot`: a boat is letters + sail number (reused with her
@@ -302,21 +281,23 @@ in one transaction. The logic lives in focused modules under
   (landing page "Import from backup…", IPC
   `importEventSnapshotFromFile`): every id remapped (RDG2 `rdg_race_ids`
   included), boats matched by letters + number through `sailorEntry`, a taken
-  name gets " (imported)", standings rebuilt; the original history is not
-  carried. This is also how a problem report's `event-snapshot.json` is opened,
+  name gets " (imported)", and the event's log is converted from the
+  copied tables; the original history is not carried. Standings are never
+  read from a file (older files carry `Leaderboard` / `FinalLeaderboard`;
+  they are ignored). This is also how a problem report's `event-snapshot.json` is opened,
   and how an event deleted after "Back up, then delete" comes back (the
   restore only works on an event that still exists). A v1 file without
   `people` is refused with words. The table list here is
   the definition of "an event's data"; add new event-scoped tables to the
   export, the restore's delete, and the restore's reinsert together.
-- `raceAssignmentSnapshot.ts` — SHRS 3.1.5 pre-protest assignment cache +
-  persistence. The in-memory map is read BEFORE the table, so anything that
+- `raceAssignmentSnapshot.ts` — SHRS 3.1.5 rows (`RaceAssignmentSnapshots`):
+  the projection writes a whole-race freeze for every race with a committee
+  decision, which the conversion reads back. The in-memory map is read BEFORE the table, so anything that
   rewrites the table behind it must call `invalidateAssignmentSnapshotCache()`
   or the stale shields keep winning (restoring a backup did exactly that).
 
 Shared (renderer + main) — one definition per rule, imported by both processes:
 
-- `fleetAssignment.ts` — `computeAdjustedFleetTotals` (rule 4.3).
 - `subgroups.ts`.
 - `eventSettings.ts` — `QualifyingAssignmentMode`, `HeatOverflowPolicy` and
   their normalizers (the vocabulary of an event's SHRS settings).
@@ -334,9 +315,9 @@ Shared (renderer + main) — one definition per rule, imported by both processes
   orders "Fleet 5"+ too, not just Gold/Silver/Bronze/Copper).
 - `sailOrder.ts` — SHRS 5.3 / 3.1(iv) tie order: national letter then numeric
   sail number.
-- `raceTieScoring.ts` — the RRS A7 place walk: tied boats share the averaged
-  points of the places they occupy, position-keeping penalties consume a slot
-  without being re-scored.
+- `raceTieScoring.ts` — the RRS A7 place walk used by `scoreRaceColumn`:
+  tied boats share the averaged points of the places they occupy,
+  position-keeping penalties consume a slot without being re-scored.
 - `raceColumnEdit.ts` — what one result correction does to a whole race. A
   correction gives the race the result it would have had if the corrected
   finish had been entered on the scoring screen: a new place MOVES the boat
@@ -351,9 +332,10 @@ Shared (renderer + main) — one definition per rule, imported by both processes
   duplicates/gaps, BFD/OCS left the boats behind a place too low, and Save
   replayed edits in a different order from the screen, so the saved race
   could differ from the one shown. The leaderboard's Save now sends every
-  touched race WHOLE (`{ raceId, cells }`) and the main process stores it via
-  `applyRaceColumnState`, re-scoring it with `scoreRaceColumn`: what is shown
-  is what is saved. `saveLeaderboardRaceResultsAtomic` takes
+  touched race WHOLE (`{ raceId, cells }`); the main process checks and scores
+  it again (`raceScoring.checkedRaceColumn`, `scoreRaceColumn`) and turns it
+  into decisions for the library (`libraryCorrection`): what is shown is
+  what is saved. `saveLeaderboardRaceResultsAtomic` takes
   `(event_id, operations, updateFinalLeaderboard)` and accepts nothing but
   whole races (an operation without `cells` is refused); the old per-boat
   `updateRaceResult` / `applyRaceResultUpdate` path and its `shift_positions`
@@ -387,7 +369,10 @@ When changing scoring logic, update or add tests first.
 ### Full rule reference (SHRS 2026-1 + RRS Appendix A)
 
 This is the source-of-truth summary of the scoring spec the app implements.
-Rule numbers are SHRS unless prefixed `RRS`.
+Rule numbers are SHRS unless prefixed `RRS`. The rules are implemented in
+`packages/regatta-core/src` (`rules/`: points, discards, seeding, fleets,
+ranking; `standings/`: series, qualifying, final, ties; `event/`: replay,
+race scoring), where the file named below is not an app module.
 
 General / series structure
 
@@ -396,9 +381,8 @@ General / series structure
   like a Qualifying Series, and sections 2–4 do not apply. (Final-series start is
   gated by `getFinalSeriesEligibility`; `SINGLE_FLEET` when `< 2` heat groups.)
 - 1.5 — If **no Final Series races are completed**, boats are ranked by their
-  Qualifying Series score. Enforced in `finalLeaderboardOrder.ts`: with no final
-  race sailed every `total_points_final` is 0, so the sort key switches to the
-  qualifying score.
+  Qualifying Series score (`standings/final.ts`; `readOverallLeaderboard`
+  returns the qualifying standings until a final race is sailed).
 - 1.6 — RRS T1 (post-race penalties) applies; modelled by the `T1` status.
 
 Number/size of heats
@@ -407,11 +391,10 @@ Number/size of heats
 - 2.3 — **Max 20 boats per heat** (`SHRS_MAX_BOATS_PER_HEAT` in
   `shared/heatSizing.ts`; overflow governed by `shrs_heat_overflow_policy`).
 
-Qualifying assignment (`creatingNewHeatsUtls.ts`)
+Qualifying assignment (`rules/seeding.ts`)
 
 - 3.1 — **Progressive**: Race 1 seeds top-down `1,2,3,4,5,5,4,3,2,1`
-  (`assignBoatsToInitialHeatsSerpentine`); later races use the Heat Movement
-  Table (`getNextHeatIndexByMovementTable`). Non-finishers ordered
+  (`serpentine`); later races use the Heat Movement Table (`nextHeat`). Non-finishers ordered
   `DNF, RET, NSC, OCS, DNS, DNC, UFD, BFD, (DSQ)`; ties by alphanumeric
   national-letter + sail number (`shared/sailOrder.ts`).
 - 2.2 — heats "as equal as possible" means within one boat, and **nothing pins
@@ -422,20 +405,16 @@ Qualifying assignment (`creatingNewHeatsUtls.ts`)
   group sizes, and only for final fleets (Silver ≤ Gold ≤ …), which
   `startFinalSeriesAtomic` implements by handing the remainder to the earliest
   fleets. Do not "fix" qualifying to match it.
-- `createNewHeatsBasedOnLeaderboard` **throws** when a round yields no
-  assignments. It used to fall back to `assignBoatsToNewHeatsZigZag`, which
-  re-seeded the fleet from scratch and so discarded the finishing positions
-  3.1(2) requires — a fabricated draw published as if it were sailed. Removed;
-  an empty assignment set is a data fault and must surface as one.
-- 3.1.5 — **Only protest-committee decisions** are shielded from changing heat
-  assignments (`protestCommitteeStatuses` in `scoreStatus.ts`). An ordinary
-  race-office correction may change them, and a boat transfer invalidates the
-  affected heats' snapshots (`clearAssignmentSnapshotsForHeat`).
-  The leaderboard save marks each cell the user typed in (`edited`); only
-  those are decisions or corrections (`decideAssignmentShields` in
-  `raceScoring.ts`). A decision freezes the pre-save place of every boat that
-  moved with it (a DSQ promotes the boats behind her, RRS A6.1); a correction
-  un-shields only the edited boat.
+- The next round (`roundCreated`) is built only from a round every heat has
+  sailed; the library refuses otherwise. (The app once fell back to a
+  re-seeded draw, a fabricated draw published as if it were sailed.)
+- 3.1.5 — **Only protest-committee decisions** leave heat assignments as
+  they were: the next round reads the race office's sheet, not the
+  committee's `protestDecided`. An ordinary race-office correction
+  (`raceCorrected`) does change them. The leaderboard save marks each cell
+  the user typed in (`edited`); `libraryCorrection` decides from it which
+  changes are the committee's (RDG, DPI always; DSQ / DNE / DGM when typed
+  or already the committee's) and which the race office's.
 - 3.2 — **Pre-assignment**: equal size/ability, published before racing.
   (`shrs_qualifying_assignment_mode` = `progressive` | `pre-assigned`.)
   The app's pre-assignment keeps every boat in her round-1 heat for the whole
@@ -446,13 +425,13 @@ Qualifying assignment (`creatingNewHeatsUtls.ts`)
   refuses a change, `readAllEvents` returns `qualifying_started` /
   `final_series_started` and the edit form disables the field with a note.
   The overflow policy (shown as "Final fleets over 20 boats") is used ONLY by
-  `planFinalFleets`; qualifying heats are always capped at 20, so it matters
+  the fleet split (`rules/fleets.ts`); qualifying heats are always capped at 20, so it matters
   only when boats were entered after the heats were made.
 - 2.1 — The heat count defaults to the fewest the entry list allows; choosing
   more shows a warning under the control and asks before Create / Recreate
   (`useHeatManagement` `extraHeatsNote`).
 
-Final Series (`calculateFinalBoatScores.ts`, `shared/fleetAssignment.ts`)
+Final Series (`rules/fleets.ts`, `standings/final.ts`)
 
 - 4.1 — Fleet naming and precedence live in `shared/fleetNames.ts`; fleets past
   Copper are named "Fleet 5"… and rank 5th… (never a shared catch-all rank).
@@ -463,19 +442,18 @@ Final Series (`calculateFinalBoatScores.ts`, `shared/fleetAssignment.ts`)
   to the lowest fleet.
   Boats that share a qualifying place (no rule separates them) are split in
   SHRS's own tie order, national letters then sail number (3, 3.1(iv), 5.3),
-  not by boat_id (`startFinalSeriesAtomic`; regatta-core does the same).
-  The rankings use the same order wherever no rule decides (shared places,
-  a 5.7 circle that plain A8 cannot settle): `functions/boatOrder.ts`
-  orders their input. Decided Nov 2026, see
+  not by boat_id. The rankings use the same order wherever no rule decides
+  (shared places, a 5.7 circle that plain A8 cannot settle). Decided Nov
+  2026 (parity R6), see
   `packages/regatta-core/docs/parity/README.md`.
 - 4.3 — If the Qualifying Series has **>5 and <8 completed races (6 or 7)**, a
   boat's **second-worst** race is temporarily excluded **for fleet-assignment
-  ranking only** (`rule43Applies` in `getFinalSeriesEligibility`;
-  `computeAdjustedFleetTotals`). Does not affect series scores.
+  ranking only** (`rule43Applies` in `getFinalSeriesEligibility`; the
+  split in `rules/fleets.ts`). Does not affect series scores.
 - 4.4–4.5 — A final race = one heat per fleet; fleets may sail different numbers
   of races.
 
-Scoring (`calculateBoatScores.ts`, `scoreStatus.ts`)
+Scoring (`event/score.ts`, `rules/points.ts`, `standings/series.ts`)
 
 - RRS A4 — Low Point: finishing place = points (1st⇒1, …).
 - RRS A6.1 — A boat disqualified or retiring **after finishing** is removed from
@@ -484,21 +462,18 @@ Scoring (`calculateBoatScores.ts`, `scoreStatus.ts`)
   `raceColumnEdit.ts`).
 - RRS A7 — **Race ties**: tied places share the summed points equally. Enterable
   from the scoring screen via the per-row tie ("=") control, which submits a
-  shared place for `applyRaceTieScoring` to average.
+  shared place (`tied` on the sheet line) for the library to average.
 - RRS A5.1 / 5.3 — **Every entered boat is scored for every race in the
   series.** A boat who sailed in no heat for a round (added mid-event via
   `assignBoatToHeat`, or entered and never started) is scored **DNC** at
   (largest heat + 1), not left without a row
-  (`ensureDncScoresForMissedQualifyingRaces` in `raceScoring.ts`, run as part of
-  `ensureCompleteRaceScoresForEvent`, and on round completion inside
-  `submitHeatRaceScoresAtomic`). A series race is keyed by (heat round from the
-  name suffix, `race_number`), and only backfilled once EVERY heat of that
-  round has sailed it. Qualifying only: in the Final Series a
-  boat races one fleet (4.1) and fleets may sail different numbers of races
-  (4.5), so a Gold boat must not collect DNCs for Silver's races. Without this,
-  a short score vector makes `calculateBoatScores` (capped) and
-  `computeAdjustedFleetTotals` (uncapped) disagree about the same boat, and the
-  uncapped one discards her only score and ranks her **first into Gold**.
+  (the library scores her DNC in every counted race of a round she had no
+  heat in; the projection files that DNC under one of the round's races).
+  A round counts once EVERY heat of it has sailed the race. Qualifying only:
+  in the Final Series a boat races one fleet (4.1) and fleets may sail
+  different numbers of races (4.5), so a Gold boat must not collect DNCs for
+  Silver's races. Without this (in the old app) a boat with a short score
+  vector could discard her only score and rank **first into Gold**.
 - 5.2 (changes RRS A5.2) — A boat scored DNS/DNF/DSQ/etc. gets **(boats in the
   largest heat) + 1** points — NOT boats entered in the series.
 - 5.3 — Recording order: finishers by place, then
@@ -511,11 +486,11 @@ Scoring (`calculateBoatScores.ts`, `scoreStatus.ts`)
   first warning signal (`shared/discardProfile.ts`); an explicitly **empty**
   threshold list means **never discard**. The count is series-wide — fleet-wide
   in the Final Series, since 5.1 scores each fleet separately.
-  `capExcludeCountForBoat` additionally caps it per boat so a boat always keeps
-  one score. **That cap is an app-level guard, not rule text** — 5.4 says
+  The library (`rules/discards.ts`) additionally caps it per boat so a boat
+  always keeps one score. **That cap is an app-level guard, not rule text** — 5.4 says
   "excluding her worst score" with no exception for a boat who has only one.
   It is a backstop for a boat whose score vector is shorter than the series,
-  which the DNC backfill below should now prevent; if it ever fires, the missing
+  which the DNC rule above prevents; if it ever fires, the missing
   scores are the bug. Use the same capped count for a boat's total AND her A8.1
   tie-break vector.
 - 5.5 — Overall event score = Qualifying + Final series scores. Lowest in Gold
@@ -523,16 +498,17 @@ Scoring (`calculateBoatScores.ts`, `scoreStatus.ts`)
   of raw points (`fleetRank`).
 - 5.6 — Redress averages computed separately per series: an RDG2 average covers
   ONLY races in the same series as the redressed cell — never a Q+F pool.
-- RRS A9 (2025–2028) redress, `shared/redress.ts`: RDG1 = average of all
-  other races in the series, RDG2 = average of PC-chosen races (stored in
-  `Scores.rdg_race_ids`, schema migration 3), RDG3 = PC-set points (never
+- RRS A9 (2025–2028) redress: RDG1 = average of all other races in the
+  series, RDG2 = average of PC-chosen races (in the `protestDecided`
+  decision; projected to `Scores.rdg_race_ids`), RDG3 = PC-set points (never
   recomputed). Averages include discarded races, EXCLUDE other RDG1/RDG2
-  races, round to the tenth (0.05 up), and are LIVE: every leaderboard
-  recompute re-derives them (`refreshRedressAverages`). The renderer preview
-  uses the same function.
+  races, round to the tenth (0.05 up), and are LIVE: the library works them
+  out on every replay. (`shared/redress.ts` is the renderer's instant-draft
+  copy; the preview then shows the library's.)
 - Series ties that A8 cannot break (identical scores) SHARE the place
-  (1, 2, 2, 4) — `findUnbrokenTies` + `assignPlaces` in `shared/scoring/ranking.ts`,
-  used by qualifying, final and overall standings.
+  (1, 2, 2, 4) — `rules/ranking.ts`, used by qualifying, final and overall
+  standings: a boat shares a place only with boats no rule separates her
+  from.
 - 5.7 — **Event ties**:
   - (i) Single-heat events: RRS A8.1 then A8.2.
   - (ii) Multi-heat events: A8.1/A8.2 except — (1) only races where the tied
@@ -540,14 +516,13 @@ Scoring (`calculateBoatScores.ts`, `scoreStatus.ts`)
     (changes A8.1); (3) resolve the higher-placed tie before the lower; (4) if
     the tied boats never shared a heat, use plain RRS A8.1/A8.2.
   - "Single-heat" is an **event-level** property: true only when every boat
-    raced the identical set of races (`detectSingleHeatEvent`).
+    raced the identical set of races.
   - (ii) is **not transitive** (each pair is compared on its own shared
-    races), so A can beat B, B beat C and C beat A. `resolveTiesSequentially`
-    gives each place to a boat no remaining tied boat beats, and settles a
-    true circle by plain RRS A8.1/A8.2 (the fallback the qualifying and
-    overall rankings pass in). It used to sort with the comparator, so the
-    order followed the database rows and could rank a boat above one that
-    beat her head-to-head (found by the regatta-core comparison, Nov 2026).
+    races), so A can beat B, B beat C and C beat A. The ranking gives each
+    place to a boat no remaining tied boat beats, and settles a true circle
+    by plain RRS A8.1/A8.2. (The old app sorted with the comparator, so the
+    order followed the database rows; found by the regatta-core comparison,
+    Nov 2026.)
 
 RRS A8 detail (tie-break primitives)
 
@@ -595,50 +570,54 @@ Tooling notes:
 
 ## 8. Test Map
 
+The rules are tested in the library itself:
+`packages/regatta-core/test` (`cd packages/regatta-core && npx jest`),
+including `test/ported/`, the rule scenarios of the app's old scoring
+tests, rebuilt on decision logs when that engine was removed.
+
 High-signal tests in `src/__tests__` include:
 
-Scoring engine / rules:
+The app on the library:
 
-- `scoringCore.series.test.ts` (the core on plain data, and the leaderboard
-  screen agreeing with it on 2,000 random boats)
-- `scoringCore.overall.test.ts` tests the old overall core on plain data.
-  The two characterisation snapshots (150 random table states through the
-  old pipeline) were retired with the switch of the reads: their fixture
-  writes states the app never stores (three boats on 1st, each 1 point),
-  which the library scores by the rules. The library's own tests, the
-  regatta-core comparison and the chaos test (which converts every session
-  to a log and checks it) cover the reads now.
-- `calculateBoatScores.test.ts`, `calculateFinalBoatScores.test.ts` (their
-  mocks describe each boat as ONE list of races —
-  `fixtures/scoresTableMock.ts` — as the database does)
-- `SHRS_comprehensive.test.ts` (exhaustive rule walk-through)
-- `scoreStatus.test.ts` (status normalization, penalty math, 5.3 order)
-- `leaderboardRecompute.test.ts` (recompute glue: query/persist/transaction)
-- `leaderboardStatusCodes.test.ts`, `penaltyOrder.test.ts`
-- `creatingNewHeatsUtils.test.ts` (note: tests the `...Utls.ts` source)
+- `regattaCore.differential.integration.test.ts` (`DIFF_SEEDS`): random
+  events through the real handlers, every step compared with the same
+  event as a log replayed by the library.
+- `chaos.integration.test.ts` (`CHAOS_SEEDS`): random sessions of every
+  race-office action; after each step the tables convert back to a log
+  that gives the same event (§10).
+- `projectEvent.roundtrip.test.ts`: the projection converts back to the
+  same event (1,000 seeds).
+- `leaderboardEdit.wysiwyg.integration.test.jsx` (`EDIT_SEEDS`): Save
+  stores exactly the race shown, and the whole draft (points, discards,
+  totals, places, overall) is the leaderboard after Save.
+- `scoringOracle.integration.test.ts` (`ORACLE_SEEDS`): random events
+  scored from the rule text alone (§10).
+- `libraryEvent.test.ts`, `libraryExplain.integration.test.ts`,
+  `regattaCore.import.test.ts`.
+- Published-results replays: `euroIom2025.published.test.ts` (the 2025
+  European Championship sheet as a decision log: every race, discard, nett
+  and the overall order, three differences pinned and explained),
+  `euroIom2025.startingHeats.test.ts` (the library's Race 1 draw against
+  the published one) and `iomWorlds2024.published.test.ts` (HMS event;
+  checks the renderer's discards, totals and order only — its sheet has
+  one documented nett error, ARG 63).
 
-Handler / integration:
+Handlers, history, renderer:
 
-- `finalFleetPlan.test.ts` (the fleet split: withdrawn last, odd sizes, more
-  fleets than boats, oversize with and without confirmation),
-  `nextRoundPlan.test.ts` (movement table, pre-assigned, refusals),
-  `submittedRaceScore.test.ts` (place / points / status per code),
-  `eventSettings.test.ts`, `retryWhenBusy.test.ts`,
-  `DBManager.failStartup.test.ts` (startup advice per failure kind and
-  `classifyDatabaseFailure`)
-- `HeatRaceHandler.createNewHeats.test.ts`,
-  `HeatRaceHandler.overallTieBreak.test.ts`,
-  `HeatRaceHandler.submitScoresAtomic.test.ts`,
-  `HeatRaceHandler.saveLeaderboard.integration.test.ts` (the leaderboard Save
-  through the real handler: SHRS 3.1.5 shields, cache rollback, atomicity),
-  `applyRaceColumnState.integration.test.ts` (what Save stores, per rule),
-  `HeatRaceHandler.startFinalSeriesAtomic.test.ts`,
-  `HeatRaceHandler.finalSeriesEligibility.test.ts`
-- `explainTieBreak.test.ts`, `compareUtils.test.ts`
-- Published-results replays: `euroIom2025.published.test.ts` (SHRS) and
-  `iomWorlds2024.published.test.ts` (HMS event; checks discards, totals and
-  order only — its sheet has one documented nett error, ARG 63).
-- `ScoringInputComponent.test.jsx`, `useLeaderboard.scoring.test.jsx`
+- `HeatRaceHandler.*` (create / recreate heats, next round, transfer,
+  submit, undo and guards, Save, Final Series start),
+  `eventSettings.locks.integration.test.ts`,
+  `EventHandler.removeBoatFromEvent.integration.test.ts`,
+  `restoreToHistoryPoint.integration.test.ts`,
+  `changeJournal.integration.test.ts`
+- `scoreStatus.test.ts`, `creatingNewHeatsUtils.test.ts` (note: tests the
+  `...Utls.ts` source), `compareUtils.test.ts`,
+  `leaderboardUtils.discards.test.ts`, `leaderboard.property.test.jsx`
+  (the renderer's discard marking for the instant draft)
+- `DBManager.failStartup.test.ts` (startup advice per failure kind and
+  `classifyDatabaseFailure`), `retryWhenBusy.test.ts`
+- `ScoringInputComponent.test.jsx`, `useLeaderboard.scoring.test.jsx`,
+  `ComparePanel.steps.test.tsx`
 
 `npm run test:unit` runs every `src/__tests__/**/*.test.*` except the
 template's `App.test.tsx` (needs a build). CI runs typecheck, lint and
@@ -753,9 +732,10 @@ For most feature/fix requests, do this in order:
 - **Go back to a point in the history** (`restoreEventToHistoryPoint`,
   `functions/restoreToHistoryPoint.ts`, migration 6 adds
   `ChangeActions.restores_to_action_id`): puts back every journalled change
-  of the event made after the chosen action, newest first, in one
-  transaction, then rebuilds the standings (both caches are cleared, so going
-  back past the final series start leaves no final standings). Each row must
+  of the event made after the chosen action: on the log, the log as it was
+  in force right after that action (`logHistory.restoreLogToAction`; the
+  event's own columns come back from the journal); before the event's log,
+  row by row, newest first, then converted again. One transaction. Each row must
   be exactly as the change being put back left it, or nothing changes (a row
   altered outside the journal, or a boat since deleted from the app, is
   refused with a plain message). A `before-going-back-*` backup is written
@@ -788,8 +768,9 @@ For most feature/fix requests, do this in order:
   twice; `transferBoatBetweenHeats` now refuses raced heats), a correction
   that put a boat past the last place (redress gap; `raceColumnEdit` now
   fills the nearest free slot), and an undo from the history that left two
-  boats on one place unaveraged (`revertHistoryAction` now calls
-  `rescoreRace`).
+  boats on one place unaveraged (the row-based undo calls `rescoreRace`).
+  Since the switch it also converts the tables back to a log after every
+  step and checks that it gives the same event.
 - **Every failure reaches the user in words they can act on.** The rule:
   - Main process: `handle()` (`src/main/ipcHandlers/handle.ts`) passes every
     error through `explainError` (`src/shared/errors/explainError.ts`):
@@ -960,7 +941,7 @@ For most feature/fix requests, do this in order:
   > range, is not applied, and Save refuses naming each cell
   > (`editValidity.tsx` context -> `useLeaderboard.invalidCells`). The main
   > process also refuses a place past the last boat of the race
-  > (`applyRaceColumnState`).
+  > (`raceScoring.checkedRaceColumn`).
 
 - **Problem reports** (Help > Report a Problem… in the menu bar and in the
   Navbar's Help menu, and the crash screen's "Report this problem"):
