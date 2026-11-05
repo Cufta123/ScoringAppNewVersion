@@ -323,54 +323,6 @@ input[type='radio']:focus {
   opacity: 0;
   pointer-events: none;
 }
-.toggle-track {
-  position: relative;
-  flex-shrink: 0;
-  width: 38px;
-  height: 22px;
-  border-radius: var(--radius-pill);
-  background: var(--border-strong, #91bde0);
-  transition: background 0.18s ease;
-}
-.toggle-thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-  transition: left 0.18s ease;
-}
-.toggle input[type='checkbox']:checked + .toggle-track {
-  background: var(--teal);
-}
-.toggle input[type='checkbox']:checked + .toggle-track .toggle-thumb {
-  left: 18px;
-}
-.toggle input[type='checkbox']:focus-visible + .toggle-track {
-  box-shadow: 0 0 0 3px rgba(15, 148, 120, 0.35);
-}
-
-/* Compact control variant for inline toolbar selects. */
-select.compact-select {
-  width: auto;
-  min-width: 0;
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
-  box-shadow: none;
-}
-
-/* "Format" + its dropdown next to a Print / export button. */
-label.format-select {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 0;
-  font-size: 0.9rem;
-  white-space: nowrap;
-}
 
 label {
   display: block;
@@ -543,22 +495,6 @@ tbody tr:hover {
   color: var(--text-secondary);
 }
 
-/* ── Utilities ────────────────────────────────────────────── */
-.mt-1 {
-  margin-top: 8px;
-}
-.mt-2 {
-  margin-top: 16px;
-}
-.mt-3 {
-  margin-top: 24px;
-}
-.mb-1 {
-  margin-bottom: 8px;
-}
-.mb-2 {
-  margin-bottom: 16px;
-}
 .flex {
   display: flex;
 }
@@ -568,9 +504,7 @@ tbody tr:hover {
 .gap-2 {
   gap: 12px;
 }
-.gap-3 {
-  gap: 20px;
-}
+
 .items-center {
   align-items: center;
 }
@@ -755,8 +689,7 @@ button.btn-icon-danger:hover {
 }
 
 /* ── Section / list header rows ──────────────────────────── */
-.sailor-list-header,
-.section-header-row {
+.sailor-list-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -765,8 +698,7 @@ button.btn-icon-danger:hover {
   margin-bottom: 16px;
 }
 
-.sailor-list-header h2,
-.section-header-row h2 {
+.sailor-list-header h2 {
   margin: 0;
   display: flex;
   align-items: center;
@@ -806,22 +738,6 @@ button.icon-action-btn:hover {
   background: var(--bg-subtle);
   box-shadow: none;
   transform: none;
-}
-
-/* ── Inline edit inputs (editable table cells) ──────────── */
-.editable-input {
-  border: none;
-  background: transparent;
-  border-bottom: 1.5px dashed var(--border);
-  width: 100%;
-  padding: 2px 4px;
-  font-size: inherit;
-  color: var(--text);
-}
-
-.editable-input:focus {
-  outline: none;
-  border-bottom-color: var(--ocean);
 }
 
 /* ── Sortable table headers ───────────────────────────────── */
@@ -2917,8 +2833,6 @@ button.submit-scores-btn.is-unavailable:hover {
   background: rgba(200, 40, 40, 0.1);
 }
 
-/* ── Qualifying round still being sailed (SHRS 1.1) ─── */
-.leaderboard-table th.race-in-progress,
 th.race-in-progress {
   text-align: center;
   padding: 7px 10px;

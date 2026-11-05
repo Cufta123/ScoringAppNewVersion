@@ -85,12 +85,6 @@ export const EVENT_LIFECYCLE_SCHEMA = `
     FOREIGN KEY (boat_id) REFERENCES Boats(boat_id)
   );
 
-  CREATE TABLE GlobalLeaderboard (
-    boat_id INTEGER PRIMARY KEY,
-    total_points_global INTEGER NOT NULL,
-    FOREIGN KEY (boat_id) REFERENCES Boats(boat_id)
-  );
-
   CREATE TABLE RaceAssignmentSnapshots (
     race_id INTEGER NOT NULL,
     rank INTEGER NOT NULL,

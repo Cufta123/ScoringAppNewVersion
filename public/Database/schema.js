@@ -503,7 +503,7 @@ const MIGRATIONS = [
     // code regatta-core replaced; nothing reads or writes them any more
     // (the standings are worked out from the event's log on every read),
     // and rows left in them would stop an event being deleted (foreign
-    // keys, no cascade). GlobalLeaderboard stays (AGENTS.md section 10).
+    // keys, no cascade).
     up(db) {
       db.exec(`
         DROP TABLE IF EXISTS Leaderboard;
@@ -529,6 +529,16 @@ const MIGRATIONS = [
           sql: 'ALTER TABLE EventLogs ADD COLUMN report_seen_at TEXT;',
         },
       ]);
+    },
+  },
+  {
+    version: 12,
+    name: 'no global leaderboard',
+    // GlobalLeaderboard held standings across events for a screen removed
+    // in Sept 2026; nothing reads or writes it, and standings are worked
+    // out, never stored (migration 10).
+    up(db) {
+      db.exec('DROP TABLE IF EXISTS GlobalLeaderboard;');
     },
   },
 ];

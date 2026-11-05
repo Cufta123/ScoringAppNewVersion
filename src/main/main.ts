@@ -1,13 +1,5 @@
 import path from 'path';
-import {
-  app,
-  BrowserWindow,
-  shell,
-  dialog,
-  session,
-  ipcMain,
-  type OpenDialogOptions,
-} from 'electron';
+import { app, BrowserWindow, shell, dialog, session, ipcMain } from 'electron';
 import MenuBuilder from './menu';
 import {
   isSameAppPage,
@@ -20,7 +12,7 @@ import './ipcHandlers/EventHandler';
 import './ipcHandlers/HeatRaceHandler';
 import './ipcHandlers/ExportHandler';
 import { startProblemReportOutbox } from './ipcHandlers/ProblemReportHandler';
-import handle, { setCallObserver } from './ipcHandlers/handle';
+import { setCallObserver } from './ipcHandlers/handle';
 import { autoBackup, dbPath } from '../../public/Database/DBManager';
 import { journalObserver } from './functions/changeJournal';
 import convertEventsAtStartup from './functions/startupConversion';
@@ -283,11 +275,6 @@ const createWindow = async () => {
     if (isWebLink(url)) shell.openExternal(url);
   });
 };
-
-// Register the IPC handler for the file dialog
-handle('dialog:openFile', async (event, options: OpenDialogOptions) => {
-  return dialog.showOpenDialog(mainWindow!, options);
-});
 
 // Final safety copy of anything scored since the last periodic backup.
 app.on('before-quit', () => {

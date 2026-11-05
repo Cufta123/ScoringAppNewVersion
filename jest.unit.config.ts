@@ -27,6 +27,8 @@ const config: Config = {
     '<rootDir>/src/__tests__/App.test.tsx',
     // Agent worktrees (.claude/worktrees) hold a second copy of the repo.
     '<rootDir>/.claude/',
+    // Its own node:test suite (npm test in report-worker/).
+    '<rootDir>/report-worker/',
   ],
   modulePathIgnorePatterns: ['<rootDir>/.claude/'],
   transform: {

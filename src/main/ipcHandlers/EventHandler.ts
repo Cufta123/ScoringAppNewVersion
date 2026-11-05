@@ -279,13 +279,6 @@ handle(
 
 handle('deleteEvent', async (event, event_id) => {
   db.transaction(() => {
-    // Remove GlobalLeaderboard entries for boats in this event before Boat_Event is deleted
-    db.prepare(
-      `DELETE FROM GlobalLeaderboard WHERE boat_id IN (
-        SELECT boat_id FROM Boat_Event WHERE event_id = ?
-      )`,
-    ).run(event_id);
-
     // SHRS 3.1.5 assignment snapshots reference Races, so they must go before
     // the races do. Foreign keys are enforced (better-sqlite3 is built with
     // SQLITE_DEFAULT_FOREIGN_KEYS=1) and the schema declares no ON DELETE

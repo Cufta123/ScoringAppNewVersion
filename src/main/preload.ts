@@ -72,11 +72,8 @@ const SQLITE_CHANNELS = {
 type SqliteChannelGroups = typeof SQLITE_CHANNELS;
 type SqliteChannel = SqliteChannelGroups[keyof SqliteChannelGroups][number];
 
-/**
- * Channels the renderer may invoke. `dialog:openFile` is registered in
- * `main.ts` rather than a sqlite handler, so it is listed separately.
- */
-export type Channels = 'dialog:openFile' | SqliteChannel;
+/** Channels the renderer may invoke. */
+export type Channels = SqliteChannel;
 
 /** The import summary says why, in words the user can act on. */
 const toErrorMessage = (error: unknown): string => explainError(error).message;

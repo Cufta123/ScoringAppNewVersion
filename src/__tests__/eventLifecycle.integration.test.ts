@@ -106,7 +106,6 @@ function seed() {
              (101, 1, 1, 1, 'FINISHED'), (101, 2, 2, 2, 'DSQ');
     INSERT INTO Scores (race_id, boat_id, position, points, status) VALUES (200, 1, 1, 1, 'FINISHED');
 
-    INSERT INTO GlobalLeaderboard (boat_id, total_points_global) VALUES (1, 5);
 
     -- SHRS 3.1.5: the protest DSQ in race 101 froze that race's assignment order.
     INSERT INTO RaceAssignmentSnapshots (race_id, rank, boat_id, frozen_position, frozen_status)

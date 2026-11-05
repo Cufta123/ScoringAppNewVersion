@@ -90,7 +90,6 @@ describe('schema migrations', () => {
         'Races',
         'Scores',
         'Heat_Boat',
-        'GlobalLeaderboard',
         'RaceAssignmentSnapshots',
         'Decisions',
         'EventLogs',
@@ -99,6 +98,8 @@ describe('schema migrations', () => {
     // Migration 10: the standings are worked out, not stored.
     expect(tables(db)).not.toContain('Leaderboard');
     expect(tables(db)).not.toContain('FinalLeaderboard');
+    // Migration 12.
+    expect(tables(db)).not.toContain('GlobalLeaderboard');
     expect(db.prepare('SELECT COUNT(*) AS c FROM Categories').get().c).toBe(5);
     db.close();
   });

@@ -12,7 +12,7 @@ Use this document first. Only search the repo when this file does not answer the
 ## 2. First Places To Look
 
 - Main process bootstrap: `src/main/main.ts`
-- IPC registration side effects: `src/main/ipcHandlers/index.ts`
+- IPC registration: `main.ts` imports each handler module for its side effects
 - IPC handlers (registered via `handle()` in `src/main/ipcHandlers/handle.ts`):
   - `src/main/ipcHandlers/SailorHandler.ts`
   - `src/main/ipcHandlers/EventHandler.ts`
@@ -61,7 +61,6 @@ Use this document first. Only search the repo when this file does not answer the
 
 - Creates `BrowserWindow` and loads renderer via `resolveHtmlPath('index.html')`.
 - Enables `contextIsolation: true` and uses preload bridge.
-- Registers `dialog:openFile` IPC handler in `src/main/main.ts`.
 - Imports all handler modules for side-effect registration.
 
 ### Renderer process
@@ -109,9 +108,9 @@ Key tables:
 - `Boat_Event` (boat-event association)
 - `Decisions` (the event's decision log) and `EventLogs` (migration 9)
 - `Heats`, `Races`, `Scores`, `Heat_Boat` (the projection of the log)
-- `GlobalLeaderboard` (retained but unused; see §10). `Leaderboard` and
-  `FinalLeaderboard` were dropped in migration 10: standings are worked out
-  on every read, never stored.
+- No standings tables: `Leaderboard` and `FinalLeaderboard` were dropped in
+  migration 10, `GlobalLeaderboard` in 12. Standings are worked out on every
+  read, never stored.
 - `RaceAssignmentSnapshots` (SHRS 3.1(5): a race's sheet as it was before the
   committee's decisions, written by the projection)
 
@@ -702,9 +701,8 @@ For most feature/fix requests, do this in order:
   both nav entry points, the page, the component and the
   `readGlobalLeaderboard` / `updateGlobalLeaderboard` channels are gone; users
   could previously navigate to a page that existed only to say the feature was
-  on hold. The `GlobalLeaderboard` table is deliberately KEPT in `DBManager.js`,
-  and `deleteEvent` still clears its rows, so reviving the feature needs no
-  migration.
+  on hold. Its table was dropped in migration 12; a revived feature would
+  work standings out from the event logs, as every other screen does.
 
 - `Races.race_number` counts races WITHIN one heat, so nearly every
   qualifying race is `race_number = 1` (each round is a new set of heats).
