@@ -10,7 +10,9 @@ export type FinalSeriesEligibility = {
     | 'NO_HEATS'
     | 'SINGLE_FLEET'
     | 'UNEQUAL_RACE_COUNTS'
-    | 'NO_RACES_COMPLETED';
+    | 'NO_RACES_COMPLETED'
+    // A new round is built but not sailed (parity R7): undo it, or sail it.
+    | 'LATEST_ROUND_UNSAILED';
   numFinalHeats: number;
   completedQualifyingRaces: number;
   rule43Applies: boolean;

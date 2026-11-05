@@ -165,6 +165,11 @@ describe('event settings fixed once their series has begun', () => {
       .get();
     await call('undoLastScoredRaceForHeat', heatId);
     expect(db.prepare('SELECT COUNT(*) AS n FROM Races').get().n).toBe(0);
+    // The screen reads the locks from the races too, not a stored flag.
+    expect(await readEvent(eventId)).toMatchObject({
+      qualifying_started: 0,
+      shrs_discard_locked_qualifying: 0,
+    });
     await expect(
       update(eventId, 'pre-assigned', 'auto-increase'),
     ).resolves.toMatchObject({ success: true });

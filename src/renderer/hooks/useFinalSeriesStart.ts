@@ -7,10 +7,7 @@ import {
   reportError,
   reportInfo,
 } from '../utils/userFeedback';
-import {
-  finalSeriesBlockedMessage,
-  unsailedLatestRoundMessage,
-} from '../utils/finalSeriesMessages';
+import { finalSeriesBlockedMessage } from '../utils/finalSeriesMessages';
 import type { FinalSeriesEligibility } from '../utils/finalSeriesMessages';
 
 interface PendingStart {
@@ -73,17 +70,6 @@ export default function useFinalSeriesStart({
       // SHRS 4.2 requires a Qualifying Series ranking to divide fleets, so the
       // 0-race case is now rejected up front (reason NO_RACES_COMPLETED above)
       // rather than offered as a seeding-only start.
-      if (eligibility.latestRoundUnsailed) {
-        // A new round of heats exists but has 0 races. It is NOT "no races
-        // completed" — earlier rounds were sailed. Tell the user the empty
-        // latest round is ignored and the last completed round is used.
-        const proceed = await confirmAction(
-          unsailedLatestRoundMessage(eligibility),
-          'Latest round not sailed',
-          { confirmLabel: 'Continue' },
-        );
-        if (!proceed) return;
-      }
 
       if (canExportEventSnapshot()) {
         const saveSnapshotNow = await confirmAction(

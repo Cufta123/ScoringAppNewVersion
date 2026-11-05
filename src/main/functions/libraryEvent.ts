@@ -67,6 +67,22 @@ export function finalSeriesEligibility(
       raceCountBreakdown,
     };
   }
+  const latestRoundUnsailed = (counts[0] ?? 0) === 0;
+  if (latestRoundUnsailed) {
+    // Parity R7: the fleets are split from the qualifying series as sailed;
+    // a round built but not sailed is undone (or sailed) first.
+    return {
+      ok: false,
+      reason: 'LATEST_ROUND_UNSAILED',
+      ...empty,
+      numFinalHeats,
+      completedQualifyingRaces,
+      noRacesCompleted: false,
+      latestRoundUnsailed: true,
+      latestRoundNumber: round[0]?.round ?? null,
+      raceCountBreakdown,
+    };
+  }
   return {
     ok: true,
     reason: 'OK',
@@ -75,7 +91,7 @@ export function finalSeriesEligibility(
     // SHRS 4.3: more than five but less than eight completed races.
     rule43Applies: completedQualifyingRaces > 5 && completedQualifyingRaces < 8,
     noRacesCompleted: false,
-    latestRoundUnsailed: (counts[0] ?? 0) === 0,
+    latestRoundUnsailed: false,
     latestRoundNumber: round[0]?.round ?? null,
     raceCountBreakdown,
   };

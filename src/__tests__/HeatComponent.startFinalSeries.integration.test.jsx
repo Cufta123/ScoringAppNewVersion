@@ -334,18 +334,18 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
     ).toHaveBeenCalledWith(77, false, false);
   });
 
-  it('asks SHRS 4.3 when leaderboard shows 7 completed races even if latest heats show 0 races', async () => {
-    // 7 races ARE completed (from scores), but the latest round of heats has 0
-    // races — the `latestRoundUnsailed` case, NOT `noRacesCompleted` (RULE-m3
-    // removed the 0-race seeding-only path; a 0-race event is now ineligible).
+  it('refuses to start while the latest round is built but not sailed (parity R7)', async () => {
+    // 7 races are completed, but round 8 is built and has no races: the
+    // fleets are split from the races as sailed, so round 8 is undone (or
+    // sailed) first. Nothing is asked and nothing starts.
     window.electron.sqlite.heatRaceDB.getFinalSeriesEligibility = jest
       .fn()
       .mockResolvedValue({
-        ok: true,
-        reason: 'OK',
+        ok: false,
+        reason: 'LATEST_ROUND_UNSAILED',
         numFinalHeats: 2,
         completedQualifyingRaces: 7,
-        rule43Applies: true,
+        rule43Applies: false,
         noRacesCompleted: false,
         latestRoundUnsailed: true,
         latestRoundNumber: 8,
@@ -354,11 +354,6 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
           { name: 'Heat B8', count: 0 },
         ],
       });
-
-    confirmActionMock
-      .mockResolvedValueOnce(true) // Proceed past the "latest round unsailed" notice.
-      .mockResolvedValueOnce(true); // Snapshot question.
-    // (the SHRS 4.3 choice is confirmChoice, which answers 'confirm' by default)
 
     render(
       <HeatComponent
@@ -379,28 +374,16 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
     );
 
     await waitFor(() => {
-      expect(confirmActionMock).toHaveBeenCalledWith(
-        expect.stringContaining('The latest round of heats'),
-        'Latest round not sailed',
-        { confirmLabel: 'Continue' },
+      expect(reportInfoMock).toHaveBeenCalledWith(
+        expect.stringContaining('Round 8 has been created but not sailed'),
+        'Cannot start final series',
       );
     });
-
-    await waitFor(() => {
-      expect(confirmChoiceMock).toHaveBeenCalledWith(
-        expect.stringContaining(
-          'SHRS 2026-1 Rule 4.3 applies for 6-7 completed qualifying races.',
-        ),
-        'Apply SHRS 2026-1 Rule 4.3?',
-        {
-          confirmLabel: 'Apply Rule 4.3',
-          extraLabel: 'Skip Rule 4.3',
-          extraClassName: 'btn-secondary',
-          cancelLabel: 'Cancel',
-          confirmClassName: 'btn-success',
-        },
-      );
-    });
+    expect(confirmActionMock).not.toHaveBeenCalled();
+    expect(confirmChoiceMock).not.toHaveBeenCalled();
+    expect(
+      window.electron.sqlite.heatRaceDB.startFinalSeriesAtomic,
+    ).not.toHaveBeenCalled();
   });
 
   it('stops the start, and starts nothing, when the Rule 4.3 question is cancelled (Escape counts as Cancel)', async () => {

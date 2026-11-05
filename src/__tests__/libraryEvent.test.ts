@@ -116,11 +116,11 @@ it('no 4.3 from 8 completed races', () => {
   expect(eligibility(rounds(8))).toMatchObject({ rule43Applies: false });
 });
 
-it('a new round not sailed yet: 6 completed, latest round unsailed', () => {
+it('a new round not sailed yet is refused (parity R7)', () => {
   expect(eligibility([...rounds(6), { type: 'roundCreated' }])).toMatchObject({
-    ok: true,
+    ok: false,
+    reason: 'LATEST_ROUND_UNSAILED',
     completedQualifyingRaces: 6,
-    rule43Applies: true,
     latestRoundUnsailed: true,
     latestRoundNumber: 7,
   });

@@ -26,6 +26,8 @@ export function finalSeriesBlockedMessage(
       return 'No qualifying heats found. Please create heats before starting the Final Series.';
     case 'SINGLE_FLEET':
       return 'With only one heat the event is a single-fleet event (SHRS 1.1) — no Final Series applies.';
+    case 'LATEST_ROUND_UNSAILED':
+      return unsailedLatestRoundMessage(eligibility);
     case 'NO_RACES_COMPLETED':
       // RULE-m3: SHRS 4.2 divides fleets by the Qualifying Series ranking, so
       // there is no seeding-only start to offer.
@@ -44,16 +46,18 @@ export function finalSeriesBlockedMessage(
  * races completed" — earlier rounds were sailed — so the empty round is
  * ignored and the last completed one is used. The scorer confirms first.
  */
+/**
+ * Parity R7: the fleets are split from the qualifying races as sailed, so a
+ * round built but not sailed is taken back (or sailed) first.
+ */
 export function unsailedLatestRoundMessage(
   eligibility: FinalSeriesEligibility,
 ): string {
-  const latestLabel = eligibility.latestRoundNumber
-    ? ` (round ${eligibility.latestRoundNumber})`
-    : '';
-  const completed = eligibility.completedQualifyingRaces ?? 0;
+  const round = eligibility.latestRoundNumber
+    ? `Round ${eligibility.latestRoundNumber}`
+    : 'The latest round';
   return (
-    `The latest round of heats${latestLabel} has no completed races yet.\n\n` +
-    `The Final Series will be based on the last completed round — ${completed} qualifying race(s). ` +
-    `The empty latest round will be ignored.\n\nContinue?`
+    `${round} has been created but not sailed. ` +
+    'The Final Series is split from the qualifying races as sailed, so first take that round back with "Undo round" on the Scoring page (or sail it), then start the Final Series.'
   );
 }

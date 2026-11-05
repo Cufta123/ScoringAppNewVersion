@@ -49,22 +49,24 @@ describe('finalSeriesBlockedMessage', () => {
 });
 
 describe('unsailedLatestRoundMessage', () => {
-  it('names the round and the count it will fall back to', () => {
-    const message = unsailedLatestRoundMessage({
-      latestRoundNumber: 4,
-      completedQualifyingRaces: 3,
-    });
-    expect(message).toContain('(round 4)');
-    expect(message).toContain('3 qualifying race(s)');
+  it('names the round and says to undo or sail it (parity R7)', () => {
+    const message = unsailedLatestRoundMessage({ latestRoundNumber: 4 });
+    expect(message).toContain('Round 4 has been created but not sailed');
+    expect(message).toContain('Undo round');
+    expect(message).not.toContain('Continue?');
   });
 
-  it('omits the round label when the number is unknown', () => {
-    const message = unsailedLatestRoundMessage({ completedQualifyingRaces: 2 });
-    expect(message).not.toMatch(/\(round /);
-    expect(message).toContain('2 qualifying race(s)');
+  it('says "the latest round" when the number is unknown', () => {
+    expect(unsailedLatestRoundMessage({})).toMatch(/^The latest round has/);
   });
 
-  it('reports zero completed races rather than undefined', () => {
-    expect(unsailedLatestRoundMessage({})).toContain('0 qualifying race(s)');
+  it('is the blocked message for LATEST_ROUND_UNSAILED', () => {
+    const eligibility = {
+      reason: 'LATEST_ROUND_UNSAILED' as const,
+      latestRoundNumber: 3,
+    };
+    expect(finalSeriesBlockedMessage(eligibility)).toBe(
+      unsailedLatestRoundMessage(eligibility),
+    );
   });
 });

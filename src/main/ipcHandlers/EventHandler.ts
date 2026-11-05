@@ -32,10 +32,20 @@ handle('restoreEventToHistoryPoint', async (event, event_id, action_id) =>
  * a few hundred KB, and the event list is read on every screen. It has its
  * own channels below.
  */
+// The discard settings are fixed once their series has a race (SHRS 5.4),
+// worked out from the races (the stored lock flags never reset; parity
+// R11: undoing every race frees them again).
 const EVENT_COLUMNS = `event_id, event_name, event_location, start_date,
   end_date, shrs_version, shrs_qualifying_assignment_mode,
   shrs_discard_profile_qualifying, shrs_discard_profile_final,
-  shrs_discard_locked_qualifying, shrs_discard_locked_final,
+  EXISTS (
+    SELECT 1 FROM Races r JOIN Heats h ON h.heat_id = r.heat_id
+    WHERE h.event_id = Events.event_id AND h.heat_type = 'Qualifying'
+  ) AS shrs_discard_locked_qualifying,
+  EXISTS (
+    SELECT 1 FROM Races r JOIN Heats h ON h.heat_id = r.heat_id
+    WHERE h.event_id = Events.event_id AND h.heat_type = 'Final'
+  ) AS shrs_discard_locked_final,
   shrs_heat_overflow_policy`;
 
 /**
@@ -45,10 +55,10 @@ const EVENT_COLUMNS = `event_id, event_name, event_location, start_date,
  * The same facts guard `updateEvent`.
  */
 const SERIES_STARTED_COLUMNS = `
-  (shrs_discard_locked_qualifying = 1 OR EXISTS (
+  EXISTS (
     SELECT 1 FROM Races r JOIN Heats h ON h.heat_id = r.heat_id
     WHERE h.event_id = Events.event_id AND h.heat_type = 'Qualifying'
-  )) AS qualifying_started,
+  ) AS qualifying_started,
   EXISTS (
     SELECT 1 FROM Heats h
     WHERE h.event_id = Events.event_id AND h.heat_type = 'Final'
