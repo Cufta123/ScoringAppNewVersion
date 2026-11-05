@@ -13,15 +13,52 @@
  * depended on it, replay says which and why.
  */
 export * from './types';
-export { replay, emptyEvent, MAX_HEATS } from './event/replay';
+export { replay, emptyEvent } from './event/replay';
 export type { ReplayResult } from './event/replay';
 export type { EventState, Heat, Race } from './event/state';
 export { scoreRace } from './event/score';
-/** Point arithmetic: RRS 44.3(c) / A9 tenths, SHRS 5.2 no-place points. */
-export { noPlacePoints, penaltyPoints, toTenth } from './rules/points';
+/**
+ * Point arithmetic: RRS 44.3(c) / A9 tenths, SHRS 5.2 no-place points, A9
+ * averages, and totals without floating-point noise.
+ */
+export {
+  exact as exactPoints,
+  noPlacePoints,
+  penaltyPoints,
+  redressAverage,
+  sum as sumPoints,
+  toTenth,
+} from './rules/points';
+/** SHRS 5.4 discards. */
+export { discardCount, excludedScores, NOT_EXCLUDABLE } from './rules/discards';
+export type { Discardable } from './rules/discards';
+/** SHRS 2 (heats), 4.1 / 5.5 (fleet names and precedence). */
+export {
+  MAX_HEATS,
+  fewestHeats,
+  movementImbalanceExpected,
+} from './rules/heats';
+export { MAX_HEAT_SIZE, fleetIndex, fleetName } from './rules/fleets';
+/** SHRS 3 / 5.3: boat order and recording order. */
+export {
+  codeRank,
+  compareBoats,
+  inRecordingOrder,
+  sameBoat,
+} from './rules/seeding';
+/** A result corrected in a race written as a column (a results table). */
+export {
+  FINISHED,
+  applyRaceColumnEdit,
+  holdsPlace,
+  keepsProvidedPoints,
+  scoreRaceColumn,
+  slotOf,
+} from './rules/correction';
+export type { RaceCell, RaceColumnEdit } from './rules/correction';
 export type { BoatResult } from './event/score';
-export { nextStep } from './event/nextStep';
-export type { NextStep } from './event/nextStep';
+export { nextInRound, nextStep } from './event/nextStep';
+export type { HeatProgress, NextStep, RoundStep } from './event/nextStep';
 export {
   qualifyingStandings,
   qualifyingTieBreak,

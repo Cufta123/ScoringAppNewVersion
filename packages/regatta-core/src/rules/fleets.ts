@@ -14,6 +14,18 @@ export function fleetName(index: number): string {
   return NAMED[index] ?? `Fleet ${index + 1}`;
 }
 
+/**
+ * The fleet's place in SHRS 5.5 precedence (0 = Gold), from its 4.1 name
+ * ("Gold", …, "Fleet 5", …); -1 for a name 4.1 does not give.
+ */
+export function fleetIndex(name: string): number {
+  const trimmed = String(name ?? '').trim();
+  const named = NAMED.indexOf(trimmed);
+  if (named !== -1) return named;
+  const numbered = trimmed.match(/^Fleet\s+(\d+)$/i);
+  return numbered ? Number(numbered[1]) - 1 : -1;
+}
+
 /** SHRS 4.3: only when 6 or 7 qualifying races are completed. */
 export function rule43Applies(completedRaces: number): boolean {
   return completedRaces > 5 && completedRaces < 8;

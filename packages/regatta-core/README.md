@@ -29,6 +29,30 @@ import { results } from 'regatta-core';
 results({ decisions: log }); // heats, next step, qualifying, final, overall
 ```
 
+## For screens and other programs
+
+Everything a program shows about the rules comes from here, so a screen
+never needs a second copy of one (the ScoringApp's ESLint config forbids
+it):
+
+| What                         | Exports                                                                                             |
+| ---------------------------- | --------------------------------------------------------------------------------------------------- |
+| A result corrected in place  | `applyRaceColumnEdit`, `scoreRaceColumn`, `holdsPlace`, `keepsProvidedPoints`, `slotOf`             |
+| Points                       | `noPlacePoints`, `penaltyPoints`, `toTenth`, `redressAverage`, `sumPoints`, `exactPoints`           |
+| Codes, in order              | `NO_PLACE_CODES`, `PENALTY_CODES`, `COMMITTEE_CODES`, `REDRESS_CODES`, `RESULT_CODES`               |
+| Discards (SHRS 5.4)          | `discardCount`, `excludedScores`, `NOT_EXCLUDABLE`                                                  |
+| Order (SHRS 3, 5.3)          | `compareBoats`, `sameBoat`, `inRecordingOrder`, `codeRank`                                          |
+| Heats and fleets (SHRS 2, 4) | `MAX_HEAT_SIZE`, `MAX_HEATS`, `fewestHeats`, `movementImbalanceExpected`, `fleetName`, `fleetIndex` |
+| What next                    | `nextStep` (on an event), `nextInRound` (on a screen's own heats)                                   |
+
+`applyRaceColumnEdit` takes a race as a column of cells (place, points,
+status, and the place a redressed boat keeps) and one boat's new result,
+and returns the race as the rules give it: a new place moves the boat and
+the boats in between make room; a code with no place moves the boats
+behind up (RRS A6.1); RDG / DPI move no one and keep her place (A6.2, A10);
+ZFP / SCP / T1 keep the place (44.3(c)); boats on one place share its
+points (A7); a code scores the largest heat + 1 (SHRS 5.2).
+
 ## Command line
 
 In the ScoringApp checkout the tools come from the app's `npm install`;
@@ -75,14 +99,16 @@ upgrades older files, and a newer file is refused in words.
 npm test
 ```
 
-| Test                     | What                                                              |
-| ------------------------ | ----------------------------------------------------------------- |
-| `test/rules.test.ts`     | rule by rule (points, discards, seeding, fleets, ranking)         |
-| `test/event.test.ts`     | whole events through `replay`, from the rules' text               |
-| `test/examples.test.ts`  | each `examples/*.json` gives `examples/expected/*.json`           |
-| `test/schema.test.ts`    | schemas up to date; examples and results valid; bad files refused |
-| `test/cli.test.ts`       | command line: output, exit codes, error messages                  |
-| `test/isolation.test.ts` | nothing in `src/` but the CLI imports outside the library         |
+| Test                      | What                                                                |
+| ------------------------- | ------------------------------------------------------------------- |
+| `test/rules.test.ts`      | rule by rule (points, discards, seeding, fleets, ranking)           |
+| `test/event.test.ts`      | whole events through `replay`, from the rules' text                 |
+| `test/examples.test.ts`   | each `examples/*.json` gives `examples/expected/*.json`             |
+| `test/schema.test.ts`     | schemas up to date; examples and results valid; bad files refused   |
+| `test/cli.test.ts`        | command line: output, exit codes, error messages                    |
+| `test/isolation.test.ts`  | nothing in `src/` but the CLI imports outside the library           |
+| `test/correction.test.ts` | a result corrected in place (`applyRaceColumnEdit`)                 |
+| `test/app-rules.test.ts`  | codes, recording order, heat counts, fleet names, next heat, points |
 
 To add a case: put an event file in `examples/`, run `npm run examples`,
 and **check the new `examples/expected/` file by hand against the rules**
@@ -180,4 +206,5 @@ not counted).
 The full list, with the app's behaviour beside the library's, is in
 [`docs/parity`](docs/parity/README.md).
 
-- The app does not use the library yet.
+- Nothing here beyond the list in `docs/parity`. The ScoringApp scores
+  only through this library.

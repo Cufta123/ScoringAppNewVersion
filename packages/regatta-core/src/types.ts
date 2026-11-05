@@ -41,6 +41,23 @@ export type NoPlaceCode = (typeof NO_PLACE_CODES)[number];
 export const PENALTY_CODES = ['ZFP', 'SCP', 'T1'] as const;
 export type PenaltyCode = (typeof PENALTY_CODES)[number];
 
+/** Redress: RRS A9 (a) her average (RDG1), (b) chosen races (RDG2), (c) set. */
+export const REDRESS_CODES = ['RDG1', 'RDG2', 'RDG3'] as const;
+
+/** Scores the protest committee sets: DPI (RRS A10) and redress (A9). */
+export const COMMITTEE_CODES = ['DPI', ...REDRESS_CODES] as const;
+
+/**
+ * Every code a result can show, in recording order: the penalties that keep
+ * the place (with the finishers), the no-place codes in SHRS 5.3 order, then
+ * the protest committee's scores.
+ */
+export const RESULT_CODES = [
+  ...PENALTY_CODES,
+  ...NO_PLACE_CODES,
+  ...COMMITTEE_CODES,
+] as const;
+
 /**
  * One boat's line on the race office's result sheet. The sheet lists the
  * finishers in finishing order; boats with a `code` have no place and can be

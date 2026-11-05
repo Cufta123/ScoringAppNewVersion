@@ -3,7 +3,12 @@
  * race, the Heat Movement Table after it, and the 5.3 recording order the
  * table reads places from.
  */
-import { NO_PLACE_CODES, type Boat, type NoPlaceCode } from '../types';
+import {
+  NO_PLACE_CODES,
+  PENALTY_CODES,
+  type Boat,
+  type NoPlaceCode,
+} from '../types';
 
 const natKey = (boat: Boat) => boat.nat.trim().toUpperCase();
 const sailKey = (boat: Boat) =>
@@ -62,6 +67,38 @@ export function nextHeat(
 const CODE_RANK = new Map<string, number>(
   NO_PLACE_CODES.map((code, index) => [code, index]),
 );
+
+/**
+ * SHRS 5.3: where a no-place code is recorded among the codes (0 = DNF).
+ * Codes 5.3 does not name come after DGM, in no order of their own.
+ */
+export function codeRank(code: string): number {
+  return CODE_RANK.get(code) ?? NO_PLACE_CODES.length;
+}
+
+/**
+ * SHRS 5.3 recording order of a finish list as entered: boats that keep a
+ * place (no code, or ZFP / SCP / T1) stay in the order given; boats with a
+ * no-place code follow, in the 5.3 order of their codes, boats with the
+ * same code ordered by `tieBreak` (5.3: national letters and sail number).
+ */
+export function inRecordingOrder<T>(
+  items: readonly T[],
+  codeOf: (item: T) => string | undefined,
+  tieBreak: (a: T, b: T) => number,
+): T[] {
+  const keepsPlace = (item: T) => {
+    const code = codeOf(item);
+    return !code || (PENALTY_CODES as readonly string[]).includes(code);
+  };
+  const placed = items.filter(keepsPlace);
+  const displaced = items
+    .filter((item) => !keepsPlace(item))
+    .sort(
+      (a, b) => codeRank(codeOf(a)!) - codeRank(codeOf(b)!) || tieBreak(a, b),
+    );
+  return [...placed, ...displaced];
+}
 
 /** One boat as recorded: a finishing slot, or a code. */
 export interface Recorded {

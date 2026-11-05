@@ -38,9 +38,7 @@ import {
   type Heat,
 } from './state';
 import { finalSplitRanking } from '../standings/qualifying';
-
-/** The most heats a round can have: they are lettered A to Z. */
-export const MAX_HEATS = 26;
+import { MAX_HEATS } from '../rules/heats';
 
 const NO_PLACE = new Set<string>(NO_PLACE_CODES);
 const PENALTIES = new Set<string>(PENALTY_CODES);

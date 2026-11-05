@@ -1,19 +1,16 @@
-import {
-  getScoringPenaltyPoints,
-  scoringPenaltyStatuses,
-} from './scoringPenalty';
-
 /**
- * What a correction to one boat's result does to her whole race. The main
- * process (saving) and the leaderboard edit screen (preview) both run this,
- * so the screen always shows what Save writes.
+ * What a correction to one boat's result does to her whole race, on a race
+ * written as a column of cells (a place and a code per boat, as a results
+ * table shows it). For screens that let the race office correct a result in
+ * place: the screen re-ranks the race with `applyRaceColumnEdit`, and what it
+ * shows is the race the correction gives.
  *
  * A correction gives the race the result it would have had if the corrected
- * finish had been entered on the scoring screen in the first place:
+ * finish had been entered on the scoring sheet in the first place:
  *
  *  - A new place MOVES the boat in the finishing order: the boats between her
- *    old and new place move up or down one to make room (as dragging her in
- *    the finish list does). Two moves swap two boats.
+ *    old and new place move up or down one to make room. Two moves swap two
+ *    boats.
  *  - A code with no finishing place (DNF, OCS, BFD, DSQ, RET, …) on a boat
  *    that held one takes her out of the finishing order and every boat behind
  *    her moves up one place (RRS A6.1; a boat that did not start or finish
@@ -21,63 +18,70 @@ import {
  *  - A finishing place for a boat that had none (a DNF found to have
  *    finished) puts her into the order and the boats from that place on move
  *    down one.
- *  - Redress (RDG) and a discretionary penalty (DPI) change her score only:
+ *  - Redress (RDG1-3) and a discretionary penalty (DPI) change her score only:
  *    no other boat's score changes (RRS A6.2, A10). A boat that finished
  *    keeps her place in the order (`heldPlace`), so a boat she was level
  *    with still shares it (6.5 stays 6.5) and the boats behind keep theirs.
- *  - ZFP/SCP/T1 keep the finishing place (RRS 44.3(c), T1).
+ *  - ZFP / SCP / T1 keep the finishing place (RRS 44.3(c), T1).
  *
- * Places are never silently compacted: a gap left by redress stays a gap.
- * Boats sharing a place share the points of the places they occupy (RRS A7).
+ * Places are never silently compacted: a gap left by redress stays a gap,
+ * unless a place would fall outside the race. Boats sharing a place share the
+ * points of the places they occupy (RRS A7).
  *
- * Earlier this was a "Shift other boats" toggle: off, a new place overrode
- * one boat and left a duplicate or a gap, and a code such as BFD left the
- * boats behind her a place too low. Each edit was then replayed on Save in a
- * different order from the screen, so what was saved could differ from what
- * was shown.
+ * Cell statuses: 'FINISHED', a no-place code (`NO_PLACE_CODES`), a penalty
+ * that keeps the place (`PENALTY_CODES`), or a score the protest committee
+ * sets (`COMMITTEE_CODES`: DPI, RDG1, RDG2, RDG3). Any other status is
+ * scored as a code with no place.
  */
+import { PENALTY_CODES, type PenaltyCode } from '../types';
+import { noPlacePoints, penaltyPoints } from './points';
 
+/** A finish with no code. */
+export const FINISHED = 'FINISHED';
+
+const PENALTIES: ReadonlySet<string> = new Set(PENALTY_CODES);
+
+/** One boat's result in a race, as a results table holds it. */
 export interface RaceCell {
+  /** Her finishing place; the points for RDG / DPI; the DNF score for a code. */
   position: number;
   points: number;
   status: string;
   /**
    * RDG / DPI only: the finishing place she keeps in the order (RRS A6.2).
-   * Absent when she had none (redress for a boat that did not finish), and
-   * for results saved before this was recorded.
+   * Absent when she had none (redress for a boat that did not finish).
    */
   heldPlace?: number | null;
 }
 
+/** One boat's result changed (`index` into the race's cells). */
 export interface RaceColumnEdit {
-  /** Index into the cells array of the boat being edited. */
+  /** Index into the cells of the boat being corrected. */
   index: number;
-  /** The edited boat's place and status before this change. */
+  /** Her place and status before this change. */
   previousPosition: number;
   previousStatus: string;
-  /** The edited boat's new place (a finishing place, or RDG/DPI points). */
+  /** Her new place (a finishing place, or the RDG / DPI points). */
   newPosition: number;
   newPoints: number;
   newStatus: string;
-  /** No longer used: a new place always moves the boat (see above). */
-  shiftPositions?: boolean;
-  /** Boats in the largest heat (SHRS 5.2): DNF score = maxBoats + 1. */
+  /** Boats in the largest heat of the series (SHRS 5.2). */
   maxBoats: number;
 }
 
-/** A boat holding a slot in the finishing order. */
+/** A status that holds a slot in the finishing order (a finish, ZFP/SCP/T1). */
 export function holdsPlace(status: string): boolean {
-  return status === 'FINISHED' || scoringPenaltyStatuses.has(status);
+  return status === FINISHED || PENALTIES.has(status);
 }
 
-/** Redress and DPI: points set by the protest committee. */
+/** Redress and DPI: points the protest committee sets (RRS A9, A10). */
 export function keepsProvidedPoints(status: string): boolean {
   return status.startsWith('RDG') || status === 'DPI';
 }
 
 /**
- * The place a cell fills in the finishing order: a finisher's (or ZFP/SCP/T1)
- * position, or the place a redressed / DPI boat kept. Null when none.
+ * The place a cell fills in the finishing order: a finisher's (or ZFP / SCP /
+ * T1) place, or the place a redressed / DPI boat kept. Null when none.
  */
 export function slotOf(cell: RaceCell): number | null {
   if (holdsPlace(cell.status)) return cell.position;
@@ -102,15 +106,16 @@ function plain(cell: RaceCell): RaceCell {
 }
 
 /**
- * Score every cell from its place and code: RRS A7 averages for boats sharing
- * a place, 44.3(c)/T1 points for position-keeping penalties, the DNF score
- * (largest heat + 1, SHRS 5.2) for every other code. RDG/DPI points are kept.
+ * Score every cell from its place and code: RRS A7 shared points for boats
+ * on one place, 44.3(c) / T1 points for ZFP / SCP / T1 (added to the shared
+ * points in a tie), the DNF score (largest heat + 1, SHRS 5.2) for every
+ * other code. RDG / DPI points are kept. A gap in the places is not closed.
  */
 export function scoreRaceColumn(
-  cells: RaceCell[],
+  cells: readonly RaceCell[],
   maxBoats: number,
 ): RaceCell[] {
-  const dnf = maxBoats + 1;
+  const dnf = noPlacePoints(maxBoats);
   // Every boat filling a place counts, a redressed one that kept hers too.
   const sharing = new Map<number, number>();
   cells.forEach((cell) => {
@@ -126,20 +131,61 @@ export function scoreRaceColumn(
     const n = sharing.get(cell.position) ?? 1;
     // Places p .. p+n-1, averaged (RRS A7).
     const shared = cell.position + (n - 1) / 2;
-    if (scoringPenaltyStatuses.has(cell.status)) {
-      // RRS 44.3(c) 2025-2028: the penalty is added to the score she would
-      // have had, the shared points in a tie (as regatta-core scores it).
+    if (PENALTIES.has(cell.status)) {
       return {
         ...cell,
-        points: getScoringPenaltyPoints(shared, maxBoats, cell.status),
+        points: penaltyPoints(shared, maxBoats, cell.status as PenaltyCode),
       };
     }
     return { ...cell, points: shared };
   });
 }
 
-export default function applyRaceColumnEdit(
-  cells: RaceCell[],
+/**
+ * Keep every place inside the race. A gap left by redress is kept while it
+ * fits, but if giving a boat back a place would push another past the last
+ * boat (3 boats, places 1, 3 and 4), the places close up instead.
+ */
+function fitPlacesInRace(cells: RaceCell[]): RaceCell[] {
+  const holders = cells
+    .map((cell, index) => ({ cell, index, slot: slotOf(cell) }))
+    .filter(
+      (holder): holder is typeof holder & { slot: number } =>
+        holder.slot != null,
+    )
+    .sort((a, b) => a.slot - b.slot || a.index - b.index);
+  const sharing = new Map<number, number>();
+  holders.forEach(({ slot }) => {
+    sharing.set(slot, (sharing.get(slot) ?? 0) + 1);
+  });
+  let lastEnd = 0;
+  sharing.forEach((n, position) => {
+    lastEnd = Math.max(lastEnd, position + n - 1);
+  });
+  if (lastEnd <= cells.length) return cells;
+
+  const next = cells.map((cell) => ({ ...cell }));
+  let cursor = 1;
+  let i = 0;
+  while (i < holders.length) {
+    const { slot } = holders[i];
+    let j = i;
+    while (j < holders.length && holders[j].slot === slot) {
+      next[holders[j].index] = withSlot(next[holders[j].index], cursor);
+      j += 1;
+    }
+    cursor += j - i;
+    i = j;
+  }
+  return next;
+}
+
+/**
+ * The race after one boat's result is corrected, every cell re-ranked and
+ * scored (see the top of this file for what a correction does).
+ */
+export function applyRaceColumnEdit(
+  cells: readonly RaceCell[],
   edit: RaceColumnEdit,
 ): RaceCell[] {
   const { index, previousStatus, newStatus, maxBoats } = edit;
@@ -253,51 +299,9 @@ export default function applyRaceColumnEdit(
       ...(previousSlot != null ? { heldPlace: previousSlot } : {}),
     };
   } else {
-    next[index] = {
-      position: maxBoats + 1,
-      points: maxBoats + 1,
-      status: newStatus,
-    };
+    const dnf = noPlacePoints(maxBoats);
+    next[index] = { position: dnf, points: dnf, status: newStatus };
   }
 
   return scoreRaceColumn(fitPlacesInRace(next), maxBoats);
-}
-
-/**
- * Keep every place inside the race. A gap left by redress is kept while it
- * fits, but if giving a boat back a place would push another past the last
- * boat (3 boats, places 1, 3 and 4), the places close up instead.
- */
-function fitPlacesInRace(cells: RaceCell[]): RaceCell[] {
-  const holders = cells
-    .map((cell, index) => ({ cell, index, slot: slotOf(cell) }))
-    .filter(
-      (holder): holder is typeof holder & { slot: number } =>
-        holder.slot != null,
-    )
-    .sort((a, b) => a.slot - b.slot || a.index - b.index);
-  const sharing = new Map<number, number>();
-  holders.forEach(({ slot }) => {
-    sharing.set(slot, (sharing.get(slot) ?? 0) + 1);
-  });
-  let lastEnd = 0;
-  sharing.forEach((n, position) => {
-    lastEnd = Math.max(lastEnd, position + n - 1);
-  });
-  if (lastEnd <= cells.length) return cells;
-
-  const next = cells.map((cell) => ({ ...cell }));
-  let cursor = 1;
-  let i = 0;
-  while (i < holders.length) {
-    const { slot } = holders[i];
-    let j = i;
-    while (j < holders.length && holders[j].slot === slot) {
-      next[holders[j].index] = withSlot(next[holders[j].index], cursor);
-      j += 1;
-    }
-    cursor += j - i;
-    i = j;
-  }
-  return next;
 }
