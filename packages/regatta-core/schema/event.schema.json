@@ -145,7 +145,7 @@
                   "$ref": "#/definitions/BoatId"
                 }
               },
-              "description": "The heats as the race office made them, heat A first, instead of the SHRS 3.1(1) draw: a converted record. Checked for shape only: each boat entered and in one heat, at most 20 to a heat."
+              "description": "The heats as the race office made them, heat A first, instead of the SHRS 3.1(1) draw: a converted record. Checked for shape only: each boat entered and in one heat (a heat over 20, made before SHRS 2.3 was enforced, is kept as sailed)."
             }
           },
           "required": ["type", "heatCount"],

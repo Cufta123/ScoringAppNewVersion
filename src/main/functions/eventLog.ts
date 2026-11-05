@@ -48,6 +48,7 @@ import {
 import { normalizeDiscardConfig } from '../../shared/discardProfile';
 import { getHeatRoundFromName } from '../../shared/heatNames';
 import { fleetRank } from '../../shared/fleetNames';
+import { SHRS_MAX_BOATS_PER_HEAT } from '../../shared/heatSizing';
 import { normalizeScoreStatus } from './scoreStatus';
 import { boatLabel } from './labels';
 import {
@@ -285,6 +286,17 @@ export function eventToLog(eventId: number): EventLog {
       case 'RDG1':
         return { kind: 'RDG1' };
       case 'RDG2':
+        // Older records did not keep the races the committee chose (no
+        // rdg_race_ids; the app writes a list, empty or not, for every
+        // RDG2). Averaging nothing would score her as a DNF for what the
+        // records lost: she keeps the points the committee gave, as
+        // points it set (RRS A9(c)).
+        if (row.rdg_race_ids == null) {
+          anomalies.push(
+            `${boatLabel(row.boat_id)} has redress RDG2 (${Number(row.points)} points) without the races it averages; she keeps those points as the committee set them.`,
+          );
+          return { kind: 'RDG3', points: Number(row.points) };
+        }
         // A chosen race that no longer exists (undone) is left out, as the
         // app's average does.
         return {
@@ -401,6 +413,7 @@ export function eventToLog(eventId: number): EventLog {
           largestOf(heat) + 1,
           `Heat ${ref.heat}, race ${race}`,
           boatLabel,
+          true,
         );
     notes.push(...sheet.notes);
     anomalies.push(...sheet.anomalies);
@@ -471,8 +484,29 @@ export function eventToLog(eventId: number): EventLog {
   };
 
   const qualifying = heats.filter((h) => h.heat_type === 'Qualifying');
+  const raceCount = (heatId: number) =>
+    Number(
+      (
+        db
+          .prepare('SELECT COUNT(*) AS n FROM Races WHERE heat_id = ?')
+          .get(heatId) as { n: number }
+      ).n,
+    );
   const finals = heats
     .filter((h) => h.heat_type === 'Final')
+    .filter((h) => {
+      // A fleet with no boats and no race holds nothing (older records
+      // could start the Final Series with no boats in it).
+      const empty =
+        (listed.get(h.heat_id)?.length ?? 0) === 0 &&
+        raceCount(h.heat_id) === 0;
+      if (empty) {
+        anomalies.push(
+          `The ${coreHeatId(h.heat_name)} fleet has no boats and no races; it is left out.`,
+        );
+      }
+      return !empty;
+    })
     .sort(
       (a, b) =>
         fleetRank(coreHeatId(a.heat_name)) - fleetRank(coreHeatId(b.heat_name)),
@@ -490,6 +524,13 @@ export function eventToLog(eventId: number): EventLog {
 
   roundNumbers.forEach((round, i) =>
     sailRound(rounds.get(round)!, (heatsMade) => {
+      heatsMade.forEach((boats, h) => {
+        if (boats.length > SHRS_MAX_BOATS_PER_HEAT) {
+          anomalies.push(
+            `Heat ${coreHeatId(rounds.get(round)![h].heat_name)} has ${boats.length} boats; SHRS 2.3 allows ${SHRS_MAX_BOATS_PER_HEAT}. It is kept as it was sailed.`,
+          );
+        }
+      });
       heatsMade.flat().forEach(enter);
       decisions.push(
         i === 0

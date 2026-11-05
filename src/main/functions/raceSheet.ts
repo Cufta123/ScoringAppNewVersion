@@ -60,6 +60,12 @@ export function sheetFromRows(
   dnf: number,
   where: string,
   name: (boat: BoatId) => string = (boat) => boat,
+  /**
+   * Old records (the conversion): a redressed boat with no kept place
+   * recorded kept the place the finishers leave free. Off for a Save,
+   * where no kept place is what the race officer chose.
+   */
+  inferKeptPlaces = false,
 ): Sheet {
   const notes: string[] = [];
   const anomalies: string[] = [];
@@ -75,6 +81,7 @@ export function sheetFromRows(
     committee?: boolean;
   };
   const live: Entry[] = [];
+  const unplaced: SheetRow[] = [];
   const putBack: Entry[] = [];
   const coded: { boat: string; code: string }[] = [];
   rows.forEach((row) => {
@@ -110,6 +117,10 @@ export function sheetFromRows(
         });
       } else if (was && NO_PLACE.has(was)) {
         coded.push({ boat: boatId, code: was });
+      } else if (inferKeptPlaces) {
+        // No place recorded (results saved before kept places were): she
+        // may have kept one; decided below from the finishers.
+        unplaced.push(row);
       } else {
         notes.push(
           `${where}: ${boatId} has ${status} with no result recorded before it; DNF on the sheet (her points are the committee's).`,
@@ -134,6 +145,53 @@ export function sheetFromRows(
       coded.push({ boat: boatId, code: 'DNF' });
     }
   });
+
+  // RRS A6.2 / A10: redress and DPI move no other boat, so a place the
+  // finishers leave free is the place a redressed boat kept. Older records
+  // stored only her points; give each such boat a free place, in the order
+  // of the boats (the records cannot say which held which when there are
+  // several), and DNF on the sheet when there is none left.
+  if (unplaced.length > 0) {
+    const sizes = new Map<number, number>();
+    live.forEach((entry) =>
+      sizes.set(entry.place, (sizes.get(entry.place) ?? 0) + 1),
+    );
+    const free: number[] = [];
+    let next = 1;
+    [...sizes.keys()]
+      .sort((a, b) => a - b)
+      .forEach((place) => {
+        while (next < place) {
+          free.push(next);
+          next += 1;
+        }
+        next = Math.max(next, place + sizes.get(place)!);
+      });
+    [...unplaced]
+      .sort((a, b) =>
+        a.boat.localeCompare(b.boat, undefined, { numeric: true }),
+      )
+      .forEach((row) => {
+        const place = free.shift();
+        if (place !== undefined) {
+          notes.push(
+            `${where}: ${name(row.boat)} has ${row.status} with no kept place recorded; the finishers leave place ${place} free, so she kept it (RRS A6.2).`,
+          );
+          live.push({
+            boat: row.boat,
+            place,
+            points: row.points,
+            live: true,
+            committee: true,
+          });
+        } else {
+          notes.push(
+            `${where}: ${name(row.boat)} has ${row.status} with no result recorded before it; DNF on the sheet (her points are the committee's).`,
+          );
+          coded.push({ boat: row.boat, code: 'DNF' });
+        }
+      });
+  }
 
   // Finishers level on a place tied (RRS A7). An RDG / DPI boat on the
   // same place was in the tie if the finishers' stored points are shared

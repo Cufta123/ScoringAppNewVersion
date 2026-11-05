@@ -144,10 +144,15 @@ function LeaderboardContent({
 
   if (!hasEventData && !hasFinalData) {
     return (
-      <EmptyState
-        title="No leaderboard data yet"
-        description="No race results are available for this event. Start scoring races to see standings here."
-      />
+      <>
+        {/* Also here: an event whose old records the rules cannot read has
+            no standings, and this says why. */}
+        <ConversionNotice eventId={eventId} />
+        <EmptyState
+          title="No leaderboard data yet"
+          description="No race results are available for this event. Start scoring races to see standings here."
+        />
+      </>
     );
   }
 

@@ -245,4 +245,47 @@ describe('moving events to the new scoring at start-up', () => {
     const report = await call('readConversionReport', eventId);
     expect(report.refused).toEqual(expect.any(String));
   });
+  it('leaves out a final fleet with no boats and no races (older records), and says so', async () => {
+    asBeforeTheSwitch();
+    db.prepare(
+      "INSERT INTO Heats (event_id, heat_name, heat_type) VALUES (?, 'Heat Gold', 'Final'), (?, 'Heat Silver', 'Final')",
+    ).run(eventId, eventId);
+    convertEventsAtStartup();
+    expect((await call('readLeaderboard', eventId)).length).toBe(8);
+    const report = await call('readConversionReport', eventId);
+    expect(report.refused).toBeNull();
+    expect(report.heats).toEqual([]);
+    expect(report.notes).toEqual([
+      'The Gold fleet has no boats and no races; it is left out.',
+      'The Silver fleet has no boats and no races; it is left out.',
+    ]);
+  });
+
+  it('keeps an RDG2 whose races older records did not keep as the points the committee gave', async () => {
+    asBeforeTheSwitch();
+    const third = db
+      .prepare(
+        `SELECT sc.score_id, b.sail_number FROM Scores sc
+         JOIN Boats b ON b.boat_id = sc.boat_id
+         JOIN Races r ON r.race_id = sc.race_id
+         WHERE r.heat_id = ? AND sc.position = 3`,
+      )
+      .get(heatId('Heat B1'));
+    db.prepare(
+      "UPDATE Scores SET status = 'RDG2', position = 2.5, points = 2.5, held_place = NULL, rdg_race_ids = NULL WHERE score_id = ?",
+    ).run(third.score_id);
+    convertEventsAtStartup();
+    const rows = await call('readLeaderboard', eventId);
+    const row = rows.find(
+      (r: any) => String(r.boat_number) === String(third.sail_number),
+    );
+    expect(row.race_points).toBe('2.5');
+    const report = await call('readConversionReport', eventId);
+    expect(report.points).toEqual([]);
+    expect(report.notes).toEqual([
+      expect.stringMatching(
+        /RDG2 \(2\.5 points\) without the races it averages/,
+      ),
+    ]);
+  });
 });

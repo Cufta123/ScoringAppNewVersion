@@ -297,9 +297,9 @@ function givenRound(
   ) {
     refuse('The heats must list entered boats, each once.');
   }
-  if (given.some((heat) => heat.length > MAX_HEAT_SIZE)) {
-    refuse(`A heat cannot have more than ${MAX_HEAT_SIZE} boats (SHRS 2.3).`);
-  }
+  // No size check: SHRS 2.3 governs making heats (the draw and every
+  // change refuse a 21st boat); a record of heats made otherwise before
+  // the cap is kept as it was sailed, and the conversion says so.
   return given.map((boats, index) => ({
     id: `${groupLetter(index)}${round}`,
     series: 'qualifying' as const,

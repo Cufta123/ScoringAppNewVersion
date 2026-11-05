@@ -32,14 +32,17 @@ export default function conversionReport(
         after: point.after,
       };
     }),
-    heats: changes.heats.map((heat) => {
-      const log = heat.log ?? [];
-      return {
-        heat: heatName(heat.heat),
-        added: log.filter((b) => !heat.stored.includes(b)).map(boatLabel),
-        removed: heat.stored.filter((b) => !log.includes(b)).map(boatLabel),
-      };
-    }),
+    heats: changes.heats
+      .map((heat) => {
+        const log = heat.log ?? [];
+        return {
+          heat: heatName(heat.heat),
+          added: log.filter((b) => !heat.stored.includes(b)).map(boatLabel),
+          removed: heat.stored.filter((b) => !log.includes(b)).map(boatLabel),
+        };
+      })
+      // An empty fleet left out changes no boat (its note says why).
+      .filter((heat) => heat.added.length + heat.removed.length > 0),
     notes: record.anomalies,
     // The library's reason, without the log's internal decision number.
     refused: changes.refused?.replace(/^Decision \d+ refused: /, '') ?? null,

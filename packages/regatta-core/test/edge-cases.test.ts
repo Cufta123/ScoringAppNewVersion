@@ -234,3 +234,23 @@ describe('heats given as made (a converted record)', () => {
     });
   });
 });
+
+describe('heats recorded before SHRS 2.3 was enforced', () => {
+  it('keeps a recorded heat over 20 boats as it was sailed; a drawn one is still refused', () => {
+    const boats = Array.from({ length: 21 }, (_, i) => `b${i + 1}`);
+    const entered: Decision[] = boats.map((id, i) => ({
+      type: 'boatEntered',
+      boat: { id, nat: 'CRO', sail: String(i + 1) },
+    }));
+    const recorded = replay([
+      ...entered,
+      { type: 'heatsCreated', heatCount: 1, heats: [boats] },
+    ]);
+    expect(recorded).toMatchObject({
+      ok: true,
+      state: { rounds: [[{ boats }]] },
+    });
+    const drawn = replay([...entered, { type: 'heatsCreated', heatCount: 1 }]);
+    expect(drawn.ok).toBe(false);
+  });
+});
