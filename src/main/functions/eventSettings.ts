@@ -3,7 +3,7 @@
  * assignment mode (3.1/3.2), heat overflow policy (2.3), and the
  * discard-profile lock that closes editing at the first warning signal (5.4).
  */
-import { db } from '../../../public/Database/DBManager';
+import { db } from '../database/DBManager';
 import {
   type HeatOverflowPolicy,
   normalizeHeatOverflowPolicy,

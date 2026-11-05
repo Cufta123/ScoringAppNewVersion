@@ -9,7 +9,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import handle from './handle';
-import { db, dbPath } from '../../../public/Database/DBManager';
+import { db, dbPath } from '../database/DBManager';
 import { errorLogDir, logError } from '../errorLog';
 import { buildProblemReport } from '../functions/problemReport';
 import {

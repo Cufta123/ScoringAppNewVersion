@@ -1,19 +1,28 @@
 /* eslint-disable no-console */
-const Database = require('better-sqlite3');
-const path = require('path');
-const fs = require('fs');
-const { app, dialog } = require('electron');
-const { migrate, LATEST_SCHEMA_VERSION } = require('./schema');
-const {
+import Database from 'better-sqlite3';
+import path from 'path';
+import fs from 'fs';
+import { app, dialog } from 'electron';
+import { migrate, LATEST_SCHEMA_VERSION } from './schema';
+import {
   classifyDatabaseFailure,
-} = require('../../src/shared/errors/explainError');
-const {
+  type DatabaseFailure,
+} from '../../shared/errors/explainError';
+import {
   backupDirFor,
   createAutoBackup,
   hasUserData,
   writeBackup,
-} = require('./backup');
-const { resolveDataDir } = require('./dataLocation');
+} from './backup';
+import { resolveDataDir } from './dataLocation';
+
+/**
+ * The app's connection. Typed, so the compiler checks how it is used; a
+ * statement's rows are `unknown` until the call site that reads them says
+ * which row type of the IPC contract (`src/shared/rows.ts`, `ipc.ts`) the
+ * SQL returns, e.g. `db.prepare(sql).all(eventId) as EventBoatRow[]`.
+ */
+export type Db = Database.Database;
 
 // Define the path for the database file.
 //
@@ -26,8 +35,8 @@ const { resolveDataDir } = require('./dataLocation');
 //
 // Installed, the data lives in Electron's data folder, or in the folder an
 // earlier build (named after the template) used, if that is where the
-// results are (dataLocation.js). The app's own browser data follows it.
-const packagedDbPath = () => {
+// results are (dataLocation.ts). The app's own browser data follows it.
+const packagedDbPath = (): string => {
   const dir = resolveDataDir({
     userData: app.getPath('userData'),
     appData: app.getPath('appData'),
@@ -37,7 +46,7 @@ const packagedDbPath = () => {
   return path.join(dir, 'scoring_app.db');
 };
 
-const dbPath =
+export const dbPath: string =
   process.env.SCORING_APP_DB_PATH ||
   (app.isPackaged
     ? packagedDbPath()
@@ -47,7 +56,7 @@ const dataDir = path.dirname(dbPath);
 console.log(`Database path: ${dbPath}`);
 fs.mkdirSync(dataDir, { recursive: true });
 
-const db = new Database(dbPath);
+export const db: Db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 
 // What to tell the person when the app cannot start, by kind of failure. The
@@ -55,7 +64,7 @@ db.pragma('journal_mode = WAL');
 // in the window); the advice is worded for startup, when no menu is reachable.
 const CANNOT_WRITE =
   'The data file cannot be opened for writing. Check that the drive is connected and not read-only.\n\n';
-const STARTUP_ADVICE = {
+const STARTUP_ADVICE: Record<DatabaseFailure, string> = {
   damaged:
     'The data file is damaged. Restore the latest backup from the backups folder below (copy it over the database file while the app is closed).\n\n',
   busy: 'The data file is in use, probably because the app is already open. Close the other window and start the app again.\n\n',
@@ -70,10 +79,14 @@ const STARTUP_ADVICE = {
  * and turn one failed step into wrong results; the pre-migration backup is
  * untouched and the message says where to find it.
  */
-function failStartup(error) {
+function failStartup(error: unknown): never {
   console.error('Database could not be opened:', error);
-  const detail = error && error.message ? error.message : String(error);
-  const plain = STARTUP_ADVICE[classifyDatabaseFailure(error)] || '';
+  const detail =
+    error && (error as Error).message
+      ? (error as Error).message
+      : String(error);
+  const kind = classifyDatabaseFailure(error);
+  const plain = kind ? STARTUP_ADVICE[kind] : '';
   dialog.showErrorBox(
     'IOM Regatta Manager cannot open its database',
     `${plain}${detail}\n\n` +
@@ -113,6 +126,4 @@ try {
 }
 
 // Rolling safety copies while the app runs; main.ts starts and stops them.
-const autoBackup = createAutoBackup(db, dbPath);
-
-module.exports = { db, dbPath, autoBackup };
+export const autoBackup = createAutoBackup(db, dbPath);

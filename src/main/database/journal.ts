@@ -20,6 +20,7 @@
  * migration that adds a column to a journalled table must call
  * installJournalTriggers again, or the new column is left out of the history.
  */
+import type { ColumnInfoRow, SqlConnection } from './connection';
 
 const JOURNAL_TABLES = `
   CREATE TABLE IF NOT EXISTS ChangeActions (
@@ -50,14 +51,26 @@ const JOURNAL_TABLES = `
     ON ChangeLog (action_id);
 `;
 
-const sailOf = (row) =>
+const sailOf = (row: string): string =>
   `(SELECT b.country || ' ' || b.sail_number FROM Boats b WHERE b.boat_id = ${row}.boat_id)`;
 
 /**
  * How each journalled table is keyed, which event a row belongs to, and the
  * labels stored with it. `X` stands for OLD or NEW.
  */
-const JOURNALLED = [
+interface JournalSpec {
+  table: string;
+  /** SQL for the row's key, with `X.` for OLD / NEW. */
+  key: string;
+  /** SQL for the row's event, with `X.` for OLD / NEW. */
+  eventId: string;
+  /** Columns left out of the history. */
+  ignore?: string[];
+  /** The `json_object` arguments of the labels, for OLD or NEW. */
+  context?: (x: string) => string;
+}
+
+const JOURNALLED: JournalSpec[] = [
   {
     table: 'Events',
     key: 'X.event_id',
@@ -112,25 +125,31 @@ const JOURNALLED = [
   },
 ];
 
-const columnsOf = (db, table) =>
-  db
-    .prepare(`PRAGMA table_info('${table}')`)
-    .all()
-    .map((row) => row.name);
+const columnsOf = (db: SqlConnection, table: string): string[] =>
+  (db.prepare(`PRAGMA table_info('${table}')`).all() as ColumnInfoRow[]).map(
+    (row) => row.name,
+  );
 
-const rowJson = (columns, x) =>
+const rowJson = (columns: string[], x: string): string =>
   `json_object(${columns.map((c) => `'${c}', ${x}.${c}`).join(', ')})`;
 
-const triggerName = (table, op) => `journal_${table}_${op}`;
+const triggerName = (table: string, op: string): string =>
+  `journal_${table}_${op}`;
 
-function triggersFor(db, spec) {
+function triggersFor(db: SqlConnection, spec: JournalSpec): string[] {
   const columns = columnsOf(db, spec.table).filter(
     (column) => !(spec.ignore ?? []).includes(column),
   );
-  const on = (x, expr) => expr.replace(/\bX\./g, `${x}.`);
-  const context = (x) =>
+  const on = (x: string, expr: string): string =>
+    expr.replace(/\bX\./g, `${x}.`);
+  const context = (x: string): string =>
     spec.context ? `json_object(${spec.context(x)})` : 'NULL';
-  const insertLog = (op, x, oldRow, newRow) => `
+  const insertLog = (
+    op: string,
+    x: string,
+    oldRow: string,
+    newRow: string,
+  ): string => `
     INSERT INTO ChangeLog (event_id, table_name, op, row_key, old_row, new_row, context)
     VALUES (${on(x, spec.eventId)}, '${spec.table}', '${op}', ${on(x, spec.key)},
             ${oldRow}, ${newRow}, ${context(x)});`;
@@ -166,7 +185,7 @@ function triggersFor(db, spec) {
 }
 
 /** (Re)create the journal triggers from the tables' current columns. */
-function installJournalTriggers(db) {
+export function installJournalTriggers(db: SqlConnection): void {
   JOURNALLED.forEach((spec) => {
     ['insert', 'update', 'delete'].forEach((op) =>
       db.exec(`DROP TRIGGER IF EXISTS ${triggerName(spec.table, op)};`),
@@ -176,13 +195,9 @@ function installJournalTriggers(db) {
 }
 
 /** Create the journal tables and triggers. Safe to run again. */
-function installJournal(db) {
+export function installJournal(db: SqlConnection): void {
   db.exec(JOURNAL_TABLES);
   installJournalTriggers(db);
 }
 
-module.exports = {
-  JOURNALLED_TABLES: JOURNALLED.map((spec) => spec.table),
-  installJournal,
-  installJournalTriggers,
-};
+export const JOURNALLED_TABLES: string[] = JOURNALLED.map((spec) => spec.table);

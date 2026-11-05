@@ -4,7 +4,7 @@
  * the finishers leave free is hers. Found on a real database: the
  * conversion closed the gap and took a point off three boats.
  */
-jest.mock('../../public/Database/DBManager', () => ({ db: {} }));
+jest.mock('../main/database/DBManager', () => ({ db: {} }));
 
 // eslint-disable-next-line import/first
 import { sheetFromRows, type SheetRow } from '../main/functions/raceSheet';

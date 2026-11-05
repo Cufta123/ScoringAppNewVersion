@@ -27,7 +27,7 @@ jest.mock('electron', () => ({
 }));
 
 const mockDbHolder: { current: any } = { current: null };
-jest.mock('../../public/Database/DBManager', () => ({
+jest.mock('../main/database/DBManager', () => ({
   db: {
     prepare: (...args: any[]) => mockDbHolder.current.prepare(...args),
     exec: (...args: any[]) => mockDbHolder.current.exec(...args),

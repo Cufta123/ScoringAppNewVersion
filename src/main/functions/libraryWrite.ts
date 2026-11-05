@@ -10,7 +10,7 @@
  * projection writes.
  */
 import { replay, type Decision, type EventState } from 'regatta-core';
-import { db } from '../../../public/Database/DBManager';
+import { db } from '../database/DBManager';
 import projectEvent from './projectEvent';
 import { loadLog, replaceLog, saveLog } from './decisionStore';
 

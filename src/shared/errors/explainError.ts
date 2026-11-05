@@ -182,7 +182,7 @@ const FILE_SYSTEM_FAILURES: Record<string, DatabaseFailure> = {
 /**
  * Which kind of database failure an error is (busy, disk full, read-only,
  * unreadable, damaged), or null when it is none of them. Shared so the
- * startup dialog (public/Database/DBManager.js), which words its own advice,
+ * startup dialog (main/database/DBManager.ts), which words its own advice,
  * recognises failures exactly as the messages in the window do.
  */
 export function classifyDatabaseFailure(

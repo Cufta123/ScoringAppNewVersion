@@ -1,6 +1,6 @@
 /**
  * The subset of the real schema that the event-lifecycle handlers touch,
- * copied from `public/Database/DBManager.js` with its FOREIGN KEY clauses
+ * copied from `src/main/database/schema.ts` with its FOREIGN KEY clauses
  * intact.
  *
  * The clauses are the point. better-sqlite3 is compiled with
@@ -13,7 +13,7 @@
  * run against a real engine.
  */
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { COUNTED_RACES_VIEW } = require('../../../public/Database/views');
+const { COUNTED_RACES_VIEW } = require('../../main/database/views');
 
 export const EVENT_LIFECYCLE_SCHEMA = `
   CREATE TABLE Events (

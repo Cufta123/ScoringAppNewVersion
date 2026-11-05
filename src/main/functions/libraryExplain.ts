@@ -24,7 +24,7 @@ import {
   type SeriesExplanation,
   type TieExplanation,
 } from 'regatta-core';
-import { db } from '../../../public/Database/DBManager';
+import { db } from '../database/DBManager';
 import { replayEvent } from './libraryStandings';
 import { getHeatRoundFromName } from '../../shared/heatNames';
 import { parseRedressRaceIds } from './raceSheet';

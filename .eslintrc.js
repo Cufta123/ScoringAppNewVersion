@@ -53,6 +53,9 @@ const RULE_COPY_MESSAGE =
   'This rule is regatta-core\'s: import it from "regatta-core" instead of writing a copy (AGENTS.md §1).';
 
 module.exports = {
+  // The repo's own config: an agent worktree inside another checkout must not
+  // also load that checkout's .eslintrc.js (two copies of each plugin).
+  root: true,
   extends: 'erb',
   plugins: ['@typescript-eslint'],
   rules: {

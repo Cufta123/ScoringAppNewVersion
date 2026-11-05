@@ -1,3 +1,4 @@
+/* eslint import/prefer-default-export: off */
 /**
  * CountedRaces: the races that count in the standings.
  *
@@ -16,7 +17,7 @@
  * This view is the one definition: the standings rebuild, discards, tie-break,
  * score explanation, the leaderboard screen and the DNC backfill all use it.
  */
-const COUNTED_RACES_VIEW = `
+export const COUNTED_RACES_VIEW = `
   CREATE VIEW IF NOT EXISTS CountedRaces AS
   WITH qualifying_heats AS (
     SELECT
@@ -57,5 +58,3 @@ const COUNTED_RACES_VIEW = `
   JOIN Heats h ON h.heat_id = r.heat_id
   WHERE h.heat_type = 'Final';
 `;
-
-module.exports = { COUNTED_RACES_VIEW };

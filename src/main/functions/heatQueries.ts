@@ -1,4 +1,4 @@
-import { db } from '../../../public/Database/DBManager';
+import { db } from '../database/DBManager';
 import type { HeatRow } from './seriesGuards';
 
 // Small shared reads of heats and races for the IPC handlers.

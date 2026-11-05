@@ -20,13 +20,13 @@ const fs = require('fs');
 const path = require('path');
 
 /**
- * The index DDL lives in the schema migrations (public/Database/schema.js).
+ * The index DDL lives in the schema migrations (src/main/database/schema.ts).
  * Read the statements out of the source, so the test fails if they are
  * removed or renamed rather than silently testing a copy.
  */
 function indexStatementsFromDbManager(): string {
   const source = fs.readFileSync(
-    path.join(__dirname, '../../public/Database/schema.js'),
+    path.join(__dirname, '../main/database/schema.ts'),
     'utf8',
   );
   const statements = source.match(
@@ -34,7 +34,7 @@ function indexStatementsFromDbManager(): string {
   );
   if (!statements || statements.length === 0) {
     throw new Error(
-      'No performance indexes found in schema.js — were they removed from the migrations?',
+      'No performance indexes found in schema.ts — were they removed from the migrations?',
     );
   }
   return statements.join('\n');

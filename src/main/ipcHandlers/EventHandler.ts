@@ -1,4 +1,4 @@
-import { db } from '../../../public/Database/DBManager';
+import { db } from '../database/DBManager';
 import { deleteEventLog, markConversionSeen } from '../functions/decisionStore';
 import conversionReport from '../functions/conversionReport';
 import { normalizeDiscardConfigString } from '../functions/discardConfig';
@@ -15,6 +15,7 @@ import {
   normalizeHeatOverflowPolicy,
   normalizeQualifyingAssignmentMode,
 } from '../../shared/eventSettings';
+import type { EventBoatRow, EventRow } from '../../shared/rows';
 
 handle('readEventHistory', async (event, event_id) =>
   readEventHistory(Number(event_id)),
@@ -66,9 +67,9 @@ const SERIES_STARTED_COLUMNS = `
   ) AS final_series_started`;
 
 handle('readAllEvents', async () => {
-  const events = await db
+  const events = (await db
     .prepare(`SELECT ${EVENT_COLUMNS}, ${SERIES_STARTED_COLUMNS} FROM Events`)
-    .all();
+    .all()) as EventRow[];
   return events;
 });
 
@@ -135,7 +136,7 @@ handle(
           normalizeDiscardConfigString(shrs_discard_profile_final),
           normalizeHeatOverflowPolicy(shrs_heat_overflow_policy),
         );
-      return { lastInsertRowid: result.lastInsertRowid };
+      return { lastInsertRowid: Number(result.lastInsertRowid) };
     });
   },
 );
@@ -170,7 +171,7 @@ LEFT JOIN Categories cat ON s.category_id = cat.category_id
 WHERE be.event_id = ?
       `,
     )
-    .all(event_id);
+    .all(event_id) as EventBoatRow[];
   return rows;
 });
 

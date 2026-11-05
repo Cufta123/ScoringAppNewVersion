@@ -5,7 +5,7 @@
  */
 import fs from 'fs';
 import path from 'path';
-import { db } from '../../../public/Database/DBManager';
+import { db } from '../database/DBManager';
 import { buildEventSnapshot } from './eventSnapshot';
 import { readEventHistory } from './changeJournal';
 import { summarizeAction } from '../../shared/history/describe';

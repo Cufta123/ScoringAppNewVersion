@@ -21,18 +21,47 @@
  * some or all of it.
  */
 
-const { installJournal, installJournalTriggers } = require('./journal');
-const { COUNTED_RACES_VIEW } = require('./views');
+import type { ColumnInfoRow, IndexListRow, SqlConnection } from './connection';
+import { installJournal, installJournalTriggers } from './journal';
+import { COUNTED_RACES_VIEW } from './views';
 
-const readColumns = (db, table) =>
+/** A column a migration adds when an older database lacks it. */
+interface ColumnToAdd {
+  name: string;
+  sql: string;
+}
+
+export interface Migration {
+  version: number;
+  name: string;
+  /** false: runs outside a transaction (it toggles PRAGMA foreign_keys). */
+  transaction?: false;
+  up(db: SqlConnection): void;
+}
+
+export interface MigrateResult {
+  from: number;
+  to: number;
+  applied: number[];
+}
+
+export interface MigrateOptions {
+  /** Called once, before the first pending migration (to take a backup). */
+  beforeMigrating?: (fromVersion: number, toVersion: number) => void;
+}
+
+const readColumns = (db: SqlConnection, table: string): Set<string> =>
   new Set(
-    db
-      .prepare(`PRAGMA table_info('${table}')`)
-      .all()
-      .map((row) => row.name),
+    (db.prepare(`PRAGMA table_info('${table}')`).all() as ColumnInfoRow[]).map(
+      (row) => row.name,
+    ),
   );
 
-const addMissingColumns = (db, table, columns) => {
+const addMissingColumns = (
+  db: SqlConnection,
+  table: string,
+  columns: ColumnToAdd[],
+): void => {
   const existing = readColumns(db, table);
   columns.forEach(({ name, sql }) => {
     if (existing.has(name)) return;
@@ -42,37 +71,37 @@ const addMissingColumns = (db, table, columns) => {
 };
 
 /** True when `table` has a UNIQUE index over exactly `columns`, in order. */
-const hasUniqueIndexOn = (db, table, columns) =>
-  db
-    .prepare(`PRAGMA index_list('${table}')`)
-    .all()
-    .some((indexRow) => {
+const hasUniqueIndexOn = (
+  db: SqlConnection,
+  table: string,
+  columns: string[],
+): boolean =>
+  (db.prepare(`PRAGMA index_list('${table}')`).all() as IndexListRow[]).some(
+    (indexRow) => {
       if (!indexRow.unique) return false;
       const quoted = `"${String(indexRow.name).replace(/"/g, '""')}"`;
-      const indexed = db
-        .prepare(`PRAGMA index_info(${quoted})`)
-        .all()
-        .map((row) => row.name);
+      const indexed = (
+        db.prepare(`PRAGMA index_info(${quoted})`).all() as ColumnInfoRow[]
+      ).map((row) => row.name);
       return (
         indexed.length === columns.length &&
         indexed.every((name, i) => name === columns[i])
       );
-    });
+    },
+  );
 
-const hasUniqueSailNumberConstraint = (db) =>
-  db
-    .prepare("PRAGMA index_list('Boats')")
-    .all()
-    .some((indexRow) => {
+const hasUniqueSailNumberConstraint = (db: SqlConnection): boolean =>
+  (db.prepare("PRAGMA index_list('Boats')").all() as IndexListRow[]).some(
+    (indexRow) => {
       if (!indexRow.unique) return false;
       const quoted = `"${String(indexRow.name).replace(/"/g, '""')}"`;
-      return db
-        .prepare(`PRAGMA index_info(${quoted})`)
-        .all()
-        .some((row) => row.name === 'sail_number');
-    });
+      return (
+        db.prepare(`PRAGMA index_info(${quoted})`).all() as ColumnInfoRow[]
+      ).some((row) => row.name === 'sail_number');
+    },
+  );
 
-const runInTransaction = (db, fn) => {
+const runInTransaction = (db: SqlConnection, fn: () => void): void => {
   db.exec('BEGIN');
   try {
     fn();
@@ -229,7 +258,7 @@ const BASELINE_TABLES = `
  * nations, so the table is rebuilt without it. Rebuilding needs foreign keys
  * off, which SQLite ignores inside a transaction — hence its own transaction.
  */
-const dropUniqueSailNumber = (db) => {
+const dropUniqueSailNumber = (db: SqlConnection): void => {
   if (!hasUniqueSailNumberConstraint(db)) return;
   console.log(
     'Migrating Boats: removing UNIQUE constraint from sail_number...',
@@ -259,12 +288,12 @@ const dropUniqueSailNumber = (db) => {
   }
 };
 
-const MIGRATIONS = [
+export const MIGRATIONS: Migration[] = [
   {
     version: 1,
     name: 'baseline schema (everything before versioned migrations)',
     transaction: false,
-    up(db) {
+    up(db: SqlConnection) {
       db.exec(BASELINE_TABLES);
 
       addMissingColumns(db, 'Events', [
@@ -363,7 +392,7 @@ const MIGRATIONS = [
     // (associateBoatWithEvent inserted blindly). A duplicate entry lists the
     // boat twice in the entry list and is reported as a duplicate sail number
     // when heats are built. Collapse existing duplicates, then enforce it.
-    up(db) {
+    up(db: SqlConnection) {
       db.exec(`
         DELETE FROM Boat_Event
         WHERE boat_event_id NOT IN (
@@ -381,7 +410,7 @@ const MIGRATIONS = [
     // which keeps growing), so the recompute has to know the protest
     // committee's chosen races for an RDG2. JSON array of race ids; NULL for
     // every other status. The average is regatta-core's (RRS A9).
-    up(db) {
+    up(db: SqlConnection) {
       addMissingColumns(db, 'Scores', [
         {
           name: 'rdg_race_ids',
@@ -393,17 +422,17 @@ const MIGRATIONS = [
   {
     version: 4,
     name: 'change journal (history of every change to an event)',
-    // Append-only history written by triggers; see journal.js. History starts
+    // Append-only history written by triggers; see journal.ts. History starts
     // when a database reaches this version: earlier changes were never kept.
-    up(db) {
+    up(db: SqlConnection) {
       installJournal(db);
     },
   },
   {
     version: 5,
     name: 'CountedRaces view (a qualifying race counts once every heat sailed it)',
-    // See views.js. The standings count only completed races of the series.
-    up(db) {
+    // See views.ts. The standings count only completed races of the series.
+    up(db: SqlConnection) {
       db.exec(COUNTED_RACES_VIEW);
     },
   },
@@ -412,7 +441,7 @@ const MIGRATIONS = [
     name: 'history: going back to an earlier point',
     // An action that took the event back to the state right after another
     // action records which one. See restoreToHistoryPoint.ts.
-    up(db) {
+    up(db: SqlConnection) {
       addMissingColumns(db, 'ChangeActions', [
         {
           name: 'restores_to_action_id',
@@ -429,7 +458,7 @@ const MIGRATIONS = [
     // added to the change journal: installJournalTriggers is not called, so the
     // trigger columns stay as they were and a picture never lands in the
     // history (and an unchanged logo never counts as an event change).
-    up(db) {
+    up(db: SqlConnection) {
       addMissingColumns(db, 'Events', [
         {
           name: 'export_logo',
@@ -448,7 +477,7 @@ const MIGRATIONS = [
     // had no place, and for results saved before this version (scored as
     // before). See applyRaceColumnEdit in packages/regatta-core. Journalled like the rest of the
     // row, so the triggers are installed again with the new column.
-    up(db) {
+    up(db: SqlConnection) {
       addMissingColumns(db, 'Scores', [
         {
           name: 'held_place',
@@ -471,7 +500,7 @@ const MIGRATIONS = [
     // converted it (going back before it uses the row-based history), and
     // what the conversion had to assume (notes) or could not express
     // (anomalies).
-    up(db) {
+    up(db: SqlConnection) {
       db.exec(`
         CREATE TABLE IF NOT EXISTS Decisions (
           decision_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -504,7 +533,7 @@ const MIGRATIONS = [
     // (the standings are worked out from the event's log on every read),
     // and rows left in them would stop an event being deleted (foreign
     // keys, no cascade).
-    up(db) {
+    up(db: SqlConnection) {
       db.exec(`
         DROP TABLE IF EXISTS Leaderboard;
         DROP TABLE IF EXISTS FinalLeaderboard;
@@ -518,7 +547,7 @@ const MIGRATIONS = [
     // regatta-core scores differently from what the old app stored (JSON:
     // heats and race points, before and after) are kept in `changes`, so the
     // race officer is shown them; `report_seen_at` is set once they confirm.
-    up(db) {
+    up(db: SqlConnection) {
       addMissingColumns(db, 'EventLogs', [
         {
           name: 'changes',
@@ -537,16 +566,19 @@ const MIGRATIONS = [
     // GlobalLeaderboard held standings across events for a screen removed
     // in Sept 2026; nothing reads or writes it, and standings are worked
     // out, never stored (migration 10).
-    up(db) {
+    up(db: SqlConnection) {
       db.exec('DROP TABLE IF EXISTS GlobalLeaderboard;');
     },
   },
 ];
 
-const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
+export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 
-const getSchemaVersion = (db) =>
-  Number(db.prepare('PRAGMA user_version').get().user_version) || 0;
+export const getSchemaVersion = (db: SqlConnection): number =>
+  Number(
+    (db.prepare('PRAGMA user_version').get() as { user_version: number })
+      .user_version,
+  ) || 0;
 
 /**
  * Bring `db` up to LATEST_SCHEMA_VERSION.
@@ -559,7 +591,10 @@ const getSchemaVersion = (db) =>
  * migration fails, or if the database comes from a NEWER app version — opening
  * that with this code could silently misread or damage it.
  */
-function migrate(db, { beforeMigrating } = {}) {
+export function migrate(
+  db: SqlConnection,
+  { beforeMigrating }: MigrateOptions = {},
+): MigrateResult {
   const current = getSchemaVersion(db);
   if (current > LATEST_SCHEMA_VERSION) {
     throw new Error(
@@ -576,7 +611,7 @@ function migrate(db, { beforeMigrating } = {}) {
     beforeMigrating(current, LATEST_SCHEMA_VERSION);
   }
 
-  const applied = [];
+  const applied: number[] = [];
   pending.forEach((migration) => {
     console.log(
       `Applying schema migration ${migration.version}: ${migration.name}`,
@@ -595,10 +630,3 @@ function migrate(db, { beforeMigrating } = {}) {
 
   return { from: current, to: LATEST_SCHEMA_VERSION, applied };
 }
-
-module.exports = {
-  LATEST_SCHEMA_VERSION,
-  MIGRATIONS,
-  getSchemaVersion,
-  migrate,
-};

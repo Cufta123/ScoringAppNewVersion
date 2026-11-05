@@ -17,7 +17,7 @@
  * stored log: the log is converted from the tables every time, as before.
  */
 import type { Decision } from 'regatta-core';
-import { db } from '../../../public/Database/DBManager';
+import { db } from '../database/DBManager';
 import { eventToLog, logDifferences } from './eventLog';
 import { ensureCompleteRaceScoresForEvent } from './raceScoring';
 import { hasFinalSeriesStarted } from './seriesGuards';

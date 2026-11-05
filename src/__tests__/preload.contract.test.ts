@@ -31,7 +31,7 @@ jest.mock('electron', () => ({
   dialog: {},
 }));
 
-jest.mock('../../public/Database/DBManager', () => ({
+jest.mock('../main/database/DBManager', () => ({
   db: { prepare: jest.fn(), exec: jest.fn(), transaction: jest.fn() },
 }));
 

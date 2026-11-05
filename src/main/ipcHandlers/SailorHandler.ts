@@ -1,4 +1,4 @@
-import { db } from '../../../public/Database/DBManager';
+import { db } from '../database/DBManager';
 import { applyToEvent } from '../functions/libraryWrite';
 import { subgroupToCategoryName } from '../../shared/subgroups';
 import handle from './handle';
@@ -7,7 +7,13 @@ import type {
   ImportOwnerConflict,
   ImportSailorRow,
 } from '../../shared/importSailors';
-import type { EntryInput } from '../../shared/rows';
+import type {
+  CategoryRow,
+  ClubRow,
+  EntryInput,
+  EventBoatRow,
+  SailorWithDetails,
+} from '../../shared/rows';
 import {
   cleanEntry,
   enterSailor,
@@ -29,17 +35,17 @@ LEFT JOIN Categories cat ON s.category_id = cat.category_id
 LEFT JOIN Boats b ON s.sailor_id = b.sailor_id
   `,
     )
-    .all();
+    .all() as SailorWithDetails[];
   return rows;
 });
 
 handle('readAllCategories', () => {
-  const rows = db.prepare('SELECT * FROM Categories').all();
+  const rows = db.prepare('SELECT * FROM Categories').all() as CategoryRow[];
   return rows;
 });
 
 handle('readAllClubs', () => {
-  const rows = db.prepare('SELECT * FROM Clubs').all();
+  const rows = db.prepare('SELECT * FROM Clubs').all() as ClubRow[];
   return rows;
 });
 
@@ -59,7 +65,7 @@ handle('readAllBoats', () => {
   LEFT JOIN Clubs c ON s.club_id = c.club_id
   LEFT JOIN Categories cat ON s.category_id = cat.category_id`,
     )
-    .all();
+    .all() as EventBoatRow[];
   return rows;
 });
 // What the sailor edit form sends: shared/rows.ts SailorEdit.
@@ -97,7 +103,7 @@ handle('updateSailor', async (event, sailorData) => {
     // Fetch category_id based on category_name
     const category = db
       .prepare('SELECT category_id FROM Categories WHERE category_name = ?')
-      .get(category_name);
+      .get(category_name) as Pick<CategoryRow, 'category_id'> | undefined;
     if (!category) {
       throw new Error(
         `"${category_name}" is not a category this app knows. Pick one from the list.`,

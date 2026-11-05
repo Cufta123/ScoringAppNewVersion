@@ -2,7 +2,7 @@
 import path from 'path';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { resolveDataDir } = require('../../public/Database/dataLocation');
+const { resolveDataDir } = require('../main/database/dataLocation');
 
 const appData = path.join('/Users', 'race', 'AppData', 'Roaming');
 const userData = path.join(appData, 'IOM Regatta Manager');

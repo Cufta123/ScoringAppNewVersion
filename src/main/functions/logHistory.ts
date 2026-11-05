@@ -7,7 +7,7 @@
  * refuses, in words, a log the rules do not allow); the tables follow.
  */
 import { replay, type Decision, type RaceRef } from 'regatta-core';
-import { db } from '../../../public/Database/DBManager';
+import { db } from '../database/DBManager';
 import {
   decisionsOfAction,
   laterDecisions,

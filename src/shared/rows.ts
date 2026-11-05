@@ -4,7 +4,7 @@
  *
  * Rows read straight from SQL describe the columns the handler selects
  * (`src/main/ipcHandlers/*`), with the schema's nullability
- * (`public/Database/schema.js`): a column reached through a LEFT JOIN can be
+ * (`src/main/database/schema.ts`): a column reached through a LEFT JOIN can be
  * null even when the table declares it NOT NULL. The database layer is
  * untyped (plain JavaScript), so these types are what the SQL promises, not
  * something the compiler can check against the query.

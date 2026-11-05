@@ -24,7 +24,7 @@ jest.mock('electron', () => ({
 }));
 
 const mockDbHolder: { current: any } = { current: null };
-jest.mock('../../public/Database/DBManager', () => {
+jest.mock('../main/database/DBManager', () => {
   // eslint-disable-next-line global-require, @typescript-eslint/no-var-requires
   const { createSqliteDbMock } = require('./fixtures/eventLifecycleSchema');
   // eslint-disable-next-line no-use-before-define
@@ -33,7 +33,7 @@ jest.mock('../../public/Database/DBManager', () => {
 const mockDbHolderRef = mockDbHolder;
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { migrate } = require('../../public/Database/schema');
+const { migrate } = require('../main/database/schema');
 
 const call = (channel: string, ...args: any[]) =>
   handlerRegistry[channel]({}, ...args);

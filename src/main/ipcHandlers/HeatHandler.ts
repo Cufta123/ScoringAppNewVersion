@@ -5,7 +5,7 @@ import {
   movementImbalanceExpected,
   undoLatestRound,
 } from 'regatta-core';
-import { db } from '../../../public/Database/DBManager';
+import { db } from '../database/DBManager';
 import handle from './handle';
 import { applyToEvent } from '../functions/libraryWrite';
 import { coreHeatId } from '../functions/eventLog';
@@ -15,11 +15,12 @@ import {
   describeIndistinguishable,
   findIndistinguishableBoats,
 } from '../../shared/boatKeys';
+import type { HeatBoatRow, HeatRow, RaceRow } from '../../shared/rows';
 
 handle('readAllHeats', async (event, event_id) => {
   const heats = db
     .prepare('SELECT * FROM Heats WHERE event_id = ?')
-    .all(event_id);
+    .all(event_id) as HeatRow[];
   return heats;
 });
 
@@ -199,13 +200,13 @@ handle('readBoatsByHeat', async (event, heat_id) => {
       WHERE hb.heat_id = ?
     `,
     )
-    .all(heat_id);
+    .all(heat_id) as HeatBoatRow[];
   return boats;
 });
 handle('readAllRaces', async (event, heat_id) => {
   const races = db
     .prepare('SELECT * FROM Races WHERE heat_id = ?')
-    .all(heat_id);
+    .all(heat_id) as RaceRow[];
   return races;
 });
 

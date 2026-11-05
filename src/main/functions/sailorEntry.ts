@@ -17,7 +17,7 @@
  * behind. The form used to make these writes one IPC call at a time, so a
  * Cancel on the "sail already registered" question left a sailor with no boat.
  */
-import { db } from '../../../public/Database/DBManager';
+import { db } from '../database/DBManager';
 import { applyToEvent } from './libraryWrite';
 import {
   findIndistinguishableBoats,

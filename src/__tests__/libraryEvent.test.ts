@@ -10,7 +10,7 @@ import { replay, type Decision } from 'regatta-core';
 const mockLog: { current: Decision[] } = { current: [] };
 // The eligibility reads nothing but the log (the heats' ids are for
 // readEventStatus, tested on a real database in readEventStatus.integration).
-jest.mock('../../public/Database/DBManager', () => ({ db: {} }));
+jest.mock('../main/database/DBManager', () => ({ db: {} }));
 jest.mock('../main/functions/libraryStandings', () => ({
   replayEvent: () => {
     // eslint-disable-next-line global-require

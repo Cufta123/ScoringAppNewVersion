@@ -17,14 +17,14 @@ export {};
 // eslint-disable-next-line @typescript-eslint/no-var-requires, import/order
 const { DatabaseSync } = require('node:sqlite');
 // eslint-disable-next-line @typescript-eslint/no-var-requires, import/order
-const { COUNTED_RACES_VIEW } = require('../../public/Database/views');
+const { COUNTED_RACES_VIEW } = require('../main/database/views');
 
 jest.mock('electron', () => ({
   ipcMain: { handle: jest.fn(), on: jest.fn() },
 }));
 
 const mockDbHolder: { current: any } = { current: null };
-jest.mock('../../public/Database/DBManager', () => ({
+jest.mock('../main/database/DBManager', () => ({
   db: {
     prepare: (...args: any[]) => mockDbHolder.current.prepare(...args),
     exec: (...args: any[]) => mockDbHolder.current.exec(...args),

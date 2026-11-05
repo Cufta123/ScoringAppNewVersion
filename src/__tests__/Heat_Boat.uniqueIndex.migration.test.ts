@@ -6,7 +6,7 @@ export {};
 // (in-memory) SQLite engine. Uses node:sqlite so it needs neither `python` (the
 // Scores migration test's dependency, which fails without python on PATH) nor a
 // native better-sqlite3 build. The SQL here is copied verbatim from
-// public/Database/DBManager.js `ensureUniqueHeatBoat`.
+// src/main/database/DBManager.ts `ensureUniqueHeatBoat`.
 
 describe('Heat_Boat unique index migration safety (in-memory sqlite)', () => {
   let db: InstanceType<typeof DatabaseSync>;

@@ -84,7 +84,7 @@ const dbMock = {
   }),
 };
 
-jest.mock('../../public/Database/DBManager', () => ({ db: dbMock }));
+jest.mock('../main/database/DBManager', () => ({ db: dbMock }));
 
 describe('SailorHandler updateSailor record resolution', () => {
   beforeAll(() => {

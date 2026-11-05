@@ -1,4 +1,4 @@
-import { db } from '../../../public/Database/DBManager';
+import { db } from '../database/DBManager';
 
 /**
  * How the screen names a race and a boat, for messages: "Heat A2, race 3"

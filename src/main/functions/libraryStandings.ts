@@ -16,7 +16,7 @@ import {
   type EventState,
   type RaceRef,
 } from 'regatta-core';
-import { db } from '../../../public/Database/DBManager';
+import { db } from '../database/DBManager';
 import { coreHeatId } from './eventLog';
 import { loadLog } from './decisionStore';
 import { getHeatRoundFromName } from '../../shared/heatNames';

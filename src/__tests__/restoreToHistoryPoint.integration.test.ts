@@ -26,7 +26,7 @@ jest.mock('electron', () => ({
 }));
 
 const mockDbHolder: { current: any } = { current: null };
-jest.mock('../../public/Database/DBManager', () => {
+jest.mock('../main/database/DBManager', () => {
   // eslint-disable-next-line global-require, @typescript-eslint/no-var-requires
   const { createSqliteDbMock } = require('./fixtures/eventLifecycleSchema');
   // eslint-disable-next-line no-use-before-define
@@ -44,7 +44,7 @@ import { payloadFor, prng, randomOutcome } from './fixtures/scoringOracle';
 /* eslint-enable import/first, import/order */
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { migrate } = require('../../public/Database/schema');
+const { migrate } = require('../main/database/schema');
 
 const call = (channel: string, ...args: any[]) =>
   handlerRegistry[channel]({}, ...args);
@@ -519,7 +519,7 @@ describe('going back refuses, and changes nothing, when it cannot be exact', () 
       'UPDATE Scores SET points = 9 WHERE score_id = (SELECT MIN(score_id) FROM Scores)',
     ).run();
     // eslint-disable-next-line global-require
-    require('../../public/Database/journal').installJournalTriggers(db);
+    require('../main/database/journal').installJournalTriggers(db);
     // The results are the event's decision log worked out; going back
     // makes the tables the log at that point, whatever the rows held.
     await call('restoreEventToHistoryPoint', eventId, heatsAction);

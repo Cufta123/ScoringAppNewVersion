@@ -16,7 +16,7 @@ import {
 const getExcludeCountForConfig = (races: number, config: DiscardConfig) =>
   discardCount(races, toDiscardProfile(config));
 
-jest.mock('../../public/Database/DBManager', () => ({
+jest.mock('../main/database/DBManager', () => ({
   db: { prepare: jest.fn() },
 }));
 

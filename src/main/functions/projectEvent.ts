@@ -28,7 +28,7 @@ import {
   type Race,
   type RaceLine,
 } from 'regatta-core';
-import { db } from '../../../public/Database/DBManager';
+import { db } from '../database/DBManager';
 import { normalizeDiscardConfigString } from '../../shared/discardProfile';
 
 type Row = Record<string, unknown>;

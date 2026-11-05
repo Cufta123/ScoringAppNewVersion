@@ -43,7 +43,7 @@ import {
   type ProtestOutcome,
   type RaceRef,
 } from 'regatta-core';
-import { db } from '../../../public/Database/DBManager';
+import { db } from '../database/DBManager';
 import {
   normalizeHeatOverflowPolicy,
   normalizeQualifyingAssignmentMode,

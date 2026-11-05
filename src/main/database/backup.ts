@@ -15,31 +15,33 @@
  * snapshot of the live database (WAL included) without closing it. To restore
  * one, quit the app and copy the backup over `scoring_app.db`.
  */
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import type { SqlConnection } from './connection';
 
 // Recent rolling copies (about two hours of busy scoring at the 5-minute
 // interval). Older ones thin out to one per day — see pruneAutoBackups.
-const MAX_AUTO_BACKUPS = 24;
+export const MAX_AUTO_BACKUPS = 24;
 
-const timestamp = (date = new Date()) =>
+const timestamp = (date: Date = new Date()): string =>
   // 2026-10-27T14-05-09-123Z — sortable, and legal in Windows file names.
   date.toISOString().replace(/[:.]/g, '-');
 
-const sqlString = (value) => `'${String(value).replace(/'/g, "''")}'`;
+const sqlString = (value: string): string =>
+  `'${String(value).replace(/'/g, "''")}'`;
 
-function backupDirFor(dbPath) {
+export function backupDirFor(dbPath: string): string {
   return path.join(path.dirname(dbPath), 'backups');
 }
 
 /** True when the database holds anything worth keeping. */
-function hasUserData(db) {
+export function hasUserData(db: SqlConnection): boolean {
   try {
     const row = db
       .prepare(
         `SELECT (SELECT COUNT(*) FROM Events) + (SELECT COUNT(*) FROM Sailors) AS n`,
       )
-      .get();
+      .get() as { n: number } | undefined;
     return Number(row?.n) > 0;
   } catch {
     // Tables missing: a brand-new or pre-schema file. Nothing to protect.
@@ -51,7 +53,11 @@ function hasUserData(db) {
  * Write a snapshot of `db` into `dir` and return its path.
  * `kind` becomes the file-name prefix ('auto', 'pre-migration-v1-to-v2', …).
  */
-function writeBackup(db, dir, kind) {
+export function writeBackup(
+  db: SqlConnection,
+  dir: string,
+  kind: string,
+): string {
   fs.mkdirSync(dir, { recursive: true });
   let target = path.join(dir, `${kind}-${timestamp()}.db`);
   // Two backups in the same millisecond would collide; VACUUM INTO refuses to
@@ -71,14 +77,17 @@ function writeBackup(db, dir, kind) {
  * snapshot for each day after the recent window has rolled past it.
  * Returns the deleted paths.
  */
-function pruneAutoBackups(dir, keepRecent = MAX_AUTO_BACKUPS) {
+export function pruneAutoBackups(
+  dir: string,
+  keepRecent: number = MAX_AUTO_BACKUPS,
+): string[] {
   if (!fs.existsSync(dir)) return [];
   const autos = fs
     .readdirSync(dir)
     .filter((name) => name.startsWith('auto-') && name.endsWith('.db'))
     .sort(); // ISO timestamps sort chronologically
   const older = autos.slice(0, Math.max(0, autos.length - keepRecent));
-  const lastOfDay = new Map();
+  const lastOfDay = new Map<string, string>();
   older.forEach((name) => {
     // auto-2026-10-27T14-05-09-123Z.db -> 2026-10-27
     lastOfDay.set(name.slice('auto-'.length, 'auto-'.length + 10), name);
@@ -101,17 +110,42 @@ function pruneAutoBackups(dir, keepRecent = MAX_AUTO_BACKUPS) {
  * not churn out identical files. Call `start()` once the app is running and
  * `stop()` + `backupIfChanged()` on quit.
  */
-function createAutoBackup(
-  db,
-  dbPath,
-  { intervalMs = 5 * 60 * 1000, onStatus = null } = {},
-) {
+export interface BackupStatusReport {
+  ok: boolean;
+  error?: unknown;
+}
+
+export type BackupStatusListener = (status: BackupStatusReport) => void;
+
+export interface AutoBackupOptions {
+  intervalMs?: number;
+  onStatus?: BackupStatusListener | null;
+}
+
+export interface AutoBackup {
+  /** The backups folder. */
+  dir: string;
+  /** Called with { ok, error } when backups fail, and when they recover. */
+  onStatus(listener: BackupStatusListener): void;
+  /** Write an `auto-*` copy now (when there is data); its path, or null. */
+  backupNow(): string | null;
+  /** Write an `auto-*` copy only if the data changed since the last one. */
+  backupIfChanged(): string | null;
+  start(): void;
+  stop(): void;
+}
+
+export function createAutoBackup(
+  db: SqlConnection,
+  dbPath: string,
+  { intervalMs = 5 * 60 * 1000, onStatus = null }: AutoBackupOptions = {},
+): AutoBackup {
   const dir = backupDirFor(dbPath);
   // Tell the app when backups start failing and when they work again, so
   // the person at the screen is not relying on copies that are not there.
   let statusListener = onStatus;
   let failing = false;
-  const report = (ok, error) => {
+  const report = (ok: boolean, error?: unknown): void => {
     if (ok === !failing) return;
     failing = !ok;
     if (statusListener) {
@@ -122,12 +156,14 @@ function createAutoBackup(
       }
     }
   };
-  const totalChanges = () =>
-    Number(db.prepare('SELECT total_changes() AS n').get().n);
-  let lastBackedUpAt = null;
-  let timer = null;
+  const totalChanges = (): number =>
+    Number(
+      (db.prepare('SELECT total_changes() AS n').get() as { n: number }).n,
+    );
+  let lastBackedUpAt: number | null = null;
+  let timer: ReturnType<typeof setInterval> | null = null;
 
-  const backup = () => {
+  const backup = (): string | null => {
     try {
       if (!hasUserData(db)) return null;
       const file = writeBackup(db, dir, 'auto');
@@ -149,7 +185,6 @@ function createAutoBackup(
 
   return {
     dir,
-    /** Called with { ok, error } when backups fail, and when they recover. */
     onStatus(listener) {
       statusListener = listener;
     },
@@ -172,12 +207,3 @@ function createAutoBackup(
     },
   };
 }
-
-module.exports = {
-  MAX_AUTO_BACKUPS,
-  backupDirFor,
-  createAutoBackup,
-  hasUserData,
-  pruneAutoBackups,
-  writeBackup,
-};

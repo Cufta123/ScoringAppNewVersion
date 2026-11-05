@@ -11,7 +11,7 @@ import {
   type Heat,
   type Offer,
 } from 'regatta-core';
-import { db } from '../../../public/Database/DBManager';
+import { db } from '../database/DBManager';
 import type { FinalSeriesEligibility } from '../../shared/finalSeriesEligibility';
 import type {
   EventStatusView,

@@ -5,7 +5,7 @@ export {};
 // Verifies the Scores UNIQUE(race_id, boat_id) migration against a real
 // (in-memory) SQLite engine. Ported from a `python`-shell-out to `node:sqlite`
 // so it no longer fails in environments without `python` on PATH (e.g. a bare
-// pyenv). The SQL mirrors public/Database/DBManager.js `ensureUniqueRaceBoatScores`.
+// pyenv). The SQL mirrors src/main/database/DBManager.ts `ensureUniqueRaceBoatScores`.
 
 describe('Scores unique index migration safety (in-memory sqlite)', () => {
   let db: InstanceType<typeof DatabaseSync>;

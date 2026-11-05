@@ -1,4 +1,5 @@
-import * as DBManager from '../../../public/Database/DBManager';
+import { db, dbPath } from '../database/DBManager';
+import { backupDirFor, writeBackup } from '../database/backup';
 import { lastChangeId, tagChanges } from './changeJournal';
 import {
   conversionAction,
@@ -8,16 +9,8 @@ import {
 } from './decisionStore';
 import { restoreLogToAction } from './logHistory';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const {
-  backupDirFor,
-  writeBackup,
-} = require('../../../public/Database/backup');
-
-const { db } = DBManager;
-
 /**
- * The columns that identify a row of each journalled table (journal.js keys
+ * The columns that identify a row of each journalled table (journal.ts keys
  * its rows the same way). A table outside this list is never written here.
  */
 const KEY_COLUMNS: Record<string, string[]> = {
@@ -129,8 +122,8 @@ function invert(change: JournalRow) {
 
 /** A copy of the whole database first, kept with the backups (never pruned). */
 function backupFirst() {
-  const { dbPath } = DBManager as { dbPath?: string };
-  if (!dbPath) return null; // tests run on an in-memory database
+  // The tests' in-memory database (their DBManager mock) has no file.
+  if (!dbPath) return null;
   return writeBackup(db, backupDirFor(dbPath), 'before-going-back');
 }
 

@@ -10,7 +10,7 @@ const os = require('os');
 // eslint-disable-next-line @typescript-eslint/no-var-requires, import/order
 const path = require('path');
 // eslint-disable-next-line @typescript-eslint/no-var-requires, import/order
-const backup = require('../../public/Database/backup');
+const backup = require('../main/database/backup');
 
 describe('automatic backups', () => {
   let workDir: string;

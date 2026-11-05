@@ -13,7 +13,7 @@ import './ipcHandlers/HeatRaceHandler';
 import './ipcHandlers/ExportHandler';
 import { startProblemReportOutbox } from './ipcHandlers/ProblemReportHandler';
 import { setCallObserver } from './ipcHandlers/handle';
-import { autoBackup, dbPath } from '../../public/Database/DBManager';
+import { autoBackup, dbPath } from './database/DBManager';
 import { journalObserver } from './functions/changeJournal';
 import convertEventsAtStartup from './functions/startupConversion';
 import { logError, setErrorLogDir } from './errorLog';

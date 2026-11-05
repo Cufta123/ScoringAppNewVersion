@@ -1,4 +1,4 @@
-import { db } from '../../../public/Database/DBManager';
+import { db } from '../database/DBManager';
 import { laterRoundHeatNames as sharedLaterRoundHeatNames } from '../../shared/heatNames';
 
 /**

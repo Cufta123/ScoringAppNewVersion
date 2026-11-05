@@ -23,7 +23,7 @@ import {
   type RaceLine,
   type RaceRef,
 } from 'regatta-core';
-import { db } from '../../../public/Database/DBManager';
+import { db } from '../database/DBManager';
 import { checkedRaceColumn, type RaceColumnCell } from './raceScoring';
 import { coreHeatId } from './eventLog';
 import { normalizeScoreStatus } from './scoreStatus';

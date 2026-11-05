@@ -69,11 +69,13 @@ Use this document first. Only search the repo when this file does not answer the
   `queries.ts` (every read as query options), `writes.ts` (`useWrite`: every
   write, and what it invalidates).
 - Renderer routes: `src/renderer/App.tsx`
-- Database open + startup: `public/Database/DBManager.js` (its startup dialog
-  words its own advice but recognises damaged / busy / full / read-only files
-  with `classifyDatabaseFailure` from `shared/errors/explainError.ts`); versioned schema
-  migrations: `public/Database/schema.js`; automatic backups:
-  `public/Database/backup.js`
+- Database (TypeScript, main process only): `src/main/database/`.
+  Open + startup: `DBManager.ts` (exports the typed `db`, `dbPath`,
+  `autoBackup`; its startup dialog words its own advice but recognises
+  damaged / busy / full / read-only files with `classifyDatabaseFailure` from
+  `shared/errors/explainError.ts`); versioned schema migrations: `schema.ts`;
+  change journal triggers: `journal.ts`; views: `views.ts`; automatic
+  backups: `backup.ts`; the installed app's data folder: `dataLocation.ts`
 - App menu: `src/main/menu.ts`
 - Unit test config: `jest.unit.config.ts`
 
@@ -164,8 +166,11 @@ Use this document first. Only search the repo when this file does not answer the
 - Main: `handle(channel, listener)` is generic over the contract: a channel
   name not in it, a listener whose parameters do not take the channel's
   arguments, or a result of the wrong shape does not compile. The arguments
-  are still untrusted at runtime (convert and check them). `db` is untyped
-  JavaScript, so a raw SQL row is not checked against its row type; the
+  are still untrusted at runtime (convert and check them). `db` is
+  better-sqlite3's `Database` type (`Db` in `database/DBManager.ts`): a
+  statement's rows are `unknown` until the call site says what the SQL
+  returns (`.all(id) as EventBoatRow[]`, the contract's row types), so a row
+  is never `any`; the cast itself is not checked against the SQL, the
   contract is what the SQL promises.
 - Preload: `src/main/preload.ts` exposes the groups under
   `window.electron.sqlite.*`, built from the runtime list `SQLITE_CHANNELS`. A
@@ -184,16 +189,19 @@ Use this document first. Only search the repo when this file does not answer the
 
 ## 4. Database Model (SQLite)
 
-The schema is built by numbered migrations in `public/Database/schema.js`.
+The schema is built by numbered migrations in `src/main/database/schema.ts`.
 `PRAGMA user_version` records how far a database has been migrated; on open,
 every newer migration runs once, in order. To change the schema, APPEND a
-migration — never edit a shipped one. `DBManager.js` takes a
+migration — never edit a shipped one. `DBManager.ts` takes a
 `pre-migration-*` backup before any pending migration, and refuses to start
 (error dialog, exit) if a migration fails or the database comes from a newer
 app version, rather than running on a half-migrated file.
-`schema.migrations.test.ts` runs the real migrations against node:sqlite.
+`schema.migrations.test.ts` runs the real migrations against node:sqlite. (`schema.ts`,
+`journal.ts` and `backup.ts` take the narrow `SqlConnection` of
+`connection.ts` — `exec` and `prepare(...).get/all/run` — so the same code
+runs on better-sqlite3 and node:sqlite).
 
-Backups (`backup.js`) go to `<db folder>/backups`: on start-up, every 5 min
+Backups (`backup.ts`) go to `<db folder>/backups`: on start-up, every 5 min
 while data changes, and on quit, via `VACUUM INTO`. The newest 24 `auto-*`
 copies are kept plus the last one of each earlier day; `pre-migration-*` are
 never pruned. Help → Open Backups Folder opens the folder. To restore: quit,
@@ -217,7 +225,7 @@ Key tables:
 
 Important migration details:
 
-- `Boats.sail_number` used to have a UNIQUE constraint. `DBManager.js` migrates
+- `Boats.sail_number` used to have a UNIQUE constraint. Migration 1 migrates
   it away by rebuilding the table (note the transient `Boats_tmp` table).
 - `Scores` has a unique index covered by `Scores.uniqueIndex.migration.test.ts`.
 - Code that touches the DB must tolerate older databases missing newer
@@ -238,7 +246,7 @@ Important migration details:
   `Scores(boat_id)` and `ANALYZE` are deliberately excluded — both help one
   query on the leaderboard click and hurt the other more. Re-measure before
   adding either; `DBManager.performanceIndexes.test.ts` records the numbers.
-- Migration 4 adds the **change journal** (`public/Database/journal.js`):
+- Migration 4 adds the **change journal** (`src/main/database/journal.ts`):
   SQLite triggers on `Events`, `Boat_Event`, `Heats`, `Heat_Boat`, `Races` and
   `Scores` (and `RaceAssignmentSnapshots`, hidden in the history) append one
   `ChangeLog` row per inserted/updated/deleted row (whole row before and after
@@ -275,7 +283,7 @@ Important migration details:
   `historyDescribe.test.ts`, `historyRevert.test.ts` and
   `EventHistoryDialog.test.jsx`.
 
-- Migration 5 adds the **`CountedRaces` view** (`public/Database/views.js`):
+- Migration 5 adds the **`CountedRaces` view** (`src/main/database/views.ts`):
   a qualifying race counts once EVERY heat of its round has sailed it (SHRS
   1.1). The standings no longer read it (regatta-core counts a round the same
   way and returns the round still being sailed as `pending_races`, shown
@@ -321,7 +329,7 @@ DB file paths:
 
 - Packaged: under `app.getPath('userData')/scoring_app.db`, where userData is
   `<appData>/IOM Regatta Manager` (productName in `release/app/package.json`).
-  Builds before Nov 2026 used the template's name; `public/Database/dataLocation.js`
+  Builds before Nov 2026 used the template's name; `src/main/database/dataLocation.ts`
   keeps a computer on `<appData>/electron-react-boilerplate` when its database
   is there (and points userData at it), so a renamed build never looks empty.
 - Dev: from `public/Database/data/scoring_app.db`

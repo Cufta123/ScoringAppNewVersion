@@ -10,7 +10,7 @@
  * others go on. Opening that event later tries again and shows the reason.
  */
 import { replay } from 'regatta-core';
-import { db } from '../../../public/Database/DBManager';
+import { db } from '../database/DBManager';
 import { ensureEventLog, eventsWithoutLog, loadLog } from './decisionStore';
 import projectEvent from './projectEvent';
 import { lastChangeId, tagChanges } from './changeJournal';

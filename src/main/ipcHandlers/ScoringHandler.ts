@@ -5,7 +5,7 @@ import {
   type RaceLine,
   undoLastRace,
 } from 'regatta-core';
-import { db } from '../../../public/Database/DBManager';
+import { db } from '../database/DBManager';
 import handle from './handle';
 import { applyToEvent, previewOnEvent } from '../functions/libraryWrite';
 import { correctionDecisions } from '../functions/libraryCorrection';

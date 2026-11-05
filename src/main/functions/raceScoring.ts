@@ -12,7 +12,7 @@ import {
   scoreRaceColumn,
   type RaceCell,
 } from 'regatta-core';
-import { db } from '../../../public/Database/DBManager';
+import { db } from '../database/DBManager';
 import { logError } from '../errorLog';
 import { getHeatRoundFromName, normalizeScoreStatus } from './scoreStatus';
 import { sanitizePositiveFinite, sanitizePositiveInteger } from './validation';
@@ -148,7 +148,7 @@ export function ensureDncScoresForMissedQualifyingRaces(
   });
 
   // A series race is completed once every heat of its round has sailed it.
-  // CountedRaces (public/Database/views.js) is the one definition of that, so
+  // CountedRaces (database/views.ts) is the one definition of that, so
   // the DNC backfill and the standings agree on which races exist.
   const counted = new Set(
     (

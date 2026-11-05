@@ -1,15 +1,15 @@
 /** @jest-environment node */
 export {};
 
-// The real migration runner (public/Database/schema.js) against a real SQLite
+// The real migration runner (src/main/database/schema.ts) against a real SQLite
 // engine. better-sqlite3 is built for Electron's ABI and will not load under
-// Jest; node:sqlite runs the same SQL, and schema.js only uses the
+// Jest; node:sqlite runs the same SQL, and schema.ts only uses the
 // exec/prepare API the two share.
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires, import/order
 const { DatabaseSync } = require('node:sqlite');
 // eslint-disable-next-line @typescript-eslint/no-var-requires, import/order
-const schema = require('../../public/Database/schema');
+const schema = require('../main/database/schema');
 
 const { LATEST_SCHEMA_VERSION, MIGRATIONS, getSchemaVersion, migrate } = schema;
 

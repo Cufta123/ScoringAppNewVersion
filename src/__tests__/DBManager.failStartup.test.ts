@@ -23,13 +23,13 @@ jest.mock('electron', () => ({
 jest.mock('better-sqlite3', () => jest.fn(() => ({ pragma: jest.fn() })), {
   virtual: true,
 });
-jest.mock('../../public/Database/schema', () => ({
+jest.mock('../main/database/schema', () => ({
   LATEST_SCHEMA_VERSION: 1,
   migrate: () => {
     throw mockMigrateError;
   },
 }));
-jest.mock('../../public/Database/backup', () => ({
+jest.mock('../main/database/backup', () => ({
   backupDirFor: () => '/the/backups',
   createAutoBackup: jest.fn(),
   hasUserData: jest.fn(() => false),
@@ -51,7 +51,7 @@ function startWithFailure(error: unknown): string {
   );
   jest.isolateModules(() => {
     // The module throws after showing the dialog; that is the point.
-    expect(() => require('../../public/Database/DBManager')).toThrow();
+    expect(() => require('../main/database/DBManager')).toThrow();
   });
   expect(mockExit).toHaveBeenCalledWith(1);
   expect(mockShowErrorBox).toHaveBeenCalledTimes(1);

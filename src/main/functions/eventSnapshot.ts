@@ -1,5 +1,5 @@
 import { boatsNamed, renameBoats, replay, type Decision } from 'regatta-core';
-import { db } from '../../../public/Database/DBManager';
+import { db } from '../database/DBManager';
 import {
   SNAPSHOT_SCHEMA_VERSION,
   type EventSnapshotFile,

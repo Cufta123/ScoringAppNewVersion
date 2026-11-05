@@ -1,4 +1,4 @@
-import { db } from '../../../public/Database/DBManager';
+import { db } from '../database/DBManager';
 import { hasPendingDecisions, tagDecisions } from './decisionStore';
 import type {
   HistoryAction,
@@ -6,7 +6,7 @@ import type {
 } from '../../shared/history/describe';
 
 // The change journal's rows are written by SQLite triggers
-// (public/Database/journal.js). This module groups the rows one user action
+// (main/database/journal.ts). This module groups the rows one user action
 // wrote under a ChangeActions row, and reads an event's history back.
 
 /** The newest journal row so far; changes after it belong to the next action. */

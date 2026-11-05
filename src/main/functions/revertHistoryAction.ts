@@ -1,4 +1,4 @@
-import { db } from '../../../public/Database/DBManager';
+import { db } from '../database/DBManager';
 import { actionHasDecisions, reconvertEventLog } from './decisionStore';
 import { undoActionOnLog } from './logHistory';
 import {

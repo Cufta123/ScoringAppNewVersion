@@ -29,7 +29,7 @@ jest.mock('electron', () => ({
 // fresh in-memory database the current test built, so each test is isolated.
 const mockDbHolder: { current: any } = { current: null };
 // Real transactions (BEGIN/COMMIT/ROLLBACK), so atomicity is tested too.
-jest.mock('../../public/Database/DBManager', () => {
+jest.mock('../main/database/DBManager', () => {
   // eslint-disable-next-line global-require, @typescript-eslint/no-var-requires
   const { createSqliteDbMock } = require('./fixtures/eventLifecycleSchema');
   return { db: createSqliteDbMock(mockDbHolder) };
