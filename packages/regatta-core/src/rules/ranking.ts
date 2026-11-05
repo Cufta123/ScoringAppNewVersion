@@ -97,11 +97,18 @@ export function rankByTotal<T>(
         const item = unbeaten ?? [...remaining].sort(fallback)[0];
         if (unbeaten === undefined) circle = true;
         remaining.splice(remaining.indexOf(item), 1);
+        // She shares the place above only if no rule separates her from
+        // ANY boat on it: the pairwise 5.7(ii) comparison is not
+        // transitive, so being level with the boat just above is not
+        // enough when another boat on that place beats her.
         const above = ranked[ranked.length - 1];
+        const onPlace =
+          above !== undefined && total(above.item) === key
+            ? ranked.filter((r) => r.place === above.place)
+            : [];
         const shares =
-          above !== undefined &&
-          total(above.item) === key &&
-          compare(above.item, item) === 0;
+          onPlace.length > 0 &&
+          onPlace.every((r) => compare(r.item, item) === 0);
         ranked.push({
           item,
           place: shares ? above.place : ranked.length + 1,

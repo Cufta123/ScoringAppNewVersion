@@ -11,13 +11,7 @@
 import type { BoatId } from '../types';
 import { discardCount } from '../rules/discards';
 import { exact, noPlacePoints } from '../rules/points';
-import {
-  bestFirst,
-  compareLists,
-  compareOnSharedRaces,
-  lastRaceFirst,
-  rankByTotal,
-} from '../rules/ranking';
+import { bestFirst, rankByTotal } from '../rules/ranking';
 import { scoreRace } from '../event/score';
 import {
   inBoatOrder,
@@ -26,6 +20,7 @@ import {
   type EventState,
 } from '../event/state';
 import { plainA8, qualifyingStandings } from './qualifying';
+import { fleetVerdict, multiHeatVerdict } from './ties';
 import {
   kept,
   settleRedress,
@@ -115,11 +110,7 @@ export function finalStandings(state: EventState): FleetStandings[] {
     const ranked = rankByTotal(
       entries,
       (entry) => entry.total,
-      (a, b) =>
-        compareLists(
-          bestFirst(a.scores.map((s) => s.points)),
-          bestFirst(b.scores.map((s) => s.points)),
-        ) || compareLists(lastRaceFirst(a.scores), lastRaceFirst(b.scores)),
+      (a, b) => fleetVerdict(a, b).result,
     );
     return {
       fleet: fleet.id,
@@ -177,7 +168,7 @@ type OverallEntry = ReturnType<
 >[number]['entries'][number];
 
 /** Each fleet's boats with both series, for the SHRS 5.5 / 5.7 ranking. */
-function overallEntries(state: EventState, qualifying: Standing[]) {
+export function overallEntries(state: EventState, qualifying: Standing[]) {
   const byBoat = new Map(qualifying.map((s) => [s.boat, s]));
   return finalStandings(state).map((fleet) => ({
     fleet: fleet.fleet,
@@ -198,7 +189,7 @@ function overallEntries(state: EventState, qualifying: Standing[]) {
 
 /** SHRS 5.7(ii) across both series. */
 function overallCompare(a: OverallEntry, b: OverallEntry): number {
-  return compareOnSharedRaces(a.scores, b.scores) ?? plainA8(a, b);
+  return multiHeatVerdict(a, b).result;
 }
 
 /**

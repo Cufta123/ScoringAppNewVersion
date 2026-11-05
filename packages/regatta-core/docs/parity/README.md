@@ -100,7 +100,10 @@ name? }`, refused if it collides with another entry.
 7. ~~**Format version**~~ Done: `formatVersion: 1` in the event file and
    the results; `readEventFile` is where upgrades of older files go, and a
    newer file is refused in words.
-8. **Score and tie-break explanations** (the app has both).
+8. ~~**Score and tie-break explanations**~~ Done: `explainScore` and
+   `explainTie`. The rankings and the explanations use the same verdict
+   functions (`standings/ties.ts`), so they cannot disagree; checked on
+   1,000 random events (`EXPLAIN_SEEDS=1000`, `test/explain.test.ts`).
 9. **A withdrawn decision stays on record.** Undo now deletes from the log;
    the app keeps an audit trail and can redo. The log needs a "withdrawn"
    decision instead of deletion (part of step 3, the decision log in the
@@ -142,3 +145,9 @@ after a protest in the same race. These go into
 - R12: redress (RDG1/2/3) for a race a boat had no heat in is a
   `protestDecided` filed under any heat of that round; anything else for
   that race is refused (`test/late-entries.test.ts`).
+- Boats sharing a place when three or more are tied: a boat shared the
+  place of the boat just above whenever no rule separated those two, even
+  if another boat on that place beat her (5.7(ii) compares each pair on its
+  own races, so "level" is not transitive). The result depended on the
+  order the boats were looked at. She now shares a place only with boats no
+  rule separates her from. Found by the explanation tests.

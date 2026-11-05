@@ -17,6 +17,8 @@ if (!result.ok) console.log(`Decision ${result.at}: ${result.reason}`);
 qualifyingStandings(result.state);
 overallStandings(result.state);
 nextStep(result.state); // { kind: 'score', heat: 'B3', race: 1 }
+explainScore(result.state, 'b7'); // her points race by race, with the rules
+explainTie(result.state, 'b7', 'b12'); // why one is ahead on equal points
 ```
 
 Or everything at once, as plain JSON:
@@ -178,7 +180,4 @@ not counted).
 The full list, with the app's behaviour beside the library's, is in
 [`docs/parity`](docs/parity/README.md).
 
-- Score explanations ("how was this calculated?") and tie-break explanations
-  (the comparators `qualifyingTieBreak` / `overallTieBreak` are there to build
-  them on).
 - The app does not use the library yet.

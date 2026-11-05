@@ -43,3 +43,11 @@ export type {
   HeatSummary,
   Refusal,
 } from './results';
+export { explainScore, explainTie } from './explain';
+export type {
+  BoatExplanation,
+  ExplainedRace,
+  Reason,
+  SeriesExplanation,
+  TieExplanation,
+} from './explain';

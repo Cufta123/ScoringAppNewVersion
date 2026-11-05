@@ -10,15 +10,15 @@ import type { BoatId } from '../types';
 import { discardCount } from '../rules/discards';
 import { rule43Applies, splitTotal } from '../rules/fleets';
 import { noPlacePoints } from '../rules/points';
-import {
-  bestFirst,
-  compareLists,
-  compareOnSharedRaces,
-  lastRaceFirst,
-  rankByTotal,
-} from '../rules/ranking';
+import { bestFirst, rankByTotal } from '../rules/ranking';
 import { compareBoats } from '../rules/seeding';
 import { scoreRace, type BoatResult } from '../event/score';
+import {
+  multiHeatVerdict,
+  plainA8Verdict,
+  singleHeatVerdict,
+  type TieEntry,
+} from './ties';
 import {
   largestHeat,
   raceKey,
@@ -131,7 +131,7 @@ function noHeatResult(
   }
 }
 
-interface Entry {
+interface Entry extends TieEntry {
   boat: BoatId;
   total: number;
   scores: Score[];
@@ -144,26 +144,25 @@ interface Entry {
  * the same heat, excluded scores included, then A8.2 on those races; boats
  * that never met: plain A8.1, then A8.2 (5.7(ii)).
  */
+export function qualifyingVerdict(singleHeat: boolean) {
+  return singleHeat ? singleHeatVerdict : multiHeatVerdict;
+}
+
 function tieBreak(singleHeat: boolean) {
-  return (a: Entry, b: Entry): number =>
-    singleHeat
-      ? plainA8(a, b)
-      : (compareOnSharedRaces(a.scores, b.scores) ?? plainA8(a, b));
+  const verdict = qualifyingVerdict(singleHeat);
+  return (a: Entry, b: Entry): number => verdict(a, b).result;
 }
 
 /**
  * RRS A8.1 then A8.2 without SHRS changes: the way out of a 5.7 circle,
  * as 5.7(ii)(4) does for boats that never met.
  */
-export function plainA8(a: Entry, b: Entry): number {
-  return (
-    compareLists(a.keptBest, b.keptBest) ||
-    compareLists(lastRaceFirst(a.scores), lastRaceFirst(b.scores))
-  );
+export function plainA8(a: TieEntry, b: TieEntry): number {
+  return plainA8Verdict(a, b).result;
 }
 
 /** SHRS 1.1: one heat per race, so the event is sailed as one fleet. */
-const singleHeatEvent = (state: EventState) =>
+export const singleHeatEvent = (state: EventState) =>
   state.rounds.every((round) => withBoats(round).length <= 1);
 
 function buildQualifying(state: EventState) {
