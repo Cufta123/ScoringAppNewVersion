@@ -6,7 +6,6 @@ import {
   changesToRevert,
   isUntouchedSince,
   revertSteps,
-  undoneActionIds,
   whyNotRevertable,
 } from '../shared/history/revert';
 
@@ -270,22 +269,5 @@ describe('isUntouchedSince', () => {
     expect(isUntouchedSince(undoDelete, score(9, 'FINISHED', 1, 1))).toBe(
       false,
     );
-  });
-});
-
-describe('undoneActionIds', () => {
-  const a = (action_id: number, reverts_action_id: number | null = null) => ({
-    action_id,
-    reverts_action_id,
-  });
-
-  it('an action is undone until its undo is undone', () => {
-    expect([...undoneActionIds([a(1), a(2, 1)])]).toEqual([1]);
-    // 3 undoes the undo: 1 stands again, 2 is undone.
-    expect([...undoneActionIds([a(1), a(2, 1), a(3, 2)])]).toEqual([2]);
-    // ...and undoing 1 a second time makes it undone again.
-    expect(
-      [...undoneActionIds([a(1), a(2, 1), a(3, 2), a(4, 1)])].sort(),
-    ).toEqual([1, 2]);
   });
 });

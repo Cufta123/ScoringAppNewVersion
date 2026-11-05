@@ -197,37 +197,3 @@ export function isUntouchedSince(
       normalize(current[column]) === normalize(expected[column]),
   );
 }
-
-/**
- * Whether each action has been undone: an action is undone when an undo of it
- * is in the history and that undo has not itself been undone.
- */
-export function undoneActionIds(
-  actions: { action_id: number | null; reverts_action_id?: number | null }[],
-): Set<number> {
-  const revertsOf = new Map<number, number[]>();
-  actions.forEach((action) => {
-    if (action.reverts_action_id != null && action.action_id != null) {
-      const list = revertsOf.get(action.reverts_action_id) ?? [];
-      list.push(action.action_id);
-      revertsOf.set(action.reverts_action_id, list);
-    }
-  });
-  const memo = new Map<number, boolean>();
-  const isUndone = (id: number): boolean => {
-    if (memo.has(id)) return memo.get(id) as boolean;
-    memo.set(id, false); // guards a cycle, which the data cannot hold
-    const undone = (revertsOf.get(id) ?? []).some(
-      (revert) => !isUndone(revert),
-    );
-    memo.set(id, undone);
-    return undone;
-  };
-  const result = new Set<number>();
-  actions.forEach((action) => {
-    if (action.action_id != null && isUndone(action.action_id)) {
-      result.add(action.action_id);
-    }
-  });
-  return result;
-}

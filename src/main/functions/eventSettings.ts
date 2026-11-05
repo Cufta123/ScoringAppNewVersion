@@ -6,23 +6,8 @@
 import { db } from '../../../public/Database/DBManager';
 import {
   type HeatOverflowPolicy,
-  type QualifyingAssignmentMode,
   normalizeHeatOverflowPolicy,
-  normalizeQualifyingAssignmentMode,
 } from '../../shared/eventSettings';
-
-export const getEventQualifyingAssignmentMode = (
-  event_id: number,
-): QualifyingAssignmentMode => {
-  const row = db
-    .prepare(
-      'SELECT shrs_qualifying_assignment_mode FROM Events WHERE event_id = ?',
-    )
-    .get(event_id) as { shrs_qualifying_assignment_mode?: string } | undefined;
-  return normalizeQualifyingAssignmentMode(
-    row?.shrs_qualifying_assignment_mode,
-  );
-};
 
 export const getEventHeatOverflowPolicy = (
   event_id: number,

@@ -7,10 +7,8 @@
 import {
   SeededRow,
   appendixFallbackStatusOrder,
-  buildAlphanumericKey,
   compareSeededRows,
   deriveNonFinisherPoints,
-  getHeatBaseFromName,
   getScoringPenaltyPoints,
   isNonScoringPenalty,
   normalizeScoreStatus,
@@ -199,30 +197,6 @@ describe('isNonScoringPenalty (SHRS 5.2 write-path classification)', () => {
       expect(isNonScoringPenalty(status)).toBe(false);
     },
   );
-});
-
-describe('buildAlphanumericKey', () => {
-  it('upper-cases and joins country and sail number', () => {
-    expect(buildAlphanumericKey('cro', 12)).toBe('CRO-12');
-    expect(buildAlphanumericKey('Aus', 'a7')).toBe('AUS-A7');
-  });
-
-  it('tolerates null/undefined parts', () => {
-    expect(buildAlphanumericKey(null, undefined)).toBe('-');
-  });
-});
-
-describe('getHeatBaseFromName', () => {
-  it('extracts the base letters from a heat name', () => {
-    expect(getHeatBaseFromName('Heat A')).toBe('A');
-    expect(getHeatBaseFromName('Heat AB2')).toBe('AB');
-  });
-
-  it('throws on an unrecognised heat name', () => {
-    expect(() => getHeatBaseFromName('Group 1')).toThrow(
-      'The heat name "Group 1" is not in the expected form',
-    );
-  });
 });
 
 describe('compareSeededRows (SHRS 5.3 ordering)', () => {

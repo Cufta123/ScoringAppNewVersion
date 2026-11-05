@@ -4,33 +4,7 @@
  * movement tables consume.
  */
 import { db } from '../../../public/Database/DBManager';
-import { latestRaceReader } from './heatQueries';
 import { compareSeededRows, normalizeStatus } from './scoreStatus';
-
-export function getLatestRaceRowsForHeats(
-  latestHeats: { heat_name: string; heat_id: number }[],
-) {
-  const latestRaceForHeat = latestRaceReader();
-
-  const raceRows = latestHeats.map((heat) => {
-    const raceRow = latestRaceForHeat(heat.heat_id);
-    if (!raceRow) {
-      throw new Error(
-        `${heat.heat_name} has not raced yet. Score the current round before creating the next one.`,
-      );
-    }
-    return { ...raceRow, heat_id: heat.heat_id, heat_name: heat.heat_name };
-  });
-
-  const raceNumbers = [...new Set(raceRows.map((row) => row.race_number))];
-  if (raceNumbers.length > 1) {
-    throw new Error(
-      'The heats of the current round have not all sailed the same number of races. Score (or undo) races until every heat is on the same race, then try again.',
-    );
-  }
-
-  return raceRows;
-}
 
 export function getRankedBoatsInHeatForRace(heat_id: number, race_id: number) {
   const rowsByRaceQuery = db.prepare(

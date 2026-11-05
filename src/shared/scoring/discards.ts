@@ -66,22 +66,3 @@ export function capExcludeCountForBoat(
 ): number {
   return Math.min(seriesExcludeCount, Math.max(0, availableScoreCount - 1));
 }
-
-/**
- * The points left after excluding the worst `excludeCount` excludable scores,
- * in the original entry order.
- */
-export function getKeptScores(
-  entries: KeptScoreEntry[],
-  excludeCount: number,
-): number[] {
-  if (excludeCount <= 0) {
-    return entries.map((entry) => entry.points);
-  }
-
-  const excludedIndexes = getExcludedIndexes(entries, excludeCount);
-
-  return entries
-    .filter((_entry, idx) => !excludedIndexes.has(idx))
-    .map((entry) => entry.points);
-}

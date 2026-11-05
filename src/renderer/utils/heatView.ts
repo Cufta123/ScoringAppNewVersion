@@ -23,12 +23,6 @@ export const hasFinalHeats = (
   heats: ReadonlyArray<Pick<HeatWithBoats, 'heat_type'>>,
 ): boolean => heats.some((heat) => heat.heat_type === 'Final');
 
-/** Whether the heats shown are all Final Series fleets (and there are some). */
-export const isFinalSeriesView = (
-  heats: ReadonlyArray<{ heat_type?: string | null }>,
-): boolean =>
-  heats.length > 0 && heats.every((heat) => heat.heat_type === 'Final');
-
 /** Whether any listed heat has had a race scored. */
 export const hasScoredRace = (
   heats: Array<Pick<HeatWithBoats, 'raceNumber'>>,

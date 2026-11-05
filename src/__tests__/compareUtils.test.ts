@@ -2,7 +2,7 @@ import {
   getOtherTiedCount,
   getNextCompareSelection,
 } from '../renderer/utils/compareUtils';
-import { getExcludedIndexes, getKeptScores } from '../shared/scoring/discards';
+import { getExcludedIndexes } from '../shared/scoring/discards';
 
 describe('getOtherTiedCount', () => {
   it('does not count boats from different final fleets when totals match', () => {
@@ -51,11 +51,10 @@ describe('getNextCompareSelection', () => {
 // Direct unit tests for the RRS A8.1/A8.2/SHRS 5.4 primitives in
 // src/main/functions/scoringUtils.ts, shared by qualifying, final and
 // overall tie-break comparisons.
-describe('getExcludedIndexes / getKeptScores (SHRS 5.4 discards)', () => {
+describe('getExcludedIndexes (SHRS 5.4 discards)', () => {
   it('excludeCount <= 0 excludes nothing and preserves original order', () => {
     const entries = [{ points: 9 }, { points: 1 }, { points: 5 }];
     expect(getExcludedIndexes(entries, 0)).toEqual(new Set());
-    expect(getKeptScores(entries, 0)).toEqual([9, 1, 5]);
   });
 
   it('excludes the single worst (highest-points) excludable score', () => {
@@ -65,7 +64,6 @@ describe('getExcludedIndexes / getKeptScores (SHRS 5.4 discards)', () => {
       { points: 5, race_number: 3 },
     ];
     expect(getExcludedIndexes(entries, 1)).toEqual(new Set([1]));
-    expect(getKeptScores(entries, 1)).toEqual([3, 5]);
   });
 
   it('breaks a worst-score tie by earliest race_number, then earliest race_id', () => {
@@ -96,7 +94,6 @@ describe('getExcludedIndexes / getKeptScores (SHRS 5.4 discards)', () => {
     // Worst-by-points is the DGM row (20), but it must be protected; the
     // next-worst excludable row (9) is dropped instead.
     expect(getExcludedIndexes(entries, 1)).toEqual(new Set([1]));
-    expect(getKeptScores(entries, 1)).toEqual([20, 5]);
   });
 
   it('status match is case-insensitive for the non-excludable set', () => {
@@ -114,7 +111,6 @@ describe('getExcludedIndexes / getKeptScores (SHRS 5.4 discards)', () => {
     ];
     // Both rows are protected; excludeCount of 2 finds nothing eligible.
     expect(getExcludedIndexes(entries, 2)).toEqual(new Set());
-    expect(getKeptScores(entries, 2)).toEqual([20, 20]);
   });
 
   it('excludes multiple worst scores in points order when excludeCount > 1', () => {
@@ -126,6 +122,5 @@ describe('getExcludedIndexes / getKeptScores (SHRS 5.4 discards)', () => {
     ];
     // Worst two by points: 9 (idx1), then 7 (idx2).
     expect(getExcludedIndexes(entries, 2)).toEqual(new Set([1, 2]));
-    expect(getKeptScores(entries, 2)).toEqual([4, 1]);
   });
 });

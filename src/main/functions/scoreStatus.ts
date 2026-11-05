@@ -11,7 +11,6 @@ import {
   getScoringPenaltyPoints,
 } from '../../shared/scoringPenalty';
 import { compareNationalSail } from '../../shared/sailOrder';
-import { getHeatGroupFromName } from '../../shared/heatNames';
 import {
   deriveNonFinisherPoints,
   isNonScoringPenalty,
@@ -114,15 +113,6 @@ export function normalizeStatus(status: unknown): string {
   return normalized === 'RAF' ? 'RET' : normalized;
 }
 
-export function buildAlphanumericKey(
-  country: unknown,
-  sail_number: unknown,
-): string {
-  const countryCode = String(country ?? '').toUpperCase();
-  const sail = String(sail_number ?? '').toUpperCase();
-  return `${countryCode}-${sail}`;
-}
-
 export type SeededRow = {
   position: number | null;
   status: string;
@@ -158,16 +148,6 @@ export function compareSeededRows(left: SeededRow, right: SeededRow): number {
   // of sail number (SHRS rule 3 preamble). Shared with the renderer's
   // data-entry ordering so both sides break a tie the same way.
   return compareNationalSail(left, right);
-}
-
-export function getHeatBaseFromName(heat_name: string): string {
-  const group = getHeatGroupFromName(heat_name);
-  if (group === null) {
-    throw new Error(
-      `The heat name "${heat_name}" is not in the expected form (for example "Heat A1").`,
-    );
-  }
-  return group;
 }
 
 // Shared with the renderer (unassigned-entry notice); see shared/heatNames.

@@ -8,8 +8,10 @@ import {
   SHRS_MAX_BOATS_PER_HEAT,
   getEventHeatOverflowPolicy,
 } from '../functions/eventSettings';
-import { NO_QUALIFYING_RESULTS_REFUSAL } from '../functions/finalFleetPlan';
 import { applyToEvent, currentEvent } from '../functions/libraryWrite';
+
+const NO_QUALIFYING_RESULTS_REFUSAL =
+  'Cannot start the Final Series: there are no qualifying results yet. Score the qualifying races first.';
 
 handle(
   'startFinalSeriesAtomic',

@@ -21,28 +21,6 @@ import type {
   QualifyingAssignmentMode,
 } from '../shared/eventSettings';
 
-export type ScoreStatus =
-  | 'FINISHED'
-  | 'DNF'
-  | 'DNS'
-  | 'DSQ'
-  | 'OCS'
-  | 'ZFP'
-  | 'RET'
-  | 'SCP'
-  | 'BFD'
-  | 'UFD'
-  | 'DNC'
-  | 'NSC'
-  | 'WTH'
-  | 'DNE'
-  | 'DGM'
-  | 'DPI'
-  | 'T1'
-  | 'RDG1'
-  | 'RDG2'
-  | 'RDG3';
-
 export type HeatType = 'Qualifying' | 'Final';
 
 /** Final-series fleet labels (SHRS 4.1), plus 'General' for single-fleet events. */
@@ -160,14 +138,6 @@ export interface InsertResult {
 }
 
 // --- Leaderboard shapes -----------------------------------------------------
-
-export interface FinalLeaderboardRow {
-  boat_id: number;
-  event_id: number;
-  total_points_final: number;
-  placement_group: PlacementGroup;
-  place: number | null;
-}
 
 /**
  * Minimal shape the compare-mode helpers operate on: any leaderboard-like entry

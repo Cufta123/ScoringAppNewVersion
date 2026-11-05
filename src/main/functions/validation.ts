@@ -14,36 +14,6 @@
  * than the integer helper — do NOT clamp them to integers.
  */
 
-/**
- * Normalize a sail number for identity comparison. Sail numbers may be stored
- * as a number or a string (or null), so both sides of a match must agree on one
- * string form. Empty/null values collapse to ''.
- */
-export function normalizeSailNumber(value: unknown): string {
-  return String(value ?? '').trim();
-}
-
-/**
- * Find sail numbers that are used by more than one boat (an empty sail number
- * counts too). Two boats sharing a sail number collide when keying a
- * boat-by-sail map, which silently drops one boat's score — so this must be
- * checked before any such map is built.
- */
-export function detectDuplicateSailNumbers(
-  boats: Array<{ boat_id: number | string; sail_number: unknown }>,
-): Array<{ sail: string; boatIds: Array<number | string> }> {
-  const bySail = new Map<string, Array<number | string>>();
-  boats.forEach((boat) => {
-    const key = normalizeSailNumber(boat.sail_number);
-    const ids = bySail.get(key) ?? [];
-    ids.push(boat.boat_id);
-    bySail.set(key, ids);
-  });
-  return [...bySail.entries()]
-    .filter(([, ids]) => ids.length > 1)
-    .map(([sail, boatIds]) => ({ sail, boatIds }));
-}
-
 /** ", not 3.5" — what was entered, when there was something to show. */
 function given(value: unknown): string {
   if (typeof value === 'number' && Number.isFinite(value)) {

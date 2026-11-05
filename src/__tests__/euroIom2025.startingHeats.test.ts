@@ -1,21 +1,20 @@
 /**
  * Replay of the published QRace 1 draw for the IOM European Championship 2025
  * (`e2e/fixtures/The International One Metre Class European Championship
- * 2025_heat_1.json`) through the app's own initial-heat seeding.
+ * 2025_heat_1.json`) through regatta-core's initial-heat seeding.
  *
  * The sheet is the starting list the race office actually posted: 98 entries
  * split A/B/C/D/E as 20/20/20/19/19, each heat printed in seeding order. That
- * makes it a direct check on `compareByCountryThenSail` (SHRS 3.1(iv) / rule 3
- * preamble: national letter alphabetically, then sail number numerically) and
- * on `assignBoatsToInitialHeatsSerpentine` (SHRS 3.1 serpentine spread).
+ * makes it a direct check on the library's seeding order (`compareBoats`,
+ * SHRS 3 preamble / 3.1(iv): national letter alphabetically, then sail
+ * number numerically) and on its first heats (`heatsCreated`, the SHRS
+ * 3.1(i) serpentine).
  *
  * As everywhere in this replay, a difference is characterised and explained,
  * not corrected in `src/`.
  */
-import {
-  assignBoatsToInitialHeatsSerpentine,
-  compareByCountryThenSail,
-} from '../main/functions/creatingNewHeatsUtls';
+import { replay, type Boat, type Decision } from 'regatta-core';
+import { compareBoats } from 'regatta-core/src/rules/seeding';
 import {
   publishedResults,
   startingHeats,
@@ -25,14 +24,21 @@ import {
 const heatsFixture = startingHeats();
 const published = publishedResults();
 
-/** The 98 entries in the order the app would seed them (SHRS 3.1(iv)). */
-const seedingOrder = (): StartingHeatEntry[] =>
-  heatsFixture.heats
-    .flatMap((heat) => heat.entries)
-    .sort(compareByCountryThenSail);
-
 const identity = (entry: { country: string; sail_number: string }) =>
   `${entry.country.toUpperCase()} ${Number(entry.sail_number)}`;
+
+const boatOf = (entry: StartingHeatEntry): Boat => ({
+  id: identity(entry),
+  nat: entry.country,
+  sail: String(entry.sail_number),
+  name: entry.name,
+});
+const bySeeding = (a: StartingHeatEntry, b: StartingHeatEntry) =>
+  compareBoats(boatOf(a), boatOf(b));
+
+/** The 98 entries in the order the library seeds them (SHRS 3.1(iv)). */
+const seedingOrder = (): StartingHeatEntry[] =>
+  heatsFixture.heats.flatMap((heat) => heat.entries).sort(bySeeding);
 
 describe('published starting heats — structure', () => {
   it('is the same 98-boat entry list as the result sheet', () => {
@@ -72,16 +78,14 @@ describe('published starting heats — structure', () => {
 });
 
 describe('SHRS 3.1 seeding order', () => {
-  it('lists every published heat in the order compareByCountryThenSail produces', () => {
-    // This is the app's comparator applied to the published heat as printed:
+  it('lists every published heat in the order the library seeds boats', () => {
+    // This is the library's comparator applied to the published heat as printed:
     // if the race office ordered the boats any other way, sorting would move
     // something. Nothing moves — national letter, then sail number, with "9"
     // ahead of "10" (compareSailNumbers is numeric-aware).
     heatsFixture.heats.forEach((heat) => {
       const printed = heat.entries.map(identity);
-      const sorted = [...heat.entries]
-        .sort(compareByCountryThenSail)
-        .map(identity);
+      const sorted = [...heat.entries].sort(bySeeding).map(identity);
       expect(sorted).toEqual(printed);
     });
   });
@@ -90,9 +94,26 @@ describe('SHRS 3.1 seeding order', () => {
 describe('SHRS 3.1 serpentine draw', () => {
   const letters = ['A', 'B', 'C', 'D', 'E'];
 
-  /** Heat letter per boat, in seeding order, as the app would assign them. */
-  const appDraw = (): string[] =>
-    assignBoatsToInitialHeatsSerpentine(98, 5).map((index) => letters[index]);
+  /** Heat letter per boat, in seeding order, as the library draws them. */
+  const appDraw = (): string[] => {
+    // Entered in the order the starting list prints them: the library seeds
+    // by national letters and sail number itself (no seeding list given).
+    const log: Decision[] = [
+      ...heatsFixture.heats
+        .flatMap((heat) => heat.entries)
+        .map(
+          (entry): Decision => ({ type: 'boatEntered', boat: boatOf(entry) }),
+        ),
+      { type: 'heatsCreated', heatCount: 5 },
+    ];
+    const result = replay(log);
+    if (!result.ok) throw new Error(result.reason);
+    const heatOf = new Map<string, string>();
+    result.state.rounds[0].forEach((heat, h) =>
+      heat.boats.forEach((boat) => heatOf.set(boat, letters[h])),
+    );
+    return seedingOrder().map((entry) => heatOf.get(identity(entry))!);
+  };
 
   /** Heat letter per boat, in seeding order, as the sheet printed them. */
   const publishedDraw = (): string[] => {
