@@ -6,6 +6,7 @@
  * Because the log is the event, undo is "take the decision out and replay",
  * and the same checks then tell whether anything later depended on it.
  */
+import clone from '../clone';
 import {
   DEFAULT_SETTINGS,
   NO_PLACE_CODES,
@@ -52,7 +53,7 @@ function refuse(reason: string): never {
 
 export function emptyEvent(): EventState {
   return {
-    settings: structuredClone(DEFAULT_SETTINGS),
+    settings: clone(DEFAULT_SETTINGS),
     boats: [],
     rounds: [],
     fleets: null,
@@ -481,7 +482,7 @@ function createRound(state: EventState, given?: BoatId[][]) {
  * none), no more fleets than heats (4.1), none larger than the one before
  * (4.1) or over 20 unless the race committee allows it (2.3).
  */
-function checkFleets(state: EventState, fleets: BoatId[][], heats: number) {
+function checkFleets(state: EventState, fleets: BoatId[][]) {
   const listed = fleets.flat();
   if (
     new Set(listed).size !== listed.length ||
@@ -489,8 +490,8 @@ function checkFleets(state: EventState, fleets: BoatId[][], heats: number) {
   ) {
     refuse('The fleets must list entered boats, each once.');
   }
-  if (fleets.length < 1 || fleets.length > heats) {
-    refuse(`There can be 1 to ${heats} fleets (SHRS 4.1).`);
+  if (fleets.length < 1 || fleets.length > MAX_HEATS) {
+    refuse(`There can be 1 to ${MAX_HEATS} fleets.`);
   }
   fleets.forEach((fleet, i) => {
     if (fleet.length === 0) refuse('A fleet cannot be empty.');
@@ -513,7 +514,9 @@ function checkFleets(state: EventState, fleets: BoatId[][], heats: number) {
 function startFinal(state: EventState, rule43: boolean, given?: BoatId[][]) {
   if (finalStarted(state)) refuse('The Final Series has already started.');
   const round = currentRound(state);
-  if (round.length < 2) {
+  // A recorded split stands as made (older records allow fleets after a
+  // one-heat round, or a fleet count other than the heats').
+  if (!given && round.length < 2) {
     refuse('With one heat there is no Final Series (SHRS 1.1).');
   }
   // A recorded split stands as made, even from a round not fully sailed
@@ -523,7 +526,7 @@ function startFinal(state: EventState, rule43: boolean, given?: BoatId[][]) {
   }
   let fleets: BoatId[][];
   if (given) {
-    checkFleets(state, given, round.length);
+    checkFleets(state, given);
     fleets = given.map((fleet) => [...fleet]);
   } else {
     const { ranked, withdrawn } = finalSplitRanking(state, rule43);
@@ -665,7 +668,7 @@ function decideProtest(
   if (outcome.kind === 'cleared') {
     delete race.protests[decision.boat];
   } else {
-    race.protests[decision.boat] = structuredClone(outcome);
+    race.protests[decision.boat] = clone(outcome);
   }
 }
 
@@ -703,7 +706,7 @@ function applyDecision(state: EventState, decision: Decision) {
       }
       heat.races.push({
         ref: { heat: heat.id, race: next },
-        lines: structuredClone(decision.lines),
+        lines: clone(decision.lines),
         protests: {},
       });
       return undefined;
@@ -716,7 +719,7 @@ function applyDecision(state: EventState, decision: Decision) {
         race.lines.map((line) => line.boat),
         decision.lines,
       );
-      race.lines = structuredClone(decision.lines);
+      race.lines = clone(decision.lines);
       return undefined;
     }
     case 'protestDecided':

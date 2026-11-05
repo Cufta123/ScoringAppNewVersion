@@ -186,7 +186,6 @@ describe('fleets given as made (a converted record)', () => {
       /entered boats, each once/,
     ],
     [[['b1'], ['b2', 'b3', 'b4']], /Silver cannot be larger than Gold/],
-    [[['b1'], ['b2'], ['b3', 'b4']], /1 to 2 fleets/],
   ])('are refused when wrong: %p', (fleets, message) => {
     const result = replay([...qualifying, start(fleets)]);
     expect(result).toMatchObject({

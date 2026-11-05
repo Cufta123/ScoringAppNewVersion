@@ -63,7 +63,7 @@ keep in step.
 
 - [x] Phase 0: `regatta-core` resolves in tsc, webpack (main checked) and both Jest configs
 - [x] Phase 1: `eventToLog` / `checkEventLog`, checked after every step of the comparison test (400 events) and the chaos test (200 sessions)
-- [ ] Phase 2
+- [ ] Phase 2: 2a done — the three leaderboard reads come from the library (`functions/libraryStandings.ts`). Still to do: explanations, eligibility, `getMaxHeatSize`, then stop reading `Leaderboard` / `FinalLeaderboard`
 - [ ] Phase 3
 - [ ] Phase 4
 - [ ] Phase 5

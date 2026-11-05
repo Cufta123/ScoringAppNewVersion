@@ -123,6 +123,11 @@ const dbMock = {
       return { all: jest.fn(() => []) };
     }
 
+    // seriesGuards.hasFinalSeriesStarted (refreshStandings): no Final.
+    if (sqlContains(sql, 'SELECT COUNT(*) AS count FROM Heats')) {
+      return { get: jest.fn(() => ({ count: 0 })) };
+    }
+
     throw new Error(`Unhandled SQL in test mock: ${sql}`);
   }),
   transaction: jest.fn((fn: (...args: any[]) => any) => fn),
@@ -130,6 +135,14 @@ const dbMock = {
 
 jest.mock('../../public/Database/DBManager', () => ({
   db: dbMock,
+}));
+
+// The standings themselves come from regatta-core (functions/
+// libraryStandings); this test is about the repair before them.
+jest.mock('../main/functions/libraryStandings', () => ({
+  qualifyingRows: jest.fn(() => [{ boat_id: 123 }]),
+  finalRows: jest.fn(() => []),
+  overallRows: jest.fn(() => []),
 }));
 
 describe('HeatRaceHandler readLeaderboard DNS repair', () => {

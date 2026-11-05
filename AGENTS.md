@@ -179,15 +179,17 @@ Important migration details:
   back separately as `pending_races` and show greyed ("Q3\*") on the
   leaderboard, outside every total. Tests that build their own schema must
   add `COUNTED_RACES_VIEW` (`eventLifecycleSchema.ts` does).
-- **`Leaderboard` / `FinalLeaderboard` are a cache.** Every read for a user
-  (`readLeaderboard`, `readFinalLeaderboard`, `readOverallLeaderboard`,
-  `explainBoatScore`, the fleet split in `startFinalSeriesAtomic`) rebuilds
-  them from the scores first (`functions/standings.ts` `refreshStandings`,
-  ~20 ms for 80 boats × 15 rounds), so a stale table cannot reach the screen.
-  Writes still rebuild inside their own transaction as before; scoring a
-  qualifying heat now always rebuilds (it used to skip unless every heat had
-  the same race count). Tests that feed fixed standings through a mocked
-  database mock `functions/standings` instead.
+- **The leaderboard reads come from regatta-core** (switch phase 2, see
+  `docs/regatta-core-switch.md`). `readLeaderboard`, `readFinalLeaderboard`
+  and `readOverallLeaderboard` convert the event's tables to a decision log
+  (`functions/eventLog.ts` `eventToLog`) and return the library's places,
+  totals and race points in the old row shapes
+  (`functions/libraryStandings.ts`); the place, status and kept place shown
+  in each race are the stored ones. `refreshStandings` still runs first: it
+  completes missing DNS / DNC rows (the conversion reads them) and keeps
+  `Leaderboard` / `FinalLeaderboard` for the readers not yet on the library
+  (explanations, eligibility, the Final split). Tests that mock the
+  database for a read mock `functions/libraryStandings` too.
 
 DB file paths:
 
@@ -584,11 +586,13 @@ Scoring engine / rules:
 
 - `scoringCore.series.test.ts` (the core on plain data, and the leaderboard
   screen agreeing with it on 2,000 random boats)
-- `scoringCore.characterisation.test.ts` (150 seeded random events through
-  real SQLite; its snapshot pins results, so a refactor must leave it unchanged
-  and a rule fix updates it in its own commit, with the reason);
-  `scoringCore.overall.characterisation.test.ts` does the same for the overall
-  standings, and `scoringCore.overall.test.ts` tests that core on plain data
+- `scoringCore.overall.test.ts` tests the old overall core on plain data.
+  The two characterisation snapshots (150 random table states through the
+  old pipeline) were retired with the switch of the reads: their fixture
+  writes states the app never stores (three boats on 1st, each 1 point),
+  which the library scores by the rules. The library's own tests, the
+  regatta-core comparison and the chaos test (which converts every session
+  to a log and checks it) cover the reads now.
 - `calculateBoatScores.test.ts`, `calculateFinalBoatScores.test.ts` (their
   mocks describe each boat as ONE list of races —
   `fixtures/scoresTableMock.ts` — as the database does)

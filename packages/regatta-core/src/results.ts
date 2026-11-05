@@ -8,6 +8,7 @@
  * types: changing how the library works inside must not change this
  * format by accident.
  */
+import clone from './clone';
 import type { Boat, BoatId, Decision, HeatId, Settings } from './types';
 import { replay } from './event/replay';
 import type { EventState, Heat } from './event/state';
@@ -155,7 +156,7 @@ export function resultsOf(state: EventState): Results {
   });
   return {
     formatVersion: FORMAT_VERSION,
-    settings: structuredClone(state.settings),
+    settings: clone(state.settings),
     boats: state.boats.map((boat) => ({ ...boat })),
     rounds: state.rounds.map((round) => round.map(heatSummary)),
     fleets: state.fleets ? state.fleets.map(heatSummary) : null,
