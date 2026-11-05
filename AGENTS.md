@@ -813,6 +813,16 @@ For most feature/fix requests, do this in order:
   files saved recently). A restore fires `notifyEventDataChanged` and the
   pages reload. Starting the Final Series still offers to save a file first.
   Importing a backup as a NEW event is on the landing page.
+- **Entries page adding** is one block, "Add Sailors", with three tabs: One
+  sailor, Boats on file (boats from earlier events), CSV file. The list
+  below shows its count; it no longer collapses.
+- **Leaderboard toolbar** (`leaderboard/LeaderboardToolbar`, classes in
+  LeaderboardPage.css, no inline styles): viewing has Edit Results, Compare,
+  Export… (secondary); editing has only Cancel Editing and the green Save
+  Changes (Compare and Export read saved results, so they are hidden).
+- **A disabled button of any kind** (btn-success, btn-outline, …) is solid
+  pale with dark text (App.css, after `.btn-ghost`); a variant must not keep
+  its colour when disabled.
 - **The landing page** is one column: "Events" with Import from backup… and
   New event on the right, then the events. The create form opens from New
   event (before the first event it is open, with "How it works"). Delete in

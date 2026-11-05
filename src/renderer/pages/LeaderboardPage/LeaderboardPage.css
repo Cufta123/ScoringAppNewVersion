@@ -1,3 +1,25 @@
+/* LeaderboardPage.css */
+
+/* Section title left, actions right (like "Heats" on the Scoring page). */
+.leaderboard-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.leaderboard-toolbar h2 {
+  margin: 0;
+}
+
+.leaderboard-toolbar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
 /* LeaderboardPage — page-level styles */
 
 /* Leaderboard rows paint their stripe/selection colour inline on the <tr>,

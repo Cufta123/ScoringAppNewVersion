@@ -9,33 +9,12 @@ import SailorEditDialog from './SailorEditDialog';
 import type { CategoryRow } from '../types';
 import { sailorFullName } from '../utils/sailorName';
 
-const EXPANDED_STORAGE_KEY = 'sailorListExpanded';
-
 // Numeric-aware, case-insensitive comparison so "Sail №" sorts 9, 10, 100
 // (sail numbers are stored as TEXT) instead of lexicographically.
 const collator = new Intl.Collator(undefined, {
   numeric: true,
   sensitivity: 'base',
 });
-
-// The collapsed state is a per-viewer convenience: storage can be missing,
-// blocked or hold something else, and none of that may break the list.
-const readExpanded = (): boolean => {
-  try {
-    const saved = localStorage.getItem(EXPANDED_STORAGE_KEY);
-    return saved === null ? true : JSON.parse(saved) !== false;
-  } catch (_error) {
-    return true;
-  }
-};
-
-const writeExpanded = (expanded: boolean): void => {
-  try {
-    localStorage.setItem(EXPANDED_STORAGE_KEY, JSON.stringify(expanded));
-  } catch (_error) {
-    // Not remembered; the list still works.
-  }
-};
 
 type SortDirection = 'asc' | 'desc';
 
@@ -105,7 +84,6 @@ function SailorList({
   const [sortCriteria, setSortCriteria] = useState('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [editingSailorId, setEditingSailorId] = useState<number | null>(null);
-  const [isExpanded, setIsExpanded] = useState(readExpanded);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
 
   const handleSort = (col: string) => {
@@ -176,34 +154,22 @@ function SailorList({
     if (removed === true) reportInfo('Boat removed from event.', 'Removed');
   };
 
-  const toggleExpand = () => {
-    const next = !isExpanded;
-    setIsExpanded(next);
-    writeExpanded(next);
-  };
-
   return (
     <div>
       <div className="sailor-list-header">
         <h2>
           <i className="fa fa-users" aria-hidden="true" />
           Registered Boats &amp; Sailors
+          {sailors.length > 0 && (
+            <span className="sailor-list-count">{sailors.length}</span>
+          )}
         </h2>
-        <div className="list-header-actions">
-          {headerActions}
-          <button type="button" className="btn-ghost" onClick={toggleExpand}>
-            <i
-              className={`fa fa-chevron-${isExpanded ? 'up' : 'down'}`}
-              aria-hidden="true"
-            />
-            {isExpanded ? 'Collapse' : 'Expand'}
-          </button>
-        </div>
+        <div className="list-header-actions">{headerActions}</div>
       </div>
-      {isExpanded && sailors.length === 0 && loading && (
+      {sailors.length === 0 && loading && (
         <LoadingState label="Loading boats…" />
       )}
-      {isExpanded && sailors.length === 0 && !loading && (
+      {sailors.length === 0 && !loading && (
         <div className="info-banner">
           <i
             className="fa fa-info-circle"
@@ -214,7 +180,7 @@ function SailorList({
           add them one by one, or import a whole list from a CSV file.
         </div>
       )}
-      {isExpanded && sailors.length > 0 && (
+      {sailors.length > 0 && (
         <table>
           <thead>
             <tr>

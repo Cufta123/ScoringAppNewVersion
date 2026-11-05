@@ -36,6 +36,13 @@ interface BoatOption {
   label: string;
 }
 
+/** The ways to add sailors, in the order a race officer uses them. */
+const ADD_MODES = [
+  { id: 'single', label: 'One sailor', icon: 'fa-user-plus' },
+  { id: 'existing', label: 'Boats on file', icon: 'fa-ship' },
+  { id: 'bulk', label: 'CSV file', icon: 'fa-table' },
+] as const;
+
 function EventPage() {
   const navigate = useNavigate();
   const { name } = useParams();
@@ -254,98 +261,94 @@ function EventPage() {
         )}
 
         {!raceHappened && (
-          <>
-            {/* ── Add sailors ─── */}
-            <div className="section-block">
-              <h2>
-                <i className="fa fa-user-plus" aria-hidden="true" />
-                Add Sailors
-              </h2>
+          <div className="section-block">
+            <h2>
+              <i className="fa fa-user-plus" aria-hidden="true" />
+              Add Sailors
+            </h2>
 
-              {/* Sliding pill tab toggle — one tab is always open */}
-              <div className="tab-toggle">
-                <div
-                  className="tab-pill"
-                  style={{
-                    transform:
-                      addSailorMode === 'bulk'
-                        ? 'translateX(100%)'
-                        : 'translateX(0)',
-                  }}
+            {/* Three ways in, one at a time (one used to be a block of its
+                own under this one). The pill slides behind the open one. */}
+            <div className="tab-toggle" role="group" aria-label="How to add">
+              <div
+                className="tab-pill"
+                style={{
+                  transform: `translateX(${ADD_MODES.findIndex((m) => m.id === addSailorMode) * 100}%)`,
+                }}
+              />
+              {ADD_MODES.map((mode) => (
+                <button
+                  key={mode.id}
+                  type="button"
+                  className={`tab-btn${addSailorMode === mode.id ? ' tab-active' : ''}`}
+                  aria-pressed={addSailorMode === mode.id}
+                  onClick={() => setAddSailorMode(mode.id)}
+                >
+                  <i className={`fa ${mode.icon}`} aria-hidden="true" />{' '}
+                  {mode.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="tab-panel" key={addSailorMode}>
+              {addSailorMode === 'single' && (
+                <SailorForm
+                  onAddSailor={handleAddSailor}
+                  eventId={event.event_id}
                 />
-                <button
-                  type="button"
-                  className={`tab-btn${addSailorMode === 'single' ? ' tab-active' : ''}`}
-                  onClick={() => setAddSailorMode('single')}
-                >
-                  <i className="fa fa-user-plus" aria-hidden="true" /> Single
-                </button>
-                <button
-                  type="button"
-                  className={`tab-btn${addSailorMode === 'bulk' ? ' tab-active' : ''}`}
-                  onClick={() => setAddSailorMode('bulk')}
-                >
-                  <i className="fa fa-table" aria-hidden="true" /> Bulk CSV
-                </button>
-              </div>
-
-              <div className="tab-panel" key={addSailorMode}>
-                {addSailorMode === 'single' ? (
-                  <SailorForm
-                    onAddSailor={handleAddSailor}
-                    eventId={event.event_id}
-                  />
-                ) : (
-                  <SailorImport
-                    eventId={event.event_id}
-                    onImportComplete={handleImportComplete}
-                  />
-                )}
-              </div>
+              )}
+              {addSailorMode === 'existing' && (
+                <>
+                  <p className="tab-panel-note">
+                    Boats already on this computer from earlier events.
+                  </p>
+                  <form
+                    onSubmit={handleBoatSelection}
+                    className="add-boat-form"
+                  >
+                    <div style={{ width: '100%', maxWidth: '460px' }}>
+                      <Select
+                        isMulti
+                        value={selectedBoats}
+                        onChange={handleBoatChange}
+                        options={boatOptions}
+                        closeMenuOnSelect={false}
+                        placeholder="Search and select boats…"
+                        styles={{
+                          input: (base) => ({
+                            ...base,
+                            border: 'none',
+                            boxShadow: 'none',
+                            padding: 0,
+                            margin: 0,
+                            background: 'transparent',
+                          }),
+                        }}
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="btn-success"
+                      disabled={!selectedBoats || selectedBoats.length === 0}
+                      title={
+                        !selectedBoats || selectedBoats.length === 0
+                          ? 'Select at least one boat first'
+                          : undefined
+                      }
+                    >
+                      <i className="fa fa-plus" aria-hidden="true" /> Add Boats
+                    </button>
+                  </form>
+                </>
+              )}
+              {addSailorMode === 'bulk' && (
+                <SailorImport
+                  eventId={event.event_id}
+                  onImportComplete={handleImportComplete}
+                />
+              )}
             </div>
-
-            {/* ── Add existing boat ─── */}
-            <div className="section-block">
-              <h2>
-                <i className="fa fa-ship" aria-hidden="true" />
-                Add Existing Boat to Event
-              </h2>
-              <form onSubmit={handleBoatSelection} className="add-boat-form">
-                <div style={{ width: '100%', maxWidth: '460px' }}>
-                  <Select
-                    isMulti
-                    value={selectedBoats}
-                    onChange={handleBoatChange}
-                    options={boatOptions}
-                    closeMenuOnSelect={false}
-                    placeholder="Search and select boats…"
-                    styles={{
-                      input: (base) => ({
-                        ...base,
-                        border: 'none',
-                        boxShadow: 'none',
-                        padding: 0,
-                        margin: 0,
-                        background: 'transparent',
-                      }),
-                    }}
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="btn-success"
-                  disabled={!selectedBoats || selectedBoats.length === 0}
-                  title={
-                    !selectedBoats || selectedBoats.length === 0
-                      ? 'Select at least one boat first'
-                      : undefined
-                  }
-                >
-                  <i className="fa fa-plus" aria-hidden="true" /> Add Boats
-                </button>
-              </form>
-            </div>
-          </>
+          </div>
         )}
 
         {/* ── Sailors list ─── */}
