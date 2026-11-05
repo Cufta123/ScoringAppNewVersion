@@ -52,6 +52,7 @@ import { normalizeScoreStatus } from './scoreStatus';
 import {
   COMMITTEE_DSQ,
   REDRESS,
+  sheetFromFrozen,
   sheetFromRows,
   type SheetRow,
 } from './raceSheet';
@@ -374,11 +375,30 @@ export function eventToLog(eventId: number): EventLog {
           : {}),
       });
     });
-    const sheet = sheetFromRows(
-      sheetRows,
-      largestOf(heat) + 1,
-      `${ref.heat} race ${race}`,
-    );
+    // A whole race frozen beside the results (a committee decision in it):
+    // the sheet is read back exactly from the freeze.
+    const wholeFreeze =
+      sheetRows.length > 0 &&
+      sheetRows.every((row) => frozen.has(row.boat)) &&
+      [...frozen.keys()].every((boat) => scoreRows.has(boat));
+    const sheet = wholeFreeze
+      ? sheetFromFrozen(
+          sheetRows.map((row) => {
+            const ice = frozen.get(row.boat)!;
+            return {
+              ...row,
+              frozen: {
+                position: ice.frozen_position,
+                status: normalizeScoreStatus(ice.frozen_status),
+              },
+            };
+          }),
+        )
+      : sheetFromRows(
+          sheetRows,
+          largestOf(heat) + 1,
+          `${ref.heat} race ${race}`,
+        );
     notes.push(...sheet.notes);
     anomalies.push(...sheet.anomalies);
     sheet.committee.forEach((row) =>

@@ -93,6 +93,7 @@ const GUARDS: RegExp[] = [
   /boats cannot fill .* heats/i, // more heats than boats (SHRS 2.1, parity R4)
   /must sail the same races first/i, // round incomplete (regatta-core)
   /fleet sails as one/i, // no new round for one heat (SHRS 1.1)
+  /only redress from the protest committee can change/i, // a no-heat DNC (parity R12)
 ];
 
 const isGuard = (error: unknown) =>

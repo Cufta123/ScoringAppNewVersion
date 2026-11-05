@@ -64,7 +64,7 @@ keep in step.
 - [x] Phase 0: `regatta-core` resolves in tsc, webpack (main checked) and both Jest configs
 - [x] Phase 1: `eventToLog` / `checkEventLog`, checked after every step of the comparison test (400 events) and the chaos test (200 sessions)
 - [x] Phase 2: the leaderboard reads, both explanations and the Final Series eligibility come from the library (`libraryStandings`, `libraryExplain`, `libraryEvent`). `getMaxHeatSize` stays on the tables until the writes move
-- [ ] Phase 3: 3a done — `projectEvent` (library state into the tables, round trip checked on 1,000 events). Next: the handlers, one by one, build the decision, replay it on the converted log, and project
+- [ ] Phase 3: 3a projection done; 3b writes through the library done for heats, rounds, transfers, late entries, the Final split, race scoring, undo of a race and leaderboard corrections (`libraryWrite`, `libraryCorrection`, `raceSheet`). Still on the tables: entries, event settings, sailor details, snapshots, history (phase 4). Known: the history undo (journal row restore) can hit a row the projection replaced (chaos seed 187 at 200 sessions); it moves to the log in phase 4
 - [ ] Phase 4
 - [ ] Phase 5
 - [ ] Phase 6

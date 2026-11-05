@@ -1,19 +1,21 @@
+import {
+  type NoPlaceCode,
+  type PenaltyCode,
+  type RaceLine,
+  type RaceRef,
+} from 'regatta-core';
 import { db } from '../../../public/Database/DBManager';
 import handle from './handle';
+import { applyToEvent } from '../functions/libraryWrite';
+import { correctionDecisions } from '../functions/libraryCorrection';
+import { sanitizePositiveInteger } from '../functions/validation';
+import { coreHeatId } from '../functions/eventLog';
+import {
+  normalizeScoreStatus,
+  scoringPenaltyStatuses,
+} from '../functions/scoreStatus';
 import { logError } from '../errorLog';
-import {
-  clearAssignmentSnapshot,
-  FrozenAssignmentRow,
-  raceAssignmentSnapshots,
-} from '../functions/raceAssignmentSnapshot';
 import { getLatestRaceForHeat, requireHeat } from '../functions/heatQueries';
-import {
-  recomputeEventLeaderboard,
-  recomputeFinalLeaderboard,
-} from '../functions/leaderboardRecompute';
-import scoreSubmittedBoat, {
-  penaltyHeatSize,
-} from '../functions/submittedRaceScore';
 import { lockDiscardProfileForRace } from '../functions/eventSettings';
 import { assertQualifyingHeatIsOpen } from '../functions/seriesGuards';
 import {
@@ -22,13 +24,6 @@ import {
   findIndistinguishableBoats,
   normalizeEntryKey,
 } from '../../shared/boatKeys';
-import {
-  applyRaceColumnState,
-  applyRaceTieScoring,
-  ensureCompleteRaceScoresForEvent,
-  getMaxHeatSize,
-  seedRaceWithDefaultDnsScores,
-} from '../functions/raceScoring';
 
 // Atomically score a whole race: create the next race for the heat, apply the
 // SHRS 5.2 / RRS 44.3(c)/T1 penalty math, persist every boat's score in a
@@ -68,7 +63,6 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
       `HRH M4: submitHeatRaceScoresAtomic payload event_id ${payloadEventId} does not match heat ${heat_id}'s event ${event_id}; using the heat's event.`,
     );
   }
-  const isFinalHeat = heatRow.heat_type === 'Final';
   assertQualifyingHeatIsOpen(heatRow, 'score a race');
 
   const boats = db
@@ -122,80 +116,78 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
     return { ok: false as const, reason: 'UNMATCHED_SAILS', unmatched };
   }
 
-  const heatType = isFinalHeat ? 'Final' : 'Qualifying';
-  const maxHeatSize = getMaxHeatSize(event_id, heatType);
-  const heatSizeForPenalty = penaltyHeatSize(maxHeatSize, placeNumbers.length);
-
-  const existingRaceCount = (
-    db
-      .prepare('SELECT COUNT(*) AS count FROM Races WHERE heat_id = ?')
-      .get(heat_id) as { count: number }
-  ).count;
-  const nextRaceNumber = existingRaceCount + 1;
-
-  // Each boat's place, points and status, worked out before anything is
-  // written (a bad place or code is refused here, with nothing to roll back).
-  const scored = placeNumbers.map((entry) => ({
-    boat: boatFor(entry.boatNumber)!,
-    score: scoreSubmittedBoat(entry, heatSizeForPenalty),
-  }));
-
-  const updateScoreStmt = db.prepare(
-    'UPDATE Scores SET position = ?, points = ?, status = ? WHERE race_id = ? AND boat_id = ?',
-  );
-  const insertScoreStmt = db.prepare(
-    'INSERT INTO Scores (race_id, boat_id, position, points, status) VALUES (?, ?, ?, ?, ?)',
-  );
-
-  let raceId = 0;
-  const writeScores = db.transaction(() => {
-    const raceResult = db
-      .prepare('INSERT INTO Races (heat_id, race_number) VALUES (?, ?)')
-      .run(heat_id, nextRaceNumber);
-    raceId = Number(raceResult.lastInsertRowid);
-    seedRaceWithDefaultDnsScores(raceId, heat_id);
-
-    scored.forEach(({ boat, score }) => {
-      const updated = updateScoreStmt.run(
-        score.position,
-        score.points,
-        score.status,
-        raceId,
-        boat.boat_id,
-      );
-      if (updated.changes === 0) {
-        insertScoreStmt.run(
-          raceId,
-          boat.boat_id,
-          score.position,
-          score.points,
-          score.status,
-        );
-      }
-    });
-
-    if (scored.some(({ score }) => score.finished)) {
-      applyRaceTieScoring(raceId);
-    }
-    lockDiscardProfileForRace(raceId);
-
-    // BK-2: recompute leaderboards inside the same transaction so a recompute
-    // failure rolls back the entire scoring write. Previously the recompute ran
-    // after writeScores() committed, leaving scores persisted but leaderboards
-    // stale on failure — a retry would then create a duplicate race.
-    if (isFinalHeat) {
-      recomputeFinalLeaderboard(event_id);
-    } else {
-      // Score boats that sailed in none of a completed round's heats DNC
-      // (RRS A5.1 / SHRS 5.3), then rebuild the standings. Only races every
-      // heat of their round has sailed count (CountedRaces), so a round
-      // still being sailed leaves the standings as after the last full one.
-      ensureCompleteRaceScoresForEvent(event_id, 'Qualifying');
-      recomputeEventLeaderboard(event_id);
-    }
+  // The race office's sheet: finishers (and ZFP / SCP / T1, which keep
+  // their place) by place, boats on one place tied (RRS A7); codes after;
+  // a boat of the heat not on the sheet is DNS, as the screen shows her.
+  const keepsPlace = (status: string) =>
+    status === 'FINISHED' || scoringPenaltyStatuses.has(status);
+  const entries = placeNumbers.map((entry) => {
+    const status = normalizeScoreStatus(entry.status);
+    return {
+      boat: String(boatFor(entry.boatNumber)!.boat_id),
+      // BK-6: a place that keeps its slot must be a whole number from 1;
+      // a code's place is not used.
+      place: keepsPlace(status)
+        ? sanitizePositiveInteger(
+            entry.place,
+            `The place of sail ${String(entry.boatNumber)}`,
+          )
+        : 0,
+      status,
+    };
   });
+  const finishers = entries
+    .filter((entry) => keepsPlace(entry.status))
+    .sort((a, b) => a.place - b.place);
+  const lines: RaceLine[] = [
+    ...finishers.map((entry, i) => ({
+      boat: entry.boat,
+      ...(entry.status !== 'FINISHED'
+        ? { penalty: entry.status as PenaltyCode }
+        : {}),
+      ...(i > 0 && finishers[i - 1].place === entry.place
+        ? { tied: true }
+        : {}),
+    })),
+    ...entries
+      .filter((entry) => !keepsPlace(entry.status))
+      .map((entry) => ({
+        boat: entry.boat,
+        code: entry.status as NoPlaceCode,
+      })),
+    ...boats
+      .filter((boat) => !named.has(boat.boat_id))
+      .map((boat) => ({ boat: String(boat.boat_id), code: 'DNS' as const })),
+  ];
 
-  writeScores();
+  // regatta-core scores the heat's next race (raceScored).
+  const ref = coreHeatId(heatRow.heat_name);
+  let nextRaceNumber = 0;
+  applyToEvent(event_id, {
+    decide: (state) => {
+      const heat = [...state.rounds.flat(), ...(state.fleets ?? [])].find(
+        (h) => h.id === ref,
+      );
+      nextRaceNumber = (heat?.races.length ?? 0) + 1;
+      return [
+        {
+          type: 'raceScored',
+          race: { heat: ref, race: nextRaceNumber },
+          lines,
+        },
+      ];
+    },
+  });
+  const raceId = Number(
+    (
+      db
+        .prepare(
+          'SELECT race_id FROM Races WHERE heat_id = ? AND race_number = ?',
+        )
+        .get(heat_id, nextRaceNumber) as { race_id: number }
+    ).race_id,
+  );
+  lockDiscardProfileForRace(raceId);
 
   return { ok: true as const, raceNumber: nextRaceNumber, raceId };
 });
@@ -213,29 +205,43 @@ handle('undoLastScoredRaceForHeat', async (event, raw_heat_id) => {
 
   assertQualifyingHeatIsOpen(heatRow, 'undo the last race');
 
-  const deleteScores = db.prepare('DELETE FROM Scores WHERE race_id = ?');
-  const deleteRace = db.prepare('DELETE FROM Races  WHERE race_id = ?');
-
-  // One transaction for the delete AND the recompute, so a failure can never
-  // leave the race gone with the standings still counting it.
-  const transaction = db.transaction(() => {
-    // The SHRS 3.1.5 snapshot references the race, and foreign keys are
-    // enforced with no ON DELETE CASCADE: it has to go first, or any race
-    // carrying a protest decision cannot be undone at all ("FOREIGN KEY
-    // constraint failed" — the bug deleteEvent once had).
-    clearAssignmentSnapshot(lastRace.race_id);
-    const removedScores = deleteScores.run(lastRace.race_id).changes;
-    deleteRace.run(lastRace.race_id);
-    recomputeEventLeaderboard(heatRow.event_id);
-    // Undoing a FINAL race must refresh the final standings too — the event
-    // leaderboard alone leaves FinalLeaderboard reflecting the deleted race.
-    if (heatRow.heat_type === 'Final') {
-      recomputeFinalLeaderboard(heatRow.event_id);
-    }
-    return removedScores;
+  // The race leaves the log with what was decided about it (corrections,
+  // protest decisions); an RDG2 that averaged it keeps its other races.
+  const removedScores = (
+    db
+      .prepare('SELECT COUNT(*) AS n FROM Scores WHERE race_id = ?')
+      .get(lastRace.race_id) as { n: number }
+  ).n;
+  const ref = {
+    heat: coreHeatId(heatRow.heat_name),
+    race: Number(lastRace.race_number),
+  };
+  const same = (other: RaceRef) =>
+    other.heat === ref.heat && other.race === ref.race;
+  applyToEvent(heatRow.event_id, {
+    rewrite: (log) =>
+      log
+        .filter(
+          (decision) =>
+            !(
+              (decision.type === 'raceScored' ||
+                decision.type === 'raceCorrected' ||
+                decision.type === 'protestDecided') &&
+              same(decision.race)
+            ),
+        )
+        .map((decision) =>
+          decision.type === 'protestDecided' && decision.outcome.kind === 'RDG2'
+            ? {
+                ...decision,
+                outcome: {
+                  ...decision.outcome,
+                  races: decision.outcome.races.filter((r) => !same(r)),
+                },
+              }
+            : decision,
+        ),
   });
-
-  const removedScores = transaction();
 
   return {
     success: true,
@@ -251,7 +257,8 @@ handle(
     _event,
     raw_event_id: number | string,
     operations,
-    updateFinalLeaderboard = false,
+    // The final standings are worked out on every read now.
+    _updateFinalLeaderboard = false,
   ) => {
     const event_id = Number(raw_event_id);
     const safeOperations = Array.isArray(operations) ? operations : [];
@@ -268,46 +275,23 @@ handle(
     // and restore them wholesale on failure. A presence-only guard is not
     // enough because an unshield mutates an existing entry rather than adding
     // one (RULE-M21).
-    const snapshotRaceIds = [
-      ...new Set(safeOperations.map((operation) => Number(operation.raceId))),
-    ];
-    const snapshotBackups = new Map<
-      number,
-      Map<string, FrozenAssignmentRow> | null
-    >();
-    snapshotRaceIds.forEach((raceId) => {
-      const existing = raceAssignmentSnapshots.get(raceId);
-      snapshotBackups.set(raceId, existing ? new Map(existing) : null);
+    // Each saved race becomes the race office's corrected sheet and the
+    // committee's decisions that changed; regatta-core works the event out
+    // again and the tables follow, all in one transaction.
+    applyToEvent(event_id, {
+      decide: (state) =>
+        safeOperations.flatMap((operation) =>
+          correctionDecisions(
+            event_id,
+            state,
+            Number(operation.raceId),
+            operation.cells,
+          ),
+        ),
     });
-
-    const tx = db.transaction(() => {
-      safeOperations.forEach((operation) => {
-        applyRaceColumnState(
-          event_id,
-          Number(operation.raceId),
-          operation.cells,
-        );
-        lockDiscardProfileForRace(Number(operation.raceId));
-      });
-
-      recomputeEventLeaderboard(event_id);
-      if (updateFinalLeaderboard) {
-        recomputeFinalLeaderboard(event_id);
-      }
-    });
-
-    try {
-      tx();
-    } catch (error) {
-      snapshotBackups.forEach((backup, raceId) => {
-        if (backup) {
-          raceAssignmentSnapshots.set(raceId, backup);
-        } else {
-          raceAssignmentSnapshots.delete(raceId);
-        }
-      });
-      throw error;
-    }
+    safeOperations.forEach((operation) =>
+      lockDiscardProfileForRace(Number(operation.raceId)),
+    );
     return { success: true, updatedCount: safeOperations.length };
   },
 );

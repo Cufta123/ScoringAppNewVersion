@@ -36,6 +36,8 @@ const mockDbHolderRef = mockDbHolder;
 // eslint-disable-next-line import/first, import/order
 import { setCallObserver } from '../main/ipcHandlers/handle';
 // eslint-disable-next-line import/first, import/order
+import { qualifyingRows } from '../main/functions/libraryStandings';
+// eslint-disable-next-line import/first, import/order
 import { journalObserver } from '../main/functions/changeJournal';
 // eslint-disable-next-line import/first, import/order
 import { invalidateAssignmentSnapshotCache } from '../main/functions/raceAssignmentSnapshot';
@@ -314,12 +316,17 @@ describe('undoing a change from the history (real handlers)', () => {
       .prepare('SELECT * FROM RaceAssignmentSnapshots ORDER BY race_id, rank')
       .all()
       .map((row: any) => ({ ...row })),
+    // The standings as the leaderboard reads them (regatta-core).
     standings: db
-      .prepare(
-        'SELECT boat_id, total_points_event, place FROM Leaderboard ORDER BY boat_id',
-      )
+      .prepare('SELECT event_id FROM Events ORDER BY event_id')
       .all()
-      .map((row: any) => ({ ...row })),
+      .flatMap((event: any) =>
+        qualifyingRows(event.event_id).map((row: any) => ({
+          boat_id: row.boat_id,
+          total_points_event: row.total_points_event,
+          place: row.place,
+        })),
+      ),
   });
 
   const newest = async (eventId: number) => (await history(eventId))[0];

@@ -236,3 +236,47 @@ export function sheetFromRows(
   ];
   return { lines, committee: committeeRows, notes, anomalies };
 }
+
+/**
+ * The sheet from a whole-race freeze (every boat's sheet row kept beside the
+ * results when the protest committee decided something in the race): the
+ * places as they were, boats on one place tied. A DSQ / DNE / DGM is the
+ * committee's when her sheet row was something else, an RDG / DPI always.
+ */
+export function sheetFromFrozen(rows: SheetRow[]): Sheet {
+  const keepsPlace = (status: string) =>
+    status === 'FINISHED' || PENALTIES.has(status);
+  const finishers = rows
+    .filter((row) => keepsPlace(row.frozen!.status))
+    .sort(
+      (a, b) =>
+        Number(a.frozen!.position) - Number(b.frozen!.position) ||
+        a.boat.localeCompare(b.boat, undefined, { numeric: true }),
+    );
+  const lines: RaceLine[] = [
+    ...finishers.map((row, i) => ({
+      boat: row.boat,
+      ...(row.frozen!.status !== 'FINISHED'
+        ? { penalty: row.frozen!.status as PenaltyCode }
+        : {}),
+      ...(i > 0 && finishers[i - 1].frozen!.position === row.frozen!.position
+        ? { tied: true }
+        : {}),
+    })),
+    ...rows
+      .filter((row) => !keepsPlace(row.frozen!.status))
+      .map((row) => ({
+        boat: row.boat,
+        code: (NO_PLACE.has(row.frozen!.status)
+          ? row.frozen!.status
+          : 'DNF') as NoPlaceCode,
+      })),
+  ];
+  const committee = rows.filter(
+    (row) =>
+      REDRESS.has(row.status) ||
+      row.status === 'DPI' ||
+      (COMMITTEE_DSQ.has(row.status) && row.frozen!.status !== row.status),
+  );
+  return { lines, committee, notes: [], anomalies: [] };
+}

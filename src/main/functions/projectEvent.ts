@@ -140,6 +140,18 @@ function cellsOf(
       rdg_race_ids: null,
     });
   });
+  // SHRS 3.1(5): with a committee decision in the race, every boat's sheet
+  // row is kept beside the results (as the app always froze the whole
+  // race), so the sheet is read back exactly: ties too, which the results
+  // alone cannot tell from a move-up.
+  if (Object.keys(race.protests).length > 0) {
+    race.lines.forEach((line) => {
+      cells.get(line.boat)!.frozen = {
+        position: line.code ? noPlace : sheetPlace.get(line.boat)!,
+        status: line.code ?? line.penalty ?? 'FINISHED',
+      };
+    });
+  }
   return cells;
 }
 

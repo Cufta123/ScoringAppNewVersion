@@ -495,7 +495,13 @@ function keptPlace(
  * different order from the screen when a cell was edited twice, and so could
  * save a different race from the one shown.
  */
-export function applyRaceColumnState(
+/**
+ * A race as the leaderboard's Save sends it, checked (each boat of the race
+ * once; places from 1 to the boats in the race; RDG3 / DPI points above 0
+ * and at most 99) and scored the way the edit screen scored it (RRS A7,
+ * 44.3(c), SHRS 5.2), with the stored rows it replaces.
+ */
+export function checkedRaceColumn(
   event_id: number,
   race_id: number,
   sentCells: RaceColumnCell[],
@@ -585,6 +591,19 @@ export function applyRaceColumnState(
   });
 
   const scored = scoreRaceColumn(cells, maxBoats);
+  return { raceId, heatRow, raceRows, sentByIndex, scored, maxBoats };
+}
+
+export function applyRaceColumnState(
+  event_id: number,
+  race_id: number,
+  sentCells: RaceColumnCell[],
+) {
+  const { raceId, heatRow, raceRows, sentByIndex, scored } = checkedRaceColumn(
+    event_id,
+    race_id,
+    sentCells,
+  );
 
   // SHRS 3.1(v): a protest decision must not change heat assignments, so the
   // order before it is frozen; a race-office correction un-freezes the boat.

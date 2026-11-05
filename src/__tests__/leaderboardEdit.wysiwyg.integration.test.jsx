@@ -63,10 +63,7 @@ import {
   randomOutcome,
   tenth,
 } from './fixtures/scoringOracle';
-import {
-  invalidateAssignmentSnapshotCache,
-  raceAssignmentSnapshots,
-} from '../main/functions/raceAssignmentSnapshot';
+import { invalidateAssignmentSnapshotCache } from '../main/functions/raceAssignmentSnapshot';
 /* eslint-enable import/first */
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -477,7 +474,7 @@ describe('final series edits: Save writes exactly what the screen shows', () => 
 
 describe('SHRS 3.1.5: the edit screen tells the main process which cells were typed', () => {
   it.each([1, 2, 3, 4, 5])(
-    'a DSQ of the winner freezes every boat of the race, seed %i',
+    'a typed DSQ of the winner does not change the next round, seed %i',
     async (seed) => {
       const rand = prng(seed * 7919);
       const eventId = await scoredEvent(rand, {
@@ -521,22 +518,30 @@ describe('SHRS 3.1.5: the edit screen tells the main process which cells were ty
       );
       expect(promoted.length).toBeGreaterThanOrEqual(2);
 
-      // Every boat of the race keeps the place it held before the decision.
-      const frozen = raceAssignmentSnapshots.get(Number(raceId));
-      expect(frozen?.size).toBe(Object.keys(before).length);
-      Object.keys(before).forEach((boat) => {
-        expect(frozen.get(String(boat))).toEqual({
-          position: before[boat].position,
-          status: before[boat].status,
-        });
-      });
-      expect(
+      // The DSQ is the protest committee's (it was typed): it must not
+      // change the next round's heats (SHRS 3.1(5)). The heats move from
+      // the order before it: the winner stays in her heat as 1st, the boat
+      // that was 2nd (now 1st in the results) goes to the other heat.
+      // The boat on the next place alone behind her (a tie there would put
+      // the movement table's 2nd by sail number).
+      const behind = Object.keys(before)
+        .filter((boat) => before[boat].status === 'FINISHED')
+        .map((boat) => [Number(boat), before[boat].position])
+        .filter(([, position]) => position > 1)
+        .sort((a, b) => a[1] - b[1]);
+      const [second, secondPlace] = behind[0];
+      if (behind[1]?.[1] === secondPlace || secondPlace !== 2) return;
+      const heatOf = (boat, round) =>
         db
           .prepare(
-            'SELECT COUNT(*) AS n FROM RaceAssignmentSnapshots WHERE race_id = ?',
+            `SELECT h.heat_name FROM Heat_Boat hb JOIN Heats h ON h.heat_id = hb.heat_id
+             WHERE hb.boat_id = ? AND h.heat_name GLOB ?`,
           )
-          .get(raceId).n,
-      ).toBe(Object.keys(before).length);
+          .get(boat, `Heat [A-Z]${round}`).heat_name;
+      await call('createNewHeatsBasedOnLeaderboard', eventId);
+      const letter = (name) => name.replace(/^Heat ([A-Z])\d+$/, '$1');
+      expect(letter(heatOf(winner, 2))).toBe(letter(heatOf(winner, 1)));
+      expect(letter(heatOf(second, 2))).not.toBe(letter(heatOf(second, 1)));
       unmount();
       db.close();
     },
