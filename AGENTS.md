@@ -447,7 +447,10 @@ Final Series (`calculateFinalBoatScores.ts`, `shared/fleetAssignment.ts`)
   Boats that share a qualifying place (no rule separates them) are split in
   SHRS's own tie order, national letters then sail number (3, 3.1(iv), 5.3),
   not by boat_id (`startFinalSeriesAtomic`; regatta-core does the same).
-  Decided Nov 2026, see `packages/regatta-core/docs/parity/README.md`.
+  The rankings use the same order wherever no rule decides (shared places,
+  a 5.7 circle that plain A8 cannot settle): `functions/boatOrder.ts`
+  orders their input. Decided Nov 2026, see
+  `packages/regatta-core/docs/parity/README.md`.
 - 4.3 — If the Qualifying Series has **>5 and <8 completed races (6 or 7)**, a
   boat's **second-worst** race is temporarily excluded **for fleet-assignment
   ranking only** (`rule43Applies` in `getFinalSeriesEligibility`;

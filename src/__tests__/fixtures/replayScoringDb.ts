@@ -160,6 +160,12 @@ export function createReplayDb({
       };
     }
 
+    // ── boatOrder.inNationalSailOrder: the sheet has no boat table, so no
+    // boats are found and the rankings keep the replay's order ────────────
+    if (sql.includes('SELECT boat_id, country, sail_number FROM Boats')) {
+      return { all: () => [], get: () => undefined };
+    }
+
     throw new Error(`replayScoringDb: unhandled SQL statement:\n${sql}`);
   };
 

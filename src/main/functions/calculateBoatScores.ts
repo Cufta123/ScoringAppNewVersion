@@ -1,4 +1,5 @@
 import { db } from '../../../public/Database/DBManager';
+import inNationalSailOrder from './boatOrder';
 import { getEventDiscardConfig } from './discardConfig';
 import { getHeatRoundFromName } from '../../shared/heatNames';
 import {
@@ -97,7 +98,7 @@ export default function calculateBoatScores<Id extends number | string>(
     0,
   );
   return rankQualifyingSeries(
-    results.map((row) => ({
+    inNationalSailOrder(results).map((row) => ({
       boat_id: row.boat_id,
       scores: getScoresForA81(event_id, row.boat_id),
     })),

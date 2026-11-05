@@ -1,5 +1,6 @@
 import { db } from '../../../public/Database/DBManager';
 import { getEventDiscardConfig } from './discardConfig';
+import inNationalSailOrder from './boatOrder';
 import {
   rankFinalSeries,
   RaceScore,
@@ -44,7 +45,7 @@ export default function calculateFinalBoatScores<Id extends number | string>(
   event_id: number,
 ): Map<string, RankedBoat<Id>[]> {
   return rankFinalSeries(
-    results.map((row) => ({
+    inNationalSailOrder(results).map((row) => ({
       boat_id: row.boat_id,
       fleet: fleetOf(row.heat_name),
       scores: getFinalScores(event_id, row.boat_id, row.heat_name),

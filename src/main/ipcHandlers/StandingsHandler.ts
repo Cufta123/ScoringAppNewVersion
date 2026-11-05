@@ -1,4 +1,5 @@
 import { db } from '../../../public/Database/DBManager';
+import inNationalSailOrder from '../functions/boatOrder';
 import handle from './handle';
 import {
   OverallTiePacket,
@@ -315,7 +316,10 @@ handle('readOverallLeaderboard', async (event, raw_event_id) => {
     }
     return tiePacketCache.get(boatId) as OverallTiePacket;
   };
-  const ranked = rankOverallStandings(results, getTiePacket);
+  const ranked = rankOverallStandings(
+    inNationalSailOrder(results),
+    getTiePacket,
+  );
 
   return ranked;
 });

@@ -146,6 +146,12 @@ const dbMock = {
       };
     }
 
+    // boatOrder.inNationalSailOrder: no boat table here, so the input
+    // order stands (what these scenarios are written against).
+    if (sqlContains(sql, 'SELECT boat_id, country, sail_number FROM Boats')) {
+      return { all: jest.fn(() => []) };
+    }
+
     throw new Error(`Unhandled SQL in test mock: ${sql}`);
   }),
 };
