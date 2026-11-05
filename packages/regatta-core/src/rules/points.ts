@@ -28,17 +28,20 @@ export function noPlacePoints(largestHeat: number): number {
 }
 
 /**
- * RRS 44.3(c) / T1(b): place plus 20% (ZFP, SCP) or 30% (T1) of the DNF
- * score, to the tenth, never worse than the DNF score.
+ * RRS 44.3(c) (2025-2028) / T1(b): "the score she would have received
+ * without that penalty" (so a tied boat's shared points, A7) plus 20% (ZFP,
+ * SCP) or 30% (T1) of the DNF score, to the tenth (0.05 up), never worse
+ * than the DNF score. Before 2025 it was the place, rounded to a whole
+ * number.
  */
 export function penaltyPoints(
-  place: number,
+  score: number,
   largestHeat: number,
   code: PenaltyCode,
 ): number {
   const dnf = noPlacePoints(largestHeat);
   const share = code === 'T1' ? 0.3 : 0.2;
-  return Math.min(exact(place + toTenth(dnf * share)), dnf);
+  return Math.min(exact(score + toTenth(dnf * share)), dnf);
 }
 
 /**

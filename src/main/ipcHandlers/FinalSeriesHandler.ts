@@ -85,6 +85,7 @@ handle(
           GROUP_CONCAT(sc.points ORDER BY r.race_number, r.race_id) AS race_points,
           GROUP_CONCAT(COALESCE(sc.status, 'DNS') ORDER BY r.race_number, r.race_id) AS race_statuses
         FROM Leaderboard lb
+        JOIN Boats b ON b.boat_id = lb.boat_id
         LEFT JOIN Scores sc ON sc.boat_id = lb.boat_id
         LEFT JOIN Races r ON sc.race_id = r.race_id
         LEFT JOIN Heats h ON r.heat_id = h.heat_id
@@ -92,10 +93,12 @@ handle(
         WHERE lb.event_id = ? AND h.event_id = ? AND h.heat_type = 'Qualifying'
           AND sc.race_id IS NOT NULL
         GROUP BY lb.boat_id
-        -- Boats that remain tied share a place. No rule orders them for the
-        -- fleet split, so fall back to boat_id purely to make the split
-        -- repeatable (the same data always gives the same fleets).
-        ORDER BY lb.place ASC, lb.boat_id ASC`,
+        -- Boats that remain tied share a place. SHRS 4.2 does not say how
+        -- they split, so they go in SHRS's own order for ties (3, 3.1(iv),
+        -- 5.3): national letters, then sail number; boat_id only for the
+        -- same boat entered twice. regatta-core does the same.
+        ORDER BY lb.place ASC, UPPER(TRIM(b.country)) ASC, b.sail_number ASC,
+          lb.boat_id ASC`,
       )
       .all(event_id, event_id) as Array<{
       boat_id: number;

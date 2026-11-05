@@ -18,6 +18,7 @@ import { MAX_HEAT_SIZE, fleetName, splitIntoFleets } from '../rules/fleets';
 import {
   compareBoats,
   compareRecorded,
+  sameBoat,
   nextHeat,
   serpentine,
 } from '../rules/seeding';
@@ -123,7 +124,7 @@ function enter(state: EventState, boat: Boat) {
     refuse('The Final Series has started: no more entries.');
   }
   if (boatById(state, boat.id)) refuse(`${boat.id} is already entered.`);
-  if (state.boats.some((other) => compareBoats(other, boat) === 0)) {
+  if (state.boats.some((other) => sameBoat(other, boat))) {
     refuse(`${boat.nat} ${boat.sail} is already entered.`);
   }
   state.boats.push({ ...boat });

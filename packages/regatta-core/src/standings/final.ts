@@ -19,7 +19,12 @@ import {
   rankByTotal,
 } from '../rules/ranking';
 import { scoreRace } from '../event/score';
-import { largestHeat, raceKey, type EventState } from '../event/state';
+import {
+  inBoatOrder,
+  largestHeat,
+  raceKey,
+  type EventState,
+} from '../event/state';
 import { plainA8, qualifyingStandings } from './qualifying';
 import {
   kept,
@@ -76,7 +81,10 @@ export function finalStandings(state: EventState): FleetStandings[] {
       fleet.races.length,
       state.settings.discards.final,
     );
-    const entries = fleet.boats.map((boat) => {
+    const entries = inBoatOrder(
+      state,
+      fleet.boats.map((boat) => ({ boat })),
+    ).map(({ boat }) => {
       const races = byBoat.get(boat)!;
       return { boat, ...total(settleRedress(races, races, noPlace), discards) };
     });
@@ -143,7 +151,7 @@ export function overallStandings(state: EventState): OverallStanding[] {
   const overall: OverallStanding[] = [];
   byFleet.forEach(({ fleet, entries }) => {
     const ranked = rankByTotal(
-      entries,
+      inBoatOrder(state, entries),
       (entry) => entry.total,
       overallCompare,
       plainA8,

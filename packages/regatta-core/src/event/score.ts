@@ -8,7 +8,8 @@
  *              boats behind move up
  *   RRS A6.2   redress (and A10 DPI) changes no other boat's score
  *   SHRS 5.2   no place: largest heat of the series + 1
- *   44.3(c)/T1 penalties keep the place and add 20% / 30% of that score
+ *   44.3(c)/T1 penalties keep the place and add 20% / 30% of the DNF score
+ *              to the points she would have had (2025-2028 rules)
  *
  * Average redress (RDG1, RDG2) depends on the boat's other races, so it is
  * left open here (`pending`) and filled in by the series.
@@ -62,7 +63,7 @@ export function scoreRace(race: Race, largest: number): BoatResult[] {
         ...(line.penalty
           ? {
               code: line.penalty,
-              points: penaltyPoints(place, largest, line.penalty),
+              points: penaltyPoints(shared, largest, line.penalty),
             }
           : { points: shared }),
       });

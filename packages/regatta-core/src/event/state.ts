@@ -12,6 +12,7 @@ import type {
   RaceRef,
   Settings,
 } from '../types';
+import { compareBoats } from '../rules/seeding';
 
 export interface Race {
   ref: RaceRef;
@@ -72,3 +73,21 @@ export function largestHeat(heats: readonly Heat[]): number {
 }
 
 export const raceKey = (ref: RaceRef) => `${ref.heat}#${ref.race}`;
+
+/**
+ * Boats sorted by national letters and sail number (SHRS 3, 3.1(iv), 5.3).
+ * Standings rank from this order, so boats the rules cannot separate share
+ * a place listed this way, and the Final split takes them this way (4.2
+ * says no more; this follows SHRS's own order for ties).
+ */
+export function inBoatOrder<T extends { boat: BoatId }>(
+  state: EventState,
+  items: readonly T[],
+): T[] {
+  const byId = new Map(state.boats.map((boat) => [boat.id, boat]));
+  return [...items].sort((a, b) => {
+    const x = byId.get(a.boat);
+    const y = byId.get(b.boat);
+    return x && y ? compareBoats(x, y) : 0;
+  });
+}

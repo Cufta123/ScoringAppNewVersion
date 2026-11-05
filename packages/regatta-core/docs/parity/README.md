@@ -26,31 +26,51 @@ database remembers.
 
 Both have tests in `test/edge-cases.test.ts`.
 
-## Rule questions: the app and the library disagree
+## Rule questions: decided
 
-Each needs one answer, then both sides follow it. Recommendations in
-_italics_; all are open until decided.
+Decided on 2026-11-05 against the SHRS 2026-1 text and RRS 2025-2028.
+"Done" means both sides follow it now; "switch" means the library follows
+it and the app will when it moves onto the library (step 2).
 
-| #   | Situation                                     | App                                  | Library                       |
-| --- | --------------------------------------------- | ------------------------------------ | ----------------------------- |
-| R1  | Entry after the Final Series started          | allowed                              | refused                       |
-| R2  | Remove a boat once any race is scored         | refused for every boat               | refused only if she raced     |
-| R3  | Late entry into a heat that has already raced | refused                              | allowed, DNC for that race    |
-| R4  | More heats than boats                         | allowed (empty heats)                | refused                       |
-| R5  | "CRO 012" and "CRO 12"                        | two boats                            | the same boat                 |
-| R6  | Boats sharing a place at a fleet boundary     | ordered by database id               | ordered by entry              |
-| R7  | Final split with a round built but not sailed | that round ignored (after a confirm) | refused                       |
-| R8  | A DNC for a boat with no heat in a race       | filed under the first-scored heat    | filed under heat A            |
-| R9  | RDG1/RDG2 with nothing to average             | stored value kept (can go stale)     | worked out again on each read |
-| R10 | A final fleet that has not raced, order       | qualifying total, then database id   | qualifying place              |
-| R11 | Discard setting after every race is undone    | stays locked                         | unlocked                      |
-| R12 | Redress or a correction for a "no heat" DNC   | possible                             | not possible                  |
+| #   | Situation                                     | Decision                                 | Basis                                                                                                                                              | State                      |
+| --- | --------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| R1  | Entry after the Final Series started          | refused                                  | 4.1: boats compete in one fleet throughout the Final Series                                                                                        | library; app at switch     |
+| R2  | Remove a boat once any race is scored         | refused only if she raced                | RRS A2.2: a boat that entered any race is scored for the whole series                                                                              | library; app at switch     |
+| R3  | Late entry into a heat that has already raced | allowed, DNC for that race               | RRS A5.1 / A2.2                                                                                                                                    | library; app at switch     |
+| R4  | More heats than boats                         | refused                                  | 2.1: as few heats as possible                                                                                                                      | library; app at switch     |
+| R5  | "CRO 012" and "CRO 12"                        | **two boats**                            | decided by the app's owner; the app stores sail numbers as integers                                                                                | done (library, `sameBoat`) |
+| R6  | Boats sharing a place at a fleet boundary     | national letters, then sail number       | 4.2 says "based on their ranking" and nothing more; SHRS orders every other tie this way (3, 3.1(iv), 5.3)                                         | done (both)                |
+| R7  | Final split with a round built but not sailed | refused; the app offers "undo the round" | 4.2: ranking in the Qualifying Series as sailed                                                                                                    | library; app at switch     |
+| R8  | A DNC for a boat with no heat in a race       | shared with nobody                       | 5.7(ii)(1): only races "in which the tied boats competed in the same heat"; she competed in none. A one-heat event stays single-heat (5.7(i), 1.1) | library; app at switch     |
+| R9  | RDG1/RDG2 with nothing to average             | worked out again on each read            | RRS A9: an average of her races                                                                                                                    | library; app at switch     |
+| R10 | A final fleet that has not raced, order       | qualifying place                         | 1.5                                                                                                                                                | library; app at switch     |
+| R11 | Discard setting after every race is undone    | unlocked                                 | 5.4: may change "before the warning signal for the first race"                                                                                     | library; app at switch     |
+| R12 | Redress or a correction for a "no heat" DNC   | possible                                 | RRS A9, 62.1                                                                                                                                       | to do (library)            |
 
-_R1 refuse; R2, R3 as the library; R4 refuse; R5 same boat; R6 needs the
-rule text (SHRS 4.2); R7 refuse, with "undo the round" offered; R8 needs
-the rule text (5.7 compares races sailed together); R9, R10, R11 as the
-library; R12 add to the library._ R6 and R8 change who is in Gold and who
-wins a tie, so they should be checked with a race officer.
+R6 and R8 change who goes to Gold and who wins a tie in rare cases; the
+rules do not settle them word for word, so a race officer's view is still
+welcome. R6 is the order SHRS uses for every tie it does settle; R8 follows
+5.7(ii)(1) to the letter.
+
+## Found while checking the rules
+
+- **RRS 44.3(c) 2025-2028 adds the penalty to her points, not her place**:
+  "the score she would have received without that penalty, made worse
+  by …". Both sides added it to the place, which differs only when the
+  penalised boat is tied at the finish (2.5 + 2 = 4.5, not 2 + 2 = 4).
+  Fixed in the library (`test/decided-rules.test.ts`). **The app still
+  adds it to the place**: its five penalty paths (scoring screen,
+  leaderboard save, recompute, edit preview, status points) get the place
+  only. Rare (a tie at the finish and a ZFP/SCP/T1 on one boat); the switch
+  removes those paths.
+- Rounding to the tenth (44.3(c), A9), A2.1 (equal worst scores: the
+  earliest is excluded), A6.1, A7, A8.1/A8.2 (2025 text) and the SHRS 5.4
+  discard counts match the library.
+- 4.3 builds "a ranking for assigning boats to fleets". Both sides order
+  equal 4.3 totals by the ordinary qualifying ranking rather than running
+  the tie-break again on the 4.3 scores. It differs only for boats that
+  never met (5.7(ii)(4), plain A8.1 without excluded scores) with 6 or 7
+  races. Left as it is; noted here.
 
 ## Library work (no rule question)
 

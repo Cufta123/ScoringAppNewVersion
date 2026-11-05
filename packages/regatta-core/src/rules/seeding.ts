@@ -5,18 +5,31 @@
  */
 import { NO_PLACE_CODES, type Boat, type NoPlaceCode } from '../types';
 
+const natKey = (boat: Boat) => boat.nat.trim().toUpperCase();
+const sailKey = (boat: Boat) =>
+  boat.sail.trim().toUpperCase().replace(/\s+/g, ' ');
+
 /**
  * SHRS 3 preamble, 3.1(4), 5.3: national letters alphabetically, then sail
  * number numerically (9 before 10).
  */
 export function compareBoats(a: Boat, b: Boat): number {
   return (
-    a.nat.toUpperCase().localeCompare(b.nat.toUpperCase()) ||
-    a.sail.localeCompare(b.sail, undefined, {
-      numeric: true,
-      sensitivity: 'base',
-    })
+    natKey(a).localeCompare(natKey(b)) ||
+    sailKey(a).localeCompare(sailKey(b), undefined, { numeric: true }) ||
+    // "012" and "12" are two boats (sameBoat) but equal numbers: keep a
+    // fixed order between them.
+    sailKey(a).localeCompare(sailKey(b))
   );
+}
+
+/**
+ * The same boat entered twice: the same national letters and the same sail
+ * number as written ("CRO 12" and "cro 12 " are one boat; "CRO 012" and
+ * "CRO 12" are two, as in the app).
+ */
+export function sameBoat(a: Boat, b: Boat): boolean {
+  return natKey(a) === natKey(b) && sailKey(a) === sailKey(b);
 }
 
 /**

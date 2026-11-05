@@ -16,8 +16,8 @@ import {
   compareOnSharedRaces,
   lastRaceFirst,
   rankByTotal,
-  sharedRaces,
 } from '../rules/ranking';
+import { compareBoats } from '../rules/seeding';
 import { scoreRace } from '../event/score';
 import {
   largestHeat,
@@ -79,8 +79,8 @@ function scoredRaces(state: EventState) {
           });
         });
       });
-      // A boat with no heat in a counted race: DNC, filed under the first
-      // heat's race so a one-fleet event stays one fleet for 5.7.
+      // A boat with no heat in a counted race: DNC. She competed in no heat,
+      // so the race is shared with nobody for SHRS 5.7(ii)(1).
       const anchor = heats.find((heat) => heat.races[n - 1])!;
       state.boats.forEach((boat) => {
         const own = results.get(boat.id);
@@ -90,7 +90,7 @@ function scoredRaces(state: EventState) {
               ref: null,
               round: anchor.round,
               raceNumber: n,
-              race: raceKey(anchor.races[n - 1].ref),
+              race: `${raceKey(anchor.races[n - 1].ref)}~${boat.id}`,
               order,
               result: {
                 boat: boat.id,
@@ -116,25 +116,16 @@ interface Entry {
 }
 
 /**
- * SHRS 5.7: boats that met are compared on the races they sailed together,
- * excluded scores included, then A8.2 on those races. A single-heat event
- * (every boat sailed every race) uses plain A8.1 on kept scores. Boats that
- * never met: plain A8.1, then A8.2.
+ * SHRS 5.7: in a single-heat event, plain RRS A8.1 and A8.2 (5.7(i)). With
+ * several heats, boats that met are compared on the races they sailed in
+ * the same heat, excluded scores included, then A8.2 on those races; boats
+ * that never met: plain A8.1, then A8.2 (5.7(ii)).
  */
 function tieBreak(singleHeat: boolean) {
-  return (a: Entry, b: Entry): number => {
-    if (singleHeat) {
-      const shared = sharedRaces(a.scores, b.scores);
-      return (
-        compareLists(a.keptBest, b.keptBest) ||
-        compareLists(
-          shared.map((pair) => pair.a),
-          shared.map((pair) => pair.b),
-        )
-      );
-    }
-    return compareOnSharedRaces(a.scores, b.scores) ?? plainA8(a, b);
-  };
+  return (a: Entry, b: Entry): number =>
+    singleHeat
+      ? plainA8(a, b)
+      : (compareOnSharedRaces(a.scores, b.scores) ?? plainA8(a, b));
 }
 
 /**
@@ -148,20 +139,17 @@ export function plainA8(a: Entry, b: Entry): number {
   );
 }
 
-function sameRaces(entries: Entry[]): boolean {
-  const key = (e: Entry) =>
-    e.scores
-      .map((s) => s.race)
-      .sort()
-      .join('|');
-  return entries.every((entry) => key(entry) === key(entries[0]));
-}
+/** SHRS 1.1: one heat per race, so the event is sailed as one fleet. */
+const singleHeatEvent = (state: EventState) =>
+  state.rounds.every((round) => withBoats(round).length <= 1);
 
 function buildQualifying(state: EventState) {
   const { largest, counted, pending, completed } = scoredRaces(state);
   const noPlace = noPlacePoints(largest);
   const discards = discardCount(completed, state.settings.discards.qualifying);
-  const entries: Entry[] = state.boats
+  // Boat order first: boats sharing a place are listed this way (SHRS 5.3).
+  const entries: Entry[] = [...state.boats]
+    .sort(compareBoats)
     .filter((boat) => counted.get(boat.id)!.length > 0)
     .map((boat) => {
       const races = counted.get(boat.id)!;
@@ -174,7 +162,7 @@ function buildQualifying(state: EventState) {
     });
   return {
     entries,
-    compare: tieBreak(sameRaces(entries)),
+    compare: tieBreak(singleHeatEvent(state)),
     completed,
     noPlace,
     counted,

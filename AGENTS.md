@@ -444,6 +444,10 @@ Final Series (`calculateFinalBoatScores.ts`, `shared/fleetAssignment.ts`)
   `Gold >= Silver >= Bronze >= Copper`.
 - 4.2 — Fleet assignment by qualifying ranking (best ⇒ Gold); withdrawn boats go
   to the lowest fleet.
+  Boats that share a qualifying place (no rule separates them) are split in
+  SHRS's own tie order, national letters then sail number (3, 3.1(iv), 5.3),
+  not by boat_id (`startFinalSeriesAtomic`; regatta-core does the same).
+  Decided Nov 2026, see `packages/regatta-core/docs/parity/README.md`.
 - 4.3 — If the Qualifying Series has **>5 and <8 completed races (6 or 7)**, a
   boat's **second-worst** race is temporarily excluded **for fleet-assignment
   ranking only** (`rule43Applies` in `getFinalSeriesEligibility`;
