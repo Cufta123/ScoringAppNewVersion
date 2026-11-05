@@ -33,7 +33,6 @@ const mockDbHolderRef = mockDbHolder;
 // eslint-disable-next-line import/first, import/order
 import { EVENT_LIFECYCLE_SCHEMA } from './fixtures/eventLifecycleSchema';
 // eslint-disable-next-line import/first, import/order
-import { invalidateAssignmentSnapshotCache } from '../main/functions/raceAssignmentSnapshot';
 
 // eslint-disable-next-line import/first, import/order
 import {
@@ -103,9 +102,7 @@ describe('correctness review (real SQLite, FKs on)', () => {
     require('../main/ipcHandlers/HeatRaceHandler');
   });
 
-  beforeEach(() => {
-    invalidateAssignmentSnapshotCache();
-  });
+  beforeEach(() => {});
 
   afterEach(() => {
     db.close();

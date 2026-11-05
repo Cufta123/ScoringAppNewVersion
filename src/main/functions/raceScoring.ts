@@ -1,12 +1,12 @@
 /**
- * Writes to the Scores table: seeding a new race, repairing missing rows,
- * saving a whole corrected race (RRS A6.1/A6.2/A7, SHRS 5.2), and re-averaging
- * shared places. Everything that changes a boat's score for one race lives
- * here so the rules are applied in one place.
+ * Race rows for the library path: the edit screen's whole race checked and
+ * scored (`checkedRaceColumn`, what a leaderboard Save hands to
+ * libraryCorrection), the largest heat, the DNS / DNC rows older write paths
+ * left out (completed before an event's tables are converted to its log),
+ * and the re-score the row-based undo needs.
  */
 import { db } from '../../../public/Database/DBManager';
 import { logError } from '../errorLog';
-import computeTiePlacements from '../../shared/raceTieScoring';
 import {
   holdsPlace,
   keepsProvidedPoints,
@@ -14,14 +14,7 @@ import {
   scoreRaceColumn,
   type RaceCell,
 } from '../../shared/raceColumnEdit';
-import { captureRaceAssignmentSnapshotIfMissing } from './assignmentShield';
-import { unshieldBoatFromAssignmentSnapshot } from './raceAssignmentSnapshot';
-import {
-  getHeatRoundFromName,
-  normalizeScoreStatus,
-  protestCommitteeStatuses,
-  scoringPenaltyStatuses,
-} from './scoreStatus';
+import { getHeatRoundFromName, normalizeScoreStatus } from './scoreStatus';
 import { sanitizePositiveFinite, sanitizePositiveInteger } from './validation';
 import { boatLabel, raceLabel } from './labels';
 
@@ -49,51 +42,6 @@ export function getMaxHeatSize(event_id: number, heat_type?: string): number {
         | { max_boats: number | null }
         | undefined);
   return row?.max_boats ?? 0;
-}
-
-export function seedRaceWithDefaultDnsScores(
-  race_id: number,
-  heat_id: number,
-): void {
-  const heatMeta = db
-    .prepare('SELECT event_id, heat_type FROM Heats WHERE heat_id = ?')
-    .get(heat_id) as { event_id: number; heat_type: string } | undefined;
-
-  if (!heatMeta) {
-    return;
-  }
-
-  const penaltyPosition =
-    getMaxHeatSize(heatMeta.event_id, heatMeta.heat_type) + 1;
-  const boatRows = db
-    .prepare('SELECT boat_id FROM Heat_Boat WHERE heat_id = ?')
-    .all(heat_id) as { boat_id: number }[];
-
-  const updateExisting = db.prepare(
-    `UPDATE Scores
-     SET position = ?, points = ?, status = 'DNS'
-     WHERE race_id = ? AND boat_id = ?`,
-  );
-  const insertNew = db.prepare(
-    `INSERT INTO Scores (race_id, boat_id, position, points, status)
-     VALUES (?, ?, ?, ?, 'DNS')`,
-  );
-
-  const tx = db.transaction(() => {
-    boatRows.forEach((row) => {
-      const updated = updateExisting.run(
-        penaltyPosition,
-        penaltyPosition,
-        race_id,
-        row.boat_id,
-      );
-      if (updated.changes === 0) {
-        insertNew.run(race_id, row.boat_id, penaltyPosition, penaltyPosition);
-      }
-    });
-  });
-
-  tx();
 }
 
 /**
@@ -131,7 +79,7 @@ export function seedRaceWithDefaultDnsScores(
  * hers; the row is anchored to the round's first race purely because Scores
  * needs a race_id. Nothing reads it that way: heat assignment ranks boats from
  * Heat_Boat rather than Scores (`getRankedBoatsInHeatForRace`), the RRS A7 place
- * walk skips every non-finisher (`raceTieScoring`), and the leaderboard orders
+ * walk skips every non-finisher, and the leaderboard orders
  * a boat's scores by race. Points are re-derived against the current largest
  * heat on every recompute (`renormalizeNonFinisherScores`), so the anchor
  * cannot freeze a stale value either.
@@ -333,42 +281,6 @@ export function ensureCompleteRaceScoresForEvent(
   return missingRows.length + dncScored();
 }
 
-export function applyRaceTieScoring(race_id: number): void {
-  // Position-keeping penalties (ZFP/SCP/T1) keep their finishing place, so they
-  // occupy a slot in the finishing order even though their points are computed
-  // separately. They must be included in the place walk; otherwise finishers
-  // behind them would be compacted up a place and lose points (RRS A7 / 44.3c).
-  const penaltyList = [...scoringPenaltyStatuses]
-    .map((status) => `'${status}'`)
-    .join(', ');
-  const rankedRows = db
-    .prepare(
-      `SELECT score_id, position, status
-       FROM Scores
-       WHERE race_id = ? AND (status = 'FINISHED' OR status IN (${penaltyList}))
-       ORDER BY position ASC, score_id ASC`,
-    )
-    .all(race_id) as { score_id: number; position: number; status: string }[];
-
-  if (rankedRows.length === 0) {
-    return;
-  }
-
-  const updateScore = db.prepare(
-    'UPDATE Scores SET position = ?, points = ? WHERE score_id = ?',
-  );
-
-  // The place walk itself lives in shared/raceTieScoring so the renderer's
-  // edit preview cannot drift from what is persisted here.
-  computeTiePlacements(rankedRows).forEach((placement) => {
-    updateScore.run(
-      placement.position,
-      placement.points,
-      rankedRows[placement.index].score_id,
-    );
-  });
-}
-
 /** Protest-committee points (RDG3, DPI) above this are a typing mistake. */
 const MAX_PROVIDED_POINTS = 99;
 
@@ -390,54 +302,10 @@ export interface RaceColumnCell {
    * The user typed in this cell on the edit screen, as opposed to the boat only
    * moving because another cell was edited (RRS A6.1 promotion, a place
    * ripple). Only edited cells are protest decisions or race-office
-   * corrections for SHRS 3.1.5. Absent from older clients: see
-   * `decideAssignmentShields`.
+   * corrections for SHRS 3.1(5) (`libraryCorrection`). Absent from older
+   * clients: a changed status counts as typed.
    */
   edited?: boolean;
-}
-
-/**
- * SHRS 3.1(v) / 3.1.5: who the saved race freezes and who it un-shields. Pure:
- * it reads the race as stored and as scored, changes nothing, and depends on no
- * row order.
- *
- * - `decisions`: edited cells that changed to a protest-committee status. The
- *   pre-decision order is frozen for them AND for every boat that moved in this
- *   save (`moved`), because a DSQ promotes the boats behind her (RRS A6.1) and
- *   the decision must not reorder their next-round assignment.
- * - `corrections`: edited cells that changed to anything else. A race-office
- *   correction un-shields that boat only; boats that merely moved keep their
- *   freeze (the old per-boat save did the same).
- *
- * A cell without an `edited` flag (an older client) counts as edited when its
- * status changed. That never misses a protest code, never un-shields a boat
- * only because she was promoted, and leaves every shield alone when only places
- * changed, which the old data cannot tell apart from a ripple. The renderer
- * always sends the flag.
- */
-function decideAssignmentShields(
-  before: { boat_id: number; position: number; status: string }[],
-  scored: { position: number; status: string }[],
-  sentByIndex: Map<number, RaceColumnCell>,
-) {
-  const decisions: number[] = [];
-  const corrections: number[] = [];
-  const moved: number[] = [];
-  before.forEach((row, i) => {
-    const statusChanged = scored[i].status !== normalizeScoreStatus(row.status);
-    if (!statusChanged && scored[i].position === row.position) return;
-    moved.push(row.boat_id);
-    const sent = sentByIndex.get(i);
-    if (!sent) return;
-    const edited =
-      typeof sent.edited === 'boolean' ? sent.edited : statusChanged;
-    if (!edited) return;
-    (protestCommitteeStatuses.has(scored[i].status)
-      ? decisions
-      : corrections
-    ).push(row.boat_id);
-  });
-  return { decisions, corrections, moved };
 }
 
 /** A stored score as a race cell (with the place an RDG / DPI kept). */
@@ -592,78 +460,6 @@ export function checkedRaceColumn(
 
   const scored = scoreRaceColumn(cells, maxBoats);
   return { raceId, heatRow, raceRows, sentByIndex, scored, maxBoats };
-}
-
-export function applyRaceColumnState(
-  event_id: number,
-  race_id: number,
-  sentCells: RaceColumnCell[],
-) {
-  const { raceId, heatRow, raceRows, sentByIndex, scored } = checkedRaceColumn(
-    event_id,
-    race_id,
-    sentCells,
-  );
-
-  // SHRS 3.1(v): a protest decision must not change heat assignments, so the
-  // order before it is frozen; a race-office correction un-freezes the boat.
-  // Decided from the cells the user edited, all captures before any un-shield,
-  // and before the write, so the outcome does not depend on row order and the
-  // freeze records the order as it was before this save.
-  const { decisions, corrections, moved } = decideAssignmentShields(
-    raceRows,
-    scored,
-    sentByIndex,
-  );
-  if (decisions.length > 0) {
-    new Set([...decisions, ...moved]).forEach((boatId) =>
-      captureRaceAssignmentSnapshotIfMissing(heatRow.heat_id, raceId, boatId),
-    );
-  }
-  corrections.forEach((boatId) =>
-    unshieldBoatFromAssignmentSnapshot(raceId, boatId),
-  );
-
-  const writeRow = db.prepare(
-    'UPDATE Scores SET position = ?, points = ?, status = ?, held_place = ? WHERE score_id = ?',
-  );
-  scored.forEach((cell, i) => {
-    const row = raceRows[i];
-    const heldPlace = cell.heldPlace ?? null;
-    if (
-      cell.position === row.position &&
-      cell.points === row.points &&
-      cell.status === row.status &&
-      heldPlace === (row.held_place ?? null)
-    ) {
-      return;
-    }
-    writeRow.run(
-      cell.position,
-      cell.points,
-      cell.status,
-      heldPlace,
-      row.score_id,
-    );
-  });
-
-  sentByIndex.forEach((sent, i) => {
-    const row = raceRows[i];
-    const { status } = scored[i];
-    if (status === 'RDG2' && Array.isArray(sent.rdgRaceIds)) {
-      const ids = sent.rdgRaceIds
-        .map(Number)
-        .filter((id) => Number.isFinite(id));
-      db.prepare('UPDATE Scores SET rdg_race_ids = ? WHERE score_id = ?').run(
-        ids.length > 0 ? JSON.stringify(ids) : null,
-        row.score_id,
-      );
-    } else if (status !== 'RDG2' && row.status === 'RDG2') {
-      db.prepare(
-        'UPDATE Scores SET rdg_race_ids = NULL WHERE score_id = ?',
-      ).run(row.score_id);
-    }
-  });
 }
 
 /**

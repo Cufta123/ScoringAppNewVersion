@@ -29,7 +29,6 @@ import {
 } from 'regatta-core';
 import { db } from '../../../public/Database/DBManager';
 import { normalizeDiscardConfigString } from '../../shared/discardProfile';
-import { invalidateAssignmentSnapshotCache } from './raceAssignmentSnapshot';
 
 type Row = Record<string, unknown>;
 
@@ -503,7 +502,6 @@ export default function projectEvent(eventId: number, state: EventState) {
     });
   });
   cellsByRace.forEach((cells, raceId) => writeCells(raceId, cells));
-  invalidateAssignmentSnapshotCache();
 
   // ── Entries no longer in the event (after the heats lost them) ──────
   entered.forEach((boat) => {

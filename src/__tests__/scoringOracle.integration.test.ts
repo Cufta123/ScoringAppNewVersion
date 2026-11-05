@@ -52,7 +52,6 @@ const mockDbHolderRef = mockDbHolder;
 // eslint-disable-next-line import/first, import/order
 import { realEvent } from './fixtures/realEvent';
 // eslint-disable-next-line import/first, import/order
-import { invalidateAssignmentSnapshotCache } from '../main/functions/raceAssignmentSnapshot';
 // eslint-disable-next-line import/first, import/order
 import {
   HeatOutcome,
@@ -221,7 +220,6 @@ describe('scoring agrees with an independent reading of the rules', () => {
   );
 
   it.each(SEEDS)('random qualifying series, seed %i', async (seed) => {
-    invalidateAssignmentSnapshotCache();
     db = new DatabaseSync(':memory:');
     db.exec('PRAGMA foreign_keys = ON');
     migrate(db);

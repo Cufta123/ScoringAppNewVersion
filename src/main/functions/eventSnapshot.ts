@@ -1,6 +1,5 @@
 import { db } from '../../../public/Database/DBManager';
 import { reconvertEventLog } from './decisionStore';
-import { invalidateAssignmentSnapshotCache } from './raceAssignmentSnapshot';
 import { isAcceptableLogo } from './exportLogo';
 import { enterSailor } from './sailorEntry';
 import { parseRedressRaceIds } from '../../shared/redress';
@@ -303,10 +302,6 @@ export function restoreEventSnapshot(
   // The tables are the backup's now: the event's log is converted from
   // them again (the decisions before stay in the history, withdrawn).
   reconvertEventLog(Number(event_id));
-
-  // The restore rewrote RaceAssignmentSnapshots underneath the in-memory cache,
-  // which is read first. Without this the pre-restore shields keep winning.
-  invalidateAssignmentSnapshotCache();
 }
 
 const NOT_A_BACKUP =
@@ -540,6 +535,5 @@ export function importEventSnapshot(snapshot: EventSnapshot): {
     result = { eventId, eventName };
   })();
 
-  invalidateAssignmentSnapshotCache();
   return result as unknown as { eventId: number; eventName: string };
 }

@@ -40,7 +40,6 @@ import { qualifyingRows } from '../main/functions/libraryStandings';
 // eslint-disable-next-line import/first, import/order
 import { journalObserver } from '../main/functions/changeJournal';
 // eslint-disable-next-line import/first, import/order
-import { invalidateAssignmentSnapshotCache } from '../main/functions/raceAssignmentSnapshot';
 // eslint-disable-next-line import/first, import/order
 import {
   HistoryAction,
@@ -151,7 +150,6 @@ describe('change journal through the real handlers', () => {
   });
 
   beforeEach(() => {
-    invalidateAssignmentSnapshotCache();
     db = new DatabaseSync(':memory:');
     db.exec('PRAGMA foreign_keys = ON');
     migrate(db);
@@ -294,7 +292,6 @@ describe('undoing a change from the history (real handlers)', () => {
   });
 
   beforeEach(() => {
-    invalidateAssignmentSnapshotCache();
     db = new DatabaseSync(':memory:');
     db.exec('PRAGMA foreign_keys = ON');
     migrate(db);

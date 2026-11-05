@@ -34,7 +34,6 @@ jest.mock('../../public/Database/DBManager', () => {
 const mockDbHolderRef = mockDbHolder;
 
 // eslint-disable-next-line import/first, import/order
-import { invalidateAssignmentSnapshotCache } from '../main/functions/raceAssignmentSnapshot';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { migrate } = require('../../public/Database/schema');
@@ -81,7 +80,6 @@ describe('event settings fixed once their series has begun', () => {
   afterAll(() => jest.restoreAllMocks());
 
   beforeEach(async () => {
-    invalidateAssignmentSnapshotCache();
     db = new DatabaseSync(':memory:');
     db.exec('PRAGMA foreign_keys = ON');
     migrate(db);

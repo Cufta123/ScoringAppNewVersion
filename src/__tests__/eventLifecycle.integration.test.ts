@@ -60,11 +60,6 @@ import {
   buildEventSnapshot,
   restoreEventSnapshot,
 } from '../main/functions/eventSnapshot';
-// eslint-disable-next-line import/first, import/order
-import {
-  loadPersistedAssignmentSnapshot,
-  raceAssignmentSnapshots,
-} from '../main/functions/raceAssignmentSnapshot';
 
 const EVENT_ID = 1;
 const OTHER_EVENT_ID = 2;
@@ -289,24 +284,24 @@ describe('event snapshot round trip', () => {
     ).toEqual(before);
   });
 
-  it('discards the in-memory shields cached before the restore', () => {
+  it("puts back the backup's SHRS 3.1(5) rows", () => {
     const snapshot = buildEventSnapshot(EVENT_ID) as any;
-
-    // Simulate the app having read (and cached) race 101's shields, then a
-    // later protest changing them, before the user restores the backup. The
-    // cache is consulted ahead of the table, so a stale entry would outvote
-    // the restored rows and the backup would appear not to have taken.
-    raceAssignmentSnapshots.set(
-      101,
-      new Map([['1', { position: 9, status: 'DSQ' }]]),
-    );
+    // A later protest changed race 101's frozen order before the restore.
+    db.prepare(
+      "UPDATE RaceAssignmentSnapshots SET frozen_position = 9, frozen_status = 'DSQ' WHERE race_id = 101 AND boat_id = 1",
+    ).run();
 
     restoreEventSnapshot(EVENT_ID, snapshot);
 
-    expect(raceAssignmentSnapshots.has(101)).toBe(false);
-    expect([...(loadPersistedAssignmentSnapshot(101) ?? new Map())]).toEqual([
-      ['1', { position: 1, status: 'FINISHED' }],
-      ['2', { position: 2, status: 'FINISHED' }],
+    expect(
+      db
+        .prepare(
+          'SELECT boat_id, frozen_position, frozen_status FROM RaceAssignmentSnapshots WHERE race_id = 101 ORDER BY rank',
+        )
+        .all(),
+    ).toEqual([
+      { boat_id: 1, frozen_position: 1, frozen_status: null },
+      { boat_id: 2, frozen_position: 2, frozen_status: null },
     ]);
   });
 

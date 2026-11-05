@@ -7,7 +7,6 @@ import {
   reconvertEventLog,
 } from './decisionStore';
 import { restoreLogToAction } from './logHistory';
-import { invalidateAssignmentSnapshotCache } from './raceAssignmentSnapshot';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const {
@@ -235,8 +234,5 @@ export default function restoreToHistoryPoint(
       );
     }
     throw error;
-  } finally {
-    // SHRS 3.1.5 rows may have changed under the in-memory cache.
-    invalidateAssignmentSnapshotCache();
   }
 }

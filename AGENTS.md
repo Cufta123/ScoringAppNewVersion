@@ -112,8 +112,8 @@ Key tables:
 - `GlobalLeaderboard` (retained but unused; see §10). `Leaderboard` and
   `FinalLeaderboard` were dropped in migration 10: standings are worked out
   on every read, never stored.
-- `RaceAssignmentSnapshots` (SHRS 3.1.5 pre-protest assignment order, persisted
-  so the in-memory cache in `raceAssignmentSnapshot.ts` survives restarts)
+- `RaceAssignmentSnapshots` (SHRS 3.1(5): a race's sheet as it was before the
+  committee's decisions, written by the projection)
 
 Important migration details:
 
@@ -290,11 +290,9 @@ directory:
   `people` is refused with words. The table list here is
   the definition of "an event's data"; add new event-scoped tables to the
   export, the restore's delete, and the restore's reinsert together.
-- `raceAssignmentSnapshot.ts` — SHRS 3.1.5 rows (`RaceAssignmentSnapshots`):
-  the projection writes a whole-race freeze for every race with a committee
-  decision, which the conversion reads back. The in-memory map is read BEFORE the table, so anything that
-  rewrites the table behind it must call `invalidateAssignmentSnapshotCache()`
-  or the stale shields keep winning (restoring a backup did exactly that).
+- `RaceAssignmentSnapshots` (SHRS 3.1(5)): `projectEvent` writes a
+  whole-race freeze for every race with a committee decision, and the
+  conversion (`raceSheet.sheetFromFrozen`) reads it back. No module caches it.
 
 Shared (renderer + main) — one definition per rule, imported by both processes:
 
@@ -315,9 +313,6 @@ Shared (renderer + main) — one definition per rule, imported by both processes
   orders "Fleet 5"+ too, not just Gold/Silver/Bronze/Copper).
 - `sailOrder.ts` — SHRS 5.3 / 3.1(iv) tie order: national letter then numeric
   sail number.
-- `raceTieScoring.ts` — the RRS A7 place walk used by `scoreRaceColumn`:
-  tied boats share the averaged points of the places they occupy,
-  position-keeping penalties consume a slot without being re-scored.
 - `raceColumnEdit.ts` — what one result correction does to a whole race. A
   correction gives the race the result it would have had if the corrected
   finish had been entered on the scoring screen: a new place MOVES the boat

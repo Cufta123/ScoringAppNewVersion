@@ -40,7 +40,6 @@ jest.mock('../../public/Database/DBManager', () => {
 const mockDbHolderRef = mockDbHolder;
 
 /* eslint-disable import/first, import/order */
-import { invalidateAssignmentSnapshotCache } from '../main/functions/raceAssignmentSnapshot';
 import { rescoreRace } from '../main/functions/raceScoring';
 import { setCallObserver } from '../main/ipcHandlers/handle';
 import { isTechnicalText } from '../shared/errors/explainError';
@@ -134,7 +133,6 @@ describe('chaos: random race-office sessions keep the data whole', () => {
     // An undo from the history restores each row as it was; when a later
     // action had moved another boat onto that place, the two share it and
     // must split the points (RRS A7). rescoreRace does that after an undo.
-    invalidateAssignmentSnapshotCache();
     db = new DatabaseSync(':memory:');
     db.exec('PRAGMA foreign_keys = ON');
     migrate(db);
@@ -198,7 +196,6 @@ describe('chaos: random race-office sessions keep the data whole', () => {
 
   it.each(SEEDS)('session %i', async (seed) => {
     unexpected = [];
-    invalidateAssignmentSnapshotCache();
     db = new DatabaseSync(':memory:');
     db.exec('PRAGMA foreign_keys = ON');
     migrate(db);

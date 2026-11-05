@@ -56,7 +56,6 @@ jest.mock('../main/functions/projectEvent', () => {
 });
 /* eslint-disable import/first, import/order */
 import { EVENT_LIFECYCLE_SCHEMA } from './fixtures/eventLifecycleSchema';
-import { invalidateAssignmentSnapshotCache } from '../main/functions/raceAssignmentSnapshot';
 import applyRaceColumnEdit from '../shared/raceColumnEdit';
 /* eslint-enable import/first, import/order */
 
@@ -197,7 +196,6 @@ describe('saveLeaderboardRaceResultsAtomic (real SQLite, FKs on)', () => {
   afterAll(() => jest.restoreAllMocks());
 
   beforeEach(() => {
-    invalidateAssignmentSnapshotCache();
     mockRecompute.failEvent = false;
   });
 

@@ -54,7 +54,6 @@ jest.mock('../../public/Database/DBManager', () => {
 const mockDbHolderRef = mockDbHolder;
 
 /* eslint-disable import/first, import/order */
-import { invalidateAssignmentSnapshotCache } from '../main/functions/raceAssignmentSnapshot';
 import { checkEventLog, eventToLog } from '../main/functions/eventLog';
 import applyRaceColumnEdit from '../shared/raceColumnEdit';
 import { payloadFor, prng, randomOutcome } from './fixtures/scoringOracle';
@@ -108,7 +107,6 @@ const cover = (kind: string) => {
 };
 
 async function runEvent(seed: number): Promise<string[]> {
-  invalidateAssignmentSnapshotCache();
   const db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON');
   migrate(db);

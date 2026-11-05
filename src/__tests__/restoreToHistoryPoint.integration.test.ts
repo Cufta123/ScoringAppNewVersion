@@ -36,7 +36,6 @@ const mockDbHolder2 = mockDbHolder;
 const mockDbHolderRef = mockDbHolder2;
 
 /* eslint-disable import/first, import/order */
-import { invalidateAssignmentSnapshotCache } from '../main/functions/raceAssignmentSnapshot';
 import { setCallObserver } from '../main/ipcHandlers/handle';
 import { journalObserver } from '../main/functions/changeJournal';
 import applyRaceColumnEdit from '../shared/raceColumnEdit';
@@ -66,7 +65,6 @@ afterAll(() => {
 });
 
 function freshDb() {
-  invalidateAssignmentSnapshotCache();
   db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON');
   migrate(db);

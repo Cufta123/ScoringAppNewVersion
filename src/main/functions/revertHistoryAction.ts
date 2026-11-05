@@ -8,7 +8,6 @@ import {
   tagChanges,
 } from './changeJournal';
 import { rescoreRace } from './raceScoring';
-import { invalidateAssignmentSnapshotCache } from './raceAssignmentSnapshot';
 import {
   RevertStep,
   isUntouchedSince,
@@ -102,67 +101,9 @@ export default function revertHistoryAction(
   // An action of the decision-log era is undone on the log (logHistory).
   if (actionHasDecisions(event_id, action_id)) {
     const logMark = lastChangeId();
-    try {
-      return db.transaction(() => {
-        undoActionOnLog(event_id, action_id);
-        const undoId = tagChanges(logMark, 'revertHistoryAction');
-        if (undoId != null) {
-          db.prepare(
-            'UPDATE ChangeActions SET reverts_action_id = ? WHERE action_id = ?',
-          ).run(action_id, undoId);
-        }
-        return { success: true as const, actionId: undoId };
-      })();
-    } finally {
-      invalidateAssignmentSnapshotCache();
-    }
-  }
-
-  const lastOfAction = Math.max(...action.changes.map((c) => c.change_id));
-  const steps = revertSteps(action);
-  const mark = lastChangeId();
-
-  try {
     return db.transaction(() => {
-      steps.forEach((step) => {
-        if (!isUntouchedSince(step, currentRow(step))) {
-          const later = laterActionOn(
-            step.table,
-            step.change.row_key,
-            lastOfAction,
-          );
-          const by = later ? ` by “${actionLabel(later.channel)}”` : '';
-          // The SHRS 3.1.5 rows are internal: name what they mean.
-          const what =
-            step.table === 'Scores'
-              ? describeChange(step.change)
-              : 'the heat order frozen by this protest decision (SHRS 3.1.5)';
-          throw new Error(
-            `Cannot undo: ${what} was changed again later${by}. Undo that change first.`,
-          );
-        }
-        apply(step);
-      });
-      // Rows come back one by one, so score each touched race again: a place
-      // shared with a boat a later action moved there must split its points
-      // (RRS A7).
-      const touchedRaces = new Set<number>();
-      steps.forEach((step) => {
-        if (step.table !== 'Scores') return;
-        const row = step.row ?? step.expected;
-        if (row?.race_id != null) touchedRaces.add(Number(row.race_id));
-      });
-      touchedRaces.forEach((raceId) => {
-        const exists = db
-          .prepare('SELECT 1 FROM Races WHERE race_id = ?')
-          .get(raceId);
-        if (exists) rescoreRace(raceId);
-      });
-      // An action from before the event's log: the reverted tables are
-      // converted to the log again.
-      reconvertEventLog(event_id);
-
-      const undoId = tagChanges(mark, 'revertHistoryAction');
+      undoActionOnLog(event_id, action_id);
+      const undoId = tagChanges(logMark, 'revertHistoryAction');
       if (undoId != null) {
         db.prepare(
           'UPDATE ChangeActions SET reverts_action_id = ? WHERE action_id = ?',
@@ -170,8 +111,57 @@ export default function revertHistoryAction(
       }
       return { success: true as const, actionId: undoId };
     })();
-  } finally {
-    // The SHRS 3.1.5 snapshot rows may have changed under the in-memory cache.
-    invalidateAssignmentSnapshotCache();
   }
+
+  const lastOfAction = Math.max(...action.changes.map((c) => c.change_id));
+  const steps = revertSteps(action);
+  const mark = lastChangeId();
+
+  return db.transaction(() => {
+    steps.forEach((step) => {
+      if (!isUntouchedSince(step, currentRow(step))) {
+        const later = laterActionOn(
+          step.table,
+          step.change.row_key,
+          lastOfAction,
+        );
+        const by = later ? ` by “${actionLabel(later.channel)}”` : '';
+        // The SHRS 3.1.5 rows are internal: name what they mean.
+        const what =
+          step.table === 'Scores'
+            ? describeChange(step.change)
+            : 'the heat order frozen by this protest decision (SHRS 3.1.5)';
+        throw new Error(
+          `Cannot undo: ${what} was changed again later${by}. Undo that change first.`,
+        );
+      }
+      apply(step);
+    });
+    // Rows come back one by one, so score each touched race again: a place
+    // shared with a boat a later action moved there must split its points
+    // (RRS A7).
+    const touchedRaces = new Set<number>();
+    steps.forEach((step) => {
+      if (step.table !== 'Scores') return;
+      const row = step.row ?? step.expected;
+      if (row?.race_id != null) touchedRaces.add(Number(row.race_id));
+    });
+    touchedRaces.forEach((raceId) => {
+      const exists = db
+        .prepare('SELECT 1 FROM Races WHERE race_id = ?')
+        .get(raceId);
+      if (exists) rescoreRace(raceId);
+    });
+    // An action from before the event's log: the reverted tables are
+    // converted to the log again.
+    reconvertEventLog(event_id);
+
+    const undoId = tagChanges(mark, 'revertHistoryAction');
+    if (undoId != null) {
+      db.prepare(
+        'UPDATE ChangeActions SET reverts_action_id = ? WHERE action_id = ?',
+      ).run(action_id, undoId);
+    }
+    return { success: true as const, actionId: undoId };
+  })();
 }

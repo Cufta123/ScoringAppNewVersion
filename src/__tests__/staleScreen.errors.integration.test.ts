@@ -38,7 +38,6 @@ jest.mock('../../public/Database/DBManager', () => {
 const mockDbHolderRef = mockDbHolder;
 
 /* eslint-disable import/first, import/order */
-import { invalidateAssignmentSnapshotCache } from '../main/functions/raceAssignmentSnapshot';
 import { setCallObserver } from '../main/ipcHandlers/handle';
 import { journalObserver } from '../main/functions/changeJournal';
 import { isTechnicalText } from '../shared/errors/explainError';
@@ -74,7 +73,6 @@ describe('a stale or mistyped screen always gets a plain answer', () => {
   });
 
   beforeEach(async () => {
-    invalidateAssignmentSnapshotCache();
     db = new DatabaseSync(':memory:');
     db.exec('PRAGMA foreign_keys = ON');
     migrate(db);

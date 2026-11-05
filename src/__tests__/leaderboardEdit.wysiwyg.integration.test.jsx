@@ -63,7 +63,6 @@ import {
   randomOutcome,
   tenth,
 } from './fixtures/scoringOracle';
-import { invalidateAssignmentSnapshotCache } from '../main/functions/raceAssignmentSnapshot';
 /* eslint-enable import/first */
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -100,7 +99,6 @@ afterAll(() => jest.restoreAllMocks());
 
 /** A scored event: `rounds` complete rounds over `heats` heats. */
 async function scoredEvent(rand, { boats, heats, rounds }) {
-  invalidateAssignmentSnapshotCache();
   db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON');
   migrate(db);

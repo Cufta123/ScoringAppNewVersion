@@ -79,7 +79,7 @@ keep in step.
   - [x] The old engine's rule scenarios ported to `packages/regatta-core/test/ported` (209 tests; the library was right in every case where they disagreed)
   - [x] `euroIom2025.published` and `.startingHeats` replay the real sheet through the library
   - [x] AGENTS.md
-  - [ ] The old Save path (`applyRaceColumnState`, the per-boat 3.1.5 shields in `assignmentShield`) and its test moved to the library path
+  - [x] The old Save path removed (`applyRaceColumnState`, the per-boat 3.1.5 shields, their in-memory cache, `raceTieScoring`); its rule scenarios run through the real Save in `leaderboardCorrection.rules` (RDG1 is the A9(a) average now, R9)
   - [ ] The renderer's instant-draft maths (`applyExclusions`, `shared/redress`) only bridges until the library's answer arrives; keep or replace with the library run in the renderer
 
 ## Conversion

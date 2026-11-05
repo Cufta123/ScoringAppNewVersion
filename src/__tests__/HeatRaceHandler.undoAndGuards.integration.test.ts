@@ -41,7 +41,6 @@ const mockDbHolderRef = mockDbHolder;
 // eslint-disable-next-line import/first, import/order
 import { EVENT_LIFECYCLE_SCHEMA } from './fixtures/eventLifecycleSchema';
 // eslint-disable-next-line import/first, import/order
-import { invalidateAssignmentSnapshotCache } from '../main/functions/raceAssignmentSnapshot';
 
 const EVENT_ID = 1;
 const LATE_ENTRY = 5;
@@ -108,7 +107,6 @@ describe('undo, series guards and missed-round DNCs (real SQLite, FKs on)', () =
   });
 
   beforeEach(async () => {
-    invalidateAssignmentSnapshotCache();
     db = seed();
     await handlerRegistry.createInitialHeatsAtomic({}, EVENT_ID, 2);
   });

@@ -52,32 +52,6 @@ export const statusRankMap = new Map<string, number>(
   statusOrder.map((status, index) => [status, index]),
 );
 
-/**
- * RULE-M14 / SHRS 3.1.5: "Protest committee decisions shall not change heat
- * assignments." Only a PROTEST-COMMITTEE decision freezes the heat assignment;
- * an ordinary race-office scoring correction (a mistyped finishing place, a
- * DNF the RO recorded late) must be free to change it, because the assignment
- * is supposed to follow the corrected result.
- *
- * These are the statuses a protest committee awards:
- *   DSQ  — disqualification from a hearing (RRS 64.1)
- *   DNE  — disqualification not excludable (RRS 90.3(b))
- *   DGM  — gross misconduct (RRS 69)
- *   DPI  — discretionary penalty imposed (RRS A10)
- *   RDG* — redress (RRS 62/64.2)
- *
- * Caveat: the app does not record WHO awarded a status, and a DSQ can also come
- * from the race committee (e.g. scoring an OCS boat) or an umpire (SHRS 3.1.3).
- * Those are treated as protest decisions here, which errs toward preserving a
- * published assignment — the conservative side of 3.1.5.
- */
-export const protestCommitteeStatuses = new Set([
-  'DSQ',
-  'DNE',
-  'DGM',
-  'DPI',
-  ...rdgStatuses,
-]);
 export const allowedScoreStatuses = new Set<string>([
   'FINISHED',
   ...penaltyStatuses,
