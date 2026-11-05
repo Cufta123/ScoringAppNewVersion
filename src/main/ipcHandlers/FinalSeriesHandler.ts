@@ -1,18 +1,15 @@
+import { qualifyingStandings, replay, type Decision } from 'regatta-core';
 import { db } from '../../../public/Database/DBManager';
 import handle from './handle';
 import { findLatestHeatsBySuffix } from '../functions/creatingNewHeatsUtls';
-import { getEventDiscardConfig } from '../functions/discardConfig';
-import { fleetNameForIndex } from '../../shared/fleetNames';
 import { countQualifyingGroups } from '../../shared/heatNames';
-import refreshStandings from '../functions/standings';
 import { getRaceCountForHeat } from '../functions/heatQueries';
-import { getEventHeatOverflowPolicy } from '../functions/eventSettings';
-import planFinalFleets, {
-  NO_QUALIFYING_RESULTS_REFUSAL,
-  findWithdrawnBoatIds,
-} from '../functions/finalFleetPlan';
-import buildAdjustedFleetLeaderboard from '../functions/fleetTotals';
-import prepareHeatWriters from '../functions/heatWriters';
+import {
+  SHRS_MAX_BOATS_PER_HEAT,
+  getEventHeatOverflowPolicy,
+} from '../functions/eventSettings';
+import { NO_QUALIFYING_RESULTS_REFUSAL } from '../functions/finalFleetPlan';
+import { applyToEvent, currentEvent } from '../functions/libraryWrite';
 
 handle(
   'startFinalSeriesAtomic',
@@ -76,88 +73,47 @@ handle(
     // The fleet split below reads its boat list from Leaderboard, so a
     // repair must be followed by a recompute or a boat whose only scores
     // were just backfilled is left out of every final fleet.
-    refreshStandings(Number(event_id));
-
-    const leaderboard = db
-      .prepare(
-        `SELECT
-          lb.boat_id,
-          GROUP_CONCAT(sc.points ORDER BY r.race_number, r.race_id) AS race_points,
-          GROUP_CONCAT(COALESCE(sc.status, 'DNS') ORDER BY r.race_number, r.race_id) AS race_statuses
-        FROM Leaderboard lb
-        JOIN Boats b ON b.boat_id = lb.boat_id
-        LEFT JOIN Scores sc ON sc.boat_id = lb.boat_id
-        LEFT JOIN Races r ON sc.race_id = r.race_id
-        LEFT JOIN Heats h ON r.heat_id = h.heat_id
-        JOIN CountedRaces cr ON cr.race_id = sc.race_id
-        WHERE lb.event_id = ? AND h.event_id = ? AND h.heat_type = 'Qualifying'
-          AND sc.race_id IS NOT NULL
-        GROUP BY lb.boat_id
-        -- Boats that remain tied share a place. SHRS 4.2 does not say how
-        -- they split, so they go in SHRS's own order for ties (3, 3.1(iv),
-        -- 5.3): national letters, then sail number; boat_id only for the
-        -- same boat entered twice. regatta-core does the same.
-        ORDER BY lb.place ASC, UPPER(TRIM(b.country)) ASC, b.sail_number ASC,
-          lb.boat_id ASC`,
-      )
-      .all(event_id, event_id) as Array<{
-      boat_id: number;
-      race_points: string | null;
-      race_statuses: string | null;
-    }>;
-
-    if (leaderboard.length === 0) {
+    // Parity R7: the split is made from the round as sailed. A round
+    // built but not sailed yet is taken back first.
+    const { log, state } = currentEvent(event_id);
+    const latest = state.rounds[state.rounds.length - 1] ?? [];
+    if (
+      state.rounds.length > 1 &&
+      latest.every((heat) => heat.races.length === 0)
+    ) {
+      throw new Error(
+        `Round ${state.rounds.length} has been built but not sailed. Undo that round first (Undo round on the Scoring page), then start the Final Series.`,
+      );
+    }
+    if (qualifyingStandings(state).completedRaces === 0) {
       throw new Error(NO_QUALIFYING_RESULTS_REFUSAL);
     }
 
-    const qualifyingDiscardConfig = getEventDiscardConfig(
-      event_id,
-      'qualifying',
-    );
-    const adjustedLeaderboard = buildAdjustedFleetLeaderboard(
-      leaderboard,
-      qualifyingDiscardConfig,
-      apply_shrs43_temporary_second_discard === true,
-    );
+    // The split (SHRS 4.1-4.3) is regatta-core's. Fleets over 20 boats
+    // (SHRS 2.3) need the race officer's word when the event asks for it.
+    const decision: Decision = {
+      type: 'finalSeriesStarted',
+      rule43: apply_shrs43_temporary_second_discard === true,
+    };
+    const trial = replay([...log, decision]);
+    if (!trial.ok) throw new Error(trial.reason);
     const overflowPolicy = getEventHeatOverflowPolicy(event_id);
-    const plan = planFinalFleets(
-      adjustedLeaderboard,
-      findWithdrawnBoatIds(leaderboard),
-      numFinalHeats,
-      overflowPolicy,
-      Boolean(allow_oversize_confirm),
+    const oversize = (trial.state.fleets ?? []).some(
+      (fleet) => fleet.boats.length > SHRS_MAX_BOATS_PER_HEAT,
     );
-    if (!plan.ok) {
-      throw new Error(plan.refusal);
+    if (oversize && !allow_oversize_confirm) {
+      throw new Error(
+        `Final fleets would exceed ${SHRS_MAX_BOATS_PER_HEAT} boats. Confirm oversize to continue or switch event policy to auto-increase heats.`,
+      );
     }
 
-    const { insertHeatStmt, insertHeatBoatStmt } = prepareHeatWriters();
-    const transaction = db.transaction(() => {
-      const insertedFinalHeatIds = plan.fleets.map((_fleet, i) => {
-        // SHRS 4.1 fleet naming, shared with the ranking precedence used by
-        // the leaderboard reads so "Fleet 5" is always ranked 5th (RULE-m2).
-        const insertResult = insertHeatStmt.run(
-          event_id,
-          `Final ${fleetNameForIndex(i)}`,
-          'Final',
-        );
-        return Number(insertResult.lastInsertRowid);
-      });
-
-      plan.fleets.forEach((fleet, i) => {
-        fleet.forEach((boatId) => {
-          insertHeatBoatStmt.run(insertedFinalHeatIds[i], boatId);
-        });
-      });
-
-      return {
-        success: true,
-        createdHeats: insertedFinalHeatIds.length,
-        assignedBoats: adjustedLeaderboard.length,
-        overflowPolicy,
-      };
-    });
-
-    return transaction();
+    const { after } = applyToEvent(event_id, { decide: () => [decision] });
+    const fleets = after.fleets ?? [];
+    return {
+      success: true,
+      createdHeats: fleets.length,
+      assignedBoats: fleets.reduce((n, fleet) => n + fleet.boats.length, 0),
+      overflowPolicy,
+    };
   },
 );
