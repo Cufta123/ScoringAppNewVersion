@@ -5,15 +5,15 @@
  * left out (completed before an event's tables are converted to its log),
  * and the re-score the row-based undo needs.
  */
-import { db } from '../../../public/Database/DBManager';
-import { logError } from '../errorLog';
 import {
   holdsPlace,
   keepsProvidedPoints,
   slotOf,
   scoreRaceColumn,
   type RaceCell,
-} from '../../shared/raceColumnEdit';
+} from 'regatta-core';
+import { db } from '../../../public/Database/DBManager';
+import { logError } from '../errorLog';
 import { getHeatRoundFromName, normalizeScoreStatus } from './scoreStatus';
 import { sanitizePositiveFinite, sanitizePositiveInteger } from './validation';
 import { boatLabel, raceLabel } from './labels';
@@ -355,7 +355,7 @@ function keptPlace(
 
 /**
  * Save a whole race exactly as the leaderboard edit screen shows it. The
- * screen built these places with shared/raceColumnEdit; here they are checked
+ * screen built these places with regatta-core's applyRaceColumnEdit; here they are checked
  * and scored again from the rules (scoreRaceColumn), so the stored points
  * never depend on numbers the renderer computed.
  *

@@ -44,10 +44,7 @@ import { rescoreRace } from '../main/functions/raceScoring';
 import { setCallObserver } from '../main/ipcHandlers/handle';
 import { isTechnicalText } from '../shared/errors/explainError';
 import { journalObserver } from '../main/functions/changeJournal';
-import applyRaceColumnEdit, {
-  holdsPlace,
-  scoreRaceColumn,
-} from '../shared/raceColumnEdit';
+import { applyRaceColumnEdit, holdsPlace, scoreRaceColumn } from 'regatta-core';
 import {
   payloadFor,
   prng,

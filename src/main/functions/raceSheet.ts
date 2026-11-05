@@ -17,6 +17,9 @@
  */
 import {
   NO_PLACE_CODES,
+  PENALTY_CODES,
+  REDRESS_CODES,
+  holdsPlace,
   toTenth,
   type BoatId,
   type NoPlaceCode,
@@ -24,12 +27,25 @@ import {
   type RaceLine,
 } from 'regatta-core';
 
-const PENALTIES = new Set(['ZFP', 'SCP', 'T1']);
+const PENALTIES = new Set<string>(PENALTY_CODES);
 const NO_PLACE = new Set<string>(NO_PLACE_CODES);
+/** The codes a protest committee's disqualification carries (RRS 64). */
 export const COMMITTEE_DSQ = new Set(['DSQ', 'DNE', 'DGM']);
-export const REDRESS = new Set(['RDG1', 'RDG2', 'RDG3']);
-const finisher = (status: string) =>
-  status === 'FINISHED' || PENALTIES.has(status);
+export const REDRESS = new Set<string>(REDRESS_CODES);
+const finisher = holdsPlace;
+
+/** A stored RDG2 race selection (a JSON array of race ids), or null. */
+export function parseRedressRaceIds(raw: unknown): number[] | null {
+  if (raw == null || raw === '') return null;
+  try {
+    const parsed = JSON.parse(String(raw));
+    if (!Array.isArray(parsed)) return null;
+    const ids = parsed.map(Number).filter((id) => Number.isFinite(id));
+    return ids.length > 0 ? ids : null;
+  } catch {
+    return null;
+  }
+}
 
 export interface SheetRow {
   boat: BoatId;
@@ -306,8 +322,7 @@ export function sheetFromRows(
  * committee's when her sheet row was something else, an RDG / DPI always.
  */
 export function sheetFromFrozen(rows: SheetRow[]): Sheet {
-  const keepsPlace = (status: string) =>
-    status === 'FINISHED' || PENALTIES.has(status);
+  const keepsPlace = holdsPlace;
   const finishers = rows
     .filter((row) => keepsPlace(row.frozen!.status))
     .sort(

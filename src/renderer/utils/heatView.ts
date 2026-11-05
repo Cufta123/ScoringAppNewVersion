@@ -1,3 +1,4 @@
+import { MAX_HEATS } from 'regatta-core';
 import type { HeatBoatRow } from '../types';
 import {
   getHeatGroupFromName,
@@ -15,8 +16,8 @@ export interface HeatWithBoats {
   raceNumber: number;
 }
 
-/** The heat-count dropdown matches the backend's 1-26 limit (RULE-M24). */
-export const MAX_HEAT_COUNT = 26;
+/** The heat-count dropdown offers what the library allows (RULE-M24). */
+export const MAX_HEAT_COUNT = MAX_HEATS;
 
 /** Whether any heat is a Final Series fleet. */
 export const hasFinalHeats = (

@@ -1,4 +1,4 @@
-import { POSITION_KEEPING_PENALTIES } from './penaltyOrder';
+import { holdsPlace } from 'regatta-core';
 import {
   getOrderedBoatNumbers,
   normalizeBoatNumber,
@@ -278,7 +278,7 @@ export function formatPlaceDisplay(
 ): string {
   const placeText = `${place}${placeSuffix}`;
   if (penalty) {
-    return POSITION_KEEPING_PENALTIES.has(penalty) && place
+    return holdsPlace(penalty) && place
       ? `${placeText}${sep}${penalty}`
       : penalty;
   }

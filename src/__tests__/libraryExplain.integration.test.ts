@@ -42,7 +42,7 @@ jest.mock('../../public/Database/DBManager', () => {
 const mockDbHolderRef = mockDbHolder;
 
 /* eslint-disable import/first, import/order */
-import applyRaceColumnEdit from '../shared/raceColumnEdit';
+import { applyRaceColumnEdit } from 'regatta-core';
 import { payloadFor, prng, randomOutcome } from './fixtures/scoringOracle';
 /* eslint-enable import/first, import/order */
 

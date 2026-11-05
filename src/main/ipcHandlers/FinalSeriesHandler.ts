@@ -1,13 +1,15 @@
-import { qualifyingStandings, replay, type Decision } from 'regatta-core';
+import {
+  MAX_HEAT_SIZE,
+  qualifyingStandings,
+  replay,
+  type Decision,
+} from 'regatta-core';
 import { db } from '../../../public/Database/DBManager';
 import handle from './handle';
 import { findLatestHeatsBySuffix } from '../functions/creatingNewHeatsUtls';
 import { countQualifyingGroups } from '../../shared/heatNames';
 import { getRaceCountForHeat } from '../functions/heatQueries';
-import {
-  SHRS_MAX_BOATS_PER_HEAT,
-  getEventHeatOverflowPolicy,
-} from '../functions/eventSettings';
+import { getEventHeatOverflowPolicy } from '../functions/eventSettings';
 import { applyToEvent, currentEvent } from '../functions/libraryWrite';
 
 const NO_QUALIFYING_RESULTS_REFUSAL =
@@ -101,11 +103,11 @@ handle(
     if (!trial.ok) throw new Error(trial.reason);
     const overflowPolicy = getEventHeatOverflowPolicy(event_id);
     const oversize = (trial.state.fleets ?? []).some(
-      (fleet) => fleet.boats.length > SHRS_MAX_BOATS_PER_HEAT,
+      (fleet) => fleet.boats.length > MAX_HEAT_SIZE,
     );
     if (oversize && !allow_oversize_confirm) {
       throw new Error(
-        `Final fleets would exceed ${SHRS_MAX_BOATS_PER_HEAT} boats. Confirm oversize to continue or switch event policy to auto-increase heats.`,
+        `Final fleets would exceed ${MAX_HEAT_SIZE} boats. Confirm oversize to continue or switch event policy to auto-increase heats.`,
       );
     }
 

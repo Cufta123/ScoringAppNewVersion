@@ -1,14 +1,20 @@
 /**
- * Unit tests for discardConfig.ts — SHRS 5.4 discard configuration. Covers the
- * standard-profile boundary arithmetic and the custom-profile parsing/validation
- * branches (thresholds, per-field overrides, and their error paths), which drive
- * how many scores each boat discards and therefore its series score.
+ * Unit tests for discardConfig.ts — the stored SHRS 5.4 discard setting:
+ * parsing/validation (thresholds, per-field overrides, and their error
+ * paths) and the library profile it reads as, checked through regatta-core's
+ * count so a setting means what the race committee typed.
  */
+import { discardCount } from 'regatta-core';
 import {
   normalizeDiscardConfig,
   normalizeDiscardConfigString,
-  getExcludeCountForConfig,
+  toDiscardProfile,
+  type DiscardConfig,
 } from '../main/functions/discardConfig';
+
+/** The library's count for a parsed setting (SHRS 5.4). */
+const getExcludeCountForConfig = (races: number, config: DiscardConfig) =>
+  discardCount(races, toDiscardProfile(config));
 
 jest.mock('../../public/Database/DBManager', () => ({
   db: { prepare: jest.fn() },

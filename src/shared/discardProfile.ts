@@ -1,19 +1,13 @@
 /**
- * SHRS 5.4 discard profile: parsing, normalisation and the exclusion count.
+ * The SHRS 5.4 discard setting as the app stores it (a JSON string on the
+ * Events row, edited on the event form): parsing, normalisation, and the
+ * library's profile it stands for. How many scores are excluded, and which,
+ * is regatta-core's (`discardCount`, `excludedScores`).
  *
- * Pure — no database access — so the renderer's edit-mode preview and the main
- * process's scoring compute the discard count from ONE implementation. The
- * renderer previously reimplemented this and honoured only the `thresholds`
- * list, silently falling back to the standard 4/8/8 for any custom
- * first/second/every profile the Race Committee had configured.
- *
- * SHRS 5.4:
- *   - after 4 races completed in the series, exclude the worst score;
- *   - after 8, exclude the two worst;
- *   - one more exclusion per 8 additional races;
- *   - "The Race Committee may change this rule before the warning signal for
- *     the first race in a series."
+ * SHRS 5.4: "The Race Committee may change this rule before the warning
+ * signal for the first race in a series."
  */
+import type { DiscardProfile } from 'regatta-core';
 
 export type DiscardConfig = {
   firstDiscardAt: number;
@@ -152,42 +146,29 @@ export function normalizeDiscardConfigString(value: unknown): string {
   return JSON.stringify(normalizeDiscardConfig(value));
 }
 
-export function getExcludeCountForConfig(
-  numberOfRaces: number,
-  config: DiscardConfig,
-): number {
-  // SHRS 5.4 as changed by the Race Committee: never discard (RULE-m6).
-  if (config.neverDiscard) {
-    return 0;
-  }
-
-  if (Array.isArray(config.thresholds) && config.thresholds.length > 0) {
-    return config.thresholds.reduce(
-      (count, threshold) => (numberOfRaces >= threshold ? count + 1 : count),
-      0,
-    );
-  }
-
-  if (numberOfRaces < config.firstDiscardAt) return 0;
-  if (numberOfRaces < config.secondDiscardAt) return 1;
-  return (
-    2 +
-    Math.floor(
-      (numberOfRaces - config.secondDiscardAt) / config.additionalEvery,
-    )
-  );
-}
-
 /**
- * Exclusion count straight from a stored discard-profile string (the shape the
- * renderer holds). Equivalent to normalising then counting.
+ * A stored discard setting as regatta-core's SHRS 5.4 profile. How many
+ * scores a profile excludes after how many races is the library's
+ * (`discardCount`); this only reads the setting.
  */
-export function getExcludeCountForProfile(
-  numberOfRaces: number,
-  discardProfile: string | null = 'standard',
-): number {
-  return getExcludeCountForConfig(
-    numberOfRaces,
-    normalizeDiscardConfig(discardProfile),
-  );
+export function toDiscardProfile(stored: unknown): DiscardProfile {
+  const config = normalizeDiscardConfig(stored);
+  if (config.neverDiscard) return { kind: 'none' };
+  if (config.thresholds && config.thresholds.length > 0) {
+    return { kind: 'thresholds', at: [...config.thresholds] };
+  }
+  const { firstDiscardAt, secondDiscardAt, additionalEvery } = config;
+  if (
+    firstDiscardAt === DEFAULT_DISCARD_CONFIG.firstDiscardAt &&
+    secondDiscardAt === DEFAULT_DISCARD_CONFIG.secondDiscardAt &&
+    additionalEvery === DEFAULT_DISCARD_CONFIG.additionalEvery
+  ) {
+    return { kind: 'standard' };
+  }
+  return {
+    kind: 'custom',
+    first: firstDiscardAt,
+    second: secondDiscardAt,
+    every: additionalEvery,
+  };
 }

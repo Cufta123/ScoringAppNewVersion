@@ -1,12 +1,12 @@
 import React from 'react';
+import { PENALTY_CODES } from 'regatta-core';
 import {
-  PENALTY_CODES,
+  RESULT_CODES,
   RDG_TYPES,
   getPenaltyPointsText,
   getRaceCellDisplay,
   stripExclusionParens,
 } from '../../utils/leaderboardUtils';
-import { scoringPenaltyStatuses } from '../../../shared/scoringPenalty';
 import { penaltyLabel } from '../../constants/penaltyLabels';
 import Rdg2Picker from './Rdg2Picker';
 import { useReportInvalidCell } from './editValidity';
@@ -97,7 +97,9 @@ function ScoreCell({
   // place, so their place stays typeable; only hard penalties (DNS/DSQ/…)
   // and computed RDG cells lock the numeric input. Manual-points cells
   // (RDG3, DPI) stay typeable.
-  const keepsFinishingPlace = scoringPenaltyStatuses.has(raceStatus);
+  const keepsFinishingPlace = (PENALTY_CODES as readonly string[]).includes(
+    raceStatus,
+  );
   const isInputLocked = isPenalty && !keepsFinishingPlace && !isManualPoints;
   const inputKind: RaceCellInputKind = isManualPoints ? 'points' : 'place';
 
@@ -287,16 +289,15 @@ function ScoreCell({
           }}
         >
           <option value="FINISHED">Finish</option>
-          {/* RAF is normalized to RET on save, so offering both would show a
-              different code after saving than the one picked. Labels come from
-              the shared penaltyLabels map so codes never appear bare here. */}
-          {PENALTY_CODES.filter(
-            (code) => !RDG_TYPES.includes(code) && code !== 'RAF',
-          ).map((code) => (
-            <option key={code} value={code}>
-              {penaltyLabel(code)}
-            </option>
-          ))}
+          {/* The codes in regatta-core's order. Labels come from the shared
+              penaltyLabels map so codes never appear bare here. */}
+          {RESULT_CODES.filter((code) => !RDG_TYPES.includes(code)).map(
+            (code) => (
+              <option key={code} value={code}>
+                {penaltyLabel(code)}
+              </option>
+            ),
+          )}
           <optgroup label="RDG – Redress">
             <option value="RDG1">{penaltyLabel('RDG1')}</option>
             <option value="RDG2">{penaltyLabel('RDG2')}</option>

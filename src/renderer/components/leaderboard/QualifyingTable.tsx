@@ -1,4 +1,5 @@
 import React from 'react';
+import { sumPoints } from 'regatta-core';
 import ScoreCell from './ScoreCell';
 import ComparePanel from './ComparePanel';
 import {
@@ -11,7 +12,6 @@ import {
   CompareRow,
   leaderboardRowStyle,
 } from './TablePieces';
-import { sumPoints } from '../../../shared/points';
 import {
   grossPointValues,
   hasMixedBoatTypes,

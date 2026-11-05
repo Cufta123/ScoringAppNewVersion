@@ -1,3 +1,4 @@
+import { nextInRound } from 'regatta-core';
 import { getLastHeats, type HeatWithBoats } from './heatView';
 import { getHeatRoundFromName } from '../../shared/heatNames';
 
@@ -17,44 +18,48 @@ export interface RoundStatus<H> {
   canUndoRedistribution: boolean;
 }
 
+type ShownHeat = Pick<
+  HeatWithBoats,
+  'heat_name' | 'heat_type' | 'raceNumber' | 'boats'
+>;
+
 /**
  * Where the heats stand and the one next step, for the Scoring page's round
- * bar. Rounds of several groups (progressive or pre-assigned qualifying):
- * every heat of the latest round sails once, then the next round is built.
- * One fleet, or the Final Series: every fleet sails the same race, the one
- * behind goes next.
+ * bar. Which heat sails next is regatta-core's (`nextInRound`); this only
+ * words it.
  */
-export function roundStatus<
-  H extends Pick<HeatWithBoats, 'heat_name' | 'heat_type' | 'raceNumber'>,
->(
+export function roundStatus<H extends ShownHeat>(
   heats: H[],
-  {
-    finalSeriesStarted,
-    numQualifyingGroups,
-  }: { finalSeriesStarted: boolean; numQualifyingGroups: number },
+  { finalSeriesStarted }: { finalSeriesStarted: boolean },
 ): RoundStatus<H> | null {
   const current = getLastHeats(heats);
-  if (current.length === 0) return null;
   const phase = finalSeriesStarted ? 'final' : 'qualifying';
+  const step = nextInRound(
+    current.map((heat) => ({
+      heat,
+      boats: heat.boats.length,
+      races: heat.raceNumber,
+    })),
+    phase,
+  );
+  if (!step) return null;
 
-  if (!finalSeriesStarted && numQualifyingGroups >= 2) {
+  if (!finalSeriesStarted && current.length > 1) {
     const round = getHeatRoundFromName(current[0].heat_name) ?? 1;
     const scored = current.filter((heat) => heat.raceNumber > 0).length;
-    const firstUnscored = current.find((heat) => heat.raceNumber === 0);
     return {
       phase,
       summary: `Round ${round} · ${scored} of ${current.length} heats scored`,
-      next: firstUnscored
-        ? { kind: 'score', heat: firstUnscored, race: 1 }
-        : { kind: 'createRound', round: round + 1 },
+      next:
+        step.kind === 'score'
+          ? step
+          : { kind: 'createRound', round: round + 1 },
       canUndoRedistribution: round > 1,
     };
   }
 
-  const fewest = Math.min(...current.map((heat) => heat.raceNumber));
-  const race = fewest + 1;
+  const race = step.kind === 'score' ? step.race : 1;
   const done = current.filter((heat) => heat.raceNumber >= race).length;
-  const behind = current.find((heat) => heat.raceNumber === fewest) as H;
   const unit = finalSeriesStarted ? 'fleets' : 'heats';
   return {
     phase,
@@ -62,7 +67,7 @@ export function roundStatus<
       current.length === 1
         ? `Race ${race} next`
         : `Race ${race} · ${done} of ${current.length} ${unit} scored`,
-    next: { kind: 'score', heat: behind, race },
+    next: step.kind === 'score' ? step : null,
     canUndoRedistribution: false,
   };
 }

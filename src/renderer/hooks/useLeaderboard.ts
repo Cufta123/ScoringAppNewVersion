@@ -26,7 +26,6 @@ export default function useLeaderboard(eventId: number) {
     overallLeaderboard,
     loading,
     finalSeriesStarted,
-    discardProfiles,
     maxHeatSizes,
     fetchLeaderboard,
     checkFinalSeriesStarted,
@@ -44,10 +43,6 @@ export default function useLeaderboard(eventId: number) {
     finalSeriesStarted,
     leaderboard,
     eventLeaderboard,
-    discardProfile: finalSeriesStarted
-      ? discardProfiles.final
-      : discardProfiles.qualifying,
-    discardProfiles,
     maxHeatSize: finalSeriesStarted
       ? maxHeatSizes.final
       : maxHeatSizes.qualifying,
@@ -111,7 +106,6 @@ export default function useLeaderboard(eventId: number) {
     // State
     leaderboard,
     eventLeaderboard,
-    discardProfiles,
     loading,
     finalSeriesStarted,
     editMode,

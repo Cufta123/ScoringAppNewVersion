@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type React from 'react';
+import { fewestHeats } from 'regatta-core';
 import { eventDB, heatRaceDB } from '../api/db';
-import { minimumHeatsForEntries } from '../../shared/heatSizing';
 import {
   confirmAction,
   getErrorMessage,
@@ -77,7 +77,7 @@ export default function useHeatManagement({
     };
   }, [eventId, refreshToken]);
 
-  const minimumHeats = minimumHeatsForEntries(entryCount ?? 0);
+  const minimumHeats = fewestHeats(entryCount ?? 0);
   let numHeats = minimumHeats;
   if (chosenHeatCount !== null) numHeats = chosenHeatCount;
   else if (heatsCreated && numQualifyingGroups > 0) {

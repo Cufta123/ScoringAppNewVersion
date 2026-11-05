@@ -24,7 +24,7 @@
  */
 import fs from 'fs';
 import path from 'path';
-import { fleetNameForIndex } from '../../shared/fleetNames';
+import { fleetName } from 'regatta-core';
 
 const FIXTURE_DIR = path.resolve(__dirname, '../../../e2e/fixtures');
 
@@ -118,7 +118,7 @@ export const isFinal = (race: PublishedRace) => race.race.startsWith('F');
  * The heat letters A–E are the final fleets in precedence order, so Heat A is
  * the app's "Gold", Heat B "Silver", … and Heat E the 5th fleet, which the app
  * names "Fleet 5" (SHRS 4.1 allows more fleets than there are named ones —
- * `fleetNameForIndex` is the app's own naming, reused here so the replay uses
+ * regatta-core's `fleetName` is the naming, reused here so the replay uses
  * the fleet labels the app would have created rather than a second copy).
  */
 export const HEAT_LETTERS = ['A', 'B', 'C', 'D', 'E'];
@@ -126,7 +126,7 @@ export const HEAT_LETTERS = ['A', 'B', 'C', 'D', 'E'];
 export const fleetForHeat = (heat: string): string => {
   const index = HEAT_LETTERS.indexOf(heat.replace(/^Heat\s+/i, '').trim());
   if (index === -1) throw new Error(`Unknown heat: ${heat}`);
-  return fleetNameForIndex(index);
+  return fleetName(index);
 };
 
 /** The `Heats.heat_name` the app stores for a final fleet, e.g. "Final Gold". */

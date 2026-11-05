@@ -55,7 +55,7 @@ const mockDbHolderRef = mockDbHolder;
 
 /* eslint-disable import/first, import/order */
 import { checkEventLog, eventToLog } from '../main/functions/eventLog';
-import applyRaceColumnEdit from '../shared/raceColumnEdit';
+import { applyRaceColumnEdit } from 'regatta-core';
 import { payloadFor, prng, randomOutcome } from './fixtures/scoringOracle';
 // The library is not an installed package; import its source.
 // eslint-disable-next-line import/no-relative-packages

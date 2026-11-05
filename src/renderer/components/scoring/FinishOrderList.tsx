@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { holdsPlace } from 'regatta-core';
 import FinishPlaceInput from './FinishPlaceInput';
-import { POSITION_KEEPING_PENALTIES } from '../../utils/penaltyOrder';
 import { formatPlaceDisplay } from '../../utils/finishEntry';
 import { tieKey } from '../../utils/finishOrder';
 import type { SailNumber } from '../../utils/finishOrder';
@@ -87,9 +87,7 @@ export default function FinishOrderList({
         const name = boat ? sailorFullName(boat) : '';
         const invalid = isInvalidSail(number);
         const penalty = penalties[number];
-        const isDisplacing = Boolean(
-          penalty && !POSITION_KEEPING_PENALTIES.has(penalty),
-        );
+        const isDisplacing = Boolean(penalty && !holdsPlace(penalty));
         const isTied =
           index > 0 && ties.has(tieKey(number, boatNumbers[index - 1]));
         return (

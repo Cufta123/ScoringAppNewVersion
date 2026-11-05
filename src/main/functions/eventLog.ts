@@ -30,6 +30,9 @@
  * log and compares every heat and every score with the tables.
  */
 import {
+  MAX_HEAT_SIZE,
+  fleetIndex,
+  noPlacePoints,
   replay,
   qualifyingStandings,
   finalStandings,
@@ -45,10 +48,8 @@ import {
   normalizeHeatOverflowPolicy,
   normalizeQualifyingAssignmentMode,
 } from '../../shared/eventSettings';
-import { normalizeDiscardConfig } from '../../shared/discardProfile';
+import { toDiscardProfile } from '../../shared/discardProfile';
 import { getHeatRoundFromName } from '../../shared/heatNames';
-import { fleetRank } from '../../shared/fleetNames';
-import { SHRS_MAX_BOATS_PER_HEAT } from '../../shared/heatSizing';
 import { normalizeScoreStatus } from './scoreStatus';
 import { boatLabel } from './labels';
 import {
@@ -80,24 +81,15 @@ export const coreHeatId = (name: string) =>
 
 const id = (boatId: number) => String(boatId);
 
+/** SHRS 5.5 precedence of a stored fleet; a name 4.1 does not give last. */
+const fleetPrecedence = (name: string) => {
+  const index = fleetIndex(name);
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+};
+
 /** A stored discard setting as the library's SHRS 5.4 profile. */
-export function discardProfile(stored: unknown): DiscardProfile {
-  const config = normalizeDiscardConfig(stored);
-  if (config.neverDiscard) return { kind: 'none' };
-  if (config.thresholds && config.thresholds.length > 0) {
-    return { kind: 'thresholds', at: [...config.thresholds] };
-  }
-  const { firstDiscardAt, secondDiscardAt, additionalEvery } = config;
-  if (firstDiscardAt === 4 && secondDiscardAt === 8 && additionalEvery === 8) {
-    return { kind: 'standard' };
-  }
-  return {
-    kind: 'custom',
-    first: firstDiscardAt,
-    second: secondDiscardAt,
-    every: additionalEvery,
-  };
-}
+export const discardProfile = (stored: unknown): DiscardProfile =>
+  toDiscardProfile(stored);
 
 export interface EventLog {
   decisions: Decision[];
@@ -410,7 +402,7 @@ export function eventToLog(eventId: number): EventLog {
         )
       : sheetFromRows(
           sheetRows,
-          largestOf(heat) + 1,
+          noPlacePoints(largestOf(heat)),
           `Heat ${ref.heat}, race ${race}`,
           boatLabel,
           true,
@@ -509,7 +501,8 @@ export function eventToLog(eventId: number): EventLog {
     })
     .sort(
       (a, b) =>
-        fleetRank(coreHeatId(a.heat_name)) - fleetRank(coreHeatId(b.heat_name)),
+        fleetPrecedence(coreHeatId(a.heat_name)) -
+        fleetPrecedence(coreHeatId(b.heat_name)),
     );
   const rounds = new Map<number, HeatRow[]>();
   qualifying.forEach((heat) => {
@@ -525,9 +518,9 @@ export function eventToLog(eventId: number): EventLog {
   roundNumbers.forEach((round, i) =>
     sailRound(rounds.get(round)!, (heatsMade) => {
       heatsMade.forEach((boats, h) => {
-        if (boats.length > SHRS_MAX_BOATS_PER_HEAT) {
+        if (boats.length > MAX_HEAT_SIZE) {
           anomalies.push(
-            `Heat ${coreHeatId(rounds.get(round)![h].heat_name)} has ${boats.length} boats; SHRS 2.3 allows ${SHRS_MAX_BOATS_PER_HEAT}. It is kept as it was sailed.`,
+            `Heat ${coreHeatId(rounds.get(round)![h].heat_name)} has ${boats.length} boats; SHRS 2.3 allows ${MAX_HEAT_SIZE}. It is kept as it was sailed.`,
           );
         }
       });

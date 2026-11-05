@@ -128,7 +128,7 @@ describe('useLeaderboard scoring/edit flow', () => {
     );
     expect(edited.races[0]).toBe('4');
     expect(edited.race_statuses[0]).toBe('DSQ');
-    expect(edited.computed_total).toBe(4);
+    expect(edited.race_points[0]).toBe('4');
   });
 
   it('keeps position for T1 scoring penalty in edit mode', async () => {
@@ -151,8 +151,7 @@ describe('useLeaderboard scoring/edit flow', () => {
     expect(edited.race_statuses[0]).toBe('T1');
     // T1 keeps finishing place 2 but scores penalty points: with a largest
     // heat of 3 boats the DNF score is 4, and 30% of it is 1.2 => 3.2 points
-    // (Appendix T1(b), RRS 44.3(c)).
-    expect(edited.computed_total).toBe(3.2);
+    // (Appendix T1(b), RRS 44.3(c)), as regatta-core re-ranks the race.
     // race_points carries the scored points (drives the Gross column), not the
     // raw finishing place.
     expect(edited.race_points[0]).toBe('3.2');
@@ -178,11 +177,10 @@ describe('useLeaderboard scoring/edit flow', () => {
     );
     expect(edited.races[0]).toBe('2');
     expect(edited.race_statuses[0]).toBe('DPI');
-    expect(edited.computed_total).toBe(2);
     expect(edited.race_points[0]).toBe('2');
   });
 
-  it('previews ZFP penalty points (not the finishing place) in the edit total', async () => {
+  it('previews ZFP penalty points (not the finishing place) in the race', async () => {
     const { result } = renderHook(() => useLeaderboard(1));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -198,11 +196,10 @@ describe('useLeaderboard scoring/edit flow', () => {
     const edited = result.current.editableLeaderboard.find(
       (e) => e.boat_id === 'b2',
     );
-    // ZFP keeps place 1 but adds 20% of the DNF score (4) = 0.8, so the
-    // preview total is 1.8, not the raw place of 1 (the old bug).
+    // ZFP keeps place 1 but adds 20% of the DNF score (4) = 0.8, so she
+    // scores 1.8, not the raw place of 1 (the old bug).
     expect(edited.races[0]).toBe('1');
     expect(edited.race_statuses[0]).toBe('ZFP');
-    expect(edited.computed_total).toBe(1.8);
     // Gross column reads race_points: it must show the penalty points.
     expect(edited.race_points[0]).toBe('1.8');
   });
@@ -325,17 +322,35 @@ describe('useLeaderboard scoring/edit flow', () => {
       expect(get('b6').races[0]).toBe('3');
     });
 
-    it('updates the Overall combined total live while editing a final place', async () => {
+    it("takes the totals and the Overall from the library's preview", async () => {
+      // The draft only re-ranks the edited race; totals, discards and the
+      // Overall are regatta-core's, from previewLeaderboardEdit.
+      const preview = jest.fn().mockResolvedValue({
+        ok: true,
+        eventResults: [],
+        finalResults: finalRows.map((row) =>
+          row.boat_id === 'b3'
+            ? {
+                ...row,
+                race_positions: '1',
+                race_points: '1',
+                total_points_final: 1,
+              }
+            : row,
+        ),
+        overallResults: [
+          {
+            boat_id: 'b3',
+            overall_points: 4,
+            qualifying_points: 3,
+            overall_rank: 1,
+          },
+        ],
+      });
+      window.electron.sqlite.heatRaceDB.previewLeaderboardEdit = preview;
       const { result } = renderHook(() => useLeaderboard(5));
       await waitFor(() => expect(result.current.loading).toBe(false));
       await waitFor(() => expect(result.current.finalSeriesStarted).toBe(true));
-
-      // b3 (Gold) qualifies with 3 points and finishes the final race 3rd, so
-      // its Overall combined total starts at qualifying(3) + final(3) = 6.
-      const before = result.current.editableLeaderboard.find(
-        (e) => e.boat_id === 'b3',
-      );
-      expect(before.total_points_combined).toBe(6);
 
       await act(async () => {
         await result.current.toggleEditMode();
@@ -344,13 +359,52 @@ describe('useLeaderboard scoring/edit flow', () => {
         result.current.handleRaceChange('b3', 0, 1, 'FINISHED');
       });
 
+      // Sent as Save sends it: the whole race, the typed cell marked.
+      expect(preview).toHaveBeenCalledWith(5, [
+        {
+          raceId: '201',
+          cells: [
+            { boatId: 'b1', position: 2, status: 'FINISHED', edited: false },
+            { boatId: 'b2', position: 3, status: 'FINISHED', edited: false },
+            { boatId: 'b3', position: 1, status: 'FINISHED', edited: true },
+          ],
+        },
+      ]);
+      await waitFor(() =>
+        expect(
+          result.current.editableLeaderboard.find((e) => e.boat_id === 'b3')
+            .total_points_combined,
+        ).toBe(4),
+      );
       const after = result.current.editableLeaderboard.find(
         (e) => e.boat_id === 'b3',
       );
-      // Final total drops to 1, so Overall must follow live: 3 + 1 = 4 (not the
-      // stale 6 that only refreshed on save before this fix).
       expect(after.computed_total).toBe(1);
-      expect(after.total_points_combined).toBe(4);
+    });
+
+    it('a refusal from the library is shown, and the draft stays', async () => {
+      window.electron.sqlite.heatRaceDB.previewLeaderboardEdit = jest
+        .fn()
+        .mockResolvedValue({ ok: false, reason: 'Not allowed by the rules.' });
+      const { result } = renderHook(() => useLeaderboard(5));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      await waitFor(() => expect(result.current.finalSeriesStarted).toBe(true));
+      await act(async () => {
+        await result.current.toggleEditMode();
+      });
+      act(() => {
+        result.current.handleRaceChange('b3', 0, 1, 'FINISHED');
+      });
+      await waitFor(() =>
+        expect(reportWarning).toHaveBeenCalledWith(
+          'Not allowed by the rules.',
+          'This change cannot be saved',
+        ),
+      );
+      expect(
+        result.current.editableLeaderboard.find((e) => e.boat_id === 'b3')
+          .races[0],
+      ).toBe('1');
     });
 
     it('caps an out-of-range place at the fleet size, not the combined count', async () => {
@@ -376,11 +430,19 @@ describe('useLeaderboard scoring/edit flow', () => {
     });
   });
 
-  describe('final-series discards are fleet-wide, not series-wide (SHRS 5.1/5.4)', () => {
+  describe('final-series discards as the library marks them (SHRS 5.1/5.4)', () => {
     // Gold sailed 8 final races -> 2 discards under SHRS 5.4. Silver sailed only
-    // 5 -> 1 discard. A series-wide max across all fleets (8) would wrongly
-    // discard 2 of Silver's 5 scores.
-    const makeFinalRow = (boatId, sailNo, group, positions, raceIdBase) => ({
+    // 5 -> 1 discard. The main process sends regatta-core's excluded scores
+    // and totals; the screen shows them as they are.
+    const makeFinalRow = (
+      boatId,
+      sailNo,
+      group,
+      positions,
+      raceIdBase,
+      excluded,
+      total,
+    ) => ({
       boat_id: boatId,
       name: `Sailor ${boatId}`,
       surname: boatId,
@@ -388,16 +450,33 @@ describe('useLeaderboard scoring/edit flow', () => {
       boat_number: sailNo,
       boat_type: 'IOM',
       placement_group: group,
-      total_points_final: positions.reduce((s, v) => s + v, 0),
+      total_points_final: total,
       race_positions: positions.join(','),
       race_points: positions.join(','),
       race_ids: positions.map((_v, i) => String(raceIdBase + i)).join(','),
       race_statuses: positions.map(() => 'FINISHED').join(','),
+      race_excluded: excluded.join(','),
     });
 
     const finalRows = [
-      makeFinalRow('g1', '101', 'Gold', [8, 7, 6, 5, 4, 3, 2, 1], 800),
-      makeFinalRow('s1', '201', 'Silver', [5, 4, 3, 2, 1], 900),
+      makeFinalRow(
+        'g1',
+        '101',
+        'Gold',
+        [8, 7, 6, 5, 4, 3, 2, 1],
+        800,
+        [1, 1, 0, 0, 0, 0, 0, 0],
+        21,
+      ),
+      makeFinalRow(
+        's1',
+        '201',
+        'Silver',
+        [5, 4, 3, 2, 1],
+        900,
+        [1, 0, 0, 0, 0],
+        10,
+      ),
     ];
 
     beforeEach(() => {
@@ -409,7 +488,7 @@ describe('useLeaderboard scoring/edit flow', () => {
       );
     });
 
-    it('scores each final fleet with its own race count on load (F-Tot)', async () => {
+    it('shows each final fleet with its own discards on load (F-Tot)', async () => {
       const { result } = renderHook(() => useLeaderboard(5));
       await waitFor(() => expect(result.current.loading).toBe(false));
       await waitFor(() => expect(result.current.finalSeriesStarted).toBe(true));
@@ -425,28 +504,6 @@ describe('useLeaderboard scoring/edit flow', () => {
       // series-wide max of 8 would produce.
       expect(silver.computed_total).toBe(10);
       expect(silver.races).toEqual(['(5)', '4', '3', '2', '1']);
-    });
-
-    it('keeps the fleet-wide discard count in the edit preview', async () => {
-      const { result } = renderHook(() => useLeaderboard(5));
-      await waitFor(() => expect(result.current.loading).toBe(false));
-      await waitFor(() => expect(result.current.finalSeriesStarted).toBe(true));
-
-      await act(async () => {
-        await result.current.toggleEditMode();
-      });
-      // Shift OFF: change only the Silver boat's first race (5 -> 1).
-      act(() => {
-        result.current.handleRaceChange('s1', 0, 1, 'FINISHED');
-      });
-
-      const silver = result.current.editableLeaderboard.find(
-        (e) => e.boat_id === 's1',
-      );
-      // [1,4,3,2,1] with 1 fleet-wide discard (drop 4) -> 7. A series-wide
-      // count (2 discards) would give 4.
-      expect(silver.computed_total).toBe(7);
-      expect(silver.races).toEqual(['1', '(4)', '3', '2', '1']);
     });
   });
 
@@ -543,7 +600,7 @@ describe('useLeaderboard scoring/edit flow', () => {
       ]);
     });
 
-    it('averages only the final-series races, ignoring qualifying points', async () => {
+    it('sends only the final-series races chosen, never qualifying ones', async () => {
       const { result } = renderHook(() => useLeaderboard(5));
       await waitFor(() => expect(result.current.loading).toBe(false));
       await waitFor(() => expect(result.current.finalSeriesStarted).toBe(true));
@@ -572,10 +629,33 @@ describe('useLeaderboard scoring/edit flow', () => {
         (e) => e.boat_id === 'b1',
       );
       expect(entry.race_statuses[0]).toBe('RDG2');
-      // (4 + 7) / 2 = 5.5. Pooling the two qualifying 90s would give 47.75.
-      expect(
-        parseFloat(String(entry.race_points[0]).replace(/[()]/g, '')),
-      ).toBe(5.5);
+      // The average (RRS A9(b)) is regatta-core's, from the races sent; the
+      // draft keeps her current points until its preview shows it.
+      expect(entry.race_points[0]).toBe('2');
+      await act(async () => {
+        await result.current.handleSave();
+      });
+      const [, ops] =
+        window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic.mock
+          .calls[0];
+      // Final races 2 and 3 (ids 301, 302): the qualifying races 101 and 102
+      // are not in the selection (SHRS 5.6).
+      expect(ops).toEqual([
+        {
+          raceId: '300',
+          cells: [
+            {
+              boatId: 'b1',
+              position: 2,
+              status: 'RDG2',
+              edited: true,
+              rdgRaceIds: [301, 302],
+              // RRS A6.2: she keeps her place, inside the race (one boat).
+              heldPlace: 1,
+            },
+          ],
+        },
+      ]);
     });
   });
 
@@ -678,6 +758,8 @@ describe('useLeaderboard scoring/edit flow', () => {
     );
   });
 
+  // The draft re-ranks each edited race (regatta-core); totals and discards
+  // stay as loaded until the library's preview replaces the rows.
   it('keeps full leaderboard payload contract stable across multiple sequential edits', async () => {
     window.electron.sqlite.heatRaceDB.readLeaderboard.mockResolvedValueOnce([
       {

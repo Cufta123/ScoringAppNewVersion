@@ -18,6 +18,7 @@
  */
 import {
   finalStandings,
+  noPlacePoints,
   qualifyingStandings,
   scoreRace,
   type BoatId,
@@ -79,7 +80,7 @@ function cellsOf(
   settled: Map<BoatId, number>,
   raceIdOf: (heat: string, race: number) => number | undefined,
 ): Map<BoatId, Cell> {
-  const noPlace = largest + 1;
+  const noPlace = noPlacePoints(largest);
   const cells = new Map<BoatId, Cell>();
   const results = scoreRace(race, largest);
   // Sheet places (finishing slots, ties sharing the first).

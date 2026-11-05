@@ -1,3 +1,9 @@
+import {
+  MAX_HEATS,
+  MAX_HEAT_SIZE,
+  fewestHeats,
+  movementImbalanceExpected,
+} from 'regatta-core';
 import { db } from '../../../public/Database/DBManager';
 import handle from './handle';
 import { applyToEvent } from '../functions/libraryWrite';
@@ -7,8 +13,6 @@ import {
   getLatestQualifyingHeats,
   requireHeat,
 } from '../functions/heatQueries';
-import { SHRS_MAX_BOATS_PER_HEAT } from '../functions/eventSettings';
-import { getOddEvenMovementAdvisory } from '../functions/raceSeeding';
 import {
   assertQualifyingHeatIsOpen,
   hasFinalSeriesStarted,
@@ -66,8 +70,8 @@ handle('insertHeatBoat', async (event, heat_id, boat_id) => {
  */
 function checkInitialHeats(event_id: number, num_heats: unknown) {
   const numHeats = Number(num_heats);
-  if (!Number.isInteger(numHeats) || numHeats < 1 || numHeats > 26) {
-    throw new Error('Number of heats must be between 1 and 26.');
+  if (!Number.isInteger(numHeats) || numHeats < 1 || numHeats > MAX_HEATS) {
+    throw new Error(`Number of heats must be between 1 and ${MAX_HEATS}.`);
   }
 
   const boats = db
@@ -96,12 +100,11 @@ function checkInitialHeats(event_id: number, num_heats: unknown) {
     );
   }
 
-  if (Math.ceil(boats.length / numHeats) > SHRS_MAX_BOATS_PER_HEAT) {
-    const minHeats = Math.ceil(boats.length / SHRS_MAX_BOATS_PER_HEAT);
+  if (Math.ceil(boats.length / numHeats) > MAX_HEAT_SIZE) {
     throw new Error(
       `${boats.length} boats in ${numHeats} heat(s) would exceed ` +
-        `${SHRS_MAX_BOATS_PER_HEAT} boats per heat (SHRS). ` +
-        `Use at least ${minHeats} heats.`,
+        `${MAX_HEAT_SIZE} boats per heat (SHRS). ` +
+        `Use at least ${fewestHeats(boats.length)} heats.`,
     );
   }
   return numHeats;
@@ -231,12 +234,16 @@ handle('createNewHeatsBasedOnLeaderboard', async (event, raw_event_id) => {
     decide: () => [{ type: 'roundCreated' }],
   });
   const round = after.rounds[after.rounds.length - 1];
-  const advisory = getOddEvenMovementAdvisory(
-    round.length,
-    round.reduce((n, heat) => n + heat.boats.length, 0),
-  );
-
-  return advisory ? { success: true, advisory } : { success: true };
+  const boats = round.reduce((n, heat) => n + heat.boats.length, 0);
+  // The note under the SHRS Heat Movement Tables.
+  return movementImbalanceExpected(round.length, boats)
+    ? {
+        success: true,
+        advisory:
+          `SHRS advisory: with odd/even movement tables and ${boats} boats in 2 heats, ` +
+          'a temporary 2-boat imbalance between heats can occur and is expected.',
+      }
+    : { success: true };
 });
 
 handle('undoLatestHeatRedistribution', async (event, raw_event_id) => {

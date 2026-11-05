@@ -1,11 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { eventDB, heatRaceDB } from '../api/db';
+import { heatRaceDB } from '../api/db';
 import { reportError } from '../utils/userFeedback';
 import { hasFinalHeats } from '../utils/heatView';
-import {
-  buildStandings,
-  type DiscardProfiles,
-} from '../utils/leaderboardStandings';
+import { buildStandings } from '../utils/leaderboardStandings';
 import type { LeaderboardEntry, OverallLeaderboardEntry } from '../types';
 
 interface MaxHeatSizes {
@@ -50,10 +47,6 @@ export default function useLeaderboardStandings(
   // 5.1/5.4/5.2). The old `activeTab` was always kept in lockstep with
   // `finalSeriesStarted` and consumed by nothing, so it was removed.
   const [finalSeriesStarted, setFinalSeriesStarted] = useState(false);
-  const [discardProfiles, setDiscardProfiles] = useState<DiscardProfiles>({
-    qualifying: 'standard',
-    final: 'standard',
-  });
   // Largest-heat size per series, used for SHRS 5.2 penalty scoring
   // (penalty points = largest heat size + 1). Sourced from the main process.
   const [maxHeatSizes, setMaxHeatSizes] = useState<MaxHeatSizes>({
@@ -138,29 +131,16 @@ export default function useLeaderboardStandings(
             : Promise.resolve([]),
         ]);
 
-        const events = await eventDB.readAllEvents();
-        const currentEvent = Array.isArray(events)
-          ? events.find((event) => String(event.event_id) === String(eventId))
-          : null;
-
         // LB-1: if a newer fetch superseded this one while it awaited, bail out
         // before applying any state so a late qualifying-mode result can't
         // overwrite the correct final-series data.
         if (isActive && !isActive()) return;
-
-        const profiles = {
-          qualifying:
-            currentEvent?.shrs_discard_profile_qualifying || 'standard',
-          final: currentEvent?.shrs_discard_profile_final || 'standard',
-        };
-        setDiscardProfiles(profiles);
 
         const { eventRows, leaderboard: rows } = buildStandings({
           eventResults,
           finalResults,
           overallResults,
           finalSeriesStarted,
-          profiles,
         });
         setEventLeaderboard(eventRows);
         if (finalSeriesStarted) {
@@ -196,7 +176,6 @@ export default function useLeaderboardStandings(
     overallLeaderboard,
     loading,
     finalSeriesStarted,
-    discardProfiles,
     maxHeatSizes,
     fetchLeaderboard,
     checkFinalSeriesStarted,

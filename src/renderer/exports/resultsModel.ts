@@ -8,9 +8,10 @@
  * mid-edit export must not leak unsaved values. The caller passes the saved
  * rows in; nothing here can see the draft.
  */
+import { sumPoints } from 'regatta-core';
 import {
   FLEET_COLORS,
-  PENALTY_CODES,
+  RESULT_CODES,
   RDG_TYPES,
   compareFleetGroups,
   getPenaltyPointsText,
@@ -18,7 +19,6 @@ import {
   grossPointValues,
   hasMixedBoatTypes,
 } from '../utils/leaderboardUtils';
-import { sumPoints } from '../../shared/points';
 import { sailorFullName } from '../utils/sailorName';
 import type { LeaderboardEntry } from '../types';
 
@@ -174,7 +174,7 @@ const buildCell = (
 
   let kind: ResultCellKind = 'place';
   if (RDG_TYPES.includes(status)) kind = 'redress';
-  else if (PENALTY_CODES.includes(status)) kind = 'penalty';
+  else if (RESULT_CODES.includes(status)) kind = 'penalty';
 
   return {
     text: display.isExcluded && options.showDiscards ? `(${core})` : core,
@@ -227,7 +227,7 @@ const distinctCodes = (sections: ResultSection[]): string[] => {
       row.cells.forEach((cell) => cell.code && present.add(cell.code)),
     ),
   );
-  return PENALTY_CODES.filter((code) => present.has(code));
+  return RESULT_CODES.filter((code) => present.has(code));
 };
 
 export const buildResultsModel = (

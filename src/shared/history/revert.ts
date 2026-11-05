@@ -10,13 +10,19 @@
  * the scoring page's own Undo buttons, which check that nothing depends on
  * them.
  */
+import { NO_PLACE_CODES, PENALTY_CODES } from 'regatta-core';
 import {
   HistoryAction,
   HistoryChange,
   JournalRow,
   netChanges,
 } from './describe';
-import { deriveNonFinisherPoints } from '../scoring/statusPoints';
+
+/** Codes whose points the rules work out (SHRS 5.2, RRS 44.3(c)). */
+const POINTS_FROM_RULES: ReadonlySet<string> = new Set([
+  ...NO_PLACE_CODES,
+  ...PENALTY_CODES,
+]);
 
 /** The tables an undo may write, with the columns that identify a row. */
 export const REVERTABLE_TABLES: Record<string, string[]> = {
@@ -90,7 +96,7 @@ export function derivedScoreColumns(row: JournalRow | null): string[] {
   if (status === 'RDG2' && row?.rdg_race_ids != null) {
     return ['position', 'points'];
   }
-  if (deriveNonFinisherPoints(status, 1, 2) != null) return ['points'];
+  if (POINTS_FROM_RULES.has(status)) return ['points'];
   return [];
 }
 

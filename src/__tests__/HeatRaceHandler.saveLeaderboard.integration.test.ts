@@ -56,7 +56,7 @@ jest.mock('../main/functions/projectEvent', () => {
 });
 /* eslint-disable import/first, import/order */
 import { EVENT_LIFECYCLE_SCHEMA } from './fixtures/eventLifecycleSchema';
-import applyRaceColumnEdit from '../shared/raceColumnEdit';
+import { applyRaceColumnEdit } from 'regatta-core';
 /* eslint-enable import/first, import/order */
 
 const EVENT_ID = 1;
@@ -123,7 +123,7 @@ const raceRows = (db: any, raceId: number) =>
 
 /**
  * The operation the leaderboard's Save sends for one corrected boat: the
- * whole race, built with the edit screen's rules (shared/raceColumnEdit).
+ * whole race, built with the edit screen's rules (regatta-core's applyRaceColumnEdit).
  */
 function operationFor(
   db: any,

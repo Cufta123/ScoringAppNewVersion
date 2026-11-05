@@ -1,18 +1,16 @@
 import {
   DiscardConfig,
-  getExcludeCountForConfig,
   normalizeDiscardConfig,
   normalizeDiscardConfigString,
+  toDiscardProfile,
 } from '../../shared/discardProfile';
 
-// SHRS 5.4 profile parsing and the exclusion count itself are PURE and live in
-// src/shared/discardProfile so the renderer's edit-mode preview computes the
-// discard count from the same implementation instead of its own copy.
-// Re-exported here to keep this module the single import surface for the main
-// process's discard logic.
+// The stored SHRS 5.4 setting: parsing and normalisation (src/shared, so the
+// event form reads it the same way). The count itself is regatta-core's
+// (discardCount on toDiscardProfile's result).
 export type { DiscardConfig };
 export {
-  getExcludeCountForConfig,
   normalizeDiscardConfig,
   normalizeDiscardConfigString,
+  toDiscardProfile,
 };

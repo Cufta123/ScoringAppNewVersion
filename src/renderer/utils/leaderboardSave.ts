@@ -11,7 +11,7 @@ type RaceCells = SaveRaceOperation['cells'];
 /**
  * The races to write on Save: every race the user touched, WHOLE, exactly as
  * the screen shows it. The main process checks it and scores it again from the
- * rules (applyRaceColumnState), so what is saved is what was shown. Replaying
+ * rules (checkedRaceColumn, regatta-core), so what is saved is what was shown. Replaying
  * each edit on its own used to apply them in a different order from the
  * screen when a cell was edited twice, and could save another result.
  *

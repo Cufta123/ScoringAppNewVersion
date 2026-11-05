@@ -8,7 +8,7 @@ export {};
 // Each race is built the way a race office builds it (boats entered, heats
 // made, the sheet submitted on the scoring screen, earlier corrections
 // saved). A correction is then made as the edit screen makes it: the column
-// as `readLeaderboard` shows it goes through shared/raceColumnEdit (the RRS
+// as `readLeaderboard` shows it goes through regatta-core's applyRaceColumnEdit (the RRS
 // A6.1 promotion, the place ripple), and the race is sent WHOLE to
 // `saveLeaderboardRaceResultsAtomic`, which checks it, turns it into the race
 // office's corrected sheet and the protest committee's decisions, and has
@@ -52,7 +52,7 @@ const mockDbHolderRef = mockDbHolder;
 
 /* eslint-disable import/first, import/order */
 import { realEvent } from './fixtures/realEvent';
-import applyRaceColumnEdit from '../shared/raceColumnEdit';
+import { applyRaceColumnEdit } from 'regatta-core';
 /* eslint-enable import/first, import/order */
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires

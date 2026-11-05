@@ -380,7 +380,7 @@ const MIGRATIONS = [
     // RDG averages are live (RRS A9 averages "all the races in the series",
     // which keeps growing), so the recompute has to know the protest
     // committee's chosen races for an RDG2. JSON array of race ids; NULL for
-    // every other status. See src/shared/redress.ts.
+    // every other status. The average is regatta-core's (RRS A9).
     up(db) {
       addMissingColumns(db, 'Scores', [
         {
@@ -446,7 +446,7 @@ const MIGRATIONS = [
     // was lost and a boat she was level with was re-scored alone (6.5 became
     // 6). `held_place` keeps it; NULL for every other status, for a boat that
     // had no place, and for results saved before this version (scored as
-    // before). See shared/raceColumnEdit.ts. Journalled like the rest of the
+    // before). See applyRaceColumnEdit in packages/regatta-core. Journalled like the rest of the
     // row, so the triggers are installed again with the new column.
     up(db) {
       addMissingColumns(db, 'Scores', [

@@ -2,7 +2,7 @@ import { db } from '../../../public/Database/DBManager';
 import { reconvertEventLog } from './decisionStore';
 import { isAcceptableLogo } from './exportLogo';
 import { enterSailor } from './sailorEntry';
-import { parseRedressRaceIds } from '../../shared/redress';
+import { parseRedressRaceIds } from './raceSheet';
 
 // Full export/restore of a single event's rows across every event-scoped table.
 // Used by the snapshot-to-file IPC handlers; kept here so the table list and

@@ -109,8 +109,8 @@ function HeatComponent({
   const hasMultipleRounds = heats.length > lastHeats.length;
 
   const status = useMemo(
-    () => roundStatus(heats, { finalSeriesStarted, numQualifyingGroups }),
-    [heats, finalSeriesStarted, numQualifyingGroups],
+    () => roundStatus(heats, { finalSeriesStarted }),
+    [heats, finalSeriesStarted],
   );
   const currentHeatIds = useMemo(
     () => new Set(lastHeats.map((heat) => heat.heat_id)),

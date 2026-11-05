@@ -18,10 +18,6 @@ export const getEventHeatOverflowPolicy = (
   return normalizeHeatOverflowPolicy(row?.shrs_heat_overflow_policy);
 };
 
-// Re-exported from the shared module so the renderer's heat-count default and
-// the main process's cap cannot drift (SHRS 2.3).
-export { SHRS_MAX_BOATS_PER_HEAT } from '../../shared/heatSizing';
-
 export const lockDiscardProfileForRace = (race_id: number) => {
   const row = db
     .prepare(

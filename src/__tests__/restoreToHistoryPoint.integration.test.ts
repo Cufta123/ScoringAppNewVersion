@@ -38,7 +38,7 @@ const mockDbHolderRef = mockDbHolder2;
 /* eslint-disable import/first, import/order */
 import { setCallObserver } from '../main/ipcHandlers/handle';
 import { journalObserver } from '../main/functions/changeJournal';
-import applyRaceColumnEdit from '../shared/raceColumnEdit';
+import { applyRaceColumnEdit } from 'regatta-core';
 import { restorePreview, undoneActions } from '../shared/history/restore';
 import { payloadFor, prng, randomOutcome } from './fixtures/scoringOracle';
 /* eslint-enable import/first, import/order */

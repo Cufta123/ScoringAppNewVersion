@@ -38,9 +38,11 @@ function parseScore(value) {
   return Number.isNaN(n) ? null : n;
 }
 
-function roundToTenthHalfUp(value) {
-  return Math.round((value + Number.EPSILON) * 10) / 10;
-}
+// The averages themselves (RRS A9) are regatta-core's, shown from the
+// library's preview (leaderboardEdit.wysiwyg, packages/regatta-core/test).
+// Until then the draft keeps the boat's current points in an RDG1 / RDG2
+// cell: a value the Save accepts (above 0, at most 99).
+const savable = (value) => value !== null && value > 0 && value <= 99;
 
 function buildRandomBoatRow(prng, boatId, raceCount = 6) {
   const penaltyStatuses = [
@@ -133,25 +135,7 @@ describe('Property-based: RDG1/RDG2/RDG3 random stress', () => {
       const beforeRdg1 = result.current.editableLeaderboard.find(
         (e) => e.boat_id === boatId,
       );
-      const penaltyPosition = result.current.editableLeaderboard.length + 1;
-
-      const rdg1Candidates = beforeRdg1.races
-        .map((r, i) => ({
-          index: i,
-          value: parseScore(r),
-        }))
-        // RRS A9(a): all races except the race in question; penalty
-        // scores are the boat's points and are included in the average.
-        .filter(({ index, value }) => index !== rdg1Index && value !== null)
-        .map((x) => x.value);
-
-      const expectedRdg1 =
-        rdg1Candidates.length > 0
-          ? roundToTenthHalfUp(
-              rdg1Candidates.reduce((sum, v) => sum + v, 0) /
-                rdg1Candidates.length,
-            )
-          : penaltyPosition;
+      const expectedRdg1 = parseScore(beforeRdg1.race_points[rdg1Index]);
 
       act(() => {
         result.current.handleRaceChange(boatId, rdg1Index, null, 'RDG1');
@@ -162,6 +146,7 @@ describe('Property-based: RDG1/RDG2/RDG3 random stress', () => {
       );
       expect(afterRdg1.race_statuses[rdg1Index]).toBe('RDG1');
       expect(parseScore(afterRdg1.race_points[rdg1Index])).toBe(expectedRdg1);
+      expect(savable(expectedRdg1)).toBe(true);
 
       const rdg3Value = randInt(prng, 1, 8) + 0.5;
       act(() => {
@@ -174,31 +159,15 @@ describe('Property-based: RDG1/RDG2/RDG3 random stress', () => {
       expect(afterRdg3.race_statuses[rdg3Index]).toBe('RDG3');
       expect(parseScore(afterRdg3.race_points[rdg3Index])).toBe(rdg3Value);
 
-      // SHRS 5.6 (RULE-M10): redress averages are calculated SEPARATELY for the
-      // Qualifying and Final Series, so the selection — and the average — cover
-      // only races in the series the redressed cell belongs to. This test
-      // previously pooled qualifying and final race points into one average,
-      // which encoded a misreading of 5.6.
+      // SHRS 5.6 (RULE-M10): the selection covers only races in the series
+      // the redressed cell belongs to (the rows on screen).
       const selectedIndices = new Set([rdg2Index, (rdg2Index + 1) % raceCount]);
 
       const currentEntry = result.current.editableLeaderboard.find(
         (e) => e.boat_id === boatId,
       );
 
-      const rdg2Values = [...selectedIndices]
-        .filter((i) => i !== rdg2Index)
-        // RRS A9(b): the average is over the boat's POINTS in the selected
-        // races — race_points, not the finishing places in `races` (the two
-        // differ for position-keeping penalties like ZFP/SCP).
-        .map((i) => parseScore(currentEntry.race_points[i]))
-        .filter((v) => v !== null);
-
-      const expectedRdg2 =
-        rdg2Values.length > 0
-          ? roundToTenthHalfUp(
-              rdg2Values.reduce((sum, v) => sum + v, 0) / rdg2Values.length,
-            )
-          : penaltyPosition;
+      const expectedRdg2 = parseScore(currentEntry.race_points[rdg2Index]);
 
       act(() => {
         result.current.setRdg2Picker({
@@ -217,6 +186,7 @@ describe('Property-based: RDG1/RDG2/RDG3 random stress', () => {
       );
       expect(afterRdg2.race_statuses[rdg2Index]).toBe('RDG2');
       expect(parseScore(afterRdg2.race_points[rdg2Index])).toBe(expectedRdg2);
+      expect(savable(expectedRdg2)).toBe(true);
       expect(afterRdg2.computed_total).toBeGreaterThan(0);
 
       unmount();

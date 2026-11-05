@@ -1,7 +1,4 @@
-import {
-  POSITION_KEEPING_PENALTIES,
-  orderBoatsByPenalty,
-} from './penaltyOrder';
+import { holdsPlace, inRecordingOrder } from 'regatta-core';
 
 /**
  * The finish-order rules behind the scoring-entry screen: how a typed running
@@ -86,8 +83,8 @@ export const pruneTies = (
     const lowerPenalty = penaltiesByBoat[lower];
     const upperPenalty = penaltiesByBoat[upper];
     if (
-      (lowerPenalty && !POSITION_KEEPING_PENALTIES.has(lowerPenalty)) ||
-      (upperPenalty && !POSITION_KEEPING_PENALTIES.has(upperPenalty))
+      (lowerPenalty && !holdsPlace(lowerPenalty)) ||
+      (upperPenalty && !holdsPlace(upperPenalty))
     ) {
       return;
     }
@@ -107,7 +104,13 @@ export const getOrderedBoatNumbers = (
   boats: SailNumber[],
   penaltiesByBoat: Record<string, string>,
 ): SailNumber[] =>
-  orderBoatsByPenalty(boats, penaltiesByBoat, compareBoatNumbers);
+  // SHRS 5.3 recording order (regatta-core); boats with the same code by
+  // sail number, the only identity the entry screen has.
+  inRecordingOrder(
+    boats,
+    (boat) => penaltiesByBoat[String(boat)],
+    compareBoatNumbers,
+  );
 
 /**
  * Move a boat within the finish order, re-applying SHRS 5.3 penalty ordering
@@ -179,7 +182,7 @@ export const buildScoredRace = ({
     includedBoats.add(boatNumber);
     const penalty = penalties[boatNumber];
 
-    if (!penalty || POSITION_KEEPING_PENALTIES.has(penalty)) {
+    if (!penalty || holdsPlace(penalty)) {
       boatPlaces.push({
         boatNumber,
         place: placeNumbers[boatNumber],

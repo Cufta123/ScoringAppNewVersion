@@ -1,7 +1,8 @@
 /**
  * Replay of the published results of the IOM World Championship 2024
- * (Gladstone, Australia, 20–28 Oct 2024; 76 boats, 20 races) through the
- * app's discard and totalling code.
+ * (Gladstone, Australia, 20–28 Oct 2024; 76 boats, 20 races) through
+ * regatta-core's discards and totals (SHRS 5.4), the code the app's
+ * standings use.
  *
  * Fixture: e2e/fixtures/iom-worlds-2024-gladstone.json — the published sheet
  * transcribed verbatim (rank, sail number, nation, every race cell as printed,
@@ -29,10 +30,7 @@
  */
 import fs from 'fs';
 import path from 'path';
-import { getExcludedIndexes } from '../shared/scoring/discards';
-import { getExcludeCountForProfile } from '../shared/discardProfile';
-import { sumPoints } from '../shared/points';
-import { applyExclusions } from '../renderer/utils/leaderboardUtils';
+import { discardCount, excludedScores, sumPoints } from 'regatta-core';
 
 interface Competitor {
   rank: number;
@@ -57,6 +55,21 @@ const { competitors } = fixture;
 const RACES = 20;
 
 const points = (cell: string) => Number(cell.replace(/[(),]/g, ''));
+const STANDARD = { kind: 'standard' as const };
+
+/** The library's excluded scores for a boat's printed cells. */
+const ourDiscards = (c: Competitor) =>
+  excludedScores(
+    c.races.map((cell, i) => ({ points: points(cell), order: i + 1 })),
+    discardCount(RACES, STANDARD),
+  );
+
+/** Her nett: the scores the library kept. */
+const ourNett = (c: Competitor) => {
+  const excluded = ourDiscards(c);
+  return sumPoints(c.races.map(points).filter((_p, i) => !excluded.has(i)));
+};
+
 const publishedDiscards = (c: Competitor) =>
   c.races
     .map((cell, i) => (cell.startsWith('(') ? i : -1))
@@ -79,21 +92,13 @@ describe('IOM Worlds 2024 (published sheet) — discards and totals', () => {
   });
 
   it('discards 3 scores at 20 races, as the sheet does (SHRS 5.4 standard)', () => {
-    expect(getExcludeCountForProfile(RACES, 'standard')).toBe(3);
+    expect(discardCount(RACES, STANDARD)).toBe(3);
     competitors.forEach((c) => expect(publishedDiscards(c)).toHaveLength(3));
   });
 
   it('discards exactly the races the sheet put in parentheses', () => {
-    const excludeCount = getExcludeCountForProfile(RACES, 'standard');
     competitors.forEach((c) => {
-      const entries = c.races.map((cell, i) => ({
-        points: points(cell),
-        status: 'FINISHED',
-        race_number: i + 1,
-      }));
-      const ours = [...getExcludedIndexes(entries, excludeCount)].sort(
-        (a, b) => a - b,
-      );
+      const ours = [...ourDiscards(c)].sort((a, b) => a - b);
       expect({ sail: c.sail, discards: ours }).toEqual({
         sail: c.sail,
         discards: publishedDiscards(c),
@@ -101,22 +106,10 @@ describe('IOM Worlds 2024 (published sheet) — discards and totals', () => {
     });
   });
 
-  it('marks the same discards in the leaderboard view', () => {
-    competitors.forEach((c) => {
-      const raw = c.races.map((cell) => cell.replace(/[()]/g, ''));
-      const { markedRaces } = applyExclusions(raw, [], raw, 'standard', RACES);
-      expect({ sail: c.sail, cells: markedRaces }).toEqual({
-        sail: c.sail,
-        cells: c.races,
-      });
-    });
-  });
-
   it('reproduces every gross total and nett', () => {
     competitors.forEach((c) => {
       const all = c.races.map(points);
-      const raw = c.races.map((cell) => cell.replace(/[()]/g, ''));
-      const { total } = applyExclusions(raw, [], raw, 'standard', RACES);
+      const total = ourNett(c);
       expect({ sail: c.sail, gross: sumPoints(all) }).toEqual({
         sail: c.sail,
         gross: c.total,
@@ -136,13 +129,7 @@ describe('IOM Worlds 2024 (published sheet) — discards and totals', () => {
 
   it('ranks the fleet in the published order by nett (no ties to break)', () => {
     const ours = [...competitors]
-      .map((c) => {
-        const raw = c.races.map((cell) => cell.replace(/[()]/g, ''));
-        return {
-          sail: c.sail,
-          nett: applyExclusions(raw, [], raw, 'standard', RACES).total,
-        };
-      })
+      .map((c) => ({ sail: c.sail, nett: ourNett(c) }))
       .sort((a, b) => a.nett - b.nett)
       .map((c) => c.sail);
     const published = [...competitors]

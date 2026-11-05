@@ -1,4 +1,5 @@
 import {
+  holdsPlace,
   type NoPlaceCode,
   type PenaltyCode,
   type RaceLine,
@@ -10,10 +11,7 @@ import { applyToEvent, previewOnEvent } from '../functions/libraryWrite';
 import { correctionDecisions } from '../functions/libraryCorrection';
 import { sanitizePositiveInteger } from '../functions/validation';
 import { coreHeatId } from '../functions/eventLog';
-import {
-  normalizeScoreStatus,
-  scoringPenaltyStatuses,
-} from '../functions/scoreStatus';
+import { normalizeScoreStatus } from '../functions/scoreStatus';
 import { logError } from '../errorLog';
 import { explainError } from '../../shared/errors/explainError';
 import {
@@ -112,8 +110,7 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
   // The race office's sheet: finishers (and ZFP / SCP / T1, which keep
   // their place) by place, boats on one place tied (RRS A7); codes after;
   // a boat of the heat not on the sheet is DNS, as the screen shows her.
-  const keepsPlace = (status: string) =>
-    status === 'FINISHED' || scoringPenaltyStatuses.has(status);
+  const keepsPlace = holdsPlace;
   const entries = placeNumbers.map((entry) => {
     const status = normalizeScoreStatus(entry.status);
     return {

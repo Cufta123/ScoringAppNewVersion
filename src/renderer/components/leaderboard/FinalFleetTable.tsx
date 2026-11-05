@@ -1,8 +1,8 @@
 /* eslint-disable react/no-array-index-key */
 /* eslint-disable no-nested-ternary */
 import React, { useState } from 'react';
+import { sumPoints } from 'regatta-core';
 import ScoreCell from './ScoreCell';
-import { sumPoints } from '../../../shared/points';
 import ComparePanel from './ComparePanel';
 import {
   ExplainableScore,

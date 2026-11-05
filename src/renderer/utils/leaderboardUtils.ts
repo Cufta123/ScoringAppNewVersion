@@ -1,39 +1,21 @@
-import IOC_NATIONS from '../constants/iocNations';
-import { fleetRank } from '../../shared/fleetNames';
-import { getExcludeCountForProfile } from '../../shared/discardProfile';
-import { sumPoints } from '../../shared/points';
-import { averageRedressPoints } from '../../shared/redress';
 import {
-  capExcludeCountForBoat,
-  getExcludedIndexes,
-} from '../../shared/scoring/discards';
+  REDRESS_CODES,
+  RESULT_CODES as CORE_RESULT_CODES,
+  fleetIndex,
+  sumPoints,
+} from 'regatta-core';
+import IOC_NATIONS from '../constants/iocNations';
 import type { LeaderboardEntry, RawLeaderboardEntry } from '../types';
 
-export const PENALTY_CODES = [
-  'DNF',
-  'DNS',
-  'DSQ',
-  'OCS',
-  'ZFP',
-  'T1',
-  'RET',
-  'RAF',
-  'SCP',
-  'BFD',
-  'UFD',
-  'DNC',
-  'NSC',
-  'WTH',
-  'DNE',
-  'DGM',
-  'DPI',
-  // RDG variants — all carry a numeric score (not penaltyPosition)
-  'RDG1', // Redress: average of ALL series races
-  'RDG2', // Redress: average of SELECTED races
-  'RDG3', // Redress: manual numeric entry
-];
+/**
+ * Every code a result can show, in regatta-core's order: ZFP / SCP / T1,
+ * the no-place codes in SHRS 5.3 order, DPI and redress. The screens and
+ * exports list codes from here; what each one scores is the library's.
+ */
+export const RESULT_CODES: readonly string[] = CORE_RESULT_CODES;
 
-export const RDG_TYPES = ['RDG1', 'RDG2', 'RDG3'];
+/** Redress (RRS A9): a score the protest committee gave. */
+export const RDG_TYPES: readonly string[] = REDRESS_CODES;
 
 export type { RawLeaderboardEntry };
 
@@ -69,101 +51,6 @@ export const grossPointValues = (
   entry: Pick<LeaderboardEntry, 'race_points' | 'races'> | null | undefined,
 ): number[] => (entry?.race_points || entry?.races || []).map(parseRaceNum);
 
-/**
- * RRS A9 average of a boat's points over a chosen set of race indices, excluding
- * one race (the redressed cell), for the edit preview. The rule itself — which
- * races count, rounding to the tenth — lives in shared/redress.ts, which the
- * main-process recompute also uses, so the preview equals what Save persists.
- *
- * `selectedIndices` of `null` averages every index; a non-null set averages only
- * the given indices. Non-numeric values are skipped, as are other races scored
- * by average redress (`statuses`). An empty average falls back to `penaltyPos`
- * for the preview; the backend keeps the stored value until there is something
- * to average.
- */
-export const averageRacePoints = (
-  raceValues: string[],
-  selectedIndices: Set<number> | null,
-  excludeIdx: number,
-  penaltyPos: number,
-  statuses: string[] = [],
-): number => {
-  const cells = raceValues
-    .map((value, idx) => ({
-      points: parseFloat(stripExclusionParens(value)),
-      status: statuses[idx] || 'FINISHED',
-      idx,
-    }))
-    .filter(({ idx, points }) => {
-      if (idx === excludeIdx) return false;
-      if (selectedIndices !== null && !selectedIndices.has(idx)) return false;
-      return !Number.isNaN(points);
-    });
-  return averageRedressPoints(cells) ?? penaltyPos;
-};
-
-/**
- * SHRS 5.4: after 4 races exclude 1, after 8 exclude 2, then +1 per 8 more —
- * unless the Race Committee changed the rule for this event.
- *
- * Delegates to the shared implementation the main process also uses, so a
- * custom profile (thresholds, altered first/second/every, or "never discard")
- * produces the same count in the edit-mode preview as in the stored scores.
- * The renderer used to reimplement this and honoured only `thresholds`,
- * silently applying the standard 4/8/8 to every other custom profile.
- */
-export const getExcludeCount = (
-  numberOfRaces: number,
-  discardProfile: string | null = 'standard',
-): number => getExcludeCountForProfile(numberOfRaces, discardProfile);
-
-/**
- * Apply score exclusions per SHRS 5.4: mark worst scores with parentheses,
- * return marked races array and the net total (sum of non-excluded scores).
- *
- * The choice of races is the scoring core's (src/shared/scoring/discards.ts),
- * the same code the stored leaderboard uses. Races arrive in race order, so
- * equal worst scores fall on the earliest race in both places.
- */
-export const applyExclusions = (
-  rawPositions: Array<string | number>,
-  raceStatuses: string[] = [],
-  scoreValues: Array<string | number> = rawPositions,
-  discardProfile: string | null = 'standard',
-  // SHRS 5.4: the discard count keys off races completed IN THE SERIES, not
-  // the boat's own race count. Callers that know the series-wide count pass
-  // it here; omitting it falls back to the boat's own count (single-entry
-  // callers and unit tests).
-  seriesRaceCount: number | undefined = undefined,
-): { markedRaces: string[]; total: number } => {
-  const points = scoreValues.map((value) => {
-    const v = parseFloat(stripExclusionParens(value));
-    return Number.isNaN(v) ? 0 : v;
-  });
-  // Never discard all of a boat's scores (same cap as the stored scores).
-  const excludeCount = capExcludeCountForBoat(
-    getExcludeCount(seriesRaceCount ?? rawPositions.length, discardProfile),
-    rawPositions.length,
-  );
-  const excluded = getExcludedIndexes(
-    rawPositions.map((_race, index) => ({
-      points: points[index],
-      status: raceStatuses[index] || 'FINISHED',
-      race_number: index,
-    })),
-    excludeCount,
-  );
-
-  return {
-    markedRaces: rawPositions.map((race, i) =>
-      excluded.has(i)
-        ? `(${stripExclusionParens(race)})`
-        : stripExclusionParens(race),
-    ),
-    total: sumPoints(points.filter((_point, i) => !excluded.has(i))),
-  };
-};
-
 /** Mark the scores the library excluded and total the rest. */
 const markExcluded = (
   rawPositions: string[],
@@ -186,15 +73,13 @@ const markExcluded = (
 };
 
 /**
- * Process a raw leaderboard DB entry into display-ready format.
+ * A row from the main process as the screen shows it: the race columns
+ * split, the scores regatta-core excluded in brackets, and its net total.
+ * Every read carries the excluded scores (`race_excluded`); a row without
+ * them has none marked (nothing here works discards out).
  */
 export const processLeaderboardEntry = (
   entry: RawLeaderboardEntry,
-  discardProfile: string | null = 'standard',
-  // SHRS 5.4 series-wide completed-race count (see applyExclusions). Callers
-  // that process a whole leaderboard compute this once as the max race count
-  // across all entries and pass it in.
-  seriesRaceCount: number | undefined = undefined,
 ): LeaderboardEntry => {
   const races = entry.race_positions ? entry.race_positions.split(',') : [];
   const race_points = entry.race_points ? entry.race_points.split(',') : races;
@@ -206,19 +91,13 @@ export const processLeaderboardEntry = (
   const { race_held_places: heldCsv, ...columns } = entry;
   const heldPlaces =
     typeof heldCsv === 'string' ? { race_held_places: heldCsv.split(',') } : {};
-  // The excluded scores as regatta-core decided them (every read from the
-  // main process carries them); worked out here only for rows without them.
   const excludedCsv =
-    typeof entry.race_excluded === 'string' ? entry.race_excluded : null;
-  const { markedRaces, total } = excludedCsv
-    ? markExcluded(races, race_points, excludedCsv.split(','))
-    : applyExclusions(
-        races,
-        race_statuses,
-        race_points,
-        discardProfile,
-        seriesRaceCount,
-      );
+    typeof entry.race_excluded === 'string' ? entry.race_excluded : '';
+  const { markedRaces, total } = markExcluded(
+    races,
+    race_points,
+    excludedCsv.split(','),
+  );
   const { race_excluded: _excluded, ...shown } = columns;
   return {
     ...shown,
@@ -227,14 +106,12 @@ export const processLeaderboardEntry = (
     race_ids,
     race_statuses,
     ...heldPlaces,
-    // LB-9: use the locally computed net total, which is consistent with the
-    // parenthesised markings and the CURRENT discard profile. The DB-stored
-    // total can be stale if the profile changed without a recompute. Fall back
-    // to the stored value only when there are no races to compute from.
+    // The library's total; a row without one (none from the main process)
+    // totals the scores it shows.
     computed_total:
-      races.length > 0 && !excludedCsv
-        ? total
-        : (entry.total_points_final ?? entry.total_points_event ?? null),
+      entry.total_points_final ??
+      entry.total_points_event ??
+      (races.length > 0 ? total : null),
   };
 };
 
@@ -300,7 +177,7 @@ export const getRaceCellDisplay = (
   race: string,
   raceStatus: string,
 ): RaceCellDisplay => {
-  const isPenalty = PENALTY_CODES.includes(raceStatus);
+  const isPenalty = RESULT_CODES.includes(raceStatus);
   const isRdgCell = RDG_TYPES.includes(raceStatus);
   // DPI carries a PC-set numeric score (RRS A10), so it is displayed with its
   // number (like RDG), not as a bare place-less penalty code.
@@ -358,7 +235,7 @@ export const getPenaltyPointsText = (
   raceIndex: number,
   raceStatus: string,
 ): string | null => {
-  if (!PENALTY_CODES.includes(raceStatus)) return null;
+  if (!RESULT_CODES.includes(raceStatus)) return null;
   if (RDG_TYPES.includes(raceStatus) || raceStatus === 'DPI') return null;
   const points = entry?.race_points;
   if (!points || points.length !== entry?.race_statuses?.length) return null;
@@ -382,13 +259,16 @@ export const FLEET_COLORS: Record<string, { border: string; thead: string }> = {
 /**
  * SHRS 5.5 fleet precedence for display grouping: Gold, Silver, Bronze, Copper
  * "and so on", then the single-fleet "General" bucket, then anything we cannot
- * order. Uses the shared `fleetRank` so the 5th and later fleets ("Fleet 5", …)
- * get real, distinct precedence instead of all colliding on one rank (RULE-m2).
+ * order. Uses regatta-core's `fleetIndex` so the 5th and later fleets
+ * ("Fleet 5", …) get real, distinct precedence (RULE-m2).
  */
 const GENERAL_GROUP_RANK = Number.MAX_SAFE_INTEGER - 1;
 
-const fleetGroupRank = (group: string): number =>
-  group === 'General' ? GENERAL_GROUP_RANK : fleetRank(group);
+const fleetGroupRank = (group: string): number => {
+  if (group === 'General') return GENERAL_GROUP_RANK;
+  const index = fleetIndex(group);
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+};
 
 export const compareFleetGroups = (a: string, b: string): number =>
   fleetGroupRank(a) - fleetGroupRank(b);

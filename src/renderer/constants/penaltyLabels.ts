@@ -1,3 +1,5 @@
+import { NO_PLACE_CODES, PENALTY_CODES } from 'regatta-core';
+
 /**
  * Single source of truth for the plain-language meaning of every scoring status
  * code (SHRS 2026-1 / RRS Appendix A). Both the finish-order entry screen and
@@ -41,25 +43,12 @@ export const penaltyLabel = (code: string): string => {
 };
 
 /**
- * Ordered list of penalties offered during initial finish-order entry.
- * Position-keeping penalties first, then non-finishers, then disqualifications.
- * Excludes RDG* and DPI, which carry a numeric score entered via the leaderboard
- * edit flow (where the points field exists), not during finish-order entry.
+ * The codes offered during finish-order entry, in regatta-core's order:
+ * the penalties that keep the place, then the no-place codes in SHRS 5.3
+ * order. RDG* and DPI carry a score the protest committee sets, entered on
+ * the leaderboard (where the points field exists), not here.
  */
-export const FINISH_ENTRY_PENALTY_CODES = [
-  'ZFP',
-  'SCP',
-  'T1',
-  'DNS',
-  'DNF',
-  'RET',
-  'NSC',
-  'OCS',
-  'DNC',
-  'WTH',
-  'UFD',
-  'BFD',
-  'DSQ',
-  'DNE',
-  'DGM',
+export const FINISH_ENTRY_PENALTY_CODES: readonly string[] = [
+  ...PENALTY_CODES,
+  ...NO_PLACE_CODES,
 ];

@@ -8,6 +8,7 @@
  * EventForm.tsx, where both the create form and the inline edit form reached
  * for it.
  */
+import { discardCount } from 'regatta-core';
 import {
   DEFAULT_DISCARD_CONFIG,
   normalizeDiscardConfig,
@@ -188,10 +189,12 @@ export const getDiscardExamples = (
 
   return sampleRaceCounts
     .map((raceCount) => {
-      const discardCount = thresholds.filter(
-        (threshold) => raceCount >= threshold,
-      ).length;
-      return `${raceCount} races = ${discardCount} discard${discardCount === 1 ? '' : 's'}`;
+      // SHRS 5.4 as the race committee set it, counted by regatta-core.
+      const count = discardCount(raceCount, {
+        kind: 'thresholds',
+        at: thresholds,
+      });
+      return `${raceCount} races = ${count} discard${count === 1 ? '' : 's'}`;
     })
     .join(' | ');
 };

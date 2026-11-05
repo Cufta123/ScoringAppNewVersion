@@ -8,20 +8,13 @@ import {
 } from '../utils/userFeedback';
 import {
   applyRaceEdit,
-  averageSelectedRacePoints,
   clampFinishingPlace,
-  createEditScoringContext,
   findRaceGroup,
-  getPenaltyPosition,
-  refreshSessionRdgAverages,
+  largestHeatFor,
   resolveEditedCell,
-  withRedressAverage,
 } from '../utils/leaderboardEdit';
 import { buildRaceOperations } from '../utils/leaderboardSave';
-import {
-  buildStandings,
-  type DiscardProfiles,
-} from '../utils/leaderboardStandings';
+import { buildStandings } from '../utils/leaderboardStandings';
 import type { LeaderboardEditSession } from './useLeaderboardEditSession';
 import { cloneEntries } from '../utils/leaderboardUtils';
 import type { LeaderboardEntry } from '../types';
@@ -32,8 +25,6 @@ interface EditInputs {
   /** The saved rows being shown (final fleets, or qualifying before that). */
   leaderboard: LeaderboardEntry[];
   eventLeaderboard: LeaderboardEntry[];
-  discardProfile: string;
-  discardProfiles: DiscardProfiles;
   /** Largest heat of the series being edited (SHRS 5.2). */
   maxHeatSize: number;
   fetchLeaderboard: () => Promise<void>;
@@ -43,8 +34,10 @@ interface EditInputs {
 
 /**
  * Editing the leaderboard: cell edits (places, status codes, RDG1/RDG2/RDG3,
- * DPI), the RDG2 race picker, Save, and detecting unsaved changes. The preview
- * maths is in utils/leaderboardEdit; the state is in useLeaderboardEditSession.
+ * DPI), the RDG2 race picker, Save, and detecting unsaved changes. The draft
+ * re-ranks the edited race with regatta-core (utils/leaderboardEdit); totals,
+ * discards and redress averages are the library's, from the preview. The
+ * state is in useLeaderboardEditSession.
  */
 export default function useLeaderboardEdit(
   session: LeaderboardEditSession,
@@ -53,8 +46,6 @@ export default function useLeaderboardEdit(
     finalSeriesStarted,
     leaderboard,
     eventLeaderboard,
-    discardProfile,
-    discardProfiles,
     maxHeatSize,
     fetchLeaderboard,
     checkFinalSeriesStarted,
@@ -115,13 +106,13 @@ export default function useLeaderboardEdit(
   }, [editMode, savedRows]);
 
   /**
-   * Show what Save would store. The rows just edited (re-ranked here at
-   * once) are sent as Save sends them; the main process saves them,
+   * Show what Save would store. The rows just edited (the race re-ranked
+   * here at once) are sent as Save sends them; the main process saves them,
    * reads the standings back and rolls back (previewLeaderboardEdit), and
-   * those rows replace the draft. So totals, discards, redress averages and
-   * places on screen are regatta-core's, not a second calculation. Without
-   * an answer (an older main process) the draft stays as worked out here;
-   * Save is the check either way.
+   * those rows replace the draft. Totals, discards, redress averages and
+   * places on screen are regatta-core's; nothing here works them out.
+   * Without an answer the draft keeps the re-ranked race and the totals
+   * from before the edit; Save is the check either way.
    */
   const previewWithLibrary = (rows: LeaderboardEntry[]) => {
     if (editIsStaleRef.current) return;
@@ -149,7 +140,6 @@ export default function useLeaderboardEdit(
           finalResults: preview.finalResults,
           overallResults: preview.overallResults,
           finalSeriesStarted,
-          profiles: discardProfiles,
         });
         const byBoat = new Map(shown.map((row) => [row.boat_id, row]));
         setEditableLeaderboard((current) =>
@@ -158,7 +148,7 @@ export default function useLeaderboardEdit(
         return undefined;
       })
       .catch(() => {
-        // No preview: the draft stays as worked out here.
+        // No preview: the draft stays as re-ranked here.
       });
   };
 
@@ -212,21 +202,12 @@ export default function useLeaderboardEdit(
     // RDG2 is applied from the race picker (confirmRdg2), not typed.
     if (newStatus === 'RDG2') return;
 
-    const ctx = createEditScoringContext(
-      editableLeaderboard,
-      finalSeriesStarted,
-      discardProfile,
-      maxHeatSize,
-    );
-    const penaltyPosition = getPenaltyPosition(ctx, cloned.length);
-    const maxBoats = penaltyPosition - 1;
-
+    const maxBoats = largestHeatFor(maxHeatSize, cloned.length);
     const resolved = resolveEditedCell(
       targetEntry,
       raceIndex,
       newRaceValue,
       newStatus,
-      penaltyPosition,
     );
     if (!resolved) return;
     if (newStatus === 'RDG1' || newStatus === 'RDG3') {
@@ -236,16 +217,10 @@ export default function useLeaderboardEdit(
       }));
     }
 
-    // RULE-M16 / RRS A6.1 and the manual ripple are both decided inside
-    // shared/raceColumnEdit (see applyRaceEdit); the hook only supplies the
-    // before/after facts.
+    // What the correction does to the race (RRS A6.1, the move of a new
+    // place, A6.2, A7) is regatta-core's (see applyRaceEdit).
     const group = findRaceGroup(cloned, boatId, raceIndex);
-    const cell = clampFinishingPlace(
-      resolved,
-      newStatus,
-      group.length || 1,
-      maxBoats,
-    );
+    const cell = clampFinishingPlace(resolved, newStatus, group.length || 1);
 
     // Remember the raw user edit for the save payload.
     userEditsRef.current.set(`${boatId}-${raceIndex}`, {
@@ -255,7 +230,7 @@ export default function useLeaderboardEdit(
       status: newStatus,
     });
 
-    const updated = applyRaceEdit(cloned, group, ctx, {
+    const updated = applyRaceEdit(cloned, group, {
       boatId,
       raceIndex,
       position: cell.position,
@@ -263,17 +238,8 @@ export default function useLeaderboardEdit(
       status: newStatus,
       maxBoats,
     });
-
-    const refreshed = refreshSessionRdgAverages(
-      updated,
-      userEditsRef.current,
-      ctx,
-    );
-    refreshed.changedEdits.forEach(([key, edit]) =>
-      userEditsRef.current.set(key, edit),
-    );
-    setEditableLeaderboard(refreshed.rows);
-    previewWithLibrary(refreshed.rows);
+    setEditableLeaderboard(updated);
+    previewWithLibrary(updated);
   };
 
   const confirmRdg2 = () => {
@@ -292,46 +258,37 @@ export default function useLeaderboardEdit(
     // the guard: a live picker here means the status has not been overridden
     // since it opened, and applying RDG2 is safe.
 
-    const ctx = createEditScoringContext(
-      editableLeaderboard,
-      finalSeriesStarted,
-      discardProfile,
-      maxHeatSize,
-    );
-    const penaltyPosition = getPenaltyPosition(ctx, cloned.length);
-
-    // RRS A9(b): average of her points in the selected group of races.
-    // Penalty scores are her points and are included.
-    // SHRS 5.6 (RULE-M10): the group is confined to the series the redressed
-    // cell belongs to. `entry` is the row on the leaderboard being edited, so
-    // its races are exactly that series' races.
+    // RRS A9(b): the average of her points in the chosen races is
+    // regatta-core's, worked out from the races sent with the cell (SHRS
+    // 5.6: the races of the edited cell's own series, the rows on screen).
+    // Until the library's preview shows it, the cell keeps her current
+    // points there, a value Save accepts.
     const seriesIndices = [...(selectedIndices || new Set<number>())];
-    const avg = averageSelectedRacePoints(
-      entry,
-      seriesIndices,
-      raceIndex,
-      penaltyPosition,
-    );
-
-    // Record the raw edit so handleSave persists this RDG2 cell. The preview
-    // replaces only this cell (no column re-rank), and so does Save. The
-    // selection is kept so the average can be refreshed if later edits change
-    // the selected races' points.
+    const resolved = resolveEditedCell(entry, raceIndex, null, 'RDG2');
+    if (!resolved) {
+      setRdg2Picker(null);
+      return;
+    }
     userEditsRef.current.set(`${boatId}-${raceIndex}`, {
       boatId,
       raceIndex,
-      rawPosition: avg,
+      rawPosition: resolved.position,
       status: 'RDG2',
       rdgSelection: { seriesIndices },
     });
 
-    const updatedEntry = withRedressAverage(
-      entry,
-      ctx,
-      raceIndex,
-      avg,
-      'RDG2',
-      penaltyPosition,
+    // RRS A6.2: redress moves no other boat; she keeps her place.
+    const updated = applyRaceEdit(
+      cloned,
+      findRaceGroup(cloned, boatId, raceIndex),
+      {
+        boatId,
+        raceIndex,
+        position: resolved.position,
+        points: resolved.points,
+        status: 'RDG2',
+        maxBoats: largestHeatFor(maxHeatSize, cloned.length),
+      },
     );
 
     // The selected races are always in the edited cell's own series (SHRS 5.6),
@@ -345,19 +302,9 @@ export default function useLeaderboardEdit(
       ...prev,
       [`${boatId}-${raceIndex}`]: { type: 'RDG2', selectedRaceLabels },
     }));
-    // This RDG2 changes the boat's points in this race, which can feed other
-    // session-granted RDG averages on the same boat — refresh them too.
-    const refreshed = refreshSessionRdgAverages(
-      cloned.map((e) => (e.boat_id === boatId ? updatedEntry : e)),
-      userEditsRef.current,
-      ctx,
-    );
-    refreshed.changedEdits.forEach(([key, edit]) =>
-      userEditsRef.current.set(key, edit),
-    );
-    setEditableLeaderboard(refreshed.rows);
+    setEditableLeaderboard(updated);
     setRdg2Picker(null);
-    previewWithLibrary(refreshed.rows);
+    previewWithLibrary(updated);
   };
 
   const handleSave = async () => {

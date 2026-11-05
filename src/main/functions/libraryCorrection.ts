@@ -14,6 +14,7 @@
  * umpire's DSQ, 3.1(iii)), as the old app read it.
  */
 import {
+  noPlacePoints,
   scoreRace,
   type BoatId,
   type Decision,
@@ -164,7 +165,7 @@ export function correctionDecisions(
 
   const sheet = sheetFromRows(
     rows,
-    maxBoats + 1,
+    noPlacePoints(maxBoats),
     `${ref.heat} race ${ref.race}`,
   );
   const decisions: Decision[] = [];

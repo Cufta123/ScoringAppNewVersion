@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { exactPoints as roundPoints } from 'regatta-core';
 import { heatRaceDB } from '../../api/db';
 import useDialogFocus from '../../hooks/useDialogFocus';
 import type {
@@ -7,7 +8,6 @@ import type {
   Reason,
   SeriesBlock,
 } from '../../../shared/scoring/explain';
-import { roundPoints } from '../../../shared/points';
 import { describeError } from '../../utils/userFeedback';
 
 export interface ExplainTarget {

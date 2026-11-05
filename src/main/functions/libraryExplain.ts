@@ -27,7 +27,7 @@ import {
 import { db } from '../../../public/Database/DBManager';
 import { replayEvent } from './libraryStandings';
 import { getHeatRoundFromName } from '../../shared/heatNames';
-import { parseRedressRaceIds } from '../../shared/redress';
+import { parseRedressRaceIds } from './raceSheet';
 import type {
   BoatScoreExplanation,
   ExplainedRace,
