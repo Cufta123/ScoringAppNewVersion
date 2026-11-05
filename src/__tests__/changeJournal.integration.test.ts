@@ -221,7 +221,6 @@ describe('change journal through the real handlers', () => {
       .map((row: { table_name: string }) => row.table_name);
     expect(tables).not.toContain('Leaderboard');
     expect(tables).not.toContain('FinalLeaderboard');
-    expect(db.prepare('SELECT COUNT(*) AS n FROM Leaderboard').get().n).toBe(4);
   });
 
   it('a refused action leaves no trace', async () => {

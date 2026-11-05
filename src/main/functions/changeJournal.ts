@@ -1,4 +1,5 @@
 import { db } from '../../../public/Database/DBManager';
+import { hasPendingDecisions, tagDecisions } from './decisionStore';
 import type {
   HistoryAction,
   HistoryChange,
@@ -28,7 +29,10 @@ export function tagChanges(afterChangeId: number, channel: string) {
         'SELECT COUNT(*) AS n FROM ChangeLog WHERE change_id > ? AND action_id IS NULL',
       )
       .get(afterChangeId) as { n: number };
-    if (Number(pending.n) === 0) return null;
+    // The decisions the call wrote or withdrew (decisionStore) belong to
+    // the same action as its row changes.
+    const decided = hasPendingDecisions();
+    if (Number(pending.n) === 0 && !decided) return null;
     const actionId = Number(
       db.prepare('INSERT INTO ChangeActions (channel) VALUES (?)').run(channel)
         .lastInsertRowid,
@@ -36,6 +40,7 @@ export function tagChanges(afterChangeId: number, channel: string) {
     db.prepare(
       'UPDATE ChangeLog SET action_id = ? WHERE change_id > ? AND action_id IS NULL',
     ).run(actionId, afterChangeId);
+    if (decided) tagDecisions(actionId);
     return actionId;
   })();
 }

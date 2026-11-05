@@ -1,6 +1,5 @@
 import handle from './handle';
 import { explainBoatScore, explainTieBreak } from '../functions/libraryExplain';
-import refreshStandings from '../functions/standings';
 import {
   finalRows,
   overallRows,
@@ -28,7 +27,6 @@ handle(
   async (_event, event_id, boatAId, boatBId, isFinalSeries) => {
     // regatta-core works it out from the stored results, as the leaderboard
     // reads do (functions/libraryExplain.ts); complete them first.
-    refreshStandings(Number(event_id));
     return explainTieBreak(
       Number(event_id),
       String(boatAId),
@@ -41,30 +39,24 @@ handle(
 // "How was this score calculated?" for one boat: every race's points with the
 // rule behind them, the discards, and how ties with other boats were broken.
 handle('explainBoatScore', async (_event, event_id, boat_id) => {
-  refreshStandings(Number(event_id));
   return explainBoatScore(Number(event_id), Number(boat_id));
 });
 
 // SHRS validation of whether the Final Series can start. The renderer renders
 // prompts/messages from the returned reason; all the rule logic stays here.
 handle('getFinalSeriesEligibility', async (_event, event_id) => {
-  refreshStandings(Number(event_id));
   return finalSeriesEligibility(Number(event_id));
 });
 
 // The three leaderboard reads are worked out by regatta-core from the
-// event's decision log (functions/libraryStandings.ts). refreshStandings
-// first completes missing result rows (DNS / DNC) the conversion reads, and
-// keeps the old standings tables for the readers not yet on the library.
+// event's decision log (functions/libraryStandings.ts; decisionStore).
 handle('readLeaderboard', async (event, raw_event_id) => {
   const event_id = Number(raw_event_id);
-  refreshStandings(event_id);
   return qualifyingRows(event_id);
 });
 
 handle('readFinalLeaderboard', async (event, raw_event_id) => {
   const event_id = Number(raw_event_id);
-  refreshStandings(event_id);
   return finalRows(event_id);
 });
 
@@ -74,6 +66,5 @@ handle('readFinalLeaderboard', async (event, raw_event_id) => {
  */
 handle('readOverallLeaderboard', async (event, raw_event_id) => {
   const event_id = Number(raw_event_id);
-  refreshStandings(event_id);
   return overallRows(event_id);
 });

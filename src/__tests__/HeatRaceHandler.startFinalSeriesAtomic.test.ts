@@ -126,9 +126,18 @@ it('adds a fleet when the fleets would pass 20 boats (SHRS 2.3)', async () => {
 it('asks before oversize fleets when the event says so', async () => {
   await sailedRound(40, 2);
   await event.enterBoats(eventId, [41]);
-  db.prepare(
-    "UPDATE Events SET shrs_heat_overflow_policy = 'confirm-allow-oversize' WHERE event_id = ?",
-  ).run(eventId);
+  await call(
+    'updateEvent',
+    eventId,
+    'Final',
+    'Split',
+    '2026-05-01',
+    '2026-05-03',
+    'progressive',
+    'standard',
+    'standard',
+    'confirm-allow-oversize',
+  );
   await expect(start(false)).rejects.toThrow(/Confirm oversize/);
   expect(fleets()).toEqual({});
   await start(true);

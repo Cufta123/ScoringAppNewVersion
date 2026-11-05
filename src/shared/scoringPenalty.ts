@@ -20,6 +20,7 @@ export const scoringPenaltyStatuses = new Set(['ZFP', 'SCP', 'T1']);
  * well, so a 16-boat heat added 3 points instead of 3.4.
  */
 export function getScoringPenaltyPoints(
+  /** The score she would have had: her place, or the shared points of a tie. */
   finishingPosition: number,
   maxBoats: number,
   status?: string,

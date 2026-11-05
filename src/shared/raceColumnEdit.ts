@@ -123,15 +123,18 @@ export function scoreRaceColumn(
     if (!holdsPlace(cell.status)) {
       return { ...cell, position: dnf, points: dnf };
     }
+    const n = sharing.get(cell.position) ?? 1;
+    // Places p .. p+n-1, averaged (RRS A7).
+    const shared = cell.position + (n - 1) / 2;
     if (scoringPenaltyStatuses.has(cell.status)) {
+      // RRS 44.3(c) 2025-2028: the penalty is added to the score she would
+      // have had, the shared points in a tie (as regatta-core scores it).
       return {
         ...cell,
-        points: getScoringPenaltyPoints(cell.position, maxBoats, cell.status),
+        points: getScoringPenaltyPoints(shared, maxBoats, cell.status),
       };
     }
-    const n = sharing.get(cell.position) ?? 1;
-    // Places p .. p+n-1, averaged.
-    return { ...cell, points: cell.position + (n - 1) / 2 };
+    return { ...cell, points: shared };
   });
 }
 

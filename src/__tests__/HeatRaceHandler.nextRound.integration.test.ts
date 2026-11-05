@@ -97,10 +97,15 @@ it('moves boats by the Heat Movement Table (SHRS 3.1(ii))', async () => {
 
 it('keeps every boat in her heat when pre-assigned (SHRS 3.2)', async () => {
   await setUp(8, 2);
-  const id = db.prepare('SELECT * FROM Events WHERE event_id = ?').get(eventId);
-  db.prepare(
-    "UPDATE Events SET shrs_qualifying_assignment_mode = 'pre-assigned' WHERE event_id = ?",
-  ).run(id.event_id);
+  await call(
+    'updateEvent',
+    eventId,
+    'Rounds',
+    'Split',
+    '2026-05-01',
+    '2026-05-03',
+    'pre-assigned',
+  );
   await event.scoreHeat(eventId, 'Heat A1');
   await event.scoreHeat(eventId, 'Heat B1', true);
   await nextRound();

@@ -1,4 +1,5 @@
 import { db } from '../../../public/Database/DBManager';
+import { reconvertEventLog } from './decisionStore';
 import {
   laterActionOn,
   lastChangeId,
@@ -144,6 +145,9 @@ export default function revertHistoryAction(
       });
       recomputeEventLeaderboard(event_id);
       if (hasFinalSeriesStarted(event_id)) recomputeFinalLeaderboard(event_id);
+      // Until the history works on the log itself (switch phase 4), the
+      // reverted tables are converted to the event's log again.
+      reconvertEventLog(event_id);
 
       const undoId = tagChanges(mark, 'revertHistoryAction');
       if (undoId != null) {

@@ -64,7 +64,7 @@ keep in step.
 - [x] Phase 0: `regatta-core` resolves in tsc, webpack (main checked) and both Jest configs
 - [x] Phase 1: `eventToLog` / `checkEventLog`, checked after every step of the comparison test (400 events) and the chaos test (200 sessions)
 - [x] Phase 2: the leaderboard reads, both explanations and the Final Series eligibility come from the library (`libraryStandings`, `libraryExplain`, `libraryEvent`). `getMaxHeatSize` stays on the tables until the writes move
-- [ ] Phase 3: 3a projection done; 3b writes through the library done for heats, rounds, transfers, late entries, the Final split, race scoring, undo of a race and leaderboard corrections (`libraryWrite`, `libraryCorrection`, `raceSheet`). Entries (`enterBoat`: boatEntered, R1), removals (boatRemoved, R2) and the scoring settings (settingsChanged, R11) too. Still on the tables: sailor details (global, read by the conversion), snapshots and history (phase 4). The renderer still disables the discard field by the old lock flags (phase 5). Known: the history undo (journal row restore) can hit a row the projection replaced (chaos seed 187 at 200 sessions); it moves to the log in phase 4
+- [x] Phase 3: every scoring write goes through the library (`libraryWrite`); the event's decision log is stored (`Decisions`, migration 9, `decisionStore`), converted from the tables the first time an event is used (notes and anomalies in `EventLogs`); reads replay the stored log; the tables are the projection. Restores of backups, imports and the old history paths convert the tables again (until phase 4). A boat's details edit is a boatChanged in each of her events
 - [ ] Phase 4
 - [ ] Phase 5
 - [ ] Phase 6

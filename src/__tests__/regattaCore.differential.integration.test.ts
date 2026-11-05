@@ -861,17 +861,10 @@ async function runEvent(seed: number): Promise<string[]> {
       );
     };
 
-    await call('readLeaderboard', eventId);
     const qTie = core.qualifyingTieBreak(s);
     const r8InQualifying = settled(
       'qualifying',
-      (
-        db
-          .prepare(
-            'SELECT boat_id, total_points_event, place FROM Leaderboard WHERE event_id = ?',
-          )
-          .all(eventId) as any[]
-      ).map((r) => ({
+      ((await call('readLeaderboard', eventId)) as any[]).map((r) => ({
         boat: String(r.boat_id),
         total: r.total_points_event,
         place: r.place,
@@ -887,19 +880,13 @@ async function runEvent(seed: number): Promise<string[]> {
     if (r8InQualifying) return false;
 
     if (s.fleets) {
-      await call('readFinalLeaderboard', eventId);
+      const finalRows = (await call('readFinalLeaderboard', eventId)) as any[];
       const fleets = core.finalStandings(s);
       const raced = new Set(
         fleets.filter((f) => f.races > 0).map((f) => f.fleet),
       );
       const appF = new Map(
-        (
-          db
-            .prepare(
-              'SELECT boat_id, total_points_final, placement_group, place FROM FinalLeaderboard WHERE event_id = ?',
-            )
-            .all(eventId) as any[]
-        ).map((r) => [
+        finalRows.map((r) => [
           String(r.boat_id),
           `${r.placement_group} ${r.total_points_final}${raced.has(r.placement_group) ? `@${r.place}` : ''}`,
         ]),

@@ -1,6 +1,7 @@
 import * as DBManager from '../../../public/Database/DBManager';
 import { lastChangeId, tagChanges } from './changeJournal';
 import refreshStandings from './standings';
+import { reconvertEventLog } from './decisionStore';
 import { invalidateAssignmentSnapshotCache } from './raceAssignmentSnapshot';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -193,6 +194,9 @@ export default function restoreToHistoryPoint(
         event_id,
       );
       refreshStandings(event_id);
+      // Until the history works on the log itself (switch phase 4), the
+      // restored tables are converted to the event's log again.
+      reconvertEventLog(event_id);
 
       const restoreId = tagChanges(mark, 'restoreEventToHistoryPoint');
       if (restoreId != null) {

@@ -458,6 +458,41 @@ const MIGRATIONS = [
       installJournalTriggers(db);
     },
   },
+  {
+    version: 9,
+    name: 'the event as a log of decisions (regatta-core)',
+    // Each event is its decision log (packages/regatta-core); the heats,
+    // races and results tables are worked out from it. `action_id` is the
+    // ChangeActions row of the call that made a decision (NULL: converted
+    // from the tables when the event first met this version); a decision
+    // taken back stays, with `withdrawn_by` the action that took it back
+    // (-1 while that call is still running). Not journalled: the log is the
+    // history. EventLogs marks an event whose log exists, with what the
+    // conversion had to assume (notes) or could not express (anomalies).
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS Decisions (
+          decision_id INTEGER PRIMARY KEY AUTOINCREMENT,
+          event_id INTEGER NOT NULL,
+          seq INTEGER NOT NULL,
+          body TEXT NOT NULL,
+          action_id INTEGER,
+          withdrawn_by INTEGER,
+          at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (event_id) REFERENCES Events(event_id)
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_decisions_event_seq
+          ON Decisions (event_id, seq);
+        CREATE TABLE IF NOT EXISTS EventLogs (
+          event_id INTEGER PRIMARY KEY,
+          converted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          notes TEXT,
+          anomalies TEXT,
+          FOREIGN KEY (event_id) REFERENCES Events(event_id)
+        );
+      `);
+    },
+  },
 ];
 
 const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

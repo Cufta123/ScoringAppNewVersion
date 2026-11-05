@@ -1,7 +1,8 @@
 /**
  * The write path through regatta-core (phase 3 of
  * docs/regatta-core-switch.md): a handler turns its request into decisions;
- * the event's log (converted from the tables) is replayed with them; the
+ * the event's log (stored; converted from the tables the first time) is
+ * replayed with them; the
  * library refuses, in words for the race officer, what the rules do not
  * allow; otherwise the tables become the new state (projectEvent).
  *
@@ -10,10 +11,8 @@
  */
 import { replay, type Decision, type EventState } from 'regatta-core';
 import { db } from '../../../public/Database/DBManager';
-import { eventToLog } from './eventLog';
 import projectEvent from './projectEvent';
-import { ensureCompleteRaceScoresForEvent } from './raceScoring';
-import { hasFinalSeriesStarted } from './seriesGuards';
+import { loadLog, saveLog } from './decisionStore';
 
 export interface Applied {
   before: EventState;
@@ -21,14 +20,9 @@ export interface Applied {
   log: Decision[];
 }
 
-/** The event's log and state now (from the tables). */
+/** The event's log (stored, or converted from older tables) and state. */
 export function currentEvent(eventId: number) {
-  // Rows the older write paths leave for the reads to complete.
-  ensureCompleteRaceScoresForEvent(eventId, 'Qualifying');
-  if (hasFinalSeriesStarted(eventId)) {
-    ensureCompleteRaceScoresForEvent(eventId, 'Final');
-  }
-  const log = eventToLog(eventId).decisions;
+  const log = loadLog(eventId);
   const result = replay(log);
   if (!result.ok) {
     throw new Error(
@@ -57,6 +51,7 @@ export function applyToEvent(
         : change.rewrite(log, before);
     const result = replay(next);
     if (!result.ok) throw new Error(result.reason);
+    saveLog(eventId, next);
     projectEvent(eventId, result.state);
     return { before, after: result.state, log: next };
   })();

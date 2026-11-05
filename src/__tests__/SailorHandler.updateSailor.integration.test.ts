@@ -62,6 +62,12 @@ function buildSeededDb() {
       model TEXT NOT NULL,
       sailor_id INTEGER
     );
+    -- Entries: a boat edit becomes a decision in every event she is in.
+    CREATE TABLE Boat_Event (
+      boat_event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      boat_id INTEGER,
+      event_id INTEGER
+    );
     INSERT INTO Categories (category_id, category_name) VALUES
       (1,'KADET'),(2,'JUNIOR'),(3,'SENIOR'),(4,'VETERAN'),(5,'MASTER');
     INSERT INTO Clubs (club_name, country) VALUES ('YC Split','CRO');

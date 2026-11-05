@@ -1,4 +1,5 @@
 import { db } from '../../../public/Database/DBManager';
+import { applyToEvent } from '../functions/libraryWrite';
 import { subgroupToCategoryName } from '../../shared/subgroups';
 import handle from './handle';
 import retryWhenBusy from '../functions/retryWhenBusy';
@@ -150,6 +151,43 @@ handle('updateSailor', async (event, sailorData: SailorEdit) => {
         'UPDATE Boats SET sail_number = ?, country = ?, model = ? WHERE boat_id = ?',
       )
       .run(sail_number, country, model, boat_id);
+
+    // Letters, sail number and name are part of every event she is entered
+    // in (they order the seeding and SHRS's ties): a boatChanged decision
+    // in each, which regatta-core refuses if another entry has them.
+    (
+      db
+        .prepare('SELECT event_id FROM Boat_Event WHERE boat_id = ?')
+        .all(boat_id) as { event_id: number }[]
+    ).forEach(({ event_id }) =>
+      applyToEvent(Number(event_id), {
+        decide: (state) => {
+          const before = state.boats.find((b) => b.id === String(boat_id));
+          const changed = {
+            nat: String(country ?? '').trim(),
+            sail: String(sail_number ?? '').trim(),
+            name: `${name ?? ''} ${surname ?? ''}`.trim(),
+          };
+          if (
+            before &&
+            before.nat === changed.nat &&
+            before.sail === changed.sail &&
+            (before.name ?? '') === changed.name
+          ) {
+            return [];
+          }
+          return [
+            {
+              type: 'boatChanged',
+              boat: String(boat_id),
+              nat: changed.nat,
+              sail: changed.sail,
+              ...(changed.name ? { name: changed.name } : {}),
+            },
+          ];
+        },
+      }),
+    );
 
     return {
       sailorChanges: sailorResult.changes,

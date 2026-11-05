@@ -236,19 +236,24 @@ describe('scoring agrees with an independent reading of the rules', () => {
     );
     const rounds = 2 + Math.floor(rand() * 9);
     const sails = Array.from({ length: boatCount }, (_, i) => 10 + i * 3);
-    await event.enterBoats(eventId, sails);
     // Mixed nations: ties go by national letters, then sail number (SHRS
-    // 3.1(iv), 5.3), and race 1 is seeded the same way (SHRS 3).
+    // 3.1(iv), 5.3), and race 1 is seeded the same way (SHRS 3). Each boat
+    // has her nation when she is entered (the entry records it).
     const NATIONS = ['AUS', 'CRO', 'GBR', 'ITA', 'FRA', 'GER'];
     const nationOf = new Map<number, string>();
-    sails.forEach((sail) => {
+    for (const sail of sails) {
       const nation = NATIONS[Math.floor(rand() * NATIONS.length)];
       nationOf.set(sail, nation);
-      db.prepare('UPDATE Boats SET country = ? WHERE sail_number = ?').run(
-        nation,
-        sail,
+      const boatId = Number(
+        db
+          .prepare(
+            "INSERT INTO Boats (sail_number, country, model) VALUES (?, ?, 'IOM')",
+          )
+          .run(sail, nation).lastInsertRowid,
       );
-    });
+      // eslint-disable-next-line no-await-in-loop
+      await call('associateBoatWithEvent', boatId, eventId);
+    }
     const sailOrder = (a: number, b: number) =>
       nationOf.get(a)!.localeCompare(nationOf.get(b)!) || a - b;
     await call('createInitialHeatsAtomic', eventId, heatCount);

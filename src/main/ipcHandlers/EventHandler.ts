@@ -1,4 +1,5 @@
 import { db } from '../../../public/Database/DBManager';
+import { deleteEventLog } from '../functions/decisionStore';
 import { normalizeDiscardConfigString } from '../functions/discardConfig';
 import handle from './handle';
 import { readEventHistory } from '../functions/changeJournal';
@@ -329,6 +330,9 @@ handle('deleteEvent', async (event, event_id) => {
     // Delete Leaderboard and FinalLeaderboard entries
     db.prepare('DELETE FROM Leaderboard WHERE event_id = ?').run(event_id);
     db.prepare('DELETE FROM FinalLeaderboard WHERE event_id = ?').run(event_id);
+
+    // Its decision log (no cascade: foreign keys are enforced).
+    deleteEventLog(Number(event_id));
 
     // Finally delete the event itself
     db.prepare('DELETE FROM Events WHERE event_id = ?').run(event_id);

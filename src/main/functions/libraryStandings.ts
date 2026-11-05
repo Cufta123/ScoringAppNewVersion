@@ -17,26 +17,38 @@ import {
   type RaceRef,
 } from 'regatta-core';
 import { db } from '../../../public/Database/DBManager';
-import { eventToLog } from './eventLog';
+import { coreHeatId } from './eventLog';
+import { loadLog } from './decisionStore';
 import { getHeatRoundFromName } from '../../shared/heatNames';
 import type { PendingRace } from '../../shared/raceProgress';
 
-/** The event replayed from its tables, with the app's race ids. */
+/** The event replayed from its decision log, with the app's race ids. */
 export function replayEvent(eventId: number) {
-  const log = eventToLog(eventId);
-  const result = replay(log.decisions);
+  const result = replay(loadLog(eventId));
   if (!result.ok) {
     throw new Error(
       `The results of this event cannot be worked out: ${result.reason}`,
     );
   }
-  const raceIds = new Map<string, number>();
-  log.races.forEach((ref, raceId) =>
-    raceIds.set(`${ref.heat}#${ref.race}`, raceId),
+  const raceIds = new Map<string, number>(
+    (
+      db
+        .prepare(
+          `SELECT r.race_id, r.race_number, h.heat_name FROM Races r
+           JOIN Heats h ON h.heat_id = r.heat_id WHERE h.event_id = ?`,
+        )
+        .all(eventId) as {
+        race_id: number;
+        race_number: number;
+        heat_name: string;
+      }[]
+    ).map((row) => [
+      `${coreHeatId(row.heat_name)}#${row.race_number}`,
+      Number(row.race_id),
+    ]),
   );
   return {
     state: result.state as EventState,
-    log,
     raceIdOf: (ref: RaceRef) => raceIds.get(`${ref.heat}#${ref.race}`),
   };
 }
@@ -191,6 +203,8 @@ export function finalRows(eventId: number) {
     fleet.standings.map((standing) => ({
       ...boat(standing.boat),
       total_points_final: standing.total,
+      // Her place in the fleet (not shown; the rows come in that order).
+      place: standing.place,
       event_id: eventId,
       placement_group: fleet.fleet,
       qualifying_points: qualifying.get(standing.boat) ?? 0,

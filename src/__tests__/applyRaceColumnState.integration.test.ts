@@ -353,7 +353,8 @@ describe('applyRaceColumnState (real sqlite)', () => {
       correct(db, 2, 1, 'ZFP');
       const race = readRace(db);
       expect(race[1]).toEqual([1, 1.5, 'FINISHED']);
-      expect(race[2]).toEqual([1, 3.2, 'ZFP']);
+      // RRS 44.3(c) 2025-2028: her ZFP adds to the shared 1.5, not to 1.
+      expect(race[2]).toEqual([1, 3.7, 'ZFP']);
       expect(race[3]).toEqual([3, 3, 'FINISHED']);
     });
 
