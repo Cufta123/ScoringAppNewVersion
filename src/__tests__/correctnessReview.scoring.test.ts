@@ -120,7 +120,6 @@ describe('exported totals carry no floating-point noise', () => {
     buildResultsModel(
       {
         ...input,
-        discardProfiles: { qualifying: 'standard', final: 'standard' },
         clubs: {},
       },
       DEFAULT_RESULTS_OPTIONS,

@@ -92,7 +92,6 @@ const qualifyingInput = (rows: LeaderboardEntry[]): ResultsInput => ({
   finalSeriesStarted: false,
   leaderboard: [],
   eventLeaderboard: rows,
-  discardProfiles: { qualifying: 'standard', final: 'standard' },
   clubs: {},
 });
 
@@ -122,7 +121,6 @@ const finalInput = (): ResultsInput => ({
       computed_total: 4.4,
     }),
   ],
-  discardProfiles: { qualifying: 'standard', final: 'standard' },
   clubs: { 1: 'JK Galeb' },
 });
 
@@ -579,10 +577,15 @@ describe('results: series, fleets and the race summary', () => {
   });
 
   it('puts the race count and discards from the standings in the summary, never a guess', () => {
+    // Ten races, the two worst excluded as the standings mark them.
     const ten = Array.from(
       { length: 10 },
       (_, i) =>
-        [String(i + 1), 'FINISHED', String(i + 1)] as [string, string, string],
+        [i >= 8 ? `(${i + 1})` : String(i + 1), 'FINISHED', String(i + 1)] as [
+          string,
+          string,
+          string,
+        ],
     );
     const { html } = buildResultsDocument(
       model(qualifyingInput([entry(1, ten)])),

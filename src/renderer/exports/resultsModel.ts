@@ -13,13 +13,11 @@ import {
   PENALTY_CODES,
   RDG_TYPES,
   compareFleetGroups,
-  getExcludeCount,
   getPenaltyPointsText,
   getRaceCellDisplay,
   grossPointValues,
   hasMixedBoatTypes,
 } from '../utils/leaderboardUtils';
-import { capExcludeCountForBoat } from '../../shared/scoring/discards';
 import { sumPoints } from '../../shared/points';
 import { sailorFullName } from '../utils/sailorName';
 import type { LeaderboardEntry } from '../types';
@@ -67,7 +65,6 @@ export interface ResultsInput {
   leaderboard: LeaderboardEntry[];
   /** Saved qualifying rows. */
   eventLeaderboard: LeaderboardEntry[];
-  discardProfiles: { qualifying: string; final: string };
   /** Club name by boat id, for the optional Club column. */
   clubs: Record<number, string>;
 }
@@ -135,13 +132,24 @@ export interface ResultsModel {
   options: ResultsOptions;
 }
 
-const countOf = (profile: string, races: number): RaceCount => ({
-  races,
-  discards: capExcludeCountForBoat(getExcludeCount(races, profile), races),
-});
-
 const maxRaces = (rows: ReadonlyArray<LeaderboardEntry>): number =>
   Math.max(0, ...rows.map((row) => row.races?.length ?? 0));
+
+/**
+ * The races and discards of a series, as the table shows them: the discards
+ * are the scores the standings excluded (in brackets), so the line above a
+ * table can never say another number than its cells.
+ */
+const countOf = (rows: ReadonlyArray<LeaderboardEntry>): RaceCount => ({
+  races: maxRaces(rows),
+  discards: Math.max(
+    0,
+    ...rows.map(
+      (row) =>
+        (row.races ?? []).filter((race) => String(race).startsWith('(')).length,
+    ),
+  ),
+});
 
 /** The cell of one race: what the screen shows, minus what the options hide. */
 const buildCell = (
@@ -296,7 +304,7 @@ export const buildResultsModel = (
       sections.push({
         fleet,
         color: fleetColor(fleet),
-        finalCount: countOf(input.discardProfiles.final, maxRaces(entries)),
+        finalCount: countOf(entries),
         rows,
       });
     });
@@ -336,9 +344,7 @@ export const buildResultsModel = (
     showNet: options.columns.net,
     sections,
     qualifyingCount:
-      showQualifying && qualifyingRaces > 0
-        ? countOf(input.discardProfiles.qualifying, qualifyingRaces)
-        : null,
+      showQualifying && qualifyingRaces > 0 ? countOf(eventLeaderboard) : null,
     finalCount: sameFinalCount && finalRacesShown > 0 ? finalCounts[0] : null,
     rankInFleet: series === 'final',
     codes: distinctCodes(sections),

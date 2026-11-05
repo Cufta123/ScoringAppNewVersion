@@ -79,7 +79,6 @@ const resultsProps = {
   finalSeriesStarted: false,
   leaderboard: [],
   eventLeaderboard: [row(1, undefined), row(2, undefined)],
-  discardProfiles: { qualifying: 'standard', final: 'standard' },
 };
 
 /** Render the results dialog and wait until the boats' clubs have loaded. */

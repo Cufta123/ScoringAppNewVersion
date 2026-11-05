@@ -34,7 +34,6 @@ function LeaderboardContent({
   const {
     leaderboard,
     eventLeaderboard,
-    discardProfiles,
     loading,
     finalSeriesStarted,
     editMode,
@@ -185,7 +184,6 @@ function LeaderboardContent({
             finalSeriesStarted={finalSeriesStarted}
             leaderboard={leaderboard}
             eventLeaderboard={eventLeaderboard}
-            discardProfiles={discardProfiles}
             hasUnsavedEdits={hasUnsavedChanges}
           />
         )}

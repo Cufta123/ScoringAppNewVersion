@@ -232,7 +232,6 @@ describe('LeaderboardPage', () => {
       leaderboard: saved,
       eventLeaderboard: savedQualifying,
       editableLeaderboard: draft,
-      discardProfiles: { qualifying: 'standard', final: 'standard' },
     });
 
     renderLeaderboardPage({

@@ -67,7 +67,6 @@ interface ResultsExportDialogProps {
    */
   leaderboard: LeaderboardEntry[];
   eventLeaderboard: LeaderboardEntry[];
-  discardProfiles: { qualifying: string; final: string };
   /** Unsaved edits exist; the exports do not include them. */
   hasUnsavedEdits?: boolean;
 }
@@ -80,7 +79,6 @@ export default function ResultsExportDialog({
   finalSeriesStarted,
   leaderboard,
   eventLeaderboard,
-  discardProfiles,
   hasUnsavedEdits = false,
 }: ResultsExportDialogProps) {
   const eventId = event.event_id;
@@ -124,10 +122,9 @@ export default function ResultsExportDialog({
       finalSeriesStarted,
       leaderboard,
       eventLeaderboard,
-      discardProfiles,
       clubs,
     }),
-    [finalSeriesStarted, leaderboard, eventLeaderboard, discardProfiles, clubs],
+    [finalSeriesStarted, leaderboard, eventLeaderboard, clubs],
   );
   const fleets = useMemo(() => finalFleetNames(input), [input]);
   const flags = useMemo(

@@ -98,7 +98,6 @@ describe('leaderboard columns', () => {
           finalSeriesStarted: false,
           leaderboard: [],
           eventLeaderboard,
-          discardProfiles: { qualifying: 'standard', final: 'standard' },
           clubs: {},
         },
         DEFAULT_RESULTS_OPTIONS,
