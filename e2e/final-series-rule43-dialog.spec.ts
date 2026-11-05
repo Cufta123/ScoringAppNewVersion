@@ -99,7 +99,7 @@ test.afterAll(async () => {
   await closeApp(app);
 });
 
-test('starting the Final Series with an unsailed new round does not claim "no races completed"', async () => {
+test('an unsailed new round is undone before the Final Series starts (parity R7), never "no races completed"', async () => {
   // ── Set up the event, boats, and the first round of heats ─────────────────
   await createEvent(window, EVENT_NAME);
   await openEvent(window, EVENT_NAME);
@@ -142,24 +142,29 @@ test('starting the Final Series with an unsailed new round does not claim "no ra
   await dismissToasts(window);
   await window.getByRole('button', { name: /Start Final Series/i }).click();
 
-  // The FIRST dialog must be the informative "latest round not sailed" prompt,
-  // NOT the bogus "no races completed" one. With the bug, the wrong prompt
-  // appears and this wait times out — the UI/UX error we are guarding against.
+  // Parity R7: the fleets are split from the races as sailed, so round 7,
+  // built but not sailed, is refused in words that say what to do; never
+  // the contradictory "no races completed".
   await expect(
-    window.getByRole('heading', { name: /Latest round not sailed/i }),
+    window.getByText(/Round 7 has been created but not sailed/i),
   ).toBeVisible();
-
-  // It must explain that the last completed round is used (6 races), and must
-  // NOT claim that no qualifying races have been completed.
-  const unsailedDialog = window.getByRole('dialog');
-  await expect(unsailedDialog).toContainText(/last completed round/i);
-  await expect(unsailedDialog).toContainText(/6 qualifying race/i);
+  await expect(window.getByText(/Undo round/).first()).toBeVisible();
   await expect(
     window.getByText(/No qualifying races have been completed yet/i),
   ).toHaveCount(0);
 
-  // Continue past the informative prompt.
-  await unsailedDialog.getByRole('button', { name: 'Continue' }).click();
+  // Take round 7 back, as the message says, and start again.
+  await dismissToasts(window);
+  await window.getByRole('button', { name: /^Undo round$/ }).click();
+  await window
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Undo redistribution' })
+    .click();
+  await expect(
+    window.locator('.heat-column', { hasText: 'Heat A7' }),
+  ).toHaveCount(0);
+  await dismissToasts(window);
+  await window.getByRole('button', { name: /Start Final Series/i }).click();
 
   // Next is the recovery-snapshot offer — skip it.
   await expect(

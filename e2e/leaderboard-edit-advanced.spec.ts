@@ -261,7 +261,7 @@ test('a boat’s total explains itself, race by race, with the rule behind each 
   // 4-boat heat: DNF score 5, 20% of it is 1.
   await expect(
     dialog.getByText(
-      'Finished 2 plus a Z flag penalty: 20% of the DNF score (5) is 1, so 2 + 1 = 3.',
+      'Finished 2 with a Z flag penalty: 20% of the DNF score (5) is 1, so 2 + 1 = 3.',
     ),
   ).toBeVisible();
   await expect(dialog.getByText('RRS 30.2, 44.3(c)')).toBeVisible();
