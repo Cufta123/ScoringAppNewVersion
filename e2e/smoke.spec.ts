@@ -23,9 +23,9 @@ test('main window opens', async () => {
   expect(title.length).toBeGreaterThan(0);
 });
 
-test('landing page renders the hero and create-event card', async () => {
+test('landing page renders its header and the create-event card', async () => {
   await expect(
-    window.getByRole('heading', { name: /IOM Regatta Manager/i }),
+    window.getByRole('heading', { name: 'Events', level: 1 }),
   ).toBeVisible();
   await expect(window.getByText(/Create a New Event/i)).toBeVisible();
 });

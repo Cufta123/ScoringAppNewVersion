@@ -12,6 +12,7 @@ import {
   createHeats,
   dismissToasts,
   uniqueName,
+  openCreateForm,
 } from './helpers';
 
 /**
@@ -83,6 +84,7 @@ test.afterAll(async () => {
 
 test('advanced settings drive scoring and a 7-race series reaches the final series', async () => {
   // ── Create an event with non-default advanced settings ────────────────────
+  await openCreateForm(window);
   await window.getByLabel('Event Name').fill(EVENT_NAME);
   await window.getByLabel('Location').fill('Rules Bay');
   await window.getByLabel('Start Date').fill('2026-06-01');

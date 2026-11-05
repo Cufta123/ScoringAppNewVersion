@@ -36,7 +36,9 @@ test.beforeEach(async () => {
 test('navbar brand returns to the landing page from an event', async () => {
   await openEvent(window, eventName);
   await window.getByRole('button', { name: 'Go to home page' }).click();
-  await expect(window.getByText(/Create a New Event/i)).toBeVisible();
+  await expect(
+    window.getByRole('heading', { name: 'Events', level: 1 }),
+  ).toBeVisible();
 });
 
 test('reloading an event page resolves the event from the URL (refresh-safe)', async () => {

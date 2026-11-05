@@ -291,7 +291,7 @@ in one transaction. The logic lives in focused modules under
 - `eventSnapshot.ts` — full per-event export/restore. Snapshots are
   `schemaVersion: 2` with `people` (the boats, sailors, clubs and category
   names the event uses). `importEventSnapshot` adds a file as a NEW event
-  (landing page "Import event from backup…", IPC
+  (landing page "Import from backup…", IPC
   `importEventSnapshotFromFile`): every id remapped (RDG2 `rdg_race_ids`
   included), boats matched by letters + number through `sailorEntry`, a taken
   name gets " (imported)", standings rebuilt; the original history is not
@@ -813,6 +813,11 @@ For most feature/fix requests, do this in order:
   files saved recently). A restore fires `notifyEventDataChanged` and the
   pages reload. Starting the Final Series still offers to save a file first.
   Importing a backup as a NEW event is on the landing page.
+- **The landing page** is one column: "Events" with Import from backup… and
+  New event on the right, then the events. The create form opens from New
+  event (before the first event it is open, with "How it works"). Delete in
+  an event row is a quiet red icon (`btn-icon-danger`), never a filled red
+  button.
 - **The Scoring page's round bar** (`heats/RoundBar`, status and next step
   from `utils/roundStatus`): "Qualifying · Round 4 · 1 of 3 heats scored" and
   ONE green button for the next step (Score the first heat still to sail; once

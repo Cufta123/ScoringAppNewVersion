@@ -2,7 +2,7 @@
 
 import '@testing-library/jest-dom';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import LandingPage from '../renderer/pages/LandingPage/LandingPage';
 
@@ -61,11 +61,13 @@ describe('LandingPage', () => {
     expect(
       screen.getByText('Sailing event management & race scoring'),
     ).toBeInTheDocument();
-    expect(screen.getByText('Create a New Event')).toBeInTheDocument();
+    expect(await screen.findByText('Create a New Event')).toBeInTheDocument();
     expect(screen.getByText('Event Form Mock')).toBeInTheDocument();
 
     expect(await screen.findByText('How it works')).toBeInTheDocument();
-    expect(screen.queryByText('Your Events')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('region', { name: 'Your events' }),
+    ).not.toBeInTheDocument();
   });
 
   it('shows the event list first and hides onboarding when events exist', async () => {
@@ -75,8 +77,16 @@ describe('LandingPage', () => {
 
     renderLandingPage();
 
-    expect(await screen.findByText('Your Events')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('region', { name: 'Your events' }),
+    ).toBeInTheDocument();
     expect(screen.getByText('Event List Mock')).toBeInTheDocument();
     expect(screen.queryByText('How it works')).not.toBeInTheDocument();
+    // The create form opens from "New event", and closes again.
+    expect(screen.queryByText('Event Form Mock')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /New event/ }));
+    expect(screen.getByText('Event Form Mock')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByText('Event Form Mock')).not.toBeInTheDocument();
   });
 });

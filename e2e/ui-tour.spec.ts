@@ -301,7 +301,7 @@ async function giveEventALogo(eventId: number) {
 async function home() {
   await dismissToasts(window);
   await window.getByRole('button', { name: 'Go to home page' }).click();
-  await window.getByText(/Create a New Event/i).waitFor();
+  await window.getByRole('heading', { name: 'Events', level: 1 }).waitFor();
 }
 
 async function openEventPage() {

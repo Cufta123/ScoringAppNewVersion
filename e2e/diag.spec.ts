@@ -6,6 +6,7 @@ import {
   createHeats,
   dismissToasts,
   uniqueName,
+  openCreateForm,
 } from './helpers';
 
 test.setTimeout(180000);
@@ -37,6 +38,7 @@ test('full advanced-settings -> 7 rounds -> final series', async () => {
 
   // ── advanced event ──
   const name = uniqueName('Big SHRS');
+  await openCreateForm(window);
   await window.getByLabel('Event Name').fill(name);
   await window.getByLabel('Location').fill('Rules Bay');
   await window.getByLabel('Start Date').fill('2026-06-01');

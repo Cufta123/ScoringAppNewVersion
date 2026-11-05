@@ -219,7 +219,19 @@ export async function gotoHome(window: Page): Promise<void> {
   await window.getByRole('button', { name: 'Go to home page' }).click();
   // The brand button is guarded the same way "Back to Heats" is.
   await answerConfirm(window, /^Discard$/, { title: /Discard finish order/i });
-  await expect(window.getByText(/Create a New Event/i)).toBeVisible();
+  await expect(
+    window.getByRole('heading', { name: 'Events', level: 1 }),
+  ).toBeVisible();
+}
+
+/**
+ * Open the landing page's create-event form. Once events exist it opens from
+ * "New event"; before the first event it is already open.
+ */
+export async function openCreateForm(window: Page): Promise<void> {
+  const newEvent = window.getByRole('button', { name: 'New event' });
+  if (await newEvent.isVisible()) await newEvent.click();
+  await expect(window.getByLabel('Event Name')).toBeVisible();
 }
 
 export interface EventDates {
@@ -238,12 +250,13 @@ export async function createEvent(
     end = '2026-06-02',
   }: EventDates = {},
 ): Promise<void> {
+  await openCreateForm(window);
   await window.getByLabel('Event Name').fill(name);
   await window.getByLabel('Location').fill(location);
   await window.getByLabel('Start Date').fill(start);
   await window.getByLabel('End Date').fill(end);
   await window.getByRole('button', { name: /Create Event/i }).click();
-  // The new event appears in the "Your Events" list once refreshEvents resolves.
+  // The new event appears in the events list once refreshEvents resolves.
   await expect(window.getByText(name)).toBeVisible();
 }
 

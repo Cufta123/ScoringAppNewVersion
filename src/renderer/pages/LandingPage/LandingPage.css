@@ -8,20 +8,43 @@
   padding: 16px 24px 48px;
 }
 
-.landing-hero {
-  text-align: center;
-  margin-bottom: 32px;
+/* One column: the header, then the cards, all the same width. */
+.landing-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  width: 100%;
+  max-width: 760px;
+  margin: 8px 0 20px;
 }
 
-.landing-hero h1 {
-  font-size: 2.6rem;
-  color: var(--navy);
+.landing-header h1 {
+  margin: 0;
 }
 
-.landing-hero p {
-  font-size: 1.1rem;
-  color: var(--text-muted);
-  margin-top: 8px;
+.landing-header p {
+  margin: 2px 0 0;
+  color: var(--text-secondary);
+}
+
+.landing-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.landing-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.landing-card-head > h2 {
+  margin: 0;
 }
 
 .landing-card {
@@ -29,9 +52,9 @@
   border: 1px solid rgba(200, 223, 242, 0.6);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
-  padding: 32px 40px;
+  padding: 28px 36px;
   width: 100%;
-  max-width: 640px;
+  max-width: 760px;
   margin-bottom: 18px;
 }
 
@@ -60,17 +83,4 @@
 
 .landing-load-error p {
   margin: 8px 0 16px;
-}
-
-.landing-import {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 14px;
-  margin: 0 0 24px;
-}
-
-.landing-import small {
-  color: var(--text-muted);
-  font-size: 0.9rem;
 }

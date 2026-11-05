@@ -601,7 +601,7 @@ a:hover {
   font-size: 0.95rem;
   color: var(--text);
   font-weight: 500;
-  box-shadow: var(--shadow-xs);
+  box-shadow: none;
   transition:
     border-color 0.18s,
     box-shadow 0.18s,
@@ -613,6 +613,8 @@ a:hover {
   box-shadow: 0 4px 14px rgba(26, 111, 191, 0.18);
 }
 .event-list-item .event-item-title {
+  font-size: 1.05rem;
+  font-weight: 700;
   width: 100%;
   min-width: 0;
   overflow: hidden;
@@ -621,8 +623,8 @@ a:hover {
 }
 .event-list-item .event-item-location {
   margin-left: 10px;
-  color: #5d6d7e;
-  font-weight: 400;
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 .event-list-item .event-item-meta {
   color: var(--text-muted);
@@ -640,6 +642,19 @@ a:hover {
 }
 .event-row > .btn-sm {
   flex-shrink: 0;
+}
+
+/* Delete in a row: a quiet red icon, not the loudest thing on the screen.
+   --danger on white is 5.3:1; on --danger-light still >= 4.5:1. */
+button.btn-icon-danger {
+  background: transparent;
+  color: var(--danger);
+  box-shadow: none;
+}
+button.btn-icon-danger:hover {
+  background: var(--danger-light);
+  color: var(--danger-hover);
+  box-shadow: none;
 }
 
 .event-list-stack {

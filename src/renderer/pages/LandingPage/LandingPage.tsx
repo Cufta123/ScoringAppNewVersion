@@ -51,20 +51,51 @@ function LandingPage() {
 
   const isFirstRun =
     !loadFailed && Array.isArray(events) && events.length === 0;
+  const hasEvents = Array.isArray(events) && events.length > 0;
+  // The create form opens from "New event"; before the first event it is
+  // simply there.
+  const [creating, setCreating] = useState(false);
+  const formOpen = isFirstRun || creating;
+  const onEventCreated = useCallback(async () => {
+    setCreating(false);
+    await refreshEvents();
+  }, [refreshEvents]);
 
   return (
     <div>
       <Navbar />
 
       <main id="main-content" className="landing-page" tabIndex={-1}>
-        {/* ── Hero ─── */}
-        <div className="landing-hero">
-          <h1>
-            <i className="fa fa-anchor" aria-hidden="true" />
-            IOM Regatta Manager
-          </h1>
-          <p>Sailing event management &amp; race scoring</p>
-        </div>
+        {/* ── Page header: the events, and the two ways to add one ─── */}
+        <header className="landing-header">
+          <div>
+            <h1>Events</h1>
+            <p>Sailing event management &amp; race scoring</p>
+          </div>
+          {Array.isArray(events) && (
+            <div className="landing-header-actions">
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={importEvent}
+                disabled={importing}
+                title="A backup file from this or another computer is added as a new event."
+              >
+                <i className="fa fa-file-import" aria-hidden="true" /> Import
+                from backup…
+              </button>
+              {hasEvents && !creating && (
+                <button
+                  type="button"
+                  className="btn-success"
+                  onClick={() => setCreating(true)}
+                >
+                  <i className="fa fa-plus" aria-hidden="true" /> New event
+                </button>
+              )}
+            </div>
+          )}
+        </header>
 
         {/* ── Load failure — offer a retry instead of pretending there are no
             events (which would show the first-run onboarding) ─── */}
@@ -88,43 +119,37 @@ function LandingPage() {
           </div>
         )}
 
-        {/* ── Existing events — the common case comes first ─── */}
-        {Array.isArray(events) && events.length > 0 && (
-          <div className="landing-card">
-            <h2>
-              <i className="fa fa-list" aria-hidden="true" />
-              Your Events
-            </h2>
+        {/* ── Create event (opened from "New event") ─── */}
+        {formOpen && (
+          <section
+            className="landing-card"
+            aria-labelledby="create-event-title"
+          >
+            <div className="landing-card-head">
+              <h2 id="create-event-title">
+                <i className="fa fa-plus-circle" aria-hidden="true" />
+                Create a New Event
+              </h2>
+              {creating && (
+                <button
+                  type="button"
+                  className="btn-ghost btn-sm"
+                  onClick={() => setCreating(false)}
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+            <EventForm onEventCreated={onEventCreated} />
+          </section>
+        )}
+
+        {/* ── Existing events ─── */}
+        {hasEvents && (
+          <section className="landing-card" aria-label="Your events">
             <EventList events={events} onEventsChanged={refreshEvents} />
-          </div>
+          </section>
         )}
-
-        {Array.isArray(events) && (
-          <div className="landing-import">
-            <button
-              type="button"
-              className="btn-outline"
-              onClick={importEvent}
-              disabled={importing}
-            >
-              <i className="fa fa-file-import" aria-hidden="true" /> Import
-              event from backup…
-            </button>
-            <small>
-              A backup file from this or another computer is added as a new
-              event.
-            </small>
-          </div>
-        )}
-
-        {/* ── Create event ─── */}
-        <div className="landing-card">
-          <h2>
-            <i className="fa fa-plus-circle" aria-hidden="true" />
-            Create a New Event
-          </h2>
-          <EventForm onEventCreated={refreshEvents} />
-        </div>
 
         {/* ── How it works — onboarding, shown only before the first event ─── */}
         {isFirstRun && (
@@ -143,8 +168,8 @@ function LandingPage() {
                 by one, or import a CSV file).
               </li>
               <li>
-                <strong>Create heats</strong> on the event page, then go to{' '}
-                <em>Heat Race</em> to score each race.
+                <strong>Create heats</strong> on the Scoring page, then score
+                each race there.
               </li>
               <li>
                 <strong>Check the leaderboard</strong> at any time — and print

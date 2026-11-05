@@ -371,7 +371,7 @@ export default function EventList({
                 aria-label="Edit event"
                 title="Edit event"
                 onClick={(e) => startEdit(e, event)}
-                className="btn-outline btn-sm"
+                className="btn-ghost btn-sm"
               >
                 <i className="fa fa-pencil" aria-hidden="true" />
               </button>
@@ -384,7 +384,7 @@ export default function EventList({
                   setEditingId(null);
                   handleDeleteEvent(e, event);
                 }}
-                className="btn-danger btn-sm"
+                className="btn-sm btn-icon-danger"
               >
                 <i className="fa fa-trash" aria-hidden="true" />
               </button>

@@ -4,7 +4,13 @@ import {
   type ElectronApplication,
   type Page,
 } from '@playwright/test';
-import { launchApp, closeApp, createEvent, uniqueName } from './helpers';
+import {
+  launchApp,
+  closeApp,
+  createEvent,
+  uniqueName,
+  openCreateForm,
+} from './helpers';
 
 // These tests share one app instance and mutate the event list, so they must
 // run in order.
@@ -27,7 +33,10 @@ test.beforeEach(async () => {
   // reliable way to start each test from a clean form. It also clears toasts.
   await window.reload();
   await window.waitForLoadState('domcontentloaded');
-  await expect(window.getByText(/Create a New Event/i)).toBeVisible();
+  await expect(
+    window.getByRole('heading', { name: 'Events', level: 1 }),
+  ).toBeVisible();
+  await openCreateForm(window);
 });
 
 test('duplicate event name is rejected (case-insensitive)', async () => {
@@ -35,6 +44,7 @@ test('duplicate event name is rejected (case-insensitive)', async () => {
   await createEvent(window, name);
 
   // Re-create with a different case — the name-keyed route must stay unique.
+  await openCreateForm(window);
   await window.getByLabel('Event Name').fill(name.toUpperCase());
   await window.getByLabel('Location').fill('Somewhere');
   await window.getByLabel('Start Date').fill('2026-07-01');

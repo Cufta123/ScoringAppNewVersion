@@ -4,7 +4,13 @@ import {
   type ElectronApplication,
   type Page,
 } from '@playwright/test';
-import { launchApp, closeApp, addSailor, uniqueName } from './helpers';
+import {
+  launchApp,
+  closeApp,
+  addSailor,
+  uniqueName,
+  openCreateForm,
+} from './helpers';
 
 const EVENT_NAME = uniqueName('E2E Regatta');
 
@@ -23,6 +29,7 @@ test.afterAll(async () => {
 // race, and confirm the leaderboard reflects it.
 test('create event, score a race, and see it on the leaderboard', async () => {
   // ── Create the event ──────────────────────────────────────────────────────
+  await openCreateForm(window);
   await window.getByLabel('Event Name').fill(EVENT_NAME);
   await window.getByLabel('Location').fill('Test Marina');
   await window.getByLabel('Start Date').fill('2026-06-01');
