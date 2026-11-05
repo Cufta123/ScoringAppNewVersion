@@ -129,7 +129,10 @@ function racePoints(
 
   if (code === undefined) {
     return points === place
-      ? { rule: 'RRS A4', text: `Finished ${place}: ${points} points.` }
+      ? {
+          rule: 'RRS A4',
+          text: `Finished ${place}: ${plural(points, 'point')}.`,
+        }
       : {
           rule: 'RRS A7',
           text: `Tied for ${place} at the finish: the points of the places the tied boats fill are shared, ${points} each.`,
@@ -166,13 +169,13 @@ function racePoints(
   if (code === 'RDG3') {
     return {
       rule: 'RRS A9',
-      text: `Redress: ${points} points set by the protest committee.`,
+      text: `Redress: ${plural(points, 'point')} set by the protest committee.`,
     };
   }
   if (code === 'DPI') {
     return {
       rule: 'RRS A10',
-      text: `Discretionary penalty: ${points} points set by the protest committee.`,
+      text: `Discretionary penalty: ${plural(points, 'point')} set by the protest committee.`,
     };
   }
 
