@@ -30,19 +30,14 @@
  * log and compares every heat and every score with the tables.
  */
 import {
-  NO_PLACE_CODES,
   replay,
-  toTenth,
   qualifyingStandings,
   finalStandings,
   type Boat,
   type BoatId,
   type Decision,
   type DiscardProfile,
-  type NoPlaceCode,
-  type PenaltyCode,
   type ProtestOutcome,
-  type RaceLine,
   type RaceRef,
 } from 'regatta-core';
 import { db } from '../../../public/Database/DBManager';
@@ -54,6 +49,12 @@ import { normalizeDiscardConfig } from '../../shared/discardProfile';
 import { getHeatRoundFromName } from '../../shared/heatNames';
 import { fleetRank } from '../../shared/fleetNames';
 import { normalizeScoreStatus } from './scoreStatus';
+import {
+  COMMITTEE_DSQ,
+  REDRESS,
+  sheetFromRows,
+  type SheetRow,
+} from './raceSheet';
 
 interface HeatRow {
   heat_id: number;
@@ -69,13 +70,6 @@ interface ScoreRow {
   held_place: number | null;
   rdg_race_ids: string | null;
 }
-
-const PENALTIES = new Set(['ZFP', 'SCP', 'T1']);
-const NO_PLACE = new Set<string>(NO_PLACE_CODES);
-const COMMITTEE_DSQ = new Set(['DSQ', 'DNE', 'DGM']);
-const REDRESS = new Set(['RDG1', 'RDG2', 'RDG3']);
-const finisher = (status: string) =>
-  status === 'FINISHED' || PENALTIES.has(status);
 
 /** "Heat A1" -> "A1", "Final Gold" -> "Gold". */
 export const coreHeatId = (name: string) =>
@@ -349,19 +343,8 @@ export function eventToLog(eventId: number): EventLog {
     const frozen = frozenOf(raceId);
     const rows = scoresOf(raceId);
 
-    type Entry = {
-      boat: string;
-      place: number;
-      penalty?: string;
-      points: number;
-      /** At her stored place (not put back after a committee DSQ). */
-      live: boolean;
-      /** RDG / DPI: her points are the committee's, not the place's. */
-      committee?: boolean;
-    };
-    const live: Entry[] = [];
-    const putBack: Entry[] = [];
-    const coded: { boat: string; code: string }[] = [];
+    const scoreRows = new Map<BoatId, ScoreRow>();
+    const sheetRows: SheetRow[] = [];
     rows.forEach((row) => {
       const boatId = id(row.boat_id);
       const status = normalizeScoreStatus(row.status);
@@ -371,167 +354,37 @@ export function eventToLog(eventId: number): EventLog {
         return;
       }
       const ice = frozen.get(boatId);
-      const was = ice ? normalizeScoreStatus(ice.frozen_status) : undefined;
-      const points = Number(row.points);
-      if (COMMITTEE_DSQ.has(status) && ice) {
-        if (was && finisher(was)) {
-          putBack.push({
-            boat: boatId,
-            place: Number(ice.frozen_position),
-            ...(PENALTIES.has(was) ? { penalty: was } : {}),
-            points,
-            live: false,
-          });
-        } else {
-          coded.push({
-            boat: boatId,
-            code: was && NO_PLACE.has(was) ? was : 'DNF',
-          });
-        }
-        decide(ref, boatId, status, row);
-      } else if (REDRESS.has(status) || status === 'DPI') {
-        const kept =
-          row.held_place ??
-          (ice && was && finisher(was) ? ice.frozen_position : null);
-        if (kept != null) {
-          live.push({
-            boat: boatId,
-            place: Number(kept),
-            points,
-            live: true,
-            committee: true,
-          });
-        } else if (was && NO_PLACE.has(was)) {
-          coded.push({ boat: boatId, code: was });
-        } else {
-          notes.push(
-            `${ref.heat} race ${race}: ${boatId} has ${status} with no result recorded before it; DNF on the sheet (her points are the committee's).`,
-          );
-          coded.push({ boat: boatId, code: 'DNF' });
-        }
-        decide(ref, boatId, status, row);
-      } else if (finisher(status)) {
-        live.push({
-          boat: boatId,
-          place: Number(row.position),
-          ...(PENALTIES.has(status) ? { penalty: status } : {}),
-          points,
-          live: true,
-        });
-      } else if (NO_PLACE.has(status)) {
-        coded.push({ boat: boatId, code: status });
-      } else {
-        anomalies.push(
-          `${ref.heat} race ${race}: ${boatId} has the unknown result ${status}; DNF on the sheet.`,
-        );
-        coded.push({ boat: boatId, code: 'DNF' });
-      }
+      scoreRows.set(boatId, row);
+      sheetRows.push({
+        boat: boatId,
+        status,
+        position: Number(row.position),
+        points: Number(row.points),
+        heldPlace: row.held_place,
+        // A DSQ / DNE / DGM is the committee's only with a freeze (else an
+        // umpire's, on the sheet); RDG / DPI always are.
+        ...(ice &&
+        (COMMITTEE_DSQ.has(status) || REDRESS.has(status) || status === 'DPI')
+          ? {
+              frozen: {
+                position: ice.frozen_position,
+                status: normalizeScoreStatus(ice.frozen_status),
+              },
+            }
+          : {}),
+      });
     });
-
-    // Finishers level on a place tied (RRS A7). An RDG / DPI boat on the
-    // same place was in the tie if the finishers' stored points are shared
-    // with her; otherwise a later correction gave her kept place to them,
-    // and she follows the finishers.
-    const byPlace = new Map<number, Entry[]>();
-    live.forEach((entry) =>
-      byPlace.set(entry.place, [...(byPlace.get(entry.place) ?? []), entry]),
+    const sheet = sheetFromRows(
+      sheetRows,
+      largestOf(heat) + 1,
+      `${ref.heat} race ${race}`,
     );
-    const tiedWith = new Map<Entry, boolean>();
-    const plainPlaces = [
-      ...new Set(live.filter((e) => !e.committee).map((e) => e.place)),
-    ].sort((a, b) => a - b);
-    byPlace.forEach((group, place) => {
-      const plain = group.filter((e) => !e.committee);
-      const committee = group.filter((e) => e.committee);
-      // How many boats share this place: up to the next finisher's place,
-      // or, for the last one, from her shared points (a penalty changes
-      // them, so only a boat without one tells).
-      const next = plainPlaces.find((p) => p > place);
-      const scored = plain.find((e) => !e.penalty);
-      const penalised = plain.find((e) => e.penalty);
-      let size = plain.length;
-      if (next !== undefined) {
-        size = next - place;
-      } else if (scored) {
-        size = Math.round(2 * (scored.points - place) + 1);
-      } else if (penalised) {
-        // Her points are the shared points plus the penalty (RRS 44.3(c)):
-        // a share of the DNF score, largest heat + 1 (SHRS 5.2).
-        const dnf = largestOf(heat) + 1;
-        const penalty = toTenth(dnf * (penalised.penalty === 'T1' ? 0.3 : 0.2));
-        // Capped at the DNF score, her points say nothing: the boats on
-        // the last place finished level.
-        size =
-          penalised.points < dnf
-            ? Math.round(2 * (penalised.points - penalty - place) + 1)
-            : group.length;
-      }
-      const join = Math.max(0, Math.min(committee.length, size - plain.length));
-      committee.forEach((entry, i) => {
-        if (plain.length > 0 && i >= join) {
-          anomalies.push(
-            `${ref.heat} race ${race}: ${entry.boat}'s kept place ${place} went to another boat in a later correction; she follows the finishers on the sheet.`,
-          );
-          // eslint-disable-next-line no-param-reassign
-          entry.place = Number.MAX_SAFE_INTEGER;
-        }
-      });
-      group.forEach((entry) => tiedWith.set(entry, group.length > 1));
-    });
-    const order: (Entry & { at: number })[] = live
-      .sort(
-        (a, b) =>
-          a.place - b.place ||
-          Number(Boolean(a.committee)) - Number(Boolean(b.committee)) ||
-          a.boat.localeCompare(b.boat, undefined, { numeric: true }),
-      )
-      .map((entry) => ({ ...entry, at: entry.place }));
-    putBack
-      .sort((a, b) => a.place - b.place)
-      .forEach((entry) => {
-        const index = order.findIndex((other) => other.at >= entry.place);
-        const at = index === -1 ? order.length : index;
-        order.splice(at, 0, { ...entry, at: entry.place });
-        for (let j = at + 1; j < order.length; j += 1) order[j].at += 1;
-      });
-
-    // Stored places with a gap the sheet cannot hold (older records).
-    let expected = 1;
-    order.forEach((entry, i) => {
-      const above = order[i - 1];
-      if (entry.live && entry.place !== Number.MAX_SAFE_INTEGER) {
-        const levelAbove =
-          above !== undefined && above.live && above.place === entry.place;
-        if (!levelAbove && entry.at !== expected) {
-          anomalies.push(
-            `${ref.heat} race ${race}: the stored places skip from ${expected - 1} to ${entry.at}; the sheet has no gap.`,
-          );
-        }
-      }
-      expected = i + 2;
-    });
-
-    const lines: RaceLine[] = [
-      ...order.map((entry, i) => {
-        const above = order[i - 1];
-        const tied =
-          entry.live &&
-          above !== undefined &&
-          above.live &&
-          above.place === entry.place &&
-          entry.place !== Number.MAX_SAFE_INTEGER &&
-          tiedWith.get(live.find((e) => e.boat === entry.boat)!) === true;
-        return {
-          boat: entry.boat,
-          ...(entry.penalty ? { penalty: entry.penalty as PenaltyCode } : {}),
-          ...(tied ? { tied: true } : {}),
-        };
-      }),
-      ...coded.map((line) => ({
-        boat: line.boat,
-        code: line.code as NoPlaceCode,
-      })),
-    ];
+    notes.push(...sheet.notes);
+    anomalies.push(...sheet.anomalies);
+    sheet.committee.forEach((row) =>
+      decide(ref, row.boat, row.status, scoreRows.get(row.boat)!),
+    );
+    const { lines } = sheet;
     decisions.push({ type: 'raceScored', race: ref, lines });
   };
 
