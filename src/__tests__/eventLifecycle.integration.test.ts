@@ -216,7 +216,17 @@ describe('deleteEvent', () => {
   });
 });
 
-describe('event snapshot round trip', () => {
+/**
+ * A backup file as the previous version wrote it (schemaVersion 2: the
+ * tables, no decision log): restored by writing the tables back. The file
+ * with the log is covered in eventSnapshot.log.integration.test.ts.
+ */
+function v2File(eventId: number) {
+  const { log: _log, ...file } = buildEventSnapshot(eventId) as any;
+  return { ...file, schemaVersion: 2 };
+}
+
+describe('event snapshot round trip (a version 2 file)', () => {
   let db: any;
 
   beforeEach(() => {
@@ -228,7 +238,7 @@ describe('event snapshot round trip', () => {
   });
 
   it('restores over an event that has a protest assignment snapshot', () => {
-    const snapshot = buildEventSnapshot(EVENT_ID);
+    const snapshot = v2File(EVENT_ID);
 
     expect(() => restoreEventSnapshot(EVENT_ID, snapshot as any)).not.toThrow();
     expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
@@ -237,7 +247,7 @@ describe('event snapshot round trip', () => {
   it('carries the SHRS 3.1.5 protest shields through the backup', () => {
     // Without these rows the restored event seeds its next round from the
     // live post-protest order, which is exactly what 3.1.5 forbids.
-    const snapshot = buildEventSnapshot(EVENT_ID) as any;
+    const snapshot = v2File(EVENT_ID) as any;
     expect(snapshot.tables.RaceAssignmentSnapshots).toHaveLength(2);
 
     restoreEventSnapshot(EVENT_ID, snapshot);
@@ -272,7 +282,7 @@ describe('event snapshot round trip', () => {
       db.prepare(`SELECT COUNT(*) AS c FROM ${table}`).get().c,
     ]);
 
-    const snapshot = buildEventSnapshot(EVENT_ID);
+    const snapshot = v2File(EVENT_ID);
     restoreEventSnapshot(EVENT_ID, snapshot as any);
 
     expect(
@@ -284,7 +294,7 @@ describe('event snapshot round trip', () => {
   });
 
   it("puts back the backup's SHRS 3.1(5) rows", () => {
-    const snapshot = buildEventSnapshot(EVENT_ID) as any;
+    const snapshot = v2File(EVENT_ID) as any;
     // A later protest changed race 101's frozen order before the restore.
     db.prepare(
       "UPDATE RaceAssignmentSnapshots SET frozen_position = 9, frozen_status = 'DSQ' WHERE race_id = 101 AND boat_id = 1",
@@ -305,7 +315,7 @@ describe('event snapshot round trip', () => {
   });
 
   it('rolls back completely when the restore payload is rejected', () => {
-    const snapshot = buildEventSnapshot(EVENT_ID) as any;
+    const snapshot = v2File(EVENT_ID) as any;
     const before = db.prepare('SELECT COUNT(*) AS c FROM Scores').get().c;
 
     expect(() => restoreEventSnapshot(OTHER_EVENT_ID, snapshot)).toThrow(

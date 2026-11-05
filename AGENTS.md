@@ -309,7 +309,10 @@ Important migration details:
   `explainTieBreak` (`libraryExplain`), `getFinalSeriesEligibility`
   (`libraryEvent`). Undo from the history and "go back to a point" work on
   the log (`logHistory`); a point before the event's conversion uses the
-  row-based journal and converts again. A restored or imported backup is
+  row-based journal and converts again. A backup file carries the log
+  (§5, `eventSnapshot.ts`): restoring it replaces the event's log (one
+  action, nothing converted), importing it renames its boats
+  (regatta-core `renameBoats`); only a version 2 file (no log) is
   converted from its tables. Tests that mock the database for a read mock
   `functions/libraryStandings` too.
 
@@ -330,10 +333,12 @@ modules under `src/main/functions/` connect it to the database. Map of that
 directory:
 
 - The library and its log: `decisionStore.ts` (the `Decisions` table:
-  load, save, withdraw, tag, convert), `eventLog.ts` (tables to log, the
+  load, save, replace with a backup's (`replaceLog`), withdraw, tag,
+  convert), `eventLog.ts` (tables to log, the
   conversion of older events; `coreHeatId`), `raceSheet.ts` (a race's
   sheet from stored rows), `libraryWrite.ts` (`currentEvent`,
-  `applyToEvent`, `previewOnEvent`: a write applied, read and rolled back),
+  `applyToEvent`, `previewOnEvent`: a write applied, read and rolled back;
+  `replaceEventLog`: a backup's whole log replayed, stored and projected),
   `projectEvent.ts` (state to tables), `libraryStandings.ts` (the three
   standings reads; `replayEvent`), `libraryExplain.ts` (score and tie-break
   explanations), `libraryEvent.ts` (Final Series eligibility, largest heat),
@@ -384,21 +389,49 @@ directory:
   first (`previewSailorImport` lists the rows whose boat is someone else's;
   `importSailors(rows, { ownerConflicts: 'skip' | 'use-registered' })`), and a
   row without club or subgroup leaves a known sailor's as they were.
-- `eventSnapshot.ts` — full per-event export/restore. Snapshots are
-  `schemaVersion: 2` with `people` (the boats, sailors, clubs and category
-  names the event uses). `importEventSnapshot` adds a file as a NEW event
-  (landing page "Import from backup…", IPC
-  `importEventSnapshotFromFile`): every id remapped (RDG2 `rdg_race_ids`
-  included), boats matched by letters + number through `sailorEntry`, a taken
-  name gets " (imported)", and the event's log is converted from the
-  copied tables; the original history is not carried. Standings are never
-  read from a file (older files carry `Leaderboard` / `FinalLeaderboard`;
-  they are ignored). This is also how a problem report's `event-snapshot.json` is opened,
-  and how an event deleted after "Back up, then delete" comes back (the
-  restore only works on an event that still exists). A v1 file without
-  `people` is refused with words. The table list here is
-  the definition of "an event's data"; add new event-scoped tables to the
-  export, the restore's delete, and the restore's reinsert together.
+- `eventSnapshot.ts` — the backup file: export, restore into the same
+  event, import as a new event (format and type: `shared/eventSnapshot.ts`).
+  **An event's data is its decision log plus its Events row** (name, place,
+  dates, SHRS version, logo); the boats, sailors, clubs and categories it
+  names travel beside it as `people`. A file is `schemaVersion: 3`:
+  `{ schemaVersion, exportedAt, event_id, log, people, tables }`, where
+  `log` is the event's decisions in force in order (exactly `loadLog`; boat
+  ids are this database's `boat_id`s as text) and `people` holds every boat
+  the log names (removed boats included) with her sailor and club, plus
+  every category name. `tables` (Events, Boat_Event, Heats, Races, Scores,
+  RaceAssignmentSnapshots, Heat_Boat) is still written, for a person
+  reading the file and for an older app version; a v3 reader takes only
+  `tables.Events` (the event's own row) from it. An event whose stored log
+  cannot be read or replayed is written as version 2 (no `log`), so its
+  backup still restores. Restore (`restoreEventSnapshot`, History and
+  backups → Restore from file…; the file must be of this event, and its
+  log's boats on this computer) withdraws the decisions in force and
+  appends the file's (`libraryWrite.replaceEventLog` → `replaceLog`:
+  replayed, refused in words if the library refuses it, stored and
+  projected), and writes the Events row's own fields, all in one action
+  that can be gone back from; nothing is converted and EventLogs is not
+  touched. Import (`importEventSnapshot`, landing page "Import from
+  backup…", IPC `importEventSnapshotFromFile`) matches or creates each boat
+  of the log by letters + sail number through `sailorEntry` (stored, not
+  entered: the log enters them), renames the log's boats to them with
+  regatta-core's `renameBoats` (refused if two file boats are one boat
+  here), replays and projects it, and records an EventLogs row "came from a
+  backup file" (no anomalies; the start-up conversion leaves it alone); a
+  taken name gets " (imported)". A **version 2** file (no `log`: older
+  backups and problem reports) works as before: restore writes the tables
+  back and converts them (`reconvertEventLog`); import copies them with
+  every id remapped (RDG2 `rdg_race_ids` included) and converts. A version
+  1 file (no `people`) is refused by import in words; a newer version than
+  3 is refused by both. Standings are never read from a file (older files
+  carry `Leaderboard` / `FinalLeaderboard`; they are ignored). The original
+  history is not carried. This is also how a problem report's
+  `event-snapshot.json` is opened, and how an event deleted after "Back up,
+  then delete" comes back (the restore only works on an event that still
+  exists). A new event-scoped table that is not a projection of the log
+  goes into the file, the v3 restore and the import together (and, for
+  version 2 files, the restore's delete and reinsert). Covered by
+  `eventSnapshot.log.integration.test.ts` (round trip, import, refusals, a
+  version 2 file) and `eventLifecycle.integration.test.ts` (version 2).
 - `RaceAssignmentSnapshots` (SHRS 3.1(5)): `projectEvent` writes a
   whole-race freeze for every race with a committee decision, and the
   conversion (`raceSheet.sheetFromFrozen`) reads it back. No module caches it.
@@ -414,7 +447,8 @@ Shared (renderer + main) — plain TypeScript both processes run; no rules
   payloads), `scoring/tieBreakTypes.ts` (the tie-break explanation),
   `finalSeriesEligibility.ts`, `importSailors.ts`, `scoring/explain.ts`
   (`BoatScoreExplanation`), `exportTypes.ts`, `problemReport.ts`,
-  `conversionReport.ts`, `history/describe.ts`. The renderer's names for them
+  `conversionReport.ts`, `history/describe.ts`, `eventSnapshot.ts` (the
+  backup file's format, `EventSnapshotFile`). The renderer's names for them
   in `renderer/types.ts` are aliases; where the renderer must tolerate partial
   rows (test fixtures) it keeps a looser type the real row is assignable to
   (`RawLeaderboardEntry`, `OverallLeaderboardEntry`). When a handler returns a
@@ -747,7 +781,9 @@ Handlers, history, renderer:
   Save stores, per rule: RRS A6.1/A6.2/A7/A9/A10, SHRS 5.2, 44.3(c)/T1,
   every refusal),
   `restoreToHistoryPoint.integration.test.ts`,
-  `changeJournal.integration.test.ts`
+  `changeJournal.integration.test.ts`,
+  `eventSnapshot.log.integration.test.ts` (the backup file with the log:
+  restore, import, refusals, version 2 files)
 - `scoreStatus.test.ts`, `creatingNewHeatsUtils.test.ts` (note: tests the
   `...Utls.ts` source), `compareUtils.test.ts`,
   `leaderboardUtils.exclusions.test.ts` (the library's discards shown as

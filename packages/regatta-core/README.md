@@ -44,6 +44,15 @@ it):
 | Order (SHRS 3, 5.3)          | `compareBoats`, `sameBoat`, `inRecordingOrder`, `codeRank`                                          |
 | Heats and fleets (SHRS 2, 4) | `MAX_HEAT_SIZE`, `MAX_HEATS`, `fewestHeats`, `movementImbalanceExpected`, `fleetName`, `fleetIndex` |
 | What next                    | `nextStep` (on an event), `nextInRound` (on a screen's own heats)                                   |
+| The same log, other boat ids | `renameBoats`, `boatsNamed`                                                                         |
+
+`renameBoats(log, { oldId: newId, … })` gives the same event with the
+boats named as another program or database names them (every decision
+that names a boat: entries, seeding, heats, moves, sheet lines, protest
+decisions, recorded heats and fleets). It refuses, in words, a boat the
+log names that has no new id and two boats given the same one;
+`boatsNamed(log)` lists the boats a log names. The ScoringApp uses it to
+open a backup file as a new event on another computer.
 
 `applyRaceColumnEdit` takes a race as a column of cells (place, points,
 status, and the place a redressed boat keeps) and one boat's new result,
@@ -109,6 +118,7 @@ npm test
 | `test/isolation.test.ts`  | nothing in `src/` but the CLI imports outside the library           |
 | `test/correction.test.ts` | a result corrected in place (`applyRaceColumnEdit`)                 |
 | `test/app-rules.test.ts`  | codes, recording order, heat counts, fleet names, next heat, points |
+| `test/rename.test.ts`     | `renameBoats`: every decision type, refusals, same results renamed  |
 
 To add a case: put an event file in `examples/`, run `npm run examples`,
 and **check the new `examples/expected/` file by hand against the rules**

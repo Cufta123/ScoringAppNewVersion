@@ -5,13 +5,13 @@ import {
   buildEventSnapshot,
   importEventSnapshot,
   restoreEventSnapshot,
-  type EventSnapshot,
 } from '../functions/eventSnapshot';
+import type { EventSnapshotInput } from '../../shared/eventSnapshot';
 
 /** The backup file the user picks, parsed; null when they cancel. */
 const pickBackupFile = async (
   title: string,
-): Promise<{ filePath: string; snapshot: EventSnapshot } | null> => {
+): Promise<{ filePath: string; snapshot: EventSnapshotInput } | null> => {
   const openResult = await dialog.showOpenDialog({
     title,
     properties: ['openFile'],

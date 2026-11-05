@@ -204,6 +204,43 @@ export function reconvertEventLog(eventId: number) {
   })();
 }
 
+/**
+ * Make `next` the event's whole log, from a backup file that carries one
+ * (eventSnapshot: a restore, or an import as a new event): every decision
+ * in force is withdrawn and all of `next` appended in order, so the history
+ * shows one action and going back before it brings the old log back
+ * exactly. Nothing is converted. An event with no log yet (a new event, or
+ * one never converted) gets its EventLogs row here, with `note` and no
+ * anomalies, so the start-up conversion leaves it alone. Run inside a
+ * transaction, after `next` was replayed.
+ */
+export function replaceLog(eventId: number, next: Decision[], note: string) {
+  if (!hasLogStore()) return;
+  const known = db
+    .prepare('SELECT 1 FROM EventLogs WHERE event_id = ?')
+    .get(eventId);
+  if (known) {
+    db.prepare(
+      'UPDATE Decisions SET withdrawn_by = ? WHERE event_id = ? AND withdrawn_by IS NULL',
+    ).run(PENDING, eventId);
+  } else if (hasColumn('EventLogs', 'changes')) {
+    db.prepare(
+      'INSERT INTO EventLogs (event_id, converted_by, notes, anomalies, changes) VALUES (?, ?, ?, ?, ?)',
+    ).run(
+      eventId,
+      PENDING,
+      JSON.stringify([note]),
+      '[]',
+      JSON.stringify({ refused: null, heats: [], points: [] }),
+    );
+  } else {
+    db.prepare(
+      'INSERT INTO EventLogs (event_id, converted_by, notes, anomalies) VALUES (?, ?, ?, ?)',
+    ).run(eventId, PENDING, JSON.stringify([note]), '[]');
+  }
+  append(eventId, next, PENDING);
+}
+
 /** Every decision of an event goes with it (deleteEvent). */
 export function deleteEventLog(eventId: number) {
   if (!hasLogStore()) return;

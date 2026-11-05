@@ -15,6 +15,9 @@
 export * from './types';
 export { replay, emptyEvent } from './event/replay';
 export type { ReplayResult } from './event/replay';
+/** The same log with the boats given other ids (another database's). */
+export { boatsNamed, renameBoats } from './event/renameBoats';
+export type { RenameResult } from './event/renameBoats';
 export type { EventState, Heat, Race } from './event/state';
 export { scoreRace } from './event/score';
 /**

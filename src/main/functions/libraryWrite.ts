@@ -12,7 +12,7 @@
 import { replay, type Decision, type EventState } from 'regatta-core';
 import { db } from '../../../public/Database/DBManager';
 import projectEvent from './projectEvent';
-import { loadLog, saveLog } from './decisionStore';
+import { loadLog, replaceLog, saveLog } from './decisionStore';
 
 export interface Applied {
   before: EventState;
@@ -55,6 +55,27 @@ export function applyToEvent(
     projectEvent(eventId, result.state);
     return { before, after: result.state, log: next };
   })();
+}
+
+/**
+ * Make `log` the event's whole log (a backup file that carries one): it is
+ * replayed (a log the rules refuse comes back as the reason, and nothing is
+ * written), stored in place of the decisions in force
+ * (`decisionStore.replaceLog`, with `note` for an event that had no log)
+ * and projected. The event's current log is not read, so a backup also
+ * replaces a log that no longer replays. Call inside a transaction (with
+ * the event row's own changes, so they are one action).
+ */
+export function replaceEventLog(
+  eventId: number,
+  log: Decision[],
+  note: string,
+): { ok: true; state: EventState } | { ok: false; reason: string } {
+  const result = replay(log);
+  if (!result.ok) return { ok: false, reason: result.reason };
+  replaceLog(eventId, log, note);
+  projectEvent(eventId, result.state);
+  return { ok: true, state: result.state };
 }
 
 const ROLLBACK = Symbol('preview');
