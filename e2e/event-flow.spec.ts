@@ -68,9 +68,7 @@ test('create event, score a race, and see it on the leaderboard', async () => {
   await expect(submit).toBeEnabled();
   await submit.click();
 
-  // ── Navigate back to the event, then open the leaderboard ─────────────────
-  await window.getByRole('button', { name: EVENT_NAME }).click();
-  // The navbar button's accessible name comes from its aria-label.
+  // ── Open the leaderboard from the navbar ──────────────────────────────────
   await window
     .getByRole('navigation', { name: 'Event sections' })
     .getByRole('button', { name: 'Leaderboard' })

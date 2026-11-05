@@ -72,10 +72,10 @@ async function scoreHeatInOrder(): Promise<void> {
 // page, or the landing page), then open the leaderboard from there.
 async function openLeaderboard(): Promise<void> {
   await dismissToasts(window);
-  const crumb = window.locator('.breadcrumbs-link', { hasText: EVENT_NAME });
-  if (await crumb.count()) {
-    await crumb.first().click();
-  } else {
+  // Inside the event the navbar has the sections; on the landing page,
+  // open the event first.
+  const sections = window.getByRole('navigation', { name: 'Event sections' });
+  if (!(await sections.count())) {
     await window.getByText(EVENT_NAME).first().click();
   }
   await expect(

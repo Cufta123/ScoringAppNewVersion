@@ -796,6 +796,11 @@ For most feature/fix requests, do this in order:
   problem). Pages with unsaved work pass `guardNavigation`, and every
   navigation from the bar runs through it. A page's own next step is a button
   in the page (the event page's green "Go to Scoring"), not in the bar.
+- **Every event page starts with `shared/EventHeader`** (the event's name,
+  where · when, and the page's own action on the right) inside
+  `.page-wrapper` (one width, 1400px, for all three, so switching sections
+  does not move the content). There are no breadcrumbs: the Navbar's
+  highlighted section says where you are, its brand goes home.
 - **One home per feature.** The entries page is the entry list (add, import,
   edit, export the starting list) plus one line on where the racing stands
   (`heats/HeatsSummary`). The heats (`HeatComponent`: creating them, moving

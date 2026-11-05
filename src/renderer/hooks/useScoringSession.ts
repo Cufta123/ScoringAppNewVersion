@@ -82,7 +82,7 @@ export default function useScoringSession({
   };
 
   // Navigate away from the scoring view, confirming first if there is unsaved
-  // work. Used by the breadcrumbs and the Navbar brand so every exit path —
+  // work. Every navigation from the Navbar goes through it, so every exit —
   // not just "Back to Heats" — is protected.
   const guardedNavigate = async (navigateAway: () => void) => {
     if (!(await confirmDiscardEntry())) return;

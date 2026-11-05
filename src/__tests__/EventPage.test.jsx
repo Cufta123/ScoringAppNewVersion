@@ -68,13 +68,6 @@ jest.mock(
       );
     },
 );
-jest.mock(
-  '../renderer/components/shared/Breadcrumbs',
-  () =>
-    function () {
-      return <nav>Breadcrumbs Mock</nav>;
-    },
-);
 jest.mock('../renderer/utils/userFeedback', () => ({
   ...jest.requireActual('../renderer/utils/userFeedback'),
   confirmAction: jest.fn(),

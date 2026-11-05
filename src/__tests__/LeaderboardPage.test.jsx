@@ -6,26 +6,22 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { confirmAction } from '../renderer/utils/userFeedback';
 
+const mockLeftPage = jest.fn();
 jest.mock('../renderer/hooks/useLeaderboard', () => jest.fn());
 jest.mock(
   '../renderer/components/Navbar',
   () =>
-    function () {
-      return <header>Navbar Mock</header>;
-    },
-);
-jest.mock(
-  '../renderer/components/shared/Breadcrumbs',
-  () =>
-    function ({ items }) {
+    function ({ guardNavigation }) {
       return (
-        <nav>
-          {items.map((item) => (
-            <button key={item.label} type="button" onClick={item.onClick}>
-              {item.label}
-            </button>
-          ))}
-        </nav>
+        <header>
+          Navbar Mock
+          <button
+            type="button"
+            onClick={() => guardNavigation(() => mockLeftPage())}
+          >
+            Navbar Entries
+          </button>
+        </header>
       );
     },
 );
@@ -211,8 +207,8 @@ describe('LeaderboardPage', () => {
       state: { event },
     });
 
-    // Navigating away now happens through the breadcrumbs.
-    fireEvent.click(screen.getByRole('button', { name: 'Spring Cup' }));
+    // Every navigation from the navbar runs through the page's check.
+    fireEvent.click(screen.getByRole('button', { name: 'Navbar Entries' }));
 
     await waitFor(() => {
       expect(confirmAction).toHaveBeenCalledWith(
@@ -222,7 +218,7 @@ describe('LeaderboardPage', () => {
       );
     });
 
-    expect(screen.queryByText('Event Screen')).not.toBeInTheDocument();
+    expect(mockLeftPage).not.toHaveBeenCalled();
   });
 
   it('exports the SAVED results, never the edit draft', () => {

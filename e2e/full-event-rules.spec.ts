@@ -142,7 +142,10 @@ test('advanced settings drive scoring and a 7-race series reaches the final seri
 
   // ── Verify the custom discard profile drives the leaderboard ──────────────
   await dismissToasts(window);
-  await window.locator('.breadcrumbs-link', { hasText: EVENT_NAME }).click();
+  await window
+    .getByRole('navigation', { name: 'Event sections' })
+    .getByRole('button', { name: 'Entries' })
+    .click();
   await window
     .getByRole('navigation', { name: 'Event sections' })
     .getByRole('button', { name: 'Leaderboard' })
@@ -161,7 +164,10 @@ test('advanced settings drive scoring and a 7-race series reaches the final seri
   await expect(rows.last().getByText(excludedRe)).toHaveCount(2);
 
   // ── Back to scoring and start the Final Series ────────────────────────────
-  await window.locator('.breadcrumbs-link', { hasText: EVENT_NAME }).click();
+  await window
+    .getByRole('navigation', { name: 'Event sections' })
+    .getByRole('button', { name: 'Entries' })
+    .click();
   await window.getByRole('button', { name: /Go to Scoring/i }).click();
 
   await dismissToasts(window);

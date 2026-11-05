@@ -33,12 +33,6 @@ test.beforeEach(async () => {
   await gotoHome(window);
 });
 
-test('breadcrumb "Home" returns to the landing page', async () => {
-  await openEvent(window, eventName);
-  await window.getByRole('button', { name: 'Home', exact: true }).click();
-  await expect(window.getByText(/Create a New Event/i)).toBeVisible();
-});
-
 test('navbar brand returns to the landing page from an event', async () => {
   await openEvent(window, eventName);
   await window.getByRole('button', { name: 'Go to home page' }).click();
@@ -56,14 +50,16 @@ test('reloading an event page resolves the event from the URL (refresh-safe)', a
   await expect(window.getByRole('heading', { name: eventName })).toBeVisible();
 });
 
-test('deep navigation: event → heat race → back via breadcrumb', async () => {
+test('deep navigation: event → scoring → back via the Entries section', async () => {
   await openEvent(window, eventName);
   await window.getByRole('button', { name: /Go to Scoring/i }).click();
   await expect(window.getByRole('heading', { name: eventName })).toBeVisible();
 
-  // The event-name breadcrumb is a link on the heat-race page; it returns to
-  // the event page.
-  await window.locator('.breadcrumbs-link', { hasText: eventName }).click();
+  // The navbar's Entries section returns to the event page.
+  await window
+    .getByRole('navigation', { name: 'Event sections' })
+    .getByRole('button', { name: 'Entries' })
+    .click();
   await expect(window.getByRole('heading', { name: eventName })).toBeVisible();
   await expect(
     window.getByRole('heading', { name: 'Add Sailors' }),

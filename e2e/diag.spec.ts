@@ -91,7 +91,10 @@ test('full advanced-settings -> 7 rounds -> final series', async () => {
 
   // ── verify custom discard profile correlates on the leaderboard ──
   await dismissToasts(window);
-  await window.locator('.breadcrumbs-link', { hasText: name }).click();
+  await window
+    .getByRole('navigation', { name: 'Event sections' })
+    .getByRole('button', { name: 'Entries' })
+    .click();
   await window
     .getByRole('navigation', { name: 'Event sections' })
     .getByRole('button', { name: 'Leaderboard' })
@@ -102,7 +105,10 @@ test('full advanced-settings -> 7 rounds -> final series', async () => {
   console.log('### excluded cells in row 1:', await excluded.count());
 
   // back to scoring to start the final series
-  await window.locator('.breadcrumbs-link', { hasText: name }).click();
+  await window
+    .getByRole('navigation', { name: 'Event sections' })
+    .getByRole('button', { name: 'Entries' })
+    .click();
   await window.getByRole('button', { name: /Go to Scoring/i }).click();
 
   // ── start final series: snapshot prompt -> 4.3 prompt -> confirm ──

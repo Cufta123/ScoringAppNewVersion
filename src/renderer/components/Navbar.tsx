@@ -46,7 +46,7 @@ interface NavbarProps {
   /**
    * Pages with unsaved work (the scoring entry, the leaderboard editor) pass
    * their discard-changes check: every navigation from the bar runs through
-   * it, as the breadcrumbs do.
+   * it.
    */
   guardNavigation?: ((go: () => void) => void) | null;
 }

@@ -454,50 +454,38 @@ tbody tr:hover {
 }
 
 /* ── Page wrapper ─────────────────────────────────────────── */
+/* One width for the three event pages (the leaderboard needs the room for
+   its race columns), so switching sections does not move the content. */
 .page-wrapper {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 20px 28px 40px;
+  padding: 8px 28px 40px;
 }
 
-/* ── Breadcrumbs ─────────────────────────────────────────── */
-.breadcrumbs {
+/* ── Event header (every event page) ─────────────────────── */
+.event-header {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  margin: 0 0 14px;
+  gap: 12px 20px;
+  margin-bottom: 20px;
+}
+
+.event-header-info h1 {
+  margin-bottom: 2px;
+}
+
+.event-header-info p {
+  margin: 0;
+  font-size: 1rem;
   color: var(--text-secondary);
-  font-size: 0.9rem;
 }
 
-.breadcrumbs-item {
-  display: inline-flex;
+.event-header-actions {
+  display: flex;
+  gap: 10px;
   align-items: center;
-  gap: 6px;
-}
-
-.breadcrumbs-link {
-  background: none;
-  border: none;
-  box-shadow: none;
-  color: var(--ocean);
-  min-width: 0;
-  min-height: 0;
-  padding: 0;
-  font-weight: 700;
-  text-decoration: underline;
-}
-
-.breadcrumbs-link:hover {
-  background: none;
-  box-shadow: none;
-  transform: none;
-  color: var(--ocean-hover);
-}
-
-.breadcrumbs-separator {
-  color: var(--text-muted);
 }
 
 /* ── Empty & Loading states ─────────────────────────────── */

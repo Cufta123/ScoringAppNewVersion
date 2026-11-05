@@ -1,9 +1,9 @@
 import React, { useState, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import HeatComponent from '../../components/HeatComponent';
 import ScoringInputComponent from '../../components/ScoringInputComponent';
 import Navbar from '../../components/Navbar';
-import Breadcrumbs from '../../components/shared/Breadcrumbs';
+import EventHeader from '../../components/shared/EventHeader';
 import LoadingState from '../../components/shared/LoadingState';
 import './HeatRacePage.css';
 import { reportError, reportWarning } from '../../utils/userFeedback';
@@ -15,7 +15,6 @@ import useRoundActions from '../../hooks/useRoundActions';
 import useScoringSession from '../../hooks/useScoringSession';
 
 function HeatRacePage() {
-  const navigate = useNavigate();
   const { eventName } = useParams();
   const event = useRouteEvent(eventName);
   // Both reported by HeatComponent whenever its heats load, so the page's copy
@@ -77,9 +76,6 @@ function HeatRacePage() {
     scoring.startScoring();
   };
 
-  const goToEvent = () =>
-    navigate(`/event/${event.event_name}`, { state: { event } });
-
   return (
     <div>
       <Navbar
@@ -89,48 +85,22 @@ function HeatRacePage() {
       />
 
       <main id="main-content" className="page-wrapper" tabIndex={-1}>
-        <Breadcrumbs
-          items={[
-            {
-              label: 'Home',
-              onClick: () => scoring.guardedNavigate(() => navigate('/')),
-            },
-            {
-              label: event.event_name || 'Event',
-              onClick: () => scoring.guardedNavigate(goToEvent),
-            },
-            isScoring
-              ? { label: 'Heat Race', onClick: scoring.backToHeats }
-              : { label: 'Heat Race' },
-            ...(isScoring ? [{ label: 'Score Race' }] : []),
-          ]}
-        />
+        <EventHeader event={event} />
 
-        {/* The way back to the entries is the navbar's Entries section and
-            the breadcrumbs; the scoring view keeps its own "Back to Heats". */}
+        {/* The way back to the entries is the navbar's Entries section; the
+            scoring view keeps its own "Back to Heats". */}
         {!isScoring ? (
-          <>
-            <h1 style={{ marginBottom: '20px' }}>
-              <i
-                className="fa fa-flag-checkered"
-                aria-hidden="true"
-                style={{ color: '#2471A3' }}
-              />
-              {event.event_name || 'Race Scoring'}
-            </h1>
-
-            <HeatComponent
-              event={event}
-              refreshToken={heatsRefreshToken}
-              onScoreHeat={scoreHeat}
-              onUndoLastRace={rounds.undoLastRace}
-              onCreateRound={rounds.createNewHeats}
-              onUndoRedistribution={rounds.undoRedistribution}
-              rowActionsDisabled={rounds.roundActionBusy}
-              onQualifyingGroupCountChange={setNumQualifyingGroups}
-              onFinalSeriesStateChange={setFinalSeriesStarted}
-            />
-          </>
+          <HeatComponent
+            event={event}
+            refreshToken={heatsRefreshToken}
+            onScoreHeat={scoreHeat}
+            onUndoLastRace={rounds.undoLastRace}
+            onCreateRound={rounds.createNewHeats}
+            onUndoRedistribution={rounds.undoRedistribution}
+            rowActionsDisabled={rounds.roundActionBusy}
+            onQualifyingGroupCountChange={setNumQualifyingGroups}
+            onFinalSeriesStateChange={setFinalSeriesStarted}
+          />
         ) : (
           <>
             <button
@@ -147,10 +117,6 @@ function HeatRacePage() {
                 which series (Qualifying vs Final) they are scoring — the two
                 have different SHRS scoring rules. */}
             <div className="scoring-context" role="status">
-              <span className="scoring-context-event">
-                <i className="fa fa-flag-checkered" aria-hidden="true" />{' '}
-                {event.event_name}
-              </span>
               <span
                 className={`scoring-context-phase ${
                   finalSeriesStarted ? 'is-final' : 'is-qualifying'

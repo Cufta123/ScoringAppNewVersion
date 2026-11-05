@@ -1,17 +1,14 @@
 /* HeatRacePage.css */
 
+/* As many 330px+ columns as fit; a short last row keeps the card size. */
 .heats-container {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
   gap: 16px;
   padding: 4px 0;
 }
 
 .heat-column {
-  /* 330px: three cards per row in the 1200px page (four would squeeze each
-     name to ~90px and wrap it); the last row's cards keep their size. */
-  flex: 1 1 330px;
-  max-width: 400px;
   background: #fff;
   border: 2px solid var(--border);
   border-radius: 14px;
@@ -60,17 +57,6 @@
   box-shadow: 0 2px 8px rgba(15, 45, 74, 0.1);
 }
 
-.scoring-context-event {
-  font-weight: 700;
-  color: var(--navy, #0f2d4a);
-  font-size: 1.05rem;
-}
-
-.scoring-context-event i {
-  color: #2471a3;
-  margin-right: 4px;
-}
-
 .scoring-context-phase {
   font-weight: 700;
   font-size: 0.85rem;
@@ -90,7 +76,7 @@
 }
 
 .scoring-context-heat {
-  margin-left: auto;
-  font-weight: 600;
-  color: var(--text-secondary, #3a5068);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--navy);
 }

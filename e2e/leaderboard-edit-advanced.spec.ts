@@ -68,9 +68,11 @@ async function scoreHeatInOrder(): Promise<void> {
 
 async function openLeaderboard(): Promise<void> {
   await dismissToasts(window);
-  const crumb = window.locator('.breadcrumbs-link', { hasText: EVENT_NAME });
-  if (await crumb.count()) {
-    await crumb.first().click();
+  const entries = window
+    .getByRole('navigation', { name: 'Event sections' })
+    .getByRole('button', { name: 'Entries' });
+  if (await entries.count()) {
+    await entries.click();
   } else {
     await window.getByText(EVENT_NAME).first().click();
   }

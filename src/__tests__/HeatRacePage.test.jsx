@@ -34,14 +34,6 @@ jest.mock(
 );
 
 jest.mock(
-  '../renderer/components/shared/Breadcrumbs',
-  () =>
-    function () {
-      return <nav>Breadcrumbs Mock</nav>;
-    },
-);
-
-jest.mock(
   '../renderer/components/HeatComponent',
   () =>
     function ({ onScoreHeat, onQualifyingGroupCountChange }) {

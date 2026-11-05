@@ -19,13 +19,6 @@ jest.mock(
       return <header>Navbar</header>;
     },
 );
-jest.mock(
-  '../renderer/components/shared/Breadcrumbs',
-  () =>
-    function BreadcrumbsMock() {
-      return <nav>Breadcrumbs</nav>;
-    },
-);
 
 // The round actions are buttons of the heats' round bar (inside
 // HeatComponent); the mock exposes them, the per-heat undo and the disabled

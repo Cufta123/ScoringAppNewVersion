@@ -5,7 +5,7 @@ import SailorForm from '../../components/SailorForm';
 import SailorList from '../../components/SailorList';
 import SailorImport from '../../components/SailorImport';
 import Navbar from '../../components/Navbar';
-import Breadcrumbs from '../../components/shared/Breadcrumbs';
+import EventHeader from '../../components/shared/EventHeader';
 import LoadingState from '../../components/shared/LoadingState';
 import './EventPage.css';
 import HeatsSummary from '../../components/heats/HeatsSummary';
@@ -21,7 +21,6 @@ import { eventDB, sailorDB } from '../../api/db';
 import type { EventBoatRow } from '../../types';
 import useRouteEvent from '../../hooks/useRouteEvent';
 import { sailorFullName } from '../../utils/sailorName';
-import { formatEventDateRange } from '../../utils/formatDate';
 import StartingListExportDialog from '../../components/export/StartingListExportDialog';
 
 type MappedEventBoat = EventBoatRow & {
@@ -219,24 +218,11 @@ function EventPage() {
       <Navbar event={event} section="entries" />
 
       <main id="main-content" className="page-wrapper" tabIndex={-1}>
-        <Breadcrumbs
-          items={[
-            { label: 'Home', onClick: () => navigate('/') },
-            { label: event.event_name },
-          ]}
-        />
-        {/* ── Event header ─── */}
-        <div className="event-header">
-          <div className="event-header-info">
-            <h1>
-              <i className="fa fa-calendar" aria-hidden="true" />
-              {event.event_name}
-            </h1>
-            <p>{formatEventDateRange(event.start_date, event.end_date)}</p>
-          </div>
-          {/* The next step once the entries are in (the navbar has every
-              section; this is the one a race officer looks for here). */}
-          <div className="event-header-actions">
+        {/* The next step once the entries are in (the navbar has every
+            section; this is the one a race officer looks for here). */}
+        <EventHeader
+          event={event}
+          actions={
             <button
               type="button"
               className="btn-success"
@@ -245,8 +231,8 @@ function EventPage() {
               <i className="fa fa-flag-checkered" aria-hidden="true" />
               Go to Scoring
             </button>
-          </div>
-        </div>
+          }
+        />
 
         {/* Where the racing stands; the heats are on the Scoring page. */}
         <HeatsSummary

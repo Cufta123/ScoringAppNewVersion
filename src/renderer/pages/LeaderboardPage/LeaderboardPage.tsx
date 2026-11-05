@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams, type NavigateOptions } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import Navbar from '../../components/Navbar';
 import useLeaderboard from '../../hooks/useLeaderboard';
 import LeaderboardToolbar from '../../components/leaderboard/LeaderboardToolbar';
@@ -12,7 +12,7 @@ import ScoreExplanationDialog, {
   type ExplainTarget,
 } from '../../components/leaderboard/ScoreExplanationDialog';
 import ResultsExportDialog from '../../components/export/ResultsExportDialog';
-import Breadcrumbs from '../../components/shared/Breadcrumbs';
+import EventHeader from '../../components/shared/EventHeader';
 import EmptyState from '../../components/shared/EmptyState';
 import LoadingState from '../../components/shared/LoadingState';
 import { confirmAction } from '../../utils/userFeedback';
@@ -317,7 +317,6 @@ function LeaderboardContent({
 }
 
 function LeaderboardPage() {
-  const navigate = useNavigate();
   const { eventName } = useParams();
   const event = useRouteEvent(eventName);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -337,10 +336,6 @@ function LeaderboardPage() {
     }
     go();
   };
-  const navigateWithUnsavedCheck = (target: {
-    path: string;
-    options?: NavigateOptions;
-  }) => leaveWithUnsavedCheck(() => navigate(target.path, target.options));
 
   return (
     <div>
@@ -349,29 +344,8 @@ function LeaderboardPage() {
         section="leaderboard"
         guardNavigation={leaveWithUnsavedCheck}
       />
-      <main
-        id="main-content"
-        className="leaderboard-page-content"
-        tabIndex={-1}
-      >
-        <Breadcrumbs
-          items={[
-            {
-              label: 'Home',
-              onClick: () =>
-                navigateWithUnsavedCheck({ path: '/', options: undefined }),
-            },
-            {
-              label: event.event_name,
-              onClick: () =>
-                navigateWithUnsavedCheck({
-                  path: `/event/${event.event_name}`,
-                  options: { state: { event } },
-                }),
-            },
-            { label: 'Leaderboard' },
-          ]}
-        />
+      <main id="main-content" className="page-wrapper" tabIndex={-1}>
+        <EventHeader event={event} />
         <LeaderboardContent
           event={event}
           onUnsavedChange={setHasUnsavedChanges}
