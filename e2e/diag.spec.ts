@@ -16,9 +16,10 @@ test('full advanced-settings -> 7 rounds -> final series', async () => {
 
   async function scoreHeat(label: string) {
     await dismissToasts(window);
-    await window.locator('.heat-column', { hasText: label }).first().click();
     await window
-      .getByRole('button', { name: 'Start Scoring', exact: true })
+      .locator('.heat-column', { hasText: label })
+      .first()
+      .getByRole('button', { name: /^Score race/ })
       .click();
     await expect(
       window.getByRole('button', { name: /Submit Scores/i }),
@@ -74,9 +75,7 @@ test('full advanced-settings -> 7 rounds -> final series', async () => {
     console.log('### ROUND', r);
     if (r > 1) {
       await dismissToasts(window);
-      await window
-        .getByRole('button', { name: 'Create New Heats from Leaderboard' })
-        .click();
+      await window.getByRole('button', { name: /^Create Round \d+/ }).click();
       await window
         .getByRole('dialog')
         .getByRole('button', { name: 'Create heats' })
@@ -127,8 +126,12 @@ test('full advanced-settings -> 7 rounds -> final series', async () => {
     .getByRole('button', { name: /Yes, Start Final Series/i })
     .click();
 
-  await expect(window.getByText(/Gold/i)).toBeVisible();
-  await expect(window.getByText(/Silver/i)).toBeVisible();
+  await expect(
+    window.locator('.heat-column', { hasText: 'Gold' }),
+  ).toBeVisible();
+  await expect(
+    window.locator('.heat-column', { hasText: 'Silver' }),
+  ).toBeVisible();
   console.log('### FINAL SERIES STARTED OK');
   await app.close();
 });

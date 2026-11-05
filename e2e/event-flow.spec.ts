@@ -51,15 +51,14 @@ test('create event, score a race, and see it on the leaderboard', async () => {
   await window.getByRole('button', { name: /Go to Scoring/i }).click();
   await window.getByLabel('Number of heats').selectOption('1');
   await window.getByRole('button', { name: 'Create Heats' }).click();
-  await expect(window.getByText(/Heat A1/i)).toBeVisible();
+  await expect(
+    window.locator('.heat-column', { hasText: 'Heat A1' }),
+  ).toBeVisible();
 
   // ── Score the race ────────────────────────────────────────────────────────
   await window
-    .getByText(/Heat A1/i)
-    .first()
-    .click();
-  await window
-    .getByRole('button', { name: 'Start Scoring', exact: true })
+    .locator('.heat-column', { hasText: 'Heat A1' })
+    .getByRole('button', { name: /^Score race/ })
     .click();
 
   // Click both boat rows to add them to the finish order, then submit.

@@ -8,7 +8,7 @@ import LoadingState from '../../components/shared/LoadingState';
 import './HeatRacePage.css';
 import { reportError, reportWarning } from '../../utils/userFeedback';
 import { heatRaceDB } from '../../api/db';
-import { hasFinalHeats } from '../../utils/heatView';
+import { hasFinalHeats, type HeatWithBoats } from '../../utils/heatView';
 import { useEventDataChanged } from '../../utils/eventDataChanged';
 import useRouteEvent from '../../hooks/useRouteEvent';
 import useRoundActions from '../../hooks/useRoundActions';
@@ -71,6 +71,12 @@ function HeatRacePage() {
     return <LoadingState label="Loading event…" />;
   }
 
+  // A heat card's or the round bar's Score button: straight to the entry.
+  const scoreHeat = (heat: HeatWithBoats) => {
+    scoring.selectHeat(heat);
+    scoring.startScoring();
+  };
+
   const goToEvent = () =>
     navigate(`/event/${event.event_name}`, { state: { event } });
 
@@ -113,53 +119,16 @@ function HeatRacePage() {
               {event.event_name || 'Race Scoring'}
             </h1>
 
-            {/* ── Round-level management actions ─── */}
-            {/* SHRS 1.1: redistribution (sections 2-4) only applies when there are 2+ heats */}
-            {!finalSeriesStarted && numQualifyingGroups >= 2 && (
-              <div className="heatrace-actions">
-                <button
-                  type="button"
-                  onClick={rounds.createNewHeats}
-                  disabled={rounds.roundActionBusy}
-                  aria-busy={rounds.roundActionBusy}
-                >
-                  Create New Heats from Leaderboard
-                </button>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={rounds.undoRedistribution}
-                  disabled={rounds.roundActionBusy}
-                  aria-busy={rounds.roundActionBusy}
-                >
-                  Undo Heat Redistribution
-                </button>
-              </div>
-            )}
-
-            {!selectedHeat && (
-              <div className="info-banner">
-                <i
-                  className="fa fa-info-circle"
-                  aria-hidden="true"
-                  style={{ marginRight: '8px' }}
-                />
-                Click on a heat below to select it —{' '}
-                <strong>Start Scoring</strong> and{' '}
-                <strong>Undo Last Race</strong> appear inside the card.
-              </div>
-            )}
-
             <HeatComponent
               event={event}
               refreshToken={heatsRefreshToken}
-              onHeatSelect={scoring.selectHeat}
-              onStartScoring={scoring.startScoring}
+              onScoreHeat={scoreHeat}
               onUndoLastRace={rounds.undoLastRace}
+              onCreateRound={rounds.createNewHeats}
+              onUndoRedistribution={rounds.undoRedistribution}
               rowActionsDisabled={rounds.roundActionBusy}
               onQualifyingGroupCountChange={setNumQualifyingGroups}
               onFinalSeriesStateChange={setFinalSeriesStarted}
-              clickable
             />
           </>
         ) : (

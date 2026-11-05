@@ -801,6 +801,15 @@ For most feature/fix requests, do this in order:
   (`heats/HeatsSummary`). The heats (`HeatComponent`: creating them, moving
   boats, the Final Series, backups, "Export heats…") are on the Scoring page
   only; the event page used to show the whole component a second time.
+- **The Scoring page's round bar** (`heats/RoundBar`, status and next step
+  from `utils/roundStatus`): "Qualifying · Round 4 · 1 of 3 heats scored" and
+  ONE green button for the next step (Score the first heat still to sail; once
+  a round of several heats is complete, Create Round N; in one fleet or the
+  Final Series, the fleet that is behind). Export heats, Undo round (rounds
+  built from results only) and Start Final Series sit beside it, quieter.
+  Each heat card of the current round has its own Score race N / Undo race N
+  (no select-then-act step); a scored heat of a several-heat qualifying round
+  gets no Score (SHRS 3.2: redistribute first).
 
 - **Outdoor readability is a requirement**: the app is used by race officers
   (often 60+) on cheap laptops in sunshine. Root font is 17px; secondary text

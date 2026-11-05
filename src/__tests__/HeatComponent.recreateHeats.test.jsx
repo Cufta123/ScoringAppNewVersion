@@ -39,9 +39,7 @@ describe('HeatComponent recreate heats', () => {
     render(
       <HeatComponent
         event={{ event_id: 77 }}
-        clickable={false}
-        onHeatSelect={jest.fn()}
-        onStartScoring={jest.fn()}
+        onScoreHeat={jest.fn()}
         onQualifyingGroupCountChange={jest.fn()}
       />,
     );

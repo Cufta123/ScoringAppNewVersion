@@ -44,9 +44,10 @@ const EVENT_NAME = uniqueName('Leaderboard Edit E2E');
 // each boat's place equals its rank in every race. Returns to the heat list.
 async function scoreHeatInOrder(): Promise<void> {
   await dismissToasts(window);
-  await window.locator('.heat-column', { hasText: 'Heat A1' }).first().click();
   await window
-    .getByRole('button', { name: 'Start Scoring', exact: true })
+    .locator('.heat-column', { hasText: 'Heat A1' })
+    .first()
+    .getByRole('button', { name: /^Score race/ })
     .click();
   await expect(
     window.getByRole('button', { name: /Submit Scores/i }),

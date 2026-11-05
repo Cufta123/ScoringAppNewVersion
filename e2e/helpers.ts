@@ -293,7 +293,7 @@ export async function createHeats(window: Page, count: number): Promise<void> {
     name: `Create ${count} heats`,
     exact: true,
   });
-  const created = window.getByText(/Heat A1/i);
+  const created = window.locator('.heat-column', { hasText: 'Heat A1' });
   await expect(confirmExtra.or(created).first()).toBeVisible();
   if (await confirmExtra.isVisible()) await confirmExtra.click();
   await expect(created).toBeVisible();

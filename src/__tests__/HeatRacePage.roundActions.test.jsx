@@ -27,9 +27,9 @@ jest.mock(
     },
 );
 
-// Reports two qualifying groups so the round-level actions render (SHRS 1.1:
-// redistribution only applies with 2+ heats), and exposes the per-heat undo
-// plus the disabled flag the page passes down.
+// The round actions are buttons of the heats' round bar (inside
+// HeatComponent); the mock exposes them, the per-heat undo and the disabled
+// flag the page passes down.
 const rowActionsDisabledSpy = jest.fn();
 jest.mock(
   '../renderer/components/HeatComponent',
@@ -37,6 +37,8 @@ jest.mock(
     function HeatComponentMock({
       onQualifyingGroupCountChange,
       onUndoLastRace,
+      onCreateRound,
+      onUndoRedistribution,
       rowActionsDisabled,
     }) {
       React.useEffect(() => {
@@ -44,19 +46,35 @@ jest.mock(
       }, [onQualifyingGroupCountChange]);
       rowActionsDisabledSpy(rowActionsDisabled);
       return (
-        <button
-          type="button"
-          disabled={rowActionsDisabled}
-          onClick={() =>
-            onUndoLastRace({
-              heat_id: 10,
-              heat_name: 'Heat A1',
-              raceNumber: 1,
-            })
-          }
-        >
-          Undo Race 1
-        </button>
+        <>
+          <button
+            type="button"
+            disabled={rowActionsDisabled}
+            onClick={onUndoRedistribution}
+          >
+            Undo round
+          </button>
+          <button
+            type="button"
+            disabled={rowActionsDisabled}
+            onClick={onCreateRound}
+          >
+            Create Round 2
+          </button>
+          <button
+            type="button"
+            disabled={rowActionsDisabled}
+            onClick={() =>
+              onUndoLastRace({
+                heat_id: 10,
+                heat_name: 'Heat A1',
+                raceNumber: 1,
+              })
+            }
+          >
+            Undo Race 1
+          </button>
+        </>
       );
     },
 );
@@ -141,8 +159,8 @@ describe('HeatRacePage round-level actions', () => {
     waitFor(() => screen.getByRole('button', { name }));
 
   it.each([
-    ['Undo Heat Redistribution', 'undoLatestHeatRedistribution'],
-    ['Create New Heats from Leaderboard', 'createNewHeatsBasedOnLeaderboard'],
+    ['Undo round', 'undoLatestHeatRedistribution'],
+    ['Create Round 2', 'createNewHeatsBasedOnLeaderboard'],
   ])(
     'runs %s once however many times it is clicked',
     async (label, channel) => {
@@ -165,8 +183,8 @@ describe('HeatRacePage round-level actions', () => {
 
   it('disables both round actions while one is running', async () => {
     renderPage();
-    const undo = await findButton('Undo Heat Redistribution');
-    const create = await findButton('Create New Heats from Leaderboard');
+    const undo = await findButton('Undo round');
+    const create = await findButton('Create Round 2');
 
     fireEvent.click(undo);
 
@@ -181,7 +199,7 @@ describe('HeatRacePage round-level actions', () => {
 
   it('disables the per-heat actions while a round action is running', async () => {
     renderPage();
-    const undo = await findButton('Undo Heat Redistribution');
+    const undo = await findButton('Undo round');
 
     expect(rowActionsDisabledSpy).toHaveBeenLastCalledWith(false);
     fireEvent.click(undo);
@@ -233,7 +251,7 @@ describe('HeatRacePage round-level actions', () => {
     } = require('../renderer/utils/userFeedback');
     await waitFor(() =>
       expect(reportInfo).toHaveBeenCalledWith(
-        expect.stringContaining('Undo Heat Redistribution'),
+        expect.stringContaining('"Undo round"'),
         'Undo not possible yet',
       ),
     );

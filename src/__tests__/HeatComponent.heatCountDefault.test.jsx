@@ -59,9 +59,7 @@ describe('HeatComponent heat-count default', () => {
     render(
       <HeatComponent
         event={{ event_id: 5 }}
-        clickable={false}
-        onHeatSelect={jest.fn()}
-        onStartScoring={jest.fn()}
+        onScoreHeat={jest.fn()}
         onQualifyingGroupCountChange={jest.fn()}
       />,
     );

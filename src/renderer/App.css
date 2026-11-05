@@ -2013,16 +2013,66 @@ small.form-locked-note {
 }
 
 .heat-card-actions {
-  margin-top: 14px;
+  margin-top: auto;
   padding-top: 12px;
   border-top: 2px solid var(--bg);
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .heat-card-actions button {
-  width: 100%;
+  flex: 1 1 0;
+  padding-inline: 12px;
+}
+
+/* Top of the heats: status left, the next step (green) right. */
+/* Two rows, the same in every phase: status, then actions with the green
+   next step first (a row that wrapped only sometimes moved the buttons). */
+.round-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.section-block .round-bar-status h2 {
+  margin: 0 0 6px;
+  padding: 0;
+  border: none;
+}
+
+.round-bar-status p {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.round-bar-phase {
+  padding: 3px 12px;
+  border-radius: var(--radius-pill);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.round-bar-phase.is-qualifying {
+  background: var(--teal-light);
+  color: var(--teal-hover);
+}
+.round-bar-phase.is-final {
+  background: var(--amber-light);
+  color: var(--amber-strong);
+}
+
+.round-bar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .final-series-bar {
@@ -2945,9 +2995,6 @@ td.heat-sail-number {
 }
 .heat-column td.heat-country-cell {
   font-weight: 600;
-}
-.heat-column.selected {
-  border-width: 3px;
 }
 
 /* Tick boxes large enough to see and hit on a small, bright screen. */

@@ -53,9 +53,10 @@ const SCORED_ROUNDS = 6;
 // finish order, then submit). Returns to the heat list when done.
 async function scoreHeat(label: string): Promise<void> {
   await dismissToasts(window);
-  await window.locator('.heat-column', { hasText: label }).first().click();
   await window
-    .getByRole('button', { name: 'Start Scoring', exact: true })
+    .locator('.heat-column', { hasText: label })
+    .first()
+    .getByRole('button', { name: /^Score race/ })
     .click();
   await expect(
     window.getByRole('button', { name: /Submit Scores/i }),
@@ -80,9 +81,7 @@ async function scoreHeat(label: string): Promise<void> {
 // of qualifying heats. Confirms the dialog and waits for the new round's cards.
 async function createNextRoundOfHeats(round: number): Promise<void> {
   await dismissToasts(window);
-  await window
-    .getByRole('button', { name: 'Create New Heats from Leaderboard' })
-    .click();
+  await window.getByRole('button', { name: /^Create Round \d+/ }).click();
   await window
     .getByRole('dialog')
     .getByRole('button', { name: 'Create heats' })

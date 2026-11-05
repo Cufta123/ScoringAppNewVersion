@@ -7,16 +7,13 @@ import { sailorFullName } from '../../utils/sailorName';
 
 interface HeatColumnProps {
   heat: HeatWithBoats;
-  clickable: boolean;
-  selected: boolean;
   /** Boats may be dragged to another heat (no race scored, no final series). */
   boatsDraggable: boolean;
-  onSelect: (heat: HeatWithBoats) => void;
   onBoatDrop: (e: React.DragEvent, toHeatId: number) => void;
-  /** Only passed for the selected heat, so the other cards stay memoised. */
-  onStartScoring?: (() => void) | null;
+  /** Passed for the heats of the current round only (older ones are done). */
+  onScore?: ((heat: HeatWithBoats) => void) | null;
   onUndoLastRace?: ((heat: HeatWithBoats) => void) | null;
-  undoDisabled?: boolean;
+  actionsDisabled?: boolean;
 }
 
 const allowDrop = (e: React.DragEvent) => {
@@ -24,40 +21,25 @@ const allowDrop = (e: React.DragEvent) => {
 };
 
 /**
- * One heat card: its name and scored state, the boat table, and (once
- * selected) the Start Scoring / Undo actions. Memoised: a heat view can hold
+ * One heat card: its name and scored state, the boat table, and for the
+ * current round its own Score / Undo buttons (no select-then-act step).
+ * Memoised: a heat view can hold
  * 26 heats of 20 boats, and none of them should redraw because a button
  * elsewhere on the page went busy.
  */
 function HeatColumn({
   heat,
-  clickable,
-  selected,
   boatsDraggable,
-  onSelect,
   onBoatDrop,
-  onStartScoring = null,
+  onScore = null,
   onUndoLastRace = null,
-  undoDisabled = false,
+  actionsDisabled = false,
 }: HeatColumnProps) {
-  const select = () => {
-    if (clickable) onSelect(heat);
-  };
-
+  const nextRace = heat.raceNumber + 1;
   return (
-    <div
-      className={`heat-column${clickable ? ' clickable' : ''}${
-        selected ? ' selected' : ''
-      }`}
-      onClick={select}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (clickable && (e.key === 'Enter' || e.key === ' ')) {
-          e.preventDefault();
-          select();
-        }
-      }}
+    <section
+      className="heat-column"
+      aria-label={heat.heat_name}
       onDrop={(e) => onBoatDrop(e, heat.heat_id)}
       onDragOver={allowDrop}
     >
@@ -125,39 +107,36 @@ function HeatColumn({
           ))}
         </tbody>
       </table>
-      {selected && (onStartScoring || onUndoLastRace) && (
+      {(onScore || (onUndoLastRace && heat.raceNumber > 0)) && (
         <div className="heat-card-actions">
-          {onStartScoring && (
+          {onScore && (
             <button
               type="button"
-              className="btn-success"
-              onClick={(e) => {
-                e.stopPropagation();
-                onStartScoring();
-              }}
+              className="btn-outline"
+              onClick={() => onScore(heat)}
+              disabled={actionsDisabled}
+              aria-label={`Score race ${nextRace} in ${heat.heat_name}`}
             >
-              <i className="fa fa-play" aria-hidden="true" /> Start Scoring
+              <i className="fa fa-play" aria-hidden="true" /> Score race{' '}
+              {nextRace}
             </button>
           )}
           {onUndoLastRace && heat.raceNumber > 0 && (
             <button
               type="button"
-              className="btn-secondary"
+              className="btn-ghost"
               title={`Delete Race ${heat.raceNumber} in ${heat.heat_name}`}
-              disabled={undoDisabled}
-              aria-busy={undoDisabled}
-              onClick={(e) => {
-                e.stopPropagation();
-                onUndoLastRace(heat);
-              }}
+              disabled={actionsDisabled}
+              aria-busy={actionsDisabled}
+              onClick={() => onUndoLastRace(heat)}
             >
-              <i className="fa fa-undo" aria-hidden="true" /> Undo Race{' '}
+              <i className="fa fa-undo" aria-hidden="true" /> Undo race{' '}
               {heat.raceNumber}
             </button>
           )}
         </div>
       )}
-    </div>
+    </section>
   );
 }
 

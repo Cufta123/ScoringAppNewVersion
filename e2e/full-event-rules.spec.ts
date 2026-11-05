@@ -48,9 +48,10 @@ const ROUNDS = 7;
 // finish order, then submit). Returns to the heat list when done.
 async function scoreHeat(label: string): Promise<void> {
   await dismissToasts(window);
-  await window.locator('.heat-column', { hasText: label }).first().click();
   await window
-    .getByRole('button', { name: 'Start Scoring', exact: true })
+    .locator('.heat-column', { hasText: label })
+    .first()
+    .getByRole('button', { name: /^Score race/ })
     .click();
   await expect(
     window.getByRole('button', { name: /Submit Scores/i }),
@@ -124,9 +125,7 @@ test('advanced settings drive scoring and a 7-race series reaches the final seri
   for (let round = 1; round <= ROUNDS; round += 1) {
     if (round > 1) {
       await dismissToasts(window);
-      await window
-        .getByRole('button', { name: 'Create New Heats from Leaderboard' })
-        .click();
+      await window.getByRole('button', { name: /^Create Round \d+/ }).click();
       await window
         .getByRole('dialog')
         .getByRole('button', { name: 'Create heats' })

@@ -2,7 +2,7 @@
 export const raceAgainWarning = (heatName: string, racesDone: number): string =>
   `Warning: "${heatName}" has already completed Race ${racesDone}.\n\n` +
   `According to SHRS 3.2 boats should be redistributed before racing again.\n\n` +
-  `Press OK to score Race ${racesDone + 1} anyway, or Cancel to go back and use "Create New Heats from Leaderboard" first.`;
+  `Press OK to score Race ${racesDone + 1} anyway, or Cancel to go back and use "Create Round" at the top of the heats first.`;
 
 export const unmatchedSailsMessage = (
   heatName: string,
@@ -15,4 +15,4 @@ export const unmatchedSailsMessage = (
   '3) Re-enter the race results and submit again.';
 
 export const laterRoundBlocksUndoMessage = (laterRounds: string[]): string =>
-  `The next round (${laterRounds.join(', ')}) was already built from this round's results, so this race can't be undone on its own.\n\nUse "Undo Heat Redistribution" first, then undo the race.`;
+  `The next round (${laterRounds.join(', ')}) was already built from this round's results, so this race can't be undone on its own.\n\nUse "Undo round" at the top of the heats first, then undo the race.`;

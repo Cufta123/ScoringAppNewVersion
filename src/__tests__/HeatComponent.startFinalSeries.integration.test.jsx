@@ -102,9 +102,7 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
     render(
       <HeatComponent
         event={{ event_id: 77 }}
-        clickable={false}
-        onHeatSelect={jest.fn()}
-        onStartScoring={jest.fn()}
+        onScoreHeat={jest.fn()}
         onQualifyingGroupCountChange={jest.fn()}
       />,
     );
@@ -165,9 +163,7 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
     render(
       <HeatComponent
         event={{ event_id: 77 }}
-        clickable={false}
-        onHeatSelect={jest.fn()}
-        onStartScoring={jest.fn()}
+        onScoreHeat={jest.fn()}
         onQualifyingGroupCountChange={jest.fn()}
       />,
     );
@@ -238,9 +234,7 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
     render(
       <HeatComponent
         event={{ event_id: 77 }}
-        clickable={false}
-        onHeatSelect={jest.fn()}
-        onStartScoring={jest.fn()}
+        onScoreHeat={jest.fn()}
         onQualifyingGroupCountChange={jest.fn()}
       />,
     );
@@ -304,9 +298,7 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
     render(
       <HeatComponent
         event={{ event_id: 77 }}
-        clickable={false}
-        onHeatSelect={jest.fn()}
-        onStartScoring={jest.fn()}
+        onScoreHeat={jest.fn()}
         onQualifyingGroupCountChange={jest.fn()}
       />,
     );
@@ -371,9 +363,7 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
     render(
       <HeatComponent
         event={{ event_id: 77 }}
-        clickable={false}
-        onHeatSelect={jest.fn()}
-        onStartScoring={jest.fn()}
+        onScoreHeat={jest.fn()}
         onQualifyingGroupCountChange={jest.fn()}
       />,
     );
@@ -433,9 +423,7 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
     render(
       <HeatComponent
         event={{ event_id: 77 }}
-        clickable={false}
-        onHeatSelect={jest.fn()}
-        onStartScoring={jest.fn()}
+        onScoreHeat={jest.fn()}
         onQualifyingGroupCountChange={jest.fn()}
       />,
     );
@@ -482,9 +470,7 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
       render(
         <HeatComponent
           event={{ event_id: 77 }}
-          clickable={false}
-          onHeatSelect={jest.fn()}
-          onStartScoring={jest.fn()}
+          onScoreHeat={jest.fn()}
           onQualifyingGroupCountChange={jest.fn()}
         />,
       );

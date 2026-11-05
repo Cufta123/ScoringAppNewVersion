@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import useExclusiveAction from '../hooks/useExclusiveAction';
 import useHeatList from '../hooks/useHeatList';
 import useHeatManagement from '../hooks/useHeatManagement';
@@ -10,7 +10,9 @@ import AppModal from './shared/AppModal';
 import UnassignedEntriesNotice from './UnassignedEntriesNotice';
 import HeatColumn from './heats/HeatColumn';
 import HeatBackupBar from './heats/HeatBackupBar';
-import { HeatSetupBar, HeatsHeader } from './heats/HeatControls';
+import HeatSetupBar from './heats/HeatSetupBar';
+import RoundBar from './heats/RoundBar';
+import { roundStatus } from '../utils/roundStatus';
 import HeatsExportDialog from './export/HeatsExportDialog';
 import type { EventRow } from '../types';
 
@@ -18,13 +20,16 @@ export type { HeatWithBoats };
 
 interface HeatComponentProps {
   event: EventRow;
-  onHeatSelect?: (heat: HeatWithBoats) => void;
-  onStartScoring?: (() => void) | null;
+  /** Open the scoring of this heat's next race. */
+  onScoreHeat: (heat: HeatWithBoats) => void;
   onUndoLastRace?: ((heat: HeatWithBoats) => void) | null;
+  /** Build the next qualifying round from the leaderboard (SHRS 3). */
+  onCreateRound?: (() => void) | null;
+  /** Delete the latest round built from the leaderboard. */
+  onUndoRedistribution?: (() => void) | null;
   // Set while the PARENT is running one of its own round-level actions, so
   // the per-heat buttons can't start a second one underneath it.
   rowActionsDisabled?: boolean;
-  clickable: boolean;
   onQualifyingGroupCountChange?: ((count: number) => void) | null;
   /** Notifies the host page whenever the final-series state changes (started
    * here, detected on load, or reset by a snapshot restore) so the page's own
@@ -33,21 +38,18 @@ interface HeatComponentProps {
   refreshToken?: number;
 }
 
-const ignoreHeatSelect = () => {};
-
 function HeatComponent({
   event,
-  onHeatSelect = ignoreHeatSelect,
-  onStartScoring = null,
+  onScoreHeat,
   onUndoLastRace = null,
+  onCreateRound = null,
+  onUndoRedistribution = null,
   rowActionsDisabled = false,
-  clickable,
   onQualifyingGroupCountChange = null,
   onFinalSeriesStateChange = null,
   refreshToken = 0,
 }: HeatComponentProps) {
   const eventId = event.event_id;
-  const [selectedHeatId, setSelectedHeatId] = useState<number | null>(null);
   const [displayLastHeats, setDisplayLastHeats] = useState(true);
   const [exportOpen, setExportOpen] = useState(false);
 
@@ -107,12 +109,13 @@ function HeatComponent({
   const heatsToDisplay = displayLastHeats ? lastHeats : heats;
   const hasMultipleRounds = heats.length > lastHeats.length;
 
-  const selectHeat = useCallback(
-    (heat: HeatWithBoats) => {
-      setSelectedHeatId(heat.heat_id);
-      onHeatSelect(heat);
-    },
-    [onHeatSelect],
+  const status = useMemo(
+    () => roundStatus(heats, { finalSeriesStarted, numQualifyingGroups }),
+    [heats, finalSeriesStarted, numQualifyingGroups],
+  );
+  const currentHeatIds = useMemo(
+    () => new Set(lastHeats.map((heat) => heat.heat_id)),
+    [lastHeats],
   );
 
   const canSetUp = !raceHappened && !finalSeriesStarted;
@@ -144,10 +147,19 @@ function HeatComponent({
         )}
       </AppModal>
 
-      <HeatsHeader
-        onExport={() => setExportOpen(true)}
+      <RoundBar
+        status={status}
+        canStartFinalSeries={canStartFinalSeries}
+        busy={busy || rowActionsDisabled}
         noHeats={heatsToDisplay.length === 0}
-        busy={busy}
+        onScore={onScoreHeat}
+        onCreateRound={onCreateRound}
+        onUndoRedistribution={onUndoRedistribution}
+        onStartFinalSeries={() => runExclusive(finalSeries.startFinalSeries)}
+        onExport={() => setExportOpen(true)}
+        hasMultipleRounds={hasMultipleRounds}
+        displayLastHeats={displayLastHeats}
+        onToggleDisplayMode={() => setDisplayLastHeats((last) => !last)}
       />
 
       {/* Every heat of the event, so any round can be chosen in the dialog.
@@ -174,9 +186,6 @@ function HeatComponent({
           )
         }
         busy={busy}
-        hasMultipleRounds={hasMultipleRounds}
-        displayLastHeats={displayLastHeats}
-        onToggleDisplayMode={() => setDisplayLastHeats((last) => !last)}
       />
 
       {loadFailed && (
@@ -220,19 +229,25 @@ function HeatComponent({
       {heatsToDisplay.length > 0 && (
         <div className="heats-container">
           {heatsToDisplay.map((heat) => {
-            const selected = heat.heat_id === selectedHeatId;
+            const current = currentHeatIds.has(heat.heat_id);
             return (
               <HeatColumn
                 key={heat.heat_id}
                 heat={heat}
-                clickable={clickable}
-                selected={selected}
                 boatsDraggable={canSetUp}
-                onSelect={selectHeat}
                 onBoatDrop={management.dropBoat}
-                onStartScoring={selected ? onStartScoring : null}
-                onUndoLastRace={selected ? onUndoLastRace : null}
-                undoDisabled={rowActionsDisabled}
+                onScore={
+                  current &&
+                  // SHRS 3.2: in a qualifying round of several heats each heat
+                  // races once, then the boats are redistributed.
+                  (finalSeriesStarted ||
+                    numQualifyingGroups < 2 ||
+                    heat.raceNumber === 0)
+                    ? onScoreHeat
+                    : null
+                }
+                onUndoLastRace={current ? onUndoLastRace : null}
+                actionsDisabled={busy || rowActionsDisabled}
               />
             );
           })}
@@ -241,9 +256,7 @@ function HeatComponent({
 
       {heatsCreated && (
         <HeatBackupBar
-          canStartFinalSeries={canStartFinalSeries}
           busy={busy}
-          onStartFinalSeries={() => runExclusive(finalSeries.startFinalSeries)}
           onSaveBackup={() => runExclusive(snapshots.saveBackup)}
           onRestoreBackup={() => runExclusive(snapshots.restoreBackup)}
           history={snapshots.history}

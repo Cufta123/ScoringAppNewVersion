@@ -426,10 +426,10 @@ test('tour', async () => {
 
   // Open a heat that has not sailed round 4 yet and start scoring.
   const cards = window.locator('.heat-column');
-  await cards.nth((await cards.count()) - 1).click();
-  await snap('heat-selected');
-  await window
-    .getByRole('button', { name: 'Start Scoring', exact: true })
+  await snap('heat-card-actions');
+  await cards
+    .nth((await cards.count()) - 1)
+    .getByRole('button', { name: /^Score race/ })
     .click();
   await window.getByRole('button', { name: /Submit Scores/i }).waitFor();
   await snap('scoring-empty');

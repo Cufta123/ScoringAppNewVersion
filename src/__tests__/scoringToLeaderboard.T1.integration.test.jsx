@@ -43,7 +43,7 @@ jest.mock(
 jest.mock(
   '../renderer/components/HeatComponent',
   () =>
-    function ({ onHeatSelect, onStartScoring, onQualifyingGroupCountChange }) {
+    function ({ onScoreHeat, onQualifyingGroupCountChange }) {
       React.useEffect(() => {
         onQualifyingGroupCountChange(1);
       }, [onQualifyingGroupCountChange]);
@@ -52,7 +52,7 @@ jest.mock(
         <button
           type="button"
           onClick={() => {
-            onHeatSelect({
+            onScoreHeat({
               heat_id: 10,
               heat_name: 'Heat A1',
               heat_type: 'Qualifying',
@@ -73,7 +73,6 @@ jest.mock(
                 },
               ],
             });
-            onStartScoring();
           }}
         >
           Start scoring mock

@@ -30,11 +30,8 @@ async function enterFreshScoring(): Promise<void> {
   await leaveScoring(window);
 
   await window
-    .getByText(/Heat A1/i)
-    .first()
-    .click();
-  await window
-    .getByRole('button', { name: 'Start Scoring', exact: true })
+    .locator('.heat-column', { hasText: 'Heat A1' })
+    .getByRole('button', { name: /^Score race/ })
     .click();
   await expect(
     window.getByRole('button', { name: /Submit Scores/i }),

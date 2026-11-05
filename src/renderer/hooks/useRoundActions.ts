@@ -43,8 +43,8 @@ export default function useRoundActions({
     }
 
     const confirmed = await confirmAction(
-      'Create new heats based on the current leaderboard?\n\nAll heats in the current round must have the same number of races.',
-      'Create New Heats',
+      "Create the next round's heats from the current leaderboard?\n\nAll heats in the current round must have the same number of races.",
+      'Create next round',
       { confirmLabel: 'Create heats' },
     );
     if (!confirmed) return;
@@ -116,7 +116,7 @@ export default function useRoundActions({
     if (!event) return;
     const confirmed = await confirmAction(
       'Undo latest heat redistribution?\n\nThis will delete the latest qualifying heats and all their boat assignments. This cannot be undone.',
-      'Undo Heat Redistribution',
+      'Undo round',
       { confirmLabel: 'Undo redistribution', confirmClassName: 'btn-danger' },
     );
     if (!confirmed) return;
