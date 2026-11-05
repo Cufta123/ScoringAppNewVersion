@@ -223,7 +223,16 @@ async function runEvent(seed: number): Promise<string[]> {
       heat_id: heat.heat_id,
       placeNumbers: payload,
     });
-    log.push({ type: 'raceScored', heat: coreHeatId(heat.heat_name), lines });
+    // The app's own number for the race just scored names it in the log, so
+    // the two numberings are checked against each other too.
+    const { n } = db
+      .prepare('SELECT MAX(race_number) AS n FROM Races WHERE heat_id = ?')
+      .get(heat.heat_id) as { n: number };
+    log.push({
+      type: 'raceScored',
+      race: { heat: coreHeatId(heat.heat_name), race: n },
+      lines,
+    });
   };
 
   const appRaces = () =>

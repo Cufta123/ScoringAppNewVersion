@@ -8,9 +8,9 @@ const boat = (i: number): Decision => ({
   type: 'boatEntered',
   boat: { id: `b${i}`, nat: 'CRO', sail: String(i) },
 });
-const sheet = (heat: string, ...boats: string[]): Decision => ({
+const sheet = (heat: string, race: number, ...boats: string[]): Decision => ({
   type: 'raceScored',
-  heat,
+  race: { heat, race },
   lines: boats.map((id) => ({ boat: id })),
 });
 
@@ -23,8 +23,8 @@ describe('a boat removed after the fleets are made', () => {
     boat(4),
     { type: 'heatsCreated', heatCount: 2 },
     boat(5),
-    sheet('A1', 'b1', 'b4'),
-    sheet('B1', 'b2', 'b3'),
+    sheet('A1', 1, 'b1', 'b4'),
+    sheet('B1', 1, 'b2', 'b3'),
     { type: 'finalSeriesStarted' },
     { type: 'boatRemoved', boat: 'b5' },
   ];
@@ -40,7 +40,7 @@ describe('a boat removed after the fleets are made', () => {
   it('is not on any final sheet and not in the largest heat', () => {
     const result = replay(log);
     const fleet = result.state.fleets!.find((f) => f.boats.length > 0)!;
-    const after = replay([...log, sheet(fleet.id, ...fleet.boats)]);
+    const after = replay([...log, sheet(fleet.id, 1, ...fleet.boats)]);
     expect(after.ok).toBe(true);
     const standings = finalStandings(after.state).flatMap((f) => f.standings);
     expect(standings.map((s) => s.boat)).not.toContain('b5');
@@ -51,7 +51,7 @@ describe('a boat removed after the fleets are made', () => {
     const fleet = before.state.fleets!.find((f) => f.boats.includes('b5'))!;
     const result = replay([
       ...log.slice(0, -1),
-      sheet(fleet.id, ...fleet.boats),
+      sheet(fleet.id, 1, ...fleet.boats),
       { type: 'boatRemoved', boat: 'b5' },
     ]);
     expect(result.ok).toBe(false);
@@ -66,8 +66,8 @@ describe('a heat left with no boats', () => {
     boat(3),
     { type: 'heatsCreated', heatCount: 3 },
     { type: 'boatRemoved', boat: 'b2' },
-    sheet('A1', 'b1'),
-    sheet('C1', 'b3'),
+    sheet('A1', 1, 'b1'),
+    sheet('C1', 1, 'b3'),
   ];
 
   it.each(['progressive', 'pre-assigned'] as const)(
@@ -88,5 +88,49 @@ describe('a heat left with no boats', () => {
   it('does not stop the Final Series', () => {
     const result = replay([...start, { type: 'finalSeriesStarted' }]);
     expect(result.ok).toBe(true);
+  });
+});
+
+describe('a race is named, not counted', () => {
+  // One fleet, three races; b2 is disqualified in race 3.
+  const races: Decision[] = [
+    boat(1),
+    boat(2),
+    { type: 'heatsCreated', heatCount: 1 },
+    sheet('A1', 1, 'b1', 'b2'),
+    sheet('A1', 2, 'b2', 'b1'),
+    sheet('A1', 3, 'b2', 'b1'),
+    {
+      type: 'protestDecided',
+      race: { heat: 'A1', race: 3 },
+      boat: 'b2',
+      outcome: { kind: 'DSQ' },
+    },
+  ];
+
+  it('taking a middle race out stops at the next race, not re-pointing it', () => {
+    // Without race numbers, race 3 would have become race 2 and the DSQ
+    // would have landed on a race nobody decided it for.
+    const withoutRace2 = races.filter((_d, i) => i !== 4);
+    const result = replay(withoutRace2);
+    expect(result).toMatchObject({
+      ok: false,
+      at: 4,
+      reason: 'A1 race 3 comes after race 2, which is not scored.',
+    });
+  });
+
+  it('refuses scoring a race twice', () => {
+    const result = replay([...races, sheet('A1', 3, 'b1', 'b2')]);
+    expect(result).toMatchObject({
+      ok: false,
+      reason: 'A1 race 3 is already scored; correct it instead.',
+    });
+  });
+
+  it('taking the last race out leaves the rest as they were', () => {
+    const result = replay(races.slice(0, 5));
+    expect(result.ok).toBe(true);
+    expect(result.state.rounds[0][0].races).toHaveLength(2);
   });
 });

@@ -5,7 +5,10 @@
     "reason": "ITA 17 is listed twice.",
     "decision": {
       "type": "raceScored",
-      "heat": "A1",
+      "race": {
+        "heat": "A1",
+        "race": 2
+      },
       "lines": [
         {
           "boat": "b2"

@@ -369,10 +369,18 @@ function applyDecision(state: EventState, decision: Decision) {
     case 'boatAssigned':
       return assign(state, decision.boat, decision.heat);
     case 'raceScored': {
-      const heat = scorableHeat(state, decision.heat);
+      const heat = scorableHeat(state, decision.race.heat);
       checkLines(state, heat, decision.lines);
+      const next = heat.races.length + 1;
+      if (decision.race.race !== next) {
+        refuse(
+          decision.race.race < next
+            ? `${heat.id} race ${decision.race.race} is already scored; correct it instead.`
+            : `${heat.id} race ${decision.race.race} comes after race ${next}, which is not scored.`,
+        );
+      }
       heat.races.push({
-        ref: { heat: heat.id, race: heat.races.length + 1 },
+        ref: { heat: heat.id, race: next },
         lines: structuredClone(decision.lines),
         protests: {},
       });

@@ -87,17 +87,17 @@ the rules say; a wrong expected file only locks a bug in.
 
 The event **is** its decision log (`Decision` in `src/types.ts`):
 
-| Decision              | Who               | What                                                    |
-| --------------------- | ----------------- | ------------------------------------------------------- |
-| `settingsChanged`     | race committee    | assignment method, discard profiles, fleet overflow     |
-| `boatEntered/Removed` | race office       | entries                                                 |
-| `heatsCreated`        | race office       | the first round (3.1(1) serpentine from the seeding)    |
-| `boatAssigned`        | race office       | a late entry joins a heat of the current round          |
-| `raceScored`          | race office       | a heat's next race: the finishing **order** and codes   |
-| `raceCorrected`       | race office       | the whole sheet again                                   |
-| `protestDecided`      | protest committee | DSQ / DNE / DGM / DPI / RDG1-3 for one boat, or cleared |
-| `roundCreated`        | race office       | the next round (Heat Movement Table or pre-assignment)  |
-| `finalSeriesStarted`  | race office       | the fleet split (4.1-4.3)                               |
+| Decision              | Who               | What                                                         |
+| --------------------- | ----------------- | ------------------------------------------------------------ |
+| `settingsChanged`     | race committee    | assignment method, discard profiles, fleet overflow          |
+| `boatEntered/Removed` | race office       | entries                                                      |
+| `heatsCreated`        | race office       | the first round (3.1(1) serpentine from the seeding)         |
+| `boatAssigned`        | race office       | a late entry joins a heat of the current round               |
+| `raceScored`          | race office       | a heat's next race, named: the finishing **order** and codes |
+| `raceCorrected`       | race office       | the whole sheet again                                        |
+| `protestDecided`      | protest committee | DSQ / DNE / DGM / DPI / RDG1-3 for one boat, or cleared      |
+| `roundCreated`        | race office       | the next round (Heat Movement Table or pre-assignment)       |
+| `finalSeriesStarted`  | race office       | the fleet split (4.1-4.3)                                    |
 
 Everything else is worked out on every read, in milliseconds. Nothing derived
 is stored, so nothing can go stale or need a "recompute".

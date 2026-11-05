@@ -97,8 +97,16 @@ describe('the qualifying series', () => {
   ];
   const round1: Decision[] = [
     ...start,
-    { type: 'raceScored', heat: 'A1', lines: finish('9', '8', '5', '4', '1') },
-    { type: 'raceScored', heat: 'B1', lines: finish('2', '3', '6', '7', '10') },
+    {
+      type: 'raceScored',
+      race: { heat: 'A1', race: 1 },
+      lines: finish('9', '8', '5', '4', '1'),
+    },
+    {
+      type: 'raceScored',
+      race: { heat: 'B1', race: 1 },
+      lines: finish('2', '3', '6', '7', '10'),
+    },
   ];
 
   it('3.1(1): seeds the first round 1, 2, 2, 1, …', () => {
@@ -116,7 +124,7 @@ describe('the qualifying series', () => {
       ...start,
       {
         type: 'raceScored',
-        heat: 'A1',
+        race: { heat: 'A1', race: 1 },
         lines: [
           { boat: '9', code: 'DSQ' },
           { boat: '8', code: 'DNF' },
@@ -125,7 +133,7 @@ describe('the qualifying series', () => {
       },
       {
         type: 'raceScored',
-        heat: 'B1',
+        race: { heat: 'B1', race: 1 },
         lines: finish('2', '3', '6', '7', '10'),
       },
       { type: 'roundCreated' },
@@ -171,7 +179,7 @@ describe('the qualifying series', () => {
       ...start,
       {
         type: 'raceScored',
-        heat: 'A1',
+        race: { heat: 'A1', race: 1 },
         lines: finish('9', '8', '5', '4', '1'),
       },
     ]);
@@ -207,7 +215,11 @@ describe('the qualifying series', () => {
     expect(
       refusal([
         ...start,
-        { type: 'raceScored', heat: 'A1', lines: finish('9') },
+        {
+          type: 'raceScored',
+          race: { heat: 'A1', race: 1 },
+          lines: finish('9'),
+        },
       ]),
     ).toMatch(/Missing: CRO 1, CRO 4, CRO 5, CRO 8/);
     expect(
@@ -216,7 +228,7 @@ describe('the qualifying series', () => {
         { type: 'roundCreated' },
         {
           type: 'raceScored',
-          heat: 'A1',
+          race: { heat: 'A1', race: 1 },
           lines: finish('9', '8', '5', '4', '1'),
         },
       ]),
@@ -256,9 +268,9 @@ describe('one fleet', () => {
     ...enter(4),
     { type: 'heatsCreated', heatCount: 1 },
     ...[1, 2, 3].map(
-      (): Decision => ({
+      (race): Decision => ({
         type: 'raceScored',
-        heat: 'A1',
+        race: { heat: 'A1', race },
         lines: finish('1', '2', '3', '4'),
       }),
     ),
@@ -297,7 +309,11 @@ describe('one fleet', () => {
     const later = stateOf([
       ...log,
       rdg,
-      { type: 'raceScored', heat: 'A1', lines: finish('4', '1', '2', '3') },
+      {
+        type: 'raceScored',
+        race: { heat: 'A1', race: 4 },
+        lines: finish('4', '1', '2', '3'),
+      },
     ]);
     const after = qualifyingStandings(later).standings.find(
       (s) => s.boat === '4',
@@ -308,7 +324,11 @@ describe('one fleet', () => {
   it('SHRS 5.4: the fourth race brings the first discard', () => {
     const state = stateOf([
       ...log,
-      { type: 'raceScored', heat: 'A1', lines: finish('4', '1', '2', '3') },
+      {
+        type: 'raceScored',
+        race: { heat: 'A1', race: 4 },
+        lines: finish('4', '1', '2', '3'),
+      },
     ]);
     const one = qualifyingStandings(state).standings.find(
       (s) => s.boat === '1',
@@ -329,8 +349,16 @@ describe('the Final Series', () => {
   const qualifying: Decision[] = [
     ...enter(8),
     { type: 'heatsCreated', heatCount: 2 },
-    { type: 'raceScored', heat: 'A1', lines: finish('1', '4', '5', '8') },
-    { type: 'raceScored', heat: 'B1', lines: finish('2', '3', '6', '7') },
+    {
+      type: 'raceScored',
+      race: { heat: 'A1', race: 1 },
+      lines: finish('1', '4', '5', '8'),
+    },
+    {
+      type: 'raceScored',
+      race: { heat: 'B1', race: 1 },
+      lines: finish('2', '3', '6', '7'),
+    },
   ];
 
   it('4.2: splits by qualifying ranking, best to Gold', () => {
@@ -356,7 +384,11 @@ describe('the Final Series', () => {
       refusal([
         ...qualifying,
         { type: 'finalSeriesStarted' },
-        { type: 'raceScored', heat: 'A1', lines: finish('1', '4', '5', '8') },
+        {
+          type: 'raceScored',
+          race: { heat: 'A1', race: 1 },
+          lines: finish('1', '4', '5', '8'),
+        },
       ]),
     ).toMatch(/qualifying heats are closed/);
   });
@@ -366,7 +398,11 @@ describe('the Final Series', () => {
       ...qualifying,
       { type: 'finalSeriesStarted' },
       // Silver races; its last qualifier wins.
-      { type: 'raceScored', heat: 'Silver', lines: finish('8', '7', '6', '5') },
+      {
+        type: 'raceScored',
+        race: { heat: 'Silver', race: 1 },
+        lines: finish('8', '7', '6', '5'),
+      },
     ];
     const state = stateOf(log);
     const [gold, silver] = finalStandings(state);
@@ -396,7 +432,7 @@ describe('the Final Series', () => {
       { type: 'finalSeriesStarted' },
       {
         type: 'raceScored',
-        heat: 'Gold',
+        race: { heat: 'Gold', race: 1 },
         lines: [...finish('1', '2', '3'), { boat: '4', code: 'DNS' }],
       },
     ]);

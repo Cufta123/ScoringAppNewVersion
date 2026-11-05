@@ -122,8 +122,13 @@ export type Decision =
   | { type: 'heatsCreated'; heatCount: number; seeding?: BoatId[] }
   /** A late entry joins a heat of the current round. */
   | { type: 'boatAssigned'; boat: BoatId; heat: HeatId }
-  /** The heat's next race, as the race office recorded it. */
-  | { type: 'raceScored'; heat: HeatId; lines: RaceLine[] }
+  /**
+   * The heat's next race, as the race office recorded it. `race` names it
+   * (the heat's race 1, 2, …) and must be the heat's next race, so taking
+   * an earlier race out of the log cannot quietly renumber the later ones
+   * and re-point their corrections and protest decisions.
+   */
+  | { type: 'raceScored'; race: RaceRef; lines: RaceLine[] }
   /** The race office corrects a race: the whole sheet again. */
   | { type: 'raceCorrected'; race: RaceRef; lines: RaceLine[] }
   | {

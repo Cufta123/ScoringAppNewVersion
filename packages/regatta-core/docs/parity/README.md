@@ -74,11 +74,10 @@ welcome. R6 is the order SHRS uses for every tie it does settle; R8 follows
 
 ## Library work (no rule question)
 
-1. **Stable race references.** A race is addressed by its position in the
-   heat. Taking a race that is not the heat's last out of the log silently
-   re-points later corrections, protests and RDG2 choices to the next race.
-   Each `raceScored` should state its race number, so replay refuses them
-   instead.
+1. ~~**Stable race references.**~~ Done: `raceScored` names its race
+   (`race: { heat, race }`) and must be the heat's next one, so taking a
+   middle race out of the log stops replay at the next race instead of
+   re-pointing later corrections, protests and RDG2 choices.
 2. **Moving a boat between heats** of the current round (the app's
    transfer).
 3. **Unchanged settings are not a change.** `settingsChanged` refuses

@@ -53,7 +53,7 @@ describe('the event schema refuses', () => {
         decisions: [
           {
             type: 'raceScored',
-            heat: 'A1',
+            race: { heat: 'A1', race: 1 },
             lines: [{ boat: 'a', code: 'XYZ' }],
           },
         ],

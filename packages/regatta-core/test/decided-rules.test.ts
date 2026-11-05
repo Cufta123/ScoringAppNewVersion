@@ -15,9 +15,9 @@ const enter = (id: string, nat: string, sail: string): Decision => ({
   boat: { id, nat, sail },
 });
 const cro = (n: number) => enter(`b${n}`, 'CRO', String(n));
-const sheet = (heat: string, ...boats: string[]): Decision => ({
+const sheet = (heat: string, race: number, ...boats: string[]): Decision => ({
   type: 'raceScored',
-  heat,
+  race: { heat, race },
   lines: boats.map((boat) => ({ boat })),
 });
 
@@ -51,8 +51,8 @@ describe('R6: boats sharing a place at the fleet boundary (SHRS 4.2)', () => {
   // Gold takes three boats: CRO 1, CRO 2 and one of CRO 3 / CRO 4.
   const race: Decision[] = [
     { type: 'heatsCreated', heatCount: 2 },
-    sheet('A1', 'b1', 'b4', 'b5'),
-    sheet('B1', 'b2', 'b3', 'b6'),
+    sheet('A1', 1, 'b1', 'b4', 'b5'),
+    sheet('B1', 1, 'b2', 'b3', 'b6'),
   ];
 
   it.each([
@@ -91,8 +91,8 @@ describe('R8: a boat with no heat in a race (SHRS 5.7(ii)(1))', () => {
       cro(4),
       { type: 'heatsCreated', heatCount: 2 },
       cro(9), // late, no heat in round 1
-      sheet('A1', 'b1', 'b4'),
-      sheet('B1', 'b2', 'b3'),
+      sheet('A1', 1, 'b1', 'b4'),
+      sheet('B1', 1, 'b2', 'b3'),
     ];
     const { standings } = qualifyingStandings(replay(log).state);
     const late = standings.find((s) => s.boat === 'b9')!.scores[0];
@@ -109,10 +109,10 @@ describe('R8: a boat with no heat in a race (SHRS 5.7(ii)(1))', () => {
       cro(1),
       cro(2),
       { type: 'heatsCreated', heatCount: 1 },
-      sheet('A1', 'b1', 'b2'),
+      sheet('A1', 1, 'b1', 'b2'),
       cro(3),
       { type: 'boatAssigned', boat: 'b3', heat: 'A1' },
-      sheet('A1', 'b3', 'b2', 'b1'),
+      sheet('A1', 2, 'b3', 'b2', 'b1'),
     ];
     const { standings } = qualifyingStandings(replay(log).state);
     // b1: 1 + 3 = 4, b3: DNC 4 + 1 = 5, b2: 2 + 2 = 4. b1 and b2 tie on 4:

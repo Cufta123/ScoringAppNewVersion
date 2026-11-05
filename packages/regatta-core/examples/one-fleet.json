@@ -80,7 +80,10 @@
     },
     {
       "type": "raceScored",
-      "heat": "A1",
+      "race": {
+        "heat": "A1",
+        "race": 1
+      },
       "lines": [
         {
           "boat": "b4"
@@ -110,7 +113,10 @@
     },
     {
       "type": "raceScored",
-      "heat": "A1",
+      "race": {
+        "heat": "A1",
+        "race": 2
+      },
       "lines": [
         {
           "boat": "b6"
@@ -141,7 +147,10 @@
     },
     {
       "type": "raceScored",
-      "heat": "A1",
+      "race": {
+        "heat": "A1",
+        "race": 3
+      },
       "lines": [
         {
           "boat": "b2"
@@ -172,7 +181,10 @@
     },
     {
       "type": "raceScored",
-      "heat": "A1",
+      "race": {
+        "heat": "A1",
+        "race": 4
+      },
       "lines": [
         {
           "boat": "b2"
@@ -203,7 +215,10 @@
     },
     {
       "type": "raceScored",
-      "heat": "A1",
+      "race": {
+        "heat": "A1",
+        "race": 5
+      },
       "lines": [
         {
           "boat": "b8"

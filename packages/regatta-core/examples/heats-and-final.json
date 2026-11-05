@@ -152,7 +152,10 @@
     },
     {
       "type": "raceScored",
-      "heat": "A1",
+      "race": {
+        "heat": "A1",
+        "race": 1
+      },
       "lines": [
         {
           "boat": "b11"
@@ -182,7 +185,10 @@
     },
     {
       "type": "raceScored",
-      "heat": "B1",
+      "race": {
+        "heat": "B1",
+        "race": 1
+      },
       "lines": [
         {
           "boat": "b5"
@@ -215,7 +221,10 @@
     },
     {
       "type": "raceScored",
-      "heat": "A2",
+      "race": {
+        "heat": "A2",
+        "race": 1
+      },
       "lines": [
         {
           "boat": "b11"
@@ -245,7 +254,10 @@
     },
     {
       "type": "raceScored",
-      "heat": "B2",
+      "race": {
+        "heat": "B2",
+        "race": 1
+      },
       "lines": [
         {
           "boat": "b13"
@@ -278,7 +290,10 @@
     },
     {
       "type": "raceScored",
-      "heat": "A3",
+      "race": {
+        "heat": "A3",
+        "race": 1
+      },
       "lines": [
         {
           "boat": "b8"
@@ -308,7 +323,10 @@
     },
     {
       "type": "raceScored",
-      "heat": "B3",
+      "race": {
+        "heat": "B3",
+        "race": 1
+      },
       "lines": [
         {
           "boat": "b12"
@@ -341,7 +359,10 @@
     },
     {
       "type": "raceScored",
-      "heat": "A4",
+      "race": {
+        "heat": "A4",
+        "race": 1
+      },
       "lines": [
         {
           "boat": "b15"
@@ -371,7 +392,10 @@
     },
     {
       "type": "raceScored",
-      "heat": "B4",
+      "race": {
+        "heat": "B4",
+        "race": 1
+      },
       "lines": [
         {
           "boat": "b12"
@@ -415,7 +439,10 @@
     },
     {
       "type": "raceScored",
-      "heat": "Gold",
+      "race": {
+        "heat": "Gold",
+        "race": 1
+      },
       "lines": [
         {
           "boat": "b5",
@@ -446,7 +473,10 @@
     },
     {
       "type": "raceScored",
-      "heat": "Silver",
+      "race": {
+        "heat": "Silver",
+        "race": 1
+      },
       "lines": [
         {
           "boat": "b4"
@@ -476,7 +506,10 @@
     },
     {
       "type": "raceScored",
-      "heat": "Gold",
+      "race": {
+        "heat": "Gold",
+        "race": 2
+      },
       "lines": [
         {
           "boat": "b15"
@@ -506,7 +539,10 @@
     },
     {
       "type": "raceScored",
-      "heat": "Silver",
+      "race": {
+        "heat": "Silver",
+        "race": 2
+      },
       "lines": [
         {
           "boat": "b6"
@@ -536,7 +572,10 @@
     },
     {
       "type": "raceScored",
-      "heat": "Gold",
+      "race": {
+        "heat": "Gold",
+        "race": 3
+      },
       "lines": [
         {
           "boat": "b12"
@@ -566,7 +605,10 @@
     },
     {
       "type": "raceScored",
-      "heat": "Silver",
+      "race": {
+        "heat": "Silver",
+        "race": 3
+      },
       "lines": [
         {
           "boat": "b7"

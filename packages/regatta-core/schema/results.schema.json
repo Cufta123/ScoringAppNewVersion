@@ -234,8 +234,8 @@
               "type": "string",
               "const": "raceScored"
             },
-            "heat": {
-              "$ref": "#/definitions/HeatId"
+            "race": {
+              "$ref": "#/definitions/RaceRef"
             },
             "lines": {
               "type": "array",
@@ -244,7 +244,7 @@
               }
             }
           },
-          "required": ["type", "heat", "lines"],
+          "required": ["type", "race", "lines"],
           "additionalProperties": false
         },
         {
@@ -412,6 +412,20 @@
       "type": "string",
       "description": "A heat is \"A1\", \"B3\" (qualifying group + round) or \"Gold\" (final fleet)."
     },
+    "RaceRef": {
+      "type": "object",
+      "properties": {
+        "heat": {
+          "$ref": "#/definitions/HeatId"
+        },
+        "race": {
+          "type": "number"
+        }
+      },
+      "required": ["heat", "race"],
+      "additionalProperties": false,
+      "description": "A race is the n-th race a heat sails."
+    },
     "RaceLine": {
       "type": "object",
       "properties": {
@@ -455,20 +469,6 @@
     "PenaltyCode": {
       "type": "string",
       "enum": ["ZFP", "SCP", "T1"]
-    },
-    "RaceRef": {
-      "type": "object",
-      "properties": {
-        "heat": {
-          "$ref": "#/definitions/HeatId"
-        },
-        "race": {
-          "type": "number"
-        }
-      },
-      "required": ["heat", "race"],
-      "additionalProperties": false,
-      "description": "A race is the n-th race a heat sails."
     },
     "ProtestOutcome": {
       "anyOf": [
