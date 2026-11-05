@@ -524,6 +524,22 @@ describe('a backup file with the decision log (schemaVersion 3)', () => {
     });
   });
 
+  it('refuses a file whose boats are other boats here (same ids, another computer), changing nothing', () => {
+    const boatId = Number(
+      (backup.contents.people.Boats[0] as { boat_id: number }).boat_id,
+    );
+    mockDbHolder.current
+      .prepare(
+        "UPDATE Boats SET country = 'ZZZ', sail_number = '999' WHERE boat_id = ?",
+      )
+      .run(boatId);
+    const logBefore = loadLog(eventId);
+    expect(() => restoreEventSnapshot(eventId, backup.contents)).toThrow(
+      /are not the boats on this computer .* use “Import from backup…”/,
+    );
+    expect(loadLog(eventId)).toEqual(logBefore);
+  });
+
   it('refuses a file from a newer version of the app', async () => {
     pickFile(
       writeFile(`newer-${Date.now()}.json`, {

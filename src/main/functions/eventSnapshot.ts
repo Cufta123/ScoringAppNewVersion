@@ -285,6 +285,35 @@ export function restoreEventSnapshot(
         'This backup file names boats that are not on this computer (it was made on another one), so nothing was restored. Use “Import from backup…” on the event list instead.',
       );
     }
+    // The same ids on another computer can be other boats: every boat must
+    // also be the same boat here (national letters and sail number).
+    const fileBoats = new Map(
+      (snapshot.people?.Boats ?? []).map((row) => [Number(row.boat_id), row]),
+    );
+    const key = (
+      row: { country?: unknown; sail_number?: unknown } | undefined,
+    ) =>
+      `${String(row?.country ?? '')
+        .trim()
+        .toUpperCase()} ${String(row?.sail_number ?? '')
+        .trim()
+        .toUpperCase()}`;
+    const differing = ids.filter((id) => {
+      const here = db
+        .prepare('SELECT country, sail_number FROM Boats WHERE boat_id = ?')
+        .get(id) as { country: unknown; sail_number: unknown };
+      return key(fileBoats.get(id)) !== key(here);
+    });
+    if (differing.length > 0) {
+      throw new Error(
+        `This backup file's boats are not the boats on this computer (${differing
+          .slice(0, 5)
+          .map((id) => key(fileBoats.get(id)).trim() || 'a boat')
+          .join(
+            ', ',
+          )}${differing.length > 5 ? ', …' : ''}), so nothing was restored. If the file was made on another computer, or those boats' sail numbers were changed since, use “Import from backup…” on the event list instead.`,
+      );
+    }
     const eventRow = eventRows[0];
     db.transaction(() => {
       db.prepare(
