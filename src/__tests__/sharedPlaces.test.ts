@@ -23,6 +23,23 @@ describe('shared places for unbreakable ties', () => {
     expect([...findUnbrokenTies(order, compareByScores)]).toEqual(['c']);
   });
 
+  it('shares a place only with boats level with every boat on it', () => {
+    // a is level with b and with c, but b beats c (5.7(ii) compares each
+    // pair on its own races, so this happens). Whatever the order, c must
+    // not share a place with b.
+    const level = new Set(['a|b', 'b|a', 'a|c', 'c|a']);
+    const compare = (x: { boat_id: string }, y: { boat_id: string }) => {
+      if (x.boat_id === y.boat_id || level.has(`${x.boat_id}|${y.boat_id}`))
+        return 0;
+      if (x.boat_id === 'b' && y.boat_id === 'c') return -1;
+      return 1;
+    };
+    const ids = (order: string[]) => order.map((boat_id) => ({ boat_id }));
+    // b, a share; c is behind b, so she cannot join them.
+    expect([...findUnbrokenTies(ids(['b', 'a', 'c']), compare)]).toEqual(['a']);
+    expect([...findUnbrokenTies(ids(['a', 'b', 'c']), compare)]).toEqual(['b']);
+  });
+
   it('numbers 1, 2, 2, 4 — the next boat skips the shared place', () => {
     const table = [
       { boat_id: 'a', totalPoints: 3 },

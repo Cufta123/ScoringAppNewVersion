@@ -35,12 +35,24 @@ export function findUnbrokenTies<T extends { boat_id: BoatKey }>(
   order: T[],
   compare: (left: T, right: T) => number,
 ): Set<string> {
+  // A boat shares the place above only if no rule separates her from ANY
+  // boat on it. 5.7(ii) compares each pair on its own races, so "level" is
+  // not transitive: A level with B and with C while B beats C. Comparing
+  // with the boat just above alone let C share B's place (or not) by the
+  // order the boats came in. regatta-core does the same (Nov 2026).
   const tied = new Set<string>();
-  for (let i = 1; i < order.length; i += 1) {
-    if (compare(order[i - 1], order[i]) === 0) {
-      tied.add(String(order[i].boat_id));
+  let onPlace: T[] = [];
+  order.forEach((boat) => {
+    if (
+      onPlace.length > 0 &&
+      onPlace.every((other) => compare(other, boat) === 0)
+    ) {
+      tied.add(String(boat.boat_id));
+      onPlace.push(boat);
+    } else {
+      onPlace = [boat];
     }
-  }
+  });
   return tied;
 }
 
