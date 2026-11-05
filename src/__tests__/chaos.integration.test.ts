@@ -567,10 +567,27 @@ describe('chaos: random race-office sessions keep the data whole', () => {
       for (const race of races) {
         const cells = db
           .prepare(
-            "SELECT position, points, COALESCE(status,'FINISHED') AS status FROM Scores WHERE race_id = ? ORDER BY score_id",
+            "SELECT position, points, COALESCE(status,'FINISHED') AS status, held_place FROM Scores WHERE race_id = ? ORDER BY score_id",
           )
-          .all(race.race_id) as any[];
+          .all(race.race_id)
+          .map(({ held_place, ...cell }: any) =>
+            // RRS A6.2: the place a redressed / DPI boat kept.
+            held_place != null ? { ...cell, heldPlace: held_place } : cell,
+          ) as any[];
         cells.forEach((cell) => {
+          if (cell.heldPlace != null) {
+            expect({
+              context,
+              race: race.race_id,
+              heldInRace: cell.heldPlace >= 1 && cell.heldPlace <= cells.length,
+              onlyForRedress: /^(RDG[123]|DPI)$/.test(cell.status),
+            }).toEqual({
+              context,
+              race: race.race_id,
+              heldInRace: true,
+              onlyForRedress: true,
+            });
+          }
           if (holdsPlace(cell.status)) {
             expect({
               context,

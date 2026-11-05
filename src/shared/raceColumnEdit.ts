@@ -22,7 +22,9 @@ import {
  *    finished) puts her into the order and the boats from that place on move
  *    down one.
  *  - Redress (RDG) and a discretionary penalty (DPI) change her score only:
- *    no other boat's score changes (RRS A6.2, A10).
+ *    no other boat's score changes (RRS A6.2, A10). A boat that finished
+ *    keeps her place in the order (`heldPlace`), so a boat she was level
+ *    with still shares it (6.5 stays 6.5) and the boats behind keep theirs.
  *  - ZFP/SCP/T1 keep the finishing place (RRS 44.3(c), T1).
  *
  * Places are never silently compacted: a gap left by redress stays a gap.
@@ -39,6 +41,12 @@ export interface RaceCell {
   position: number;
   points: number;
   status: string;
+  /**
+   * RDG / DPI only: the finishing place she keeps in the order (RRS A6.2).
+   * Absent when she had none (redress for a boat that did not finish), and
+   * for results saved before this was recorded.
+   */
+  heldPlace?: number | null;
 }
 
 export interface RaceColumnEdit {
@@ -68,6 +76,32 @@ export function keepsProvidedPoints(status: string): boolean {
 }
 
 /**
+ * The place a cell fills in the finishing order: a finisher's (or ZFP/SCP/T1)
+ * position, or the place a redressed / DPI boat kept. Null when none.
+ */
+export function slotOf(cell: RaceCell): number | null {
+  if (holdsPlace(cell.status)) return cell.position;
+  if (keepsProvidedPoints(cell.status) && cell.heldPlace != null) {
+    return cell.heldPlace;
+  }
+  return null;
+}
+
+/** The cell with its place in the order moved to `slot`. */
+function withSlot(cell: RaceCell, slot: number): RaceCell {
+  return holdsPlace(cell.status)
+    ? { ...cell, position: slot }
+    : { ...cell, heldPlace: slot };
+}
+
+/** Only RDG / DPI carry a kept place; drop it from every other cell. */
+function plain(cell: RaceCell): RaceCell {
+  if (keepsProvidedPoints(cell.status) && cell.heldPlace != null) return cell;
+  const { heldPlace: _dropped, ...rest } = cell;
+  return rest;
+}
+
+/**
  * Score every cell from its place and code: RRS A7 averages for boats sharing
  * a place, 44.3(c)/T1 points for position-keeping penalties, the DNF score
  * (largest heat + 1, SHRS 5.2) for every other code. RDG/DPI points are kept.
@@ -77,13 +111,14 @@ export function scoreRaceColumn(
   maxBoats: number,
 ): RaceCell[] {
   const dnf = maxBoats + 1;
+  // Every boat filling a place counts, a redressed one that kept hers too.
   const sharing = new Map<number, number>();
   cells.forEach((cell) => {
-    if (holdsPlace(cell.status)) {
-      sharing.set(cell.position, (sharing.get(cell.position) ?? 0) + 1);
-    }
+    const slot = slotOf(cell);
+    if (slot != null) sharing.set(slot, (sharing.get(slot) ?? 0) + 1);
   });
-  return cells.map((cell) => {
+  return cells.map((raw) => {
+    const cell = plain(raw);
     if (keepsProvidedPoints(cell.status)) return { ...cell };
     if (!holdsPlace(cell.status)) {
       return { ...cell, position: dnf, points: dnf };
@@ -104,8 +139,15 @@ export default function applyRaceColumnEdit(
   cells: RaceCell[],
   edit: RaceColumnEdit,
 ): RaceCell[] {
-  const { index, previousPosition, previousStatus, newStatus, maxBoats } = edit;
-  const hadPlace = holdsPlace(previousStatus);
+  const { index, previousStatus, newStatus, maxBoats } = edit;
+  // Her place in the order before: a finisher's position, or the place a
+  // redressed boat kept (her `position` then holds her points).
+  const previousSlot = holdsPlace(previousStatus)
+    ? edit.previousPosition
+    : ((cells[index] && slotOf({ ...cells[index], status: previousStatus })) ??
+      null);
+  const previousPosition = previousSlot ?? edit.previousPosition;
+  const hadPlace = previousSlot != null;
   const takesPlace = holdsPlace(newStatus);
 
   let next = cells.map((cell) => ({ ...cell }));
@@ -114,6 +156,7 @@ export default function applyRaceColumnEdit(
   // her own score changes, and a dead heat she is part of stays.
   if (
     hadPlace &&
+    holdsPlace(previousStatus) &&
     takesPlace &&
     Math.round(edit.newPosition) === previousPosition
   ) {
@@ -125,10 +168,14 @@ export default function applyRaceColumnEdit(
     return scoreRaceColumn(next, maxBoats);
   }
 
+  // Every other boat filling a place moves with the order, a redressed
+  // boat's kept place included.
   const others = (fn: (cell: RaceCell) => RaceCell) => {
-    next = next.map((cell, i) =>
-      i === index || !holdsPlace(cell.status) ? cell : fn(cell),
-    );
+    next = next.map((cell, i) => {
+      const slot = slotOf(cell);
+      if (i === index || slot == null) return cell;
+      return withSlot(cell, fn({ ...cell, position: slot }).position);
+    });
   };
 
   // Out of the finishing order: the boats behind move up (RRS A6.1).
@@ -154,8 +201,9 @@ export default function applyRaceColumnEdit(
     let lastEnd = 0;
     const sharing = new Map<number, number>();
     next.forEach((cell, i) => {
-      if (i === index || !holdsPlace(cell.status)) return;
-      sharing.set(cell.position, (sharing.get(cell.position) ?? 0) + 1);
+      const slot = slotOf(cell);
+      if (i === index || slot == null) return;
+      sharing.set(slot, (sharing.get(slot) ?? 0) + 1);
     });
     sharing.forEach((n, position) => {
       lastEnd = Math.max(lastEnd, position + n - 1);
@@ -194,10 +242,12 @@ export default function applyRaceColumnEdit(
     }
     next[index] = { position: place, points: place, status: newStatus };
   } else if (keepsProvidedPoints(newStatus)) {
+    // RRS A6.2: she keeps her place in the order, if she had one.
     next[index] = {
       position: edit.newPosition,
       points: edit.newPoints,
       status: newStatus,
+      ...(previousSlot != null ? { heldPlace: previousSlot } : {}),
     };
   } else {
     next[index] = {
@@ -217,12 +267,15 @@ export default function applyRaceColumnEdit(
  */
 function fitPlacesInRace(cells: RaceCell[]): RaceCell[] {
   const holders = cells
-    .map((cell, index) => ({ cell, index }))
-    .filter(({ cell }) => holdsPlace(cell.status))
-    .sort((a, b) => a.cell.position - b.cell.position || a.index - b.index);
+    .map((cell, index) => ({ cell, index, slot: slotOf(cell) }))
+    .filter(
+      (holder): holder is typeof holder & { slot: number } =>
+        holder.slot != null,
+    )
+    .sort((a, b) => a.slot - b.slot || a.index - b.index);
   const sharing = new Map<number, number>();
-  holders.forEach(({ cell }) => {
-    sharing.set(cell.position, (sharing.get(cell.position) ?? 0) + 1);
+  holders.forEach(({ slot }) => {
+    sharing.set(slot, (sharing.get(slot) ?? 0) + 1);
   });
   let lastEnd = 0;
   sharing.forEach((n, position) => {
@@ -234,10 +287,10 @@ function fitPlacesInRace(cells: RaceCell[]): RaceCell[] {
   let cursor = 1;
   let i = 0;
   while (i < holders.length) {
-    const { position } = holders[i].cell;
+    const { slot } = holders[i];
     let j = i;
-    while (j < holders.length && holders[j].cell.position === position) {
-      next[holders[j].index].position = cursor;
+    while (j < holders.length && holders[j].slot === slot) {
+      next[holders[j].index] = withSlot(next[holders[j].index], cursor);
       j += 1;
     }
     cursor += j - i;

@@ -273,7 +273,7 @@ export function restoreEventSnapshot(
     });
 
     const insertScore = db.prepare(
-      'INSERT INTO Scores (score_id, race_id, boat_id, position, points, status, rdg_race_ids) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO Scores (score_id, race_id, boat_id, position, points, status, rdg_race_ids, held_place) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     );
     (tables.Scores || []).forEach((row) => {
       insertScore.run(
@@ -283,8 +283,9 @@ export function restoreEventSnapshot(
         row.position,
         row.points,
         row.status,
-        // Absent from snapshots taken before schema migration 3.
+        // Absent from snapshots taken before schema migration 3 / 8.
         row.rdg_race_ids ?? null,
+        row.held_place ?? null,
       );
     });
 
@@ -522,7 +523,7 @@ export function importEventSnapshot(snapshot: EventSnapshot): {
     };
 
     const insertScore = db.prepare(
-      'INSERT INTO Scores (race_id, boat_id, position, points, status, rdg_race_ids) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO Scores (race_id, boat_id, position, points, status, rdg_race_ids, held_place) VALUES (?, ?, ?, ?, ?, ?, ?)',
     );
     (tables.Scores ?? []).forEach((score) => {
       // RDG2: the races the redress averages, by race id.
@@ -541,6 +542,8 @@ export function importEventSnapshot(snapshot: EventSnapshot): {
         Number(score.points),
         text(score.status),
         rdg,
+        // RRS A6.2 kept place; absent from files before schema migration 8.
+        score.held_place == null ? null : Number(score.held_place),
       );
     });
 

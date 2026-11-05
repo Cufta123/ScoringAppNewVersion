@@ -58,7 +58,14 @@ const sailOf = (row) =>
  * labels stored with it. `X` stands for OLD or NEW.
  */
 const JOURNALLED = [
-  { table: 'Events', key: 'X.event_id', eventId: 'X.event_id' },
+  {
+    table: 'Events',
+    key: 'X.event_id',
+    eventId: 'X.event_id',
+    // The export logo is a picture, not an event change: never in the history
+    // (schema migration 7), whenever the triggers are installed again.
+    ignore: ['export_logo'],
+  },
   {
     table: 'Boat_Event',
     key: 'X.boat_event_id',
@@ -117,7 +124,9 @@ const rowJson = (columns, x) =>
 const triggerName = (table, op) => `journal_${table}_${op}`;
 
 function triggersFor(db, spec) {
-  const columns = columnsOf(db, spec.table);
+  const columns = columnsOf(db, spec.table).filter(
+    (column) => !(spec.ignore ?? []).includes(column),
+  );
   const on = (x, expr) => expr.replace(/\bX\./g, `${x}.`);
   const context = (x) =>
     spec.context ? `json_object(${spec.context(x)})` : 'NULL';

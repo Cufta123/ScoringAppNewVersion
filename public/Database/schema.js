@@ -21,7 +21,7 @@
  * some or all of it.
  */
 
-const { installJournal } = require('./journal');
+const { installJournal, installJournalTriggers } = require('./journal');
 const { COUNTED_RACES_VIEW } = require('./views');
 
 const readColumns = (db, table) =>
@@ -436,6 +436,26 @@ const MIGRATIONS = [
           sql: 'ALTER TABLE Events ADD COLUMN export_logo TEXT;',
         },
       ]);
+    },
+  },
+  {
+    version: 8,
+    name: 'the finishing place a redressed boat keeps',
+    // RRS A6.2: redress (and an A10 DPI) changes no other boat's score. For
+    // RDG / DPI, `position` holds her points, so the place she finished in
+    // was lost and a boat she was level with was re-scored alone (6.5 became
+    // 6). `held_place` keeps it; NULL for every other status, for a boat that
+    // had no place, and for results saved before this version (scored as
+    // before). See shared/raceColumnEdit.ts. Journalled like the rest of the
+    // row, so the triggers are installed again with the new column.
+    up(db) {
+      addMissingColumns(db, 'Scores', [
+        {
+          name: 'held_place',
+          sql: 'ALTER TABLE Scores ADD COLUMN held_place INTEGER;',
+        },
+      ]);
+      installJournalTriggers(db);
     },
   },
 ];

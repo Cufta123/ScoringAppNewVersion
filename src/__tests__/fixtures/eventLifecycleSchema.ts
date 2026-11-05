@@ -73,6 +73,7 @@ export const EVENT_LIFECYCLE_SCHEMA = `
     points REAL NOT NULL,
     status TEXT NOT NULL,
     rdg_race_ids TEXT,
+    held_place INTEGER,
     FOREIGN KEY (race_id) REFERENCES Races(race_id),
     FOREIGN KEY (boat_id) REFERENCES Boats(boat_id)
   );

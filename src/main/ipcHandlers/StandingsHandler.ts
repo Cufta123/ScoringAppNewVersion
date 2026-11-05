@@ -34,6 +34,7 @@ interface RaceColumns {
   race_points: string | null;
   race_ids: string | null;
   race_statuses: string | null;
+  race_held_places: string | null;
 }
 
 interface QualifyingReadRow extends BoatStandingsColumns, RaceColumns {
@@ -141,7 +142,9 @@ handle('readLeaderboard', async (event, raw_event_id) => {
     'GROUP_CONCAT(sc.position ORDER BY r.race_number, r.race_id) AS race_positions, ' +
     'GROUP_CONCAT(sc.points ORDER BY r.race_number, r.race_id) AS race_points, ' +
     'GROUP_CONCAT(r.race_id ORDER BY r.race_number, r.race_id) AS race_ids, ' +
-    "GROUP_CONCAT(COALESCE(sc.status, 'DNS') ORDER BY r.race_number, r.race_id) AS race_statuses " +
+    "GROUP_CONCAT(COALESCE(sc.status, 'DNS') ORDER BY r.race_number, r.race_id) AS race_statuses, " +
+    // RRS A6.2: the finishing place an RDG / DPI boat kept ('' for none).
+    "GROUP_CONCAT(COALESCE(sc.held_place, '') ORDER BY r.race_number, r.race_id) AS race_held_places " +
     'FROM Leaderboard lb ' +
     'LEFT JOIN Boats b ON lb.boat_id = b.boat_id ' +
     'LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id ' +
@@ -192,13 +195,14 @@ handle('readFinalLeaderboard', async (event, raw_event_id) => {
     'GROUP_CONCAT(fs.position ORDER BY fs.race_number, fs.race_id) AS race_positions, ' +
     'GROUP_CONCAT(fs.points ORDER BY fs.race_number, fs.race_id) AS race_points, ' +
     'GROUP_CONCAT(fs.race_id ORDER BY fs.race_number, fs.race_id) AS race_ids, ' +
-    "GROUP_CONCAT(COALESCE(fs.status, 'DNS') ORDER BY fs.race_number, fs.race_id) AS race_statuses " +
+    "GROUP_CONCAT(COALESCE(fs.status, 'DNS') ORDER BY fs.race_number, fs.race_id) AS race_statuses, " +
+    "GROUP_CONCAT(COALESCE(fs.held_place, '') ORDER BY fs.race_number, fs.race_id) AS race_held_places " +
     'FROM FinalLeaderboard fl ' +
     'LEFT JOIN Boats b ON fl.boat_id = b.boat_id ' +
     'LEFT JOIN Sailors s ON b.sailor_id = s.sailor_id ' +
     'LEFT JOIN Leaderboard lb ON lb.boat_id = fl.boat_id AND lb.event_id = fl.event_id ' +
     'LEFT JOIN (' +
-    'SELECT sc.boat_id, sc.position, sc.points, sc.status, sc.race_id, r.race_number ' +
+    'SELECT sc.boat_id, sc.position, sc.points, sc.status, sc.held_place, sc.race_id, r.race_number ' +
     'FROM Scores sc ' +
     'JOIN Races r ON sc.race_id = r.race_id ' +
     'JOIN Heats h ON r.heat_id = h.heat_id ' +

@@ -287,24 +287,19 @@ async function runEvent(seed: number): Promise<string[]> {
   const decideProtest = async () => {
     const race = pick(appRaces());
     if (!race) return;
-    const rows = db
-      .prepare(
-        `SELECT boat_id, position, points, COALESCE(status,'FINISHED') AS status
-         FROM Scores WHERE race_id = ? ORDER BY score_id`,
-      )
-      .all(race.race_id) as any[];
-    // Not on a boat sharing her place: the app then re-scores the boat she
-    // shared it with, which RRS A6.2 forbids (a known app bug, see the
-    // regatta-core notes); the core keeps that boat's score.
+    const rows = (
+      db
+        .prepare(
+          `SELECT boat_id, position, points, COALESCE(status,'FINISHED') AS status,
+                  held_place FROM Scores WHERE race_id = ? ORDER BY score_id`,
+        )
+        .all(race.race_id) as any[]
+    ).map(({ held_place, ...row }) =>
+      held_place != null ? { ...row, heldPlace: held_place } : row,
+    );
     const finishers = rows
       .map((row, index) => ({ row, index }))
-      .filter(
-        ({ row }) =>
-          row.status === 'FINISHED' &&
-          rows.filter(
-            (r) => r.status === 'FINISHED' && r.position === row.position,
-          ).length === 1,
-      );
+      .filter(({ row }) => row.status === 'FINISHED');
     if (finishers.length === 0) return;
     const { row, index } = pick(finishers);
     const maxBoats = await call('getMaxHeatSize', eventId, race.heat_type);
@@ -317,6 +312,7 @@ async function runEvent(seed: number): Promise<string[]> {
         position: r.position,
         points: r.points,
         status: r.status,
+        ...(r.heldPlace != null ? { heldPlace: r.heldPlace } : {}),
       })),
       {
         index,
@@ -339,6 +335,9 @@ async function runEvent(seed: number): Promise<string[]> {
             position: cell.position,
             status: cell.status,
             edited: i === index,
+            ...(/^(RDG|DPI)/.test(cell.status)
+              ? { heldPlace: cell.heldPlace ?? null }
+              : {}),
           })),
         },
       ],

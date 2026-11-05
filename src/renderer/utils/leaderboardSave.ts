@@ -12,6 +12,11 @@ export interface SaveRaceOperation {
     /** RDG2: the races whose average was granted, so it stays live. */
     rdgRaceIds?: number[];
     /**
+     * RDG / DPI: the finishing place she keeps (RRS A6.2), null for none.
+     * Absent for every other status.
+     */
+    heldPlace?: number | null;
+    /**
      * The user typed in this cell this session. A boat that only moved because
      * of another cell (RRS A6.1 promotion, place ripple) is false. SHRS 3.1.5:
      * only edited cells are protest decisions or race-office corrections.
@@ -67,6 +72,8 @@ export function buildRaceOperations(
               .map((idx) => Number(entry.race_ids?.[idx]))
               .filter((id) => Number.isFinite(id))
           : undefined;
+      const keepsPoints = status.startsWith('RDG') || status === 'DPI';
+      const held = Number(entry.race_held_places?.[i] || NaN);
       return [
         {
           boatId: entry.boat_id,
@@ -74,6 +81,9 @@ export function buildRaceOperations(
           status,
           edited: edit != null,
           ...(rdgRaceIds ? { rdgRaceIds } : {}),
+          ...(keepsPoints
+            ? { heldPlace: Number.isFinite(held) ? held : null }
+            : {}),
         },
       ];
     });
@@ -88,6 +98,7 @@ export function buildRaceOperations(
           other != null &&
           other.status === cell.status &&
           other.position === cell.position &&
+          (other.heldPlace ?? null) === (cell.heldPlace ?? null) &&
           cell.rdgRaceIds == null
         );
       })

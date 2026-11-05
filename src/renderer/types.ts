@@ -199,6 +199,8 @@ export interface RawLeaderboardEntry {
   race_points?: string | null;
   race_ids?: string | null;
   race_statuses?: string | null;
+  /** RRS A6.2: the place each RDG / DPI cell kept ('' for none), as CSV. */
+  race_held_places?: string | null;
   total_points_final?: number | null;
   total_points_event?: number | null;
   /** Results of a qualifying round still being sailed (not counted). */
@@ -226,6 +228,11 @@ export interface LeaderboardEntry {
   race_points: string[];
   race_ids: string[];
   race_statuses: string[];
+  /**
+   * Per race: the finishing place an RDG / DPI boat kept (RRS A6.2), '' for
+   * none. Absent on rows built without it (treated as none).
+   */
+  race_held_places?: string[];
   computed_total: number | null;
   total_points_event?: number | null;
   total_points_final?: number | null;

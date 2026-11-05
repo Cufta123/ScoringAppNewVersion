@@ -92,7 +92,8 @@ function seed(rows: Row[], heatSize = rows.length) {
       boat_id INTEGER NOT NULL,
       position REAL NOT NULL,
       points REAL NOT NULL,
-      status TEXT
+      status TEXT,
+      held_place INTEGER
     );
     CREATE TABLE Leaderboard (
       event_id INTEGER, boat_id INTEGER, total_points_event REAL
@@ -725,5 +726,148 @@ describe('applyRaceColumnState (real sqlite)', () => {
         { boatId: 1, position: 2, status: 'FINISHED' },
       ]),
     ).toThrow(/appears twice/i);
+  });
+});
+
+describe('RRS A6.2: a redressed boat keeps her place in the order', () => {
+  /** As the edit screen does it: the kept places go in and come back. */
+  function correctOnScreen(
+    db: any,
+    boatId: number,
+    position: number,
+    status: string,
+  ) {
+    const rows = db
+      .prepare(
+        'SELECT boat_id, position, points, status, held_place FROM Scores WHERE race_id = ? ORDER BY score_id',
+      )
+      .all(RACE_ID) as Array<Row & { held_place: number | null }>;
+    const index = rows.findIndex((row) => row.boat_id === boatId);
+    const cells = applyRaceColumnEdit(
+      rows.map((row) => ({
+        position: row.position,
+        points: row.points,
+        status: row.status,
+        ...(row.held_place != null ? { heldPlace: row.held_place } : {}),
+      })),
+      {
+        index,
+        previousPosition: rows[index].position,
+        previousStatus: rows[index].status,
+        newPosition: position,
+        newPoints: position,
+        newStatus: status,
+        maxBoats: getMaxHeatSize(EVENT_ID, 'Qualifying'),
+      },
+    );
+    applyRaceColumnState(
+      EVENT_ID,
+      RACE_ID,
+      cells.map((cell, i) => ({
+        boatId: rows[i].boat_id,
+        position: cell.position,
+        status: cell.status,
+        ...(/^(RDG|DPI)/.test(cell.status)
+          ? { heldPlace: cell.heldPlace ?? null }
+          : {}),
+      })),
+    );
+  }
+
+  const heldPlaces = (db: any) =>
+    Object.fromEntries(
+      (
+        db
+          .prepare('SELECT boat_id, held_place FROM Scores WHERE race_id = ?')
+          .all(RACE_ID) as Array<{ boat_id: number; held_place: number | null }>
+      ).map((r) => [r.boat_id, r.held_place]),
+    );
+
+  // Five boats, 3 and 4 level on 3rd: 1, 2, 3.5, 3.5, 5.
+  const tiedRace = (): Row[] => [
+    { boat_id: 1, position: 1, points: 1, status: 'FINISHED' },
+    { boat_id: 2, position: 2, points: 2, status: 'FINISHED' },
+    { boat_id: 3, position: 3, points: 3.5, status: 'FINISHED' },
+    { boat_id: 4, position: 3, points: 3.5, status: 'FINISHED' },
+    { boat_id: 5, position: 5, points: 5, status: 'FINISHED' },
+  ];
+
+  it.each(['RDG3', 'DPI'])(
+    '%s for one of two boats level: the other still shares the place',
+    (status) => {
+      const db = seed(tiedRace());
+      correctOnScreen(db, 3, 2.5, status);
+      const race = readRace(db);
+      expect(race[3]).toEqual([2.5, 2.5, status]);
+      // Used to become 3: the redressed boat no longer counted for the tie.
+      expect(race[4]).toEqual([3, 3.5, 'FINISHED']);
+      expect(race[5]).toEqual([5, 5, 'FINISHED']);
+      expect(heldPlaces(db)[3]).toBe(3);
+    },
+  );
+
+  it('a disqualification ahead moves her kept place up with the others', () => {
+    const db = seed(tiedRace());
+    correctOnScreen(db, 3, 4, 'RDG3');
+    correctOnScreen(db, 1, 0, 'DSQ');
+    const race = readRace(db);
+    // 2 -> 1st; 3 (kept) and 4 level on 2nd; 5 -> 4th (A6.1).
+    expect(race[2]).toEqual([1, 1, 'FINISHED']);
+    expect(heldPlaces(db)[3]).toBe(2);
+    expect(race[4]).toEqual([2, 2.5, 'FINISHED']);
+    expect(race[5]).toEqual([4, 4, 'FINISHED']);
+  });
+
+  it('taking the redress away gives her a place back in the order', () => {
+    const db = seed(tiedRace());
+    correctOnScreen(db, 3, 4, 'RDG3');
+    // A typed place moves her in, the boats from there make room (a dead
+    // heat is entered with the tie control, not by typing a place).
+    correctOnScreen(db, 3, 3, 'FINISHED');
+    const race = readRace(db);
+    expect(race[3]).toEqual([3, 3, 'FINISHED']);
+    expect(race[4]).toEqual([4, 4, 'FINISHED']);
+    expect(race[5]).toEqual([5, 5, 'FINISHED']);
+    expect(heldPlaces(db)[3]).toBeNull();
+  });
+
+  it('a disqualification after redress leaves the order (A6.1)', () => {
+    const db = seed(tiedRace());
+    correctOnScreen(db, 3, 4, 'RDG3');
+    correctOnScreen(db, 3, 0, 'DSQ');
+    const race = readRace(db);
+    expect(race[4]).toEqual([3, 3, 'FINISHED']);
+    expect(race[5]).toEqual([4, 4, 'FINISHED']);
+    expect(heldPlaces(db)[3]).toBeNull();
+  });
+
+  it('redress for a boat with no place keeps none', () => {
+    const db = seed([
+      ...tiedRace().slice(0, 4),
+      { boat_id: 5, position: 6, points: 6, status: 'DNF' },
+    ]);
+    correctOnScreen(db, 5, 3, 'RDG3');
+    expect(heldPlaces(db)[5]).toBeNull();
+    expect(readRace(db)[4]).toEqual([3, 3.5, 'FINISHED']);
+  });
+
+  it('a request without kept places keeps the place she held before', () => {
+    // An older edit screen sends only place and code.
+    const db = seed(tiedRace());
+    correct(db, 3, 2.5, 'RDG3');
+    expect(heldPlaces(db)[3]).toBe(3);
+    expect(readRace(db)[4]).toEqual([3, 3.5, 'FINISHED']);
+  });
+
+  it('results saved before kept places were recorded score as before', () => {
+    // Migration 8: an old RDG3 has no kept place, so 4 is alone on 3rd.
+    const db = seed([
+      ...tiedRace().slice(0, 2),
+      { boat_id: 3, position: 2.5, points: 2.5, status: 'RDG3' },
+      { boat_id: 4, position: 3, points: 3, status: 'FINISHED' },
+      { boat_id: 5, position: 5, points: 5, status: 'FINISHED' },
+    ]);
+    correctOnScreen(db, 5, 5, 'ZFP');
+    expect(readRace(db)[4]).toEqual([3, 3, 'FINISHED']);
   });
 });

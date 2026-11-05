@@ -181,6 +181,10 @@ export const processLeaderboardEntry = (
   const race_statuses = entry.race_statuses
     ? entry.race_statuses.split(',')
     : races.map(() => 'FINISHED');
+  // RRS A6.2 kept places, split like the other columns (absent: none).
+  const { race_held_places: heldCsv, ...columns } = entry;
+  const heldPlaces =
+    typeof heldCsv === 'string' ? { race_held_places: heldCsv.split(',') } : {};
   const { markedRaces, total } = applyExclusions(
     races,
     race_statuses,
@@ -189,11 +193,12 @@ export const processLeaderboardEntry = (
     seriesRaceCount,
   );
   return {
-    ...entry,
+    ...columns,
     races: markedRaces,
     race_points,
     race_ids,
     race_statuses,
+    ...heldPlaces,
     // LB-9: use the locally computed net total, which is consistent with the
     // parenthesised markings and the CURRENT discard profile. The DB-stored
     // total can be stale if the profile changed without a recompute. Fall back

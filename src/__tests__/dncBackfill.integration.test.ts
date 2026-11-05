@@ -82,7 +82,8 @@ function seed() {
       boat_id INTEGER NOT NULL,
       position INTEGER NOT NULL,
       points REAL NOT NULL,
-      status TEXT NOT NULL
+      status TEXT NOT NULL,
+      held_place INTEGER
     );
     ${COUNTED_RACES_VIEW}
   `);

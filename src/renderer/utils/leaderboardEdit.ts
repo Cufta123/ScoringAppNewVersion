@@ -40,6 +40,8 @@ interface RaceCellState {
   position: number;
   points: number;
   status: string;
+  /** RDG / DPI: the finishing place she kept (RRS A6.2). */
+  heldPlace?: number | null;
 }
 
 /** What the edit preview needs to know about the series being edited. */
@@ -454,10 +456,13 @@ export function applyRaceEdit(
         entry.race_points?.[raceIndex] ?? entry.races[raceIndex],
       ),
     );
+    const held = Number(entry.race_held_places?.[raceIndex] || NaN);
     return {
       position: pos,
       points: Number.isNaN(rawPts) ? pos : rawPts,
       status: entry.race_statuses?.[raceIndex] || 'FINISHED',
+      // RRS A6.2: the finishing place a redressed / DPI boat kept.
+      ...(Number.isFinite(held) ? { heldPlace: held } : {}),
     };
   });
 
@@ -486,6 +491,11 @@ export function applyRaceEdit(
     positions[raceIndex] = String(cell.position);
     points[raceIndex] = String(cell.points);
     statuses[raceIndex] = cell.status;
-    return rescoreEntry(entry, ctx, positions, points, statuses);
+    const rescored = rescoreEntry(entry, ctx, positions, points, statuses);
+    const held = entry.race_held_places
+      ? [...entry.race_held_places]
+      : entry.races.map(() => '');
+    held[raceIndex] = cell.heldPlace != null ? String(cell.heldPlace) : '';
+    return { ...rescored, race_held_places: held };
   });
 }

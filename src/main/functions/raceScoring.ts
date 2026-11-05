@@ -10,6 +10,7 @@ import computeTiePlacements from '../../shared/raceTieScoring';
 import {
   holdsPlace,
   keepsProvidedPoints,
+  slotOf,
   scoreRaceColumn,
   type RaceCell,
 } from '../../shared/raceColumnEdit';
@@ -380,6 +381,12 @@ export interface RaceColumnCell {
   /** RDG2 only: the races averaged. */
   rdgRaceIds?: unknown;
   /**
+   * RDG / DPI only: the finishing place she keeps (RRS A6.2), as the edit
+   * screen shows it, or null for none. Absent from older clients: then the
+   * place she held before this save is kept.
+   */
+  heldPlace?: unknown;
+  /**
    * The user typed in this cell on the edit screen, as opposed to the boat only
    * moving because another cell was edited (RRS A6.1 promotion, a place
    * ripple). Only edited cells are protest decisions or race-office
@@ -433,6 +440,51 @@ function decideAssignmentShields(
   return { decisions, corrections, moved };
 }
 
+/** A stored score as a race cell (with the place an RDG / DPI kept). */
+function storedCell(row: {
+  position: number;
+  points: number;
+  status: string;
+  held_place?: number | null;
+}): RaceCell {
+  const status = normalizeScoreStatus(row.status);
+  return {
+    position: row.position,
+    points: row.points,
+    status,
+    ...(keepsProvidedPoints(status) && row.held_place != null
+      ? { heldPlace: Number(row.held_place) }
+      : {}),
+  };
+}
+
+/**
+ * The finishing place an RDG / DPI cell keeps (RRS A6.2): as sent by the
+ * edit screen, or, from an older client, the place she held before.
+ */
+function keptPlace(
+  sent: RaceColumnCell,
+  before: RaceCell,
+  boats: number,
+  context: string,
+): { heldPlace?: number } {
+  if (sent.heldPlace === undefined) {
+    const slot = slotOf(before);
+    return slot != null ? { heldPlace: slot } : {};
+  }
+  if (sent.heldPlace === null) return {};
+  const place = sanitizePositiveInteger(
+    sent.heldPlace,
+    `The finishing place of ${context}`,
+  );
+  if (place > boats) {
+    throw new Error(
+      `${context}: place ${place} is not possible, only ${boats} boats sailed this race.`,
+    );
+  }
+  return { heldPlace: place };
+}
+
 /**
  * Save a whole race exactly as the leaderboard edit screen shows it. The
  * screen built these places with shared/raceColumnEdit; here they are checked
@@ -468,7 +520,7 @@ export function applyRaceColumnState(
   const raceRows = db
     .prepare(
       `SELECT score_id, boat_id, position, points,
-              COALESCE(status, 'FINISHED') AS status
+              COALESCE(status, 'FINISHED') AS status, held_place
        FROM Scores WHERE race_id = ? ORDER BY score_id ASC`,
     )
     .all(raceId) as {
@@ -477,16 +529,13 @@ export function applyRaceColumnState(
     position: number;
     points: number;
     status: string;
+    held_place: number | null;
   }[];
   const indexOfBoat = new Map(
     raceRows.map((row, i) => [String(row.boat_id), i]),
   );
 
-  const cells: RaceCell[] = raceRows.map((row) => ({
-    position: row.position,
-    points: row.points,
-    status: normalizeScoreStatus(row.status),
-  }));
+  const cells: RaceCell[] = raceRows.map(storedCell);
   const sentByIndex = new Map<number, RaceColumnCell>();
   sentCells.forEach((sent) => {
     const i = indexOfBoat.get(String(sent.boatId));
@@ -524,7 +573,12 @@ export function applyRaceColumnState(
           `${context}: ${points} points is more than the ${MAX_PROVIDED_POINTS} allowed.`,
         );
       }
-      cells[i] = { position: points, points, status };
+      cells[i] = {
+        position: points,
+        points,
+        status,
+        ...keptPlace(sent, cells[i], raceRows.length, context),
+      };
     } else {
       cells[i] = { ...cells[i], status };
     }
@@ -552,18 +606,26 @@ export function applyRaceColumnState(
   );
 
   const writeRow = db.prepare(
-    'UPDATE Scores SET position = ?, points = ?, status = ? WHERE score_id = ?',
+    'UPDATE Scores SET position = ?, points = ?, status = ?, held_place = ? WHERE score_id = ?',
   );
   scored.forEach((cell, i) => {
     const row = raceRows[i];
+    const heldPlace = cell.heldPlace ?? null;
     if (
       cell.position === row.position &&
       cell.points === row.points &&
-      cell.status === row.status
+      cell.status === row.status &&
+      heldPlace === (row.held_place ?? null)
     ) {
       return;
     }
-    writeRow.run(cell.position, cell.points, cell.status, row.score_id);
+    writeRow.run(
+      cell.position,
+      cell.points,
+      cell.status,
+      heldPlace,
+      row.score_id,
+    );
   });
 
   sentByIndex.forEach((sent, i) => {
@@ -601,7 +663,8 @@ export function rescoreRace(race_id: number) {
   if (!heat) return;
   const rows = db
     .prepare(
-      `SELECT score_id, position, points, COALESCE(status, 'FINISHED') AS status
+      `SELECT score_id, position, points, COALESCE(status, 'FINISHED') AS status,
+              held_place
        FROM Scores WHERE race_id = ? ORDER BY score_id ASC`,
     )
     .all(race_id) as {
@@ -609,13 +672,10 @@ export function rescoreRace(race_id: number) {
     position: number;
     points: number;
     status: string;
+    held_place: number | null;
   }[];
   const scored = scoreRaceColumn(
-    rows.map((row) => ({
-      position: row.position,
-      points: row.points,
-      status: normalizeScoreStatus(row.status),
-    })),
+    rows.map(storedCell),
     getMaxHeatSize(heat.event_id, heat.heat_type),
   );
   const write = db.prepare(
