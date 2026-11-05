@@ -1,6 +1,5 @@
 import * as DBManager from '../../../public/Database/DBManager';
 import { lastChangeId, tagChanges } from './changeJournal';
-import refreshStandings from './standings';
 import {
   conversionAction,
   hasLogStore,
@@ -209,17 +208,8 @@ export default function restoreToHistoryPoint(
       } else {
         later.forEach(invert);
       }
-      // The standings are a cache of the results: rebuild them from what is
-      // there now (no final standings if the final series is gone).
-      db.prepare('DELETE FROM Leaderboard WHERE event_id = ?').run(event_id);
-      db.prepare('DELETE FROM FinalLeaderboard WHERE event_id = ?').run(
-        event_id,
-      );
-      if (!onLog) {
-        refreshStandings(event_id);
-        // A point before the log: the restored tables become the log.
-        reconvertEventLog(event_id);
-      }
+      // A point before the log: the restored tables become the log.
+      if (!onLog) reconvertEventLog(event_id);
 
       const restoreId = tagChanges(mark, 'restoreEventToHistoryPoint');
       if (restoreId != null) {

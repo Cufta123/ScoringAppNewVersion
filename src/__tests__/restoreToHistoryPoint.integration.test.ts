@@ -609,9 +609,6 @@ describe('going back refuses, and changes nothing, when it cannot be exact', () 
         .prepare("SELECT COUNT(*) AS n FROM Heats WHERE heat_type = 'Final'")
         .get().n,
     ).toBe(0);
-    expect(
-      db.prepare('SELECT COUNT(*) AS n FROM FinalLeaderboard').get().n,
-    ).toBe(0);
     expect(await call('readFinalLeaderboard', eventId)).toEqual([]);
     // Qualifying standings are as before the final series.
     expect((await call('readLeaderboard', eventId)).length).toBe(8);

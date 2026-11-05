@@ -25,7 +25,10 @@ const config: Config = {
     '<rootDir>/src/__tests__/fixtures/',
     // The template's whole-app render test needs a built bundle (test:full).
     '<rootDir>/src/__tests__/App.test.tsx',
+    // Agent worktrees (.claude/worktrees) hold a second copy of the repo.
+    '<rootDir>/.claude/',
   ],
+  modulePathIgnorePatterns: ['<rootDir>/.claude/'],
   transform: {
     '\\.(ts|tsx|js|jsx)$': 'ts-jest',
   },

@@ -496,6 +496,21 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 10,
+    name: 'standings are worked out, not stored',
+    // Leaderboard and FinalLeaderboard held the standings of the scoring
+    // code regatta-core replaced; nothing reads or writes them any more
+    // (the standings are worked out from the event's log on every read),
+    // and rows left in them would stop an event being deleted (foreign
+    // keys, no cascade). GlobalLeaderboard stays (AGENTS.md section 10).
+    up(db) {
+      db.exec(`
+        DROP TABLE IF EXISTS Leaderboard;
+        DROP TABLE IF EXISTS FinalLeaderboard;
+      `);
+    },
+  },
 ];
 
 const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

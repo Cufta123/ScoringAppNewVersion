@@ -7,11 +7,6 @@ import {
   readAction,
   tagChanges,
 } from './changeJournal';
-import {
-  recomputeEventLeaderboard,
-  recomputeFinalLeaderboard,
-} from './leaderboardRecompute';
-import { hasFinalSeriesStarted } from './seriesGuards';
 import { rescoreRace } from './raceScoring';
 import { invalidateAssignmentSnapshotCache } from './raceAssignmentSnapshot';
 import {
@@ -163,10 +158,8 @@ export default function revertHistoryAction(
           .get(raceId);
         if (exists) rescoreRace(raceId);
       });
-      recomputeEventLeaderboard(event_id);
-      if (hasFinalSeriesStarted(event_id)) recomputeFinalLeaderboard(event_id);
-      // Until the history works on the log itself (switch phase 4), the
-      // reverted tables are converted to the event's log again.
+      // An action from before the event's log: the reverted tables are
+      // converted to the log again.
       reconvertEventLog(event_id);
 
       const undoId = tagChanges(mark, 'revertHistoryAction');

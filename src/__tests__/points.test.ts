@@ -1,6 +1,5 @@
 import { roundPoints, sumPoints } from '../shared/points';
 import { applyExclusions } from '../renderer/utils/leaderboardUtils';
-import { computeAdjustedFleetTotals } from '../shared/fleetAssignment';
 
 // Tenth-point scores (RRS A9 redress averages) are not exact in binary, so a
 // plain sum leaves noise and two equal totals stop comparing equal — which
@@ -24,16 +23,5 @@ describe('point totals compare exactly', () => {
     expect(applyExclusions(noisy, [], noisy, 'standard', 3).total).toBe(
       applyExclusions(reversed, [], reversed, 'standard', 3).total,
     );
-  });
-
-  it('makes equal fleet-assignment totals tie', () => {
-    const totals = computeAdjustedFleetTotals(
-      [
-        { boat_id: 1, race_points: '15.1,19.6,12.9,9.3,0.7,17.7,11.8' },
-        { boat_id: 2, race_points: '87.1,0,0,0,0,0,0' },
-      ],
-      { getExcludeCount: () => 0, applyShs43TemporarySecondDiscard: false },
-    );
-    expect(totals[0].totalPoints).toBe(totals[1].totalPoints);
   });
 });

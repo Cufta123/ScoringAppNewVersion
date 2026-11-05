@@ -111,9 +111,6 @@ function seed() {
              (101, 1, 1, 1, 'FINISHED'), (101, 2, 2, 2, 'DSQ');
     INSERT INTO Scores (race_id, boat_id, position, points, status) VALUES (200, 1, 1, 1, 'FINISHED');
 
-    INSERT INTO Leaderboard (boat_id, total_points_event, event_id, place) VALUES (1, 2, ${EVENT_ID}, 1);
-    INSERT INTO FinalLeaderboard (boat_id, total_points_final, event_id, placement_group, place)
-      VALUES (1, 2, ${EVENT_ID}, 'Gold', 1);
     INSERT INTO GlobalLeaderboard (boat_id, total_points_global) VALUES (1, 5);
 
     -- SHRS 3.1.5: the protest DSQ in race 101 froze that race's assignment order.
@@ -139,8 +136,6 @@ function remainingForEvent(db: any) {
   return {
     Boat_Event: countIn(db, 'Boat_Event'),
     Heats: countIn(db, 'Heats'),
-    Leaderboard: countIn(db, 'Leaderboard'),
-    FinalLeaderboard: countIn(db, 'FinalLeaderboard'),
     Races: db
       .prepare(
         `SELECT COUNT(*) AS c FROM Races r JOIN Heats h ON h.heat_id = r.heat_id WHERE h.event_id = ?`,
@@ -202,8 +197,6 @@ describe('deleteEvent', () => {
       Races: 0,
       Scores: 0,
       Heat_Boat: 0,
-      Leaderboard: 0,
-      FinalLeaderboard: 0,
       RaceAssignmentSnapshots: 0,
     });
   });

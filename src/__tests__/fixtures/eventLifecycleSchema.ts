@@ -85,31 +85,10 @@ export const EVENT_LIFECYCLE_SCHEMA = `
     FOREIGN KEY (boat_id) REFERENCES Boats(boat_id)
   );
 
-  CREATE TABLE Leaderboard (
-    boat_id INTEGER,
-    total_points_event REAL NOT NULL,
-    event_id INTEGER NOT NULL,
-    place INTEGER,
-    PRIMARY KEY (boat_id, event_id),
-    FOREIGN KEY (boat_id) REFERENCES Boats(boat_id),
-    FOREIGN KEY (event_id) REFERENCES Events(event_id)
-  );
-
   CREATE TABLE GlobalLeaderboard (
     boat_id INTEGER PRIMARY KEY,
     total_points_global INTEGER NOT NULL,
     FOREIGN KEY (boat_id) REFERENCES Boats(boat_id)
-  );
-
-  CREATE TABLE FinalLeaderboard (
-    boat_id INTEGER,
-    total_points_final REAL NOT NULL,
-    event_id INTEGER NOT NULL,
-    placement_group TEXT NOT NULL,
-    place INTEGER,
-    PRIMARY KEY (boat_id, event_id),
-    FOREIGN KEY (boat_id) REFERENCES Boats(boat_id),
-    FOREIGN KEY (event_id) REFERENCES Events(event_id)
   );
 
   CREATE TABLE RaceAssignmentSnapshots (
@@ -137,8 +116,6 @@ export const PER_EVENT_TABLES = [
   'Races',
   'Scores',
   'Heat_Boat',
-  'Leaderboard',
-  'FinalLeaderboard',
   'RaceAssignmentSnapshots',
 ] as const;
 

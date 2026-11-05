@@ -97,7 +97,11 @@
       "release/app/dist",
       ".erb/dll",
       "<rootDir>/e2e/",
-      "<rootDir>/src/__tests__/fixtures/"
+      "<rootDir>/src/__tests__/fixtures/",
+      "<rootDir>/.claude/"
+    ],
+    "modulePathIgnorePatterns": [
+      "<rootDir>/.claude/"
     ],
     "transform": {
       "\\.(ts|tsx|js|jsx)$": "ts-jest"

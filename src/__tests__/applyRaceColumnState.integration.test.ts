@@ -95,12 +95,6 @@ function seed(rows: Row[], heatSize = rows.length) {
       status TEXT,
       held_place INTEGER
     );
-    CREATE TABLE Leaderboard (
-      event_id INTEGER, boat_id INTEGER, total_points_event REAL
-    );
-    CREATE TABLE FinalLeaderboard (
-      event_id INTEGER, boat_id INTEGER, total_points_final REAL
-    );
   `);
   db.prepare('INSERT INTO Events (event_id) VALUES (?)').run(EVENT_ID);
   db.prepare(

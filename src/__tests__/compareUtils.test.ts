@@ -3,10 +3,6 @@ import {
   getNextCompareSelection,
 } from '../renderer/utils/compareUtils';
 import { getExcludedIndexes, getKeptScores } from '../shared/scoring/discards';
-import {
-  compareScoreArrays,
-  resolveTiesSequentially,
-} from '../shared/scoring/ranking';
 
 describe('getOtherTiedCount', () => {
   it('does not count boats from different final fleets when totals match', () => {
@@ -55,30 +51,6 @@ describe('getNextCompareSelection', () => {
 // Direct unit tests for the RRS A8.1/A8.2/SHRS 5.4 primitives in
 // src/main/functions/scoringUtils.ts, shared by qualifying, final and
 // overall tie-break comparisons.
-describe('compareScoreArrays (RRS A8.1/A8.2 lexicographic compare)', () => {
-  it('returns 0 for identical arrays (still tied)', () => {
-    expect(compareScoreArrays([1, 2, 3], [1, 2, 3])).toBe(0);
-  });
-
-  it('returns the sign of the first differing position', () => {
-    expect(compareScoreArrays([1, 2, 4], [1, 2, 3])).toBeGreaterThan(0);
-    expect(compareScoreArrays([1, 2, 3], [1, 2, 4])).toBeLessThan(0);
-  });
-
-  it('a difference at an earlier index wins even if a later index favours the other side', () => {
-    // A is worse at position 1 (2 vs 1) but much better at position 2 (1 vs 9).
-    // A8.1 must still resolve on the FIRST difference, so A loses overall.
-    expect(compareScoreArrays([2, 1], [1, 9])).toBeGreaterThan(0);
-  });
-
-  it('treats a missing (shorter-array) entry as the worst possible score', () => {
-    // B has no third entry -> compared as Number.MAX_SAFE_INTEGER, so A
-    // (which has a real third score) wins even though A has fewer low scores.
-    expect(compareScoreArrays([1, 2, 9], [1, 2])).toBeLessThan(0);
-    expect(compareScoreArrays([1, 2], [1, 2, 9])).toBeGreaterThan(0);
-  });
-});
-
 describe('getExcludedIndexes / getKeptScores (SHRS 5.4 discards)', () => {
   it('excludeCount <= 0 excludes nothing and preserves original order', () => {
     const entries = [{ points: 9 }, { points: 1 }, { points: 5 }];
@@ -155,39 +127,5 @@ describe('getExcludedIndexes / getKeptScores (SHRS 5.4 discards)', () => {
     // Worst two by points: 9 (idx1), then 7 (idx2).
     expect(getExcludedIndexes(entries, 2)).toEqual(new Set([1, 2]));
     expect(getKeptScores(entries, 2)).toEqual([4, 1]);
-  });
-});
-
-describe('resolveTiesSequentially (SHRS 5.7(ii)(3): resolve higher place before lower)', () => {
-  it('sorts using the comparator', () => {
-    const items = [
-      { id: 'C', v: 3 },
-      { id: 'A', v: 1 },
-      { id: 'B', v: 2 },
-    ];
-    const resolved = resolveTiesSequentially(items, (a, b) => a.v - b.v);
-    expect(resolved.map((i) => i.id)).toEqual(['A', 'B', 'C']);
-  });
-
-  it('preserves original relative order among boats that remain fully tied (comparator returns 0)', () => {
-    // When the comparator can never separate two items (always 0), the
-    // sequential extraction should not invent an order between them —
-    // each pass re-sorts with a stable sort, so original order survives.
-    const items = [{ id: 'Z' }, { id: 'A' }, { id: 'M' }];
-    const resolved = resolveTiesSequentially(items, () => 0);
-    expect(resolved.map((i) => i.id)).toEqual(['Z', 'A', 'M']);
-  });
-
-  it('re-evaluates the remaining boats fresh after extracting the top place (non-transitive comparator)', () => {
-    // A pairwise-only comparator that depends solely on (left,right) identity,
-    // not on prior extractions — models SHRS 5.7(ii)(3)'s "resolve the
-    // higher-placed tie, then re-apply the tie-break on what's left".
-    // A beats both B and C directly; among the remainder, C beats B.
-    const order: Record<string, number> = { A: 0, C: 1, B: 2 };
-    const cmp = (a: { id: string }, b: { id: string }) =>
-      order[a.id] - order[b.id];
-    const items = [{ id: 'B' }, { id: 'C' }, { id: 'A' }];
-    const resolved = resolveTiesSequentially(items, cmp);
-    expect(resolved.map((i) => i.id)).toEqual(['A', 'C', 'B']);
   });
 });

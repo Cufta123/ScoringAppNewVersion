@@ -3,7 +3,6 @@ import { reconvertEventLog } from './decisionStore';
 import { invalidateAssignmentSnapshotCache } from './raceAssignmentSnapshot';
 import { isAcceptableLogo } from './exportLogo';
 import { enterSailor } from './sailorEntry';
-import refreshStandings from './standings';
 import { parseRedressRaceIds } from '../../shared/redress';
 
 // Full export/restore of a single event's rows across every event-scoped table.
@@ -119,12 +118,6 @@ export function buildEventSnapshot(event_id: number) {
            WHERE h.event_id = ?`,
         )
         .all(event_id),
-      Leaderboard: db
-        .prepare('SELECT * FROM Leaderboard WHERE event_id = ?')
-        .all(event_id),
-      FinalLeaderboard: db
-        .prepare('SELECT * FROM FinalLeaderboard WHERE event_id = ?')
-        .all(event_id),
     },
   };
 }
@@ -194,8 +187,6 @@ export function restoreEventSnapshot(
     ).run(event_id);
 
     db.prepare('DELETE FROM Heats WHERE event_id = ?').run(event_id);
-    db.prepare('DELETE FROM Leaderboard WHERE event_id = ?').run(event_id);
-    db.prepare('DELETE FROM FinalLeaderboard WHERE event_id = ?').run(event_id);
     db.prepare('DELETE FROM Boat_Event WHERE event_id = ?').run(event_id);
 
     const eventRow = eventRows[0];
@@ -304,31 +295,8 @@ export function restoreEventSnapshot(
         row.frozen_status ?? null,
       );
     });
-
-    const insertLeaderboard = db.prepare(
-      'INSERT INTO Leaderboard (boat_id, total_points_event, event_id, place) VALUES (?, ?, ?, ?)',
-    );
-    (tables.Leaderboard || []).forEach((row) => {
-      insertLeaderboard.run(
-        row.boat_id,
-        row.total_points_event,
-        row.event_id,
-        row.place,
-      );
-    });
-
-    const insertFinalLeaderboard = db.prepare(
-      'INSERT INTO FinalLeaderboard (boat_id, total_points_final, event_id, placement_group, place) VALUES (?, ?, ?, ?, ?)',
-    );
-    (tables.FinalLeaderboard || []).forEach((row) => {
-      insertFinalLeaderboard.run(
-        row.boat_id,
-        row.total_points_final,
-        row.event_id,
-        row.placement_group,
-        row.place,
-      );
-    });
+    // Standings (Leaderboard / FinalLeaderboard in files from older
+    // versions) are not data: they are worked out from the results.
   });
 
   tx();
@@ -566,21 +534,6 @@ export function importEventSnapshot(snapshot: EventSnapshot): {
       );
     });
 
-    // The fleets of a split Final Series are kept as the file has them; the
-    // points are then rebuilt from the scores.
-    const insertFinal = db.prepare(
-      'INSERT INTO FinalLeaderboard (boat_id, total_points_final, event_id, placement_group, place) VALUES (?, ?, ?, ?, ?)',
-    );
-    (tables.FinalLeaderboard ?? []).forEach((final) => {
-      insertFinal.run(
-        boatOf(final.boat_id),
-        Number(final.total_points_final) || 0,
-        eventId,
-        final.placement_group,
-        final.place ?? null,
-      );
-    });
-    refreshStandings(eventId);
     // Entering the boats started the event's log before its heats and
     // results were copied in: convert it from the copied tables.
     reconvertEventLog(eventId);

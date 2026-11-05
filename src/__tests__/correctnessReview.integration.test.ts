@@ -221,14 +221,17 @@ describe('correctness review (real SQLite, FKs on)', () => {
       await scoreHeat(db, 'Heat B1');
       await handlerRegistry.startFinalSeriesAtomic({}, EVENT_ID);
 
-      // A backup file carries the standings cache it was exported with. One
-      // made by an older build (or edited by hand) can disagree with the
-      // scores it carries.
+      // A backup file from an older build carries the standings cache it
+      // was exported with, which can disagree with the scores it carries
+      // (or was edited by hand). The standings are never read from a file.
       const snapshot = buildEventSnapshot(EVENT_ID) as any;
-      snapshot.tables.Leaderboard.forEach((row: any) => {
-        // eslint-disable-next-line no-param-reassign
-        row.total_points_event += 40;
-      });
+      const before = await handlerRegistry.readLeaderboard({}, EVENT_ID);
+      snapshot.tables.Leaderboard = before.map((row: any) => ({
+        boat_id: row.boat_id,
+        event_id: EVENT_ID,
+        total_points_event: row.total_points_event + 40,
+        place: row.place,
+      }));
       restoreEventSnapshot(EVENT_ID, snapshot);
 
       const rows = await handlerRegistry.readFinalLeaderboard({}, EVENT_ID);
@@ -239,6 +242,9 @@ describe('correctness review (real SQLite, FKs on)', () => {
       rows.forEach((row: any) => {
         expect(row.qualifying_points).toBe(expected.get(row.boat_id));
       });
+      expect(qualifying.map((r: any) => r.total_points_event)).toEqual(
+        before.map((r: any) => r.total_points_event),
+      );
     });
   });
 });

@@ -177,18 +177,9 @@ handle('removeBoatFromEvent', async (event, boat_id, event_id) => {
   // regatta-core (boatRemoved) refuses a boat that has raced (she stays in
   // the results: score her DNC or RET), parity R2; any other entry goes,
   // from her heats too.
-  db.transaction(() => {
-    applyToEvent(Number(event_id), {
-      decide: () => [{ type: 'boatRemoved', boat: String(boat_id) }],
-    });
-    // The old standings tables (no longer read) drop her too.
-    db.prepare(
-      'DELETE FROM Leaderboard WHERE boat_id = ? AND event_id = ?',
-    ).run(boat_id, event_id);
-    db.prepare(
-      'DELETE FROM FinalLeaderboard WHERE boat_id = ? AND event_id = ?',
-    ).run(boat_id, event_id);
-  })();
+  applyToEvent(Number(event_id), {
+    decide: () => [{ type: 'boatRemoved', boat: String(boat_id) }],
+  });
 });
 
 handle(
@@ -336,10 +327,6 @@ handle('deleteEvent', async (event, event_id) => {
 
     // Delete Boat_Event associations
     db.prepare('DELETE FROM Boat_Event WHERE event_id = ?').run(event_id);
-
-    // Delete Leaderboard and FinalLeaderboard entries
-    db.prepare('DELETE FROM Leaderboard WHERE event_id = ?').run(event_id);
-    db.prepare('DELETE FROM FinalLeaderboard WHERE event_id = ?').run(event_id);
 
     // Its decision log (no cascade: foreign keys are enforced).
     deleteEventLog(Number(event_id));

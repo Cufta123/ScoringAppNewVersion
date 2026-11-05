@@ -130,14 +130,14 @@ describe('standings count completed rounds only, and are never stale', () => {
     expect(totals).toEqual([...totals].sort((a, b) => a - b));
   });
 
-  it('standings rebuilt on read: a stale stored table never reaches the screen', async () => {
+  it('standings are worked out on read: stored points changed behind the app never reach the screen', async () => {
     await event.scoreHeat(eventId, 'Heat A1');
     await event.scoreHeat(eventId, 'Heat B1', true);
     const fresh = await standings(eventId);
-    // Corrupt the stored cache behind the app's back.
-    db.prepare(
-      'UPDATE Leaderboard SET total_points_event = 99, place = 6',
-    ).run();
+    // The tables are the projection of the event's log; the standings are
+    // worked out from the log, so a stored number changed behind the app's
+    // back is not what the screen shows.
+    db.prepare('UPDATE Scores SET points = 99').run();
     expect(await standings(eventId)).toEqual(fresh);
   });
 });

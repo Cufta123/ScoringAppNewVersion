@@ -54,17 +54,6 @@ jest.mock('../main/functions/projectEvent', () => {
     },
   };
 });
-jest.mock('../main/functions/leaderboardRecompute', () => {
-  const actual = jest.requireActual('../main/functions/leaderboardRecompute');
-  return {
-    ...actual,
-    recomputeEventLeaderboard: (...args: any[]) => {
-      if (mockRecompute.failEvent) throw new Error('recompute exploded');
-      return actual.recomputeEventLeaderboard(...args);
-    },
-  };
-});
-
 /* eslint-disable import/first, import/order */
 import { EVENT_LIFECYCLE_SCHEMA } from './fixtures/eventLifecycleSchema';
 import { invalidateAssignmentSnapshotCache } from '../main/functions/raceAssignmentSnapshot';

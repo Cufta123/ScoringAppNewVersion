@@ -109,28 +109,6 @@ describe('removeBoatFromEvent', () => {
     expect(assignmentsIn(db, 20)).toEqual([REMOVED]);
   });
 
-  it('drops a stale leaderboard row for her', async () => {
-    db.exec(
-      `INSERT INTO Leaderboard (boat_id, total_points_event, event_id, place) VALUES (${REMOVED}, 4, ${EVENT_ID}, 1);
-       INSERT INTO FinalLeaderboard (boat_id, total_points_final, event_id, placement_group, place) VALUES (${REMOVED}, 4, ${EVENT_ID}, 'Gold', 1);`,
-    );
-
-    await handlerRegistry.removeBoatFromEvent({}, REMOVED, EVENT_ID);
-
-    expect(
-      db
-        .prepare('SELECT COUNT(*) AS c FROM Leaderboard WHERE event_id = ?')
-        .get(EVENT_ID).c,
-    ).toBe(0);
-    expect(
-      db
-        .prepare(
-          'SELECT COUNT(*) AS c FROM FinalLeaderboard WHERE event_id = ?',
-        )
-        .get(EVENT_ID).c,
-    ).toBe(0);
-  });
-
   it('refuses a boat that has raced, changing nothing (parity R2)', async () => {
     // The renderer already blocks this, but that state can be stale and the
     // handler is reachable on its own. A mid-series withdrawal is WTH, not a
