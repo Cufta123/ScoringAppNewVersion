@@ -40,7 +40,8 @@ Use this document first. Only search the repo when this file does not answer the
     - `ScoringHandler.ts` — submit a race, undo a race, leaderboard result
       edits (`saveLeaderboardRaceResultsAtomic`)
     - `StandingsHandler.ts` — leaderboard reads (qualifying, final, overall),
-      explain score / tie-break, Final Series eligibility, max heat size
+      explain score / tie-break, the event status (`readEventStatus`), max
+      heat size
     - `FinalSeriesHandler.ts` — `startFinalSeriesAtomic`
     - `SnapshotHandler.ts` — event snapshot export / restore (file dialogs)
   - `src/main/ipcHandlers/ProblemReportHandler.ts` — Help > Report a problem
@@ -107,13 +108,13 @@ Use this document first. Only search the repo when this file does not answer the
 - **Keys in one place**, `api/queryKeys.ts`. Everything about an event is
   under `['event', eventId, …]` (entries, heats, the heat list with boats and
   race counts, a heat's boats / races, the three standings, max heat sizes,
-  eligibility, explanations, tie-breaks, history, conversion report, export
+  the event status, explanations, tie-breaks, history, conversion report, export
   logo), so one invalidation of `queryKeys.event(id)` refreshes all of it.
   Global: `['events']` (its rows carry flags worked out from the races) and
   `['onFile', …]` (boats, clubs, categories on file).
 - **Every read** is a `useQuery` with the options in `api/queries.ts` (the IPC
   call typed by the contract). A check made just before a write (a name taken,
-  races already sailed, Final Series eligibility) uses `useReadNow` (a fetch
+  races already sailed, the event status) uses `useReadNow` (a fetch
   with `staleTime: 0` through the same key).
 - **Every write** goes through `useWrite(write, affected)` (`api/writes.ts`, a
   `useMutation`): once it succeeds it invalidates what it affected and resolves
@@ -306,8 +307,8 @@ Important migration details:
   (`libraryStandings`: the library's places, totals, race points and
   `race_excluded`, in the old row shapes; the place, status and kept place
   shown in each race are the projected ones), `explainBoatScore` /
-  `explainTieBreak` (`libraryExplain`), `getFinalSeriesEligibility`
-  (`libraryEvent`). Undo from the history and "go back to a point" work on
+  `explainTieBreak` (`libraryExplain`), `readEventStatus`
+  (`libraryEvent`: regatta-core's `eventStatus`, see the round bar in §10). Undo from the history and "go back to a point" work on
   the log (`logHistory`); a point before the event's conversion uses the
   row-based journal and converts again. A backup file carries the log
   (§5, `eventSnapshot.ts`): restoring it replaces the event's log (one
@@ -341,7 +342,10 @@ directory:
   `replaceEventLog`: a backup's whole log replayed, stored and projected),
   `projectEvent.ts` (state to tables), `libraryStandings.ts` (the three
   standings reads; `replayEvent`), `libraryExplain.ts` (score and tie-break
-  explanations), `libraryEvent.ts` (Final Series eligibility, largest heat),
+  explanations), `libraryEvent.ts` (`readEventStatus`: regatta-core's
+  `eventStatus` with the library's heats named by the app's heat ids, and
+  its Final Series verdict in the Start Final Series shape
+  (`toEligibility`); largest heat),
   `libraryCorrection.ts` (a leaderboard Save as `raceCorrected` /
   `protestDecided` decisions; SHRS 3.1(5): who decided), `logHistory.ts`
   (undo and go back on the log).
@@ -355,12 +359,9 @@ directory:
   `ensureCompleteRaceScoresForEvent` (DNS / DNC rows older write paths left
   out, completed before a conversion; RRS A5.1), `rescoreRace` (row-based
   undo, scored by the library's `scoreRaceColumn`).
-- `creatingNewHeatsUtls.ts` — finding the current round's heats
-  (`findLatestHeatsBySuffix`, `checkRaceCountForLatestHeats`); the seeding
-  and the Heat Movement Tables are the library's. Filename typo intentional
-  (§10).
 - `heatQueries.ts`, `seriesGuards.ts` — shared reads and the guards on
-  closed qualifying heats.
+  closed qualifying heats (in the app's words; regatta-core refuses the same
+  writes, and `readEventStatus` gives the screens its verdicts).
 - `discardConfig.ts` — re-exports `shared/discardProfile.ts` (the stored
   discard setting and `toDiscardProfile`) for the main process.
 - `scoreStatus.ts` — `normalizeScoreStatus`: a sent or stored status read
@@ -511,8 +512,13 @@ updateFinalLeaderboard)` and accepts nothing but whole races. There is no
   (2.1 / 2.3: the heat-count default), `movementImbalanceExpected` (the note
   under the Heat Movement Tables: the next-round advisory), `fleetName` /
   `fleetIndex` (4.1 names, 5.5 precedence).
-- **What next** — `nextInRound` (the round bar's next heat, from the screen's
-  heats; `nextStep` uses it on an event).
+- **What next** — `eventStatus` (where the event stands and what may be
+  done now: series, round, heats, `nextStep`, and for each action the
+  screens offer — score / undo a heat's race, create / undo a round, start
+  the Final Series — `ok` or the reason, and `offered`; read by
+  `readEventStatus`), `undoLastRace` / `undoLatestRound` (the undo
+  handlers' new logs, refused with the status's reasons), `nextInRound` /
+  `hasRaceToSail`.
 
 When extending the handler, keep this pattern: pure logic goes in a
 `functions/` module (so it is unit-testable), the handler only wires IPC.
@@ -546,7 +552,8 @@ General / series structure
 - 1.1 — Two or more heats per race ⇒ event has a **Qualifying Series** then a
   **Final Series**. A single heat ⇒ the event is sailed as one fleet, scored
   like a Qualifying Series, and sections 2–4 do not apply. (Final-series start is
-  gated by `getFinalSeriesEligibility`; `SINGLE_FLEET` when `< 2` heat groups.)
+  gated by regatta-core's `eventStatus(...).startFinal`; `SINGLE_FLEET` when
+  the round has `< 2` heats.)
 - 1.5 — If **no Final Series races are completed**, boats are ranked by their
   Qualifying Series score (`standings/final.ts`; `readOverallLeaderboard`
   returns the qualifying standings until a final race is sailed).
@@ -617,7 +624,7 @@ Final Series (`rules/fleets.ts`, `standings/final.ts`)
   `packages/regatta-core/docs/parity/README.md`.
 - 4.3 — If the Qualifying Series has **>5 and <8 completed races (6 or 7)**, a
   boat's **second-worst** race is temporarily excluded **for fleet-assignment
-  ranking only** (`rule43Applies` in `getFinalSeriesEligibility`; the
+  ranking only** (`startFinal.rule43` of `eventStatus`; the
   split in `rules/fleets.ts`). Does not affect series scores.
 - 4.4–4.5 — A final race = one heat per fleet; fleets may sail different numbers
   of races.
@@ -784,10 +791,11 @@ Handlers, history, renderer:
   `changeJournal.integration.test.ts`,
   `eventSnapshot.log.integration.test.ts` (the backup file with the log:
   restore, import, refusals, version 2 files)
-- `scoreStatus.test.ts`, `creatingNewHeatsUtils.test.ts` (note: tests the
-  `...Utls.ts` source), `compareUtils.test.ts`,
+- `scoreStatus.test.ts`, `compareUtils.test.ts`,
   `leaderboardUtils.exclusions.test.ts` (the library's discards shown as
-  sent), `roundStatus.test.ts`
+  sent), `RoundBar.status.test.jsx` (the round bar and heat cards show
+  what the status says), `readEventStatus.integration.test.ts` (the status
+  through the real handlers; the handlers do what it said)
 - `DBManager.failStartup.test.ts` (startup advice per failure kind and
   `classifyDatabaseFailure`), `retryWhenBusy.test.ts`
 - `ScoringInputComponent.test.jsx`, `useLeaderboard.scoring.test.jsx`,
@@ -815,8 +823,6 @@ For most feature/fix requests, do this in order:
 
 ## 10. Known Quirks To Avoid Mistakes
 
-- File name typo is intentional in codebase: `creatingNewHeatsUtls.ts` (not
-  `Utils`). Its test file IS spelled `creatingNewHeatsUtils.test.ts`.
 - Handlers are registered by import side effects; deleting imports can silently break IPC.
 - Register IPC handlers with `handle()` from `ipcHandlers/handle.ts`, not
   `ipcMain.handle` directly. It logs the channel name and rethrows, so a
@@ -888,6 +894,9 @@ For most feature/fix requests, do this in order:
 - Qualifying writes are guarded server-side (`functions/seriesGuards.ts`): no
   scoring or undoing a qualifying heat once the Final Series has started, or
   once the next round was built from it (undo the redistribution first).
+  regatta-core refuses the same (replay; `undoLastRace` / `undoLatestRound`
+  build the undo's log), and `readEventStatus` gives the screens the same
+  verdicts before they ask.
 - Undo deletes a race's `RaceAssignmentSnapshots` rows INSIDE its transaction,
   before the race (FKs enforced, no cascade).
 - Late entries: a boat entered after heats exist is in no heat. The heats view
@@ -1022,15 +1031,28 @@ For most feature/fix requests, do this in order:
   event (before the first event it is open, with "How it works"). Delete in
   an event row is a quiet red icon (`btn-icon-danger`), never a filled red
   button.
-- **The Scoring page's round bar** (`heats/RoundBar`, status from
-  `utils/roundStatus`, the next heat from regatta-core's `nextInRound`): "Qualifying · Round 4 · 1 of 3 heats scored" and
-  ONE green button for the next step (Score the first heat still to sail; once
-  a round of several heats is complete, Create Round N; in one fleet or the
-  Final Series, the fleet that is behind). Export heats, Undo round (rounds
-  built from results only) and Start Final Series sit beside it, quieter.
-  Each heat card of the current round has its own Score race N / Undo race N
-  (no select-then-act step); a scored heat of a several-heat qualifying round
-  gets no Score (SHRS 3.2: redistribute first).
+- **The Scoring page's round bar** (`heats/RoundBar`): "Qualifying · Round 4
+  · 1 of 3 heats scored" and ONE green button for the next step (Score the
+  first heat still to sail; once a round of several heats is complete,
+  Create Round N; in one fleet or the Final Series, the fleet that is
+  behind). Export heats, Undo round (rounds built from results only) and
+  Start Final Series sit beside it, quieter. Each heat card of the round
+  being sailed has its own Score race N / Undo race N (no select-then-act
+  step); a scored heat of a several-heat qualifying round gets no Score
+  (SHRS 3.1: redistribute first). **All of it reads the event status**
+  (`readEventStatus` → `functions/libraryEvent` → regatta-core's
+  `eventStatus`, query key `['event', id, 'status']`, so the one refresh
+  rule keeps it fresh; `hooks/useEventStatus`): the series, the round, which
+  heats are current, the next step, and per action `offered` (shown) and
+  `ok` (enabled; else disabled with the library's reason as its title).
+  Start Final Series stays clickable when refused and explains why
+  (`finalSeriesMessages`, from `startFinal.eligibility`); `useRoundActions`
+  reads the status again before asking and says a refusal instead. The
+  entries page's `HeatsSummary` line is worded from it too. The renderer
+  words; it decides nothing about rounds or series (no `roundStatus`, no
+  `getLastHeats`, no counting groups for the Final Series). The handlers
+  refuse what the status refuses, in the same words (the chaos test checks
+  every round action against the status read before it).
 
 - **Outdoor readability is a requirement**: the app is used by race officers
   (often 60+) on cheap laptops in sunshine. Root font is 17px; secondary text

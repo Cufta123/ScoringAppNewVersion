@@ -27,7 +27,7 @@ import type {
   ExportResult,
   PrintDocumentRequest,
 } from './exportTypes';
-import type { FinalSeriesEligibility } from './finalSeriesEligibility';
+import type { EventStatusView } from './eventStatus';
 import type { HistoryAction } from './history/describe';
 import type {
   ImportOwnerConflict,
@@ -235,7 +235,11 @@ export interface HeatRaceChannels {
     finalSeries: boolean,
   ): TieBreakExplanation;
   explainBoatScore(eventId: number, boatId: number): BoatScoreExplanation;
-  getFinalSeriesEligibility(eventId: number): FinalSeriesEligibility;
+  /**
+   * Where the event stands and what may be done now (regatta-core's
+   * `eventStatus`, heats named as the screens name them).
+   */
+  readEventStatus(eventId: number): EventStatusView;
   exportEventSnapshotToFile(eventId: number): SnapshotFileResult;
   restoreEventSnapshotFromFile(eventId: number): SnapshotFileResult;
   /** A backup file added as a new event (another computer, a deleted event). */

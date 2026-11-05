@@ -84,7 +84,7 @@ const GUARDS: RegExp[] = [
   /has already raced\. Undo its race first/i, // moving a boat
   /Score the current round before/i,
   /Nothing was changed after this point/i,
-  /has no qualifying heats yet/i, // back to before the heats
+  /has no qualifying heats yet|Create the heats first/i, // back to before the heats
   /No boats are registered for this event yet/i, // back to before the entries
   /boats cannot fill .* heats/i, // more heats than boats (SHRS 2.1, parity R4)
   /must sail the same races first/i, // round incomplete (regatta-core)
@@ -239,6 +239,32 @@ describe('chaos: random race-office sessions keep the data whole', () => {
     const heatCount = 2 + Math.floor(rand() * 2);
     await call('createInitialHeatsAtomic', eventId, heatCount);
 
+    /**
+     * The Scoring page offers an action from the event status
+     * (readEventStatus, regatta-core's eventStatus); the handler must do
+     * exactly what the status said it may, and refuse what it refused.
+     */
+    const asTheStatusSaid = async (
+      what: string,
+      verdict: { ok: boolean; reason?: string } | undefined,
+      run: () => Promise<unknown>,
+    ) => {
+      let done = false;
+      try {
+        await run();
+        done = true;
+      } finally {
+        if (verdict && verdict.ok !== done) {
+          unexpected.push(
+            `seed ${seed} "${what}": the status said ${
+              verdict.ok ? 'allowed' : `refused (${verdict.reason})`
+            }, the handler ${done ? 'did it' : 'refused'}`,
+          );
+        }
+      }
+    };
+    const status = () => call('readEventStatus', eventId);
+
     const heatsNow = () =>
       db
         .prepare(
@@ -372,19 +398,33 @@ describe('chaos: random race-office sessions keep the data whole', () => {
       [
         'next round',
         2,
-        () => call('createNewHeatsBasedOnLeaderboard', eventId),
+        async () =>
+          asTheStatusSaid('next round', (await status()).createRound, () =>
+            call('createNewHeatsBasedOnLeaderboard', eventId),
+          ),
       ],
       [
         'undo next round',
         1,
-        () => call('undoLatestHeatRedistribution', eventId),
+        async () =>
+          asTheStatusSaid('undo next round', (await status()).undoRound, () =>
+            call('undoLatestHeatRedistribution', eventId),
+          ),
       ],
       [
         'undo last race of a heat',
         1,
         async () => {
           const heat = pick(heatsNow());
-          if (heat) await call('undoLastScoredRaceForHeat', heat.heat_id);
+          if (!heat) return;
+          const shown = (await status()).heats.find(
+            (h: { heat_id: number }) => h.heat_id === heat.heat_id,
+          );
+          await asTheStatusSaid(
+            `undo the last race of ${heat.heat_name}`,
+            shown?.undoRace,
+            () => call('undoLastScoredRaceForHeat', heat.heat_id),
+          );
         },
       ],
       [
@@ -474,7 +514,12 @@ describe('chaos: random race-office sessions keep the data whole', () => {
       [
         'start the final series',
         1,
-        () => call('startFinalSeriesAtomic', eventId, true, rand() < 0.5),
+        async () =>
+          asTheStatusSaid(
+            'start the final series',
+            (await status()).startFinal,
+            () => call('startFinalSeriesAtomic', eventId, true, rand() < 0.5),
+          ),
       ],
       [
         'read every screen',
@@ -505,7 +550,7 @@ describe('chaos: random race-office sessions keep the data whole', () => {
               true,
             );
           }
-          await call('getFinalSeriesEligibility', eventId);
+          await call('readEventStatus', eventId);
         },
       ],
     ];

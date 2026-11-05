@@ -3,7 +3,7 @@ import {
   type NoPlaceCode,
   type PenaltyCode,
   type RaceLine,
-  type RaceRef,
+  undoLastRace,
 } from 'regatta-core';
 import { db } from '../../../public/Database/DBManager';
 import handle from './handle';
@@ -197,40 +197,19 @@ handle('undoLastScoredRaceForHeat', async (event, raw_heat_id) => {
 
   // The race leaves the log with what was decided about it (corrections,
   // protest decisions); an RDG2 that averaged it keeps its other races.
+  // regatta-core builds that log (`undoLastRace`) and refuses, in the words
+  // the Scoring page shows (`readEventStatus`), what the rules do not allow.
   const removedScores = (
     db
       .prepare('SELECT COUNT(*) AS n FROM Scores WHERE race_id = ?')
       .get(lastRace.race_id) as { n: number }
   ).n;
-  const ref = {
-    heat: coreHeatId(heatRow.heat_name),
-    race: Number(lastRace.race_number),
-  };
-  const same = (other: RaceRef) =>
-    other.heat === ref.heat && other.race === ref.race;
   applyToEvent(heatRow.event_id, {
-    rewrite: (log) =>
-      log
-        .filter(
-          (decision) =>
-            !(
-              (decision.type === 'raceScored' ||
-                decision.type === 'raceCorrected' ||
-                decision.type === 'protestDecided') &&
-              same(decision.race)
-            ),
-        )
-        .map((decision) =>
-          decision.type === 'protestDecided' && decision.outcome.kind === 'RDG2'
-            ? {
-                ...decision,
-                outcome: {
-                  ...decision.outcome,
-                  races: decision.outcome.races.filter((r) => !same(r)),
-                },
-              }
-            : decision,
-        ),
+    rewrite: (log) => {
+      const undone = undoLastRace(log, coreHeatId(heatRow.heat_name));
+      if (!undone.ok) throw new Error(undone.reason);
+      return undone.log;
+    },
   });
 
   return {

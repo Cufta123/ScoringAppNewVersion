@@ -5,6 +5,12 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from './helpers/renderWithQuery';
 import HeatComponent from '../renderer/components/HeatComponent';
 import { confirmAction, confirmChoice } from '../renderer/utils/userFeedback';
+import {
+  allowed,
+  eventStatusView,
+  refused,
+  statusHeat,
+} from './helpers/eventStatus';
 
 jest.mock(
   'react-world-flags',
@@ -23,6 +29,22 @@ jest.mock('../renderer/utils/userFeedback', () => ({
   reportInfo: (...args) => reportInfoMock(...args),
   reportError: (...args) => reportErrorMock(...args),
 }));
+
+/** readEventStatus after round 1, with this Final Series eligibility. */
+const statusWith = (eligibility) =>
+  jest.fn().mockResolvedValue(
+    eventStatusView({
+      series: 'qualifying',
+      round: 1,
+      heats: [statusHeat(11, 'Heat A1', 1), statusHeat(12, 'Heat B1', 1)],
+      next: { kind: 'createRound', round: 2, finalSeries: eligibility.ok },
+      createRound: allowed,
+      startFinal: {
+        ...(eligibility.ok ? allowed : refused('Not yet.', true)),
+        eligibility,
+      },
+    }),
+  );
 
 describe('HeatComponent start final series integration (UI + IPC chain)', () => {
   const confirmActionMock = confirmAction;
@@ -58,9 +80,10 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
       .fn()
       .mockResolvedValue({ success: true, createdHeats: 2, assignedBoats: 4 });
     const readLeaderboard = jest.fn().mockResolvedValue([]);
-    // Eligibility is computed in the main process; the renderer only renders
-    // prompts from it. Default: two fleets, one completed race, no Rule 4.3.
-    const getFinalSeriesEligibility = jest.fn().mockResolvedValue({
+    // Whether the Final Series may start is the event status's (regatta-core);
+    // the renderer only renders prompts from it. Default: two fleets, one
+    // completed race, no Rule 4.3.
+    const readEventStatus = statusWith({
       ok: true,
       reason: 'OK',
       numFinalHeats: 2,
@@ -81,7 +104,7 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
           readAllRaces,
           readLeaderboard,
           startFinalSeriesAtomic,
-          getFinalSeriesEligibility,
+          readEventStatus,
         },
       },
     };
@@ -139,20 +162,18 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
   });
 
   it('asks for SHRS 2026-1 Rule 4.3 choice at 6 races and applies it when confirmed', async () => {
-    window.electron.sqlite.heatRaceDB.getFinalSeriesEligibility = jest
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        reason: 'OK',
-        numFinalHeats: 2,
-        completedQualifyingRaces: 6,
-        rule43Applies: true,
-        noRacesCompleted: false,
-        raceCountBreakdown: [
-          { name: 'Heat A1', count: 6 },
-          { name: 'Heat B1', count: 6 },
-        ],
-      });
+    window.electron.sqlite.heatRaceDB.readEventStatus = statusWith({
+      ok: true,
+      reason: 'OK',
+      numFinalHeats: 2,
+      completedQualifyingRaces: 6,
+      rule43Applies: true,
+      noRacesCompleted: false,
+      raceCountBreakdown: [
+        { name: 'Heat A1', count: 6 },
+        { name: 'Heat B1', count: 6 },
+      ],
+    });
 
     render(<HeatComponent event={{ event_id: 77 }} onScoreHeat={jest.fn()} />);
 
@@ -198,20 +219,18 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
   });
 
   it('asks SHRS 4.3 choice before showing the final start confirmation modal', async () => {
-    window.electron.sqlite.heatRaceDB.getFinalSeriesEligibility = jest
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        reason: 'OK',
-        numFinalHeats: 2,
-        completedQualifyingRaces: 6,
-        rule43Applies: true,
-        noRacesCompleted: false,
-        raceCountBreakdown: [
-          { name: 'Heat A1', count: 6 },
-          { name: 'Heat B1', count: 6 },
-        ],
-      });
+    window.electron.sqlite.heatRaceDB.readEventStatus = statusWith({
+      ok: true,
+      reason: 'OK',
+      numFinalHeats: 2,
+      completedQualifyingRaces: 6,
+      rule43Applies: true,
+      noRacesCompleted: false,
+      raceCountBreakdown: [
+        { name: 'Heat A1', count: 6 },
+        { name: 'Heat B1', count: 6 },
+      ],
+    });
 
     let resolveShs43Choice;
     const shs43ChoicePromise = new Promise((resolve) => {
@@ -261,20 +280,18 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
   });
 
   it('skips temporary second exclusion when Skip Rule 4.3 is chosen', async () => {
-    window.electron.sqlite.heatRaceDB.getFinalSeriesEligibility = jest
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        reason: 'OK',
-        numFinalHeats: 2,
-        completedQualifyingRaces: 6,
-        rule43Applies: true,
-        noRacesCompleted: false,
-        raceCountBreakdown: [
-          { name: 'Heat A1', count: 6 },
-          { name: 'Heat B1', count: 6 },
-        ],
-      });
+    window.electron.sqlite.heatRaceDB.readEventStatus = statusWith({
+      ok: true,
+      reason: 'OK',
+      numFinalHeats: 2,
+      completedQualifyingRaces: 6,
+      rule43Applies: true,
+      noRacesCompleted: false,
+      raceCountBreakdown: [
+        { name: 'Heat A1', count: 6 },
+        { name: 'Heat B1', count: 6 },
+      ],
+    });
     confirmChoiceMock.mockResolvedValue('extra');
 
     render(<HeatComponent event={{ event_id: 77 }} onScoreHeat={jest.fn()} />);
@@ -314,22 +331,20 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
     // 7 races are completed, but round 8 is built and has no races: the
     // fleets are split from the races as sailed, so round 8 is undone (or
     // sailed) first. Nothing is asked and nothing starts.
-    window.electron.sqlite.heatRaceDB.getFinalSeriesEligibility = jest
-      .fn()
-      .mockResolvedValue({
-        ok: false,
-        reason: 'LATEST_ROUND_UNSAILED',
-        numFinalHeats: 2,
-        completedQualifyingRaces: 7,
-        rule43Applies: false,
-        noRacesCompleted: false,
-        latestRoundUnsailed: true,
-        latestRoundNumber: 8,
-        raceCountBreakdown: [
-          { name: 'Heat A8', count: 0 },
-          { name: 'Heat B8', count: 0 },
-        ],
-      });
+    window.electron.sqlite.heatRaceDB.readEventStatus = statusWith({
+      ok: false,
+      reason: 'LATEST_ROUND_UNSAILED',
+      numFinalHeats: 2,
+      completedQualifyingRaces: 7,
+      rule43Applies: false,
+      noRacesCompleted: false,
+      latestRoundUnsailed: true,
+      latestRoundNumber: 8,
+      raceCountBreakdown: [
+        { name: 'Heat A8', count: 0 },
+        { name: 'Heat B8', count: 0 },
+      ],
+    });
 
     render(<HeatComponent event={{ event_id: 77 }} onScoreHeat={jest.fn()} />);
 
@@ -357,20 +372,18 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
   });
 
   it('stops the start, and starts nothing, when the Rule 4.3 question is cancelled (Escape counts as Cancel)', async () => {
-    window.electron.sqlite.heatRaceDB.getFinalSeriesEligibility = jest
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        reason: 'OK',
-        numFinalHeats: 2,
-        completedQualifyingRaces: 6,
-        rule43Applies: true,
-        noRacesCompleted: false,
-        raceCountBreakdown: [
-          { name: 'Heat A1', count: 6 },
-          { name: 'Heat B1', count: 6 },
-        ],
-      });
+    window.electron.sqlite.heatRaceDB.readEventStatus = statusWith({
+      ok: true,
+      reason: 'OK',
+      numFinalHeats: 2,
+      completedQualifyingRaces: 6,
+      rule43Applies: true,
+      noRacesCompleted: false,
+      raceCountBreakdown: [
+        { name: 'Heat A1', count: 6 },
+        { name: 'Heat B1', count: 6 },
+      ],
+    });
     confirmChoiceMock.mockResolvedValue('cancel');
 
     render(<HeatComponent event={{ event_id: 77 }} onScoreHeat={jest.fn()} />);
@@ -398,20 +411,18 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
   ])(
     'the final confirmation repeats the Rule 4.3 choice (%s -> %s)',
     async (choice, wording) => {
-      window.electron.sqlite.heatRaceDB.getFinalSeriesEligibility = jest
-        .fn()
-        .mockResolvedValue({
-          ok: true,
-          reason: 'OK',
-          numFinalHeats: 2,
-          completedQualifyingRaces: 6,
-          rule43Applies: true,
-          noRacesCompleted: false,
-          raceCountBreakdown: [
-            { name: 'Heat A1', count: 6 },
-            { name: 'Heat B1', count: 6 },
-          ],
-        });
+      window.electron.sqlite.heatRaceDB.readEventStatus = statusWith({
+        ok: true,
+        reason: 'OK',
+        numFinalHeats: 2,
+        completedQualifyingRaces: 6,
+        rule43Applies: true,
+        noRacesCompleted: false,
+        raceCountBreakdown: [
+          { name: 'Heat A1', count: 6 },
+          { name: 'Heat B1', count: 6 },
+        ],
+      });
       confirmChoiceMock.mockResolvedValue(choice);
 
       render(

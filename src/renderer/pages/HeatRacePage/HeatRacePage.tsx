@@ -17,18 +17,14 @@ function HeatRacePage() {
   const { eventName } = useParams();
   const event = useRouteEvent(eventName);
   // The same heat list HeatComponent shows (one query): whether the Final
-  // Series has started and how many qualifying groups there are can never
-  // disagree with it, also while the scoring view hides it.
+  // Series has started can never disagree with it, also while the scoring
+  // view hides it.
   const heatList = useHeatList(event?.event_id);
-  const { finalSeriesStarted, numQualifyingGroups } = heatList;
+  const { finalSeriesStarted } = heatList;
 
-  const scoring = useScoringSession({
-    event,
-    finalSeriesStarted,
-    numQualifyingGroups,
-  });
+  const scoring = useScoringSession({ event, finalSeriesStarted });
   const { selectedHeat, isScoring, isSubmitting, closeScoring } = scoring;
-  const rounds = useRoundActions({ event, finalSeriesStarted });
+  const rounds = useRoundActions({ event });
 
   // The heat list is read again after any change to the event — also one made
   // in the history (an undo, going back) while this heat is being scored.

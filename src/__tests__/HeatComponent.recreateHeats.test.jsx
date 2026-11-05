@@ -5,6 +5,7 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from './helpers/renderWithQuery';
 import HeatComponent from '../renderer/components/HeatComponent';
 import { confirmAction } from '../renderer/utils/userFeedback';
+import { eventStatusView, statusHeat } from './helpers/eventStatus';
 
 jest.mock(
   'react-world-flags',
@@ -65,15 +66,14 @@ describe('HeatComponent recreate heats', () => {
         },
       ]),
       readLeaderboard: jest.fn().mockResolvedValue([]),
-      getFinalSeriesEligibility: jest.fn().mockResolvedValue({
-        ok: false,
-        reason: 'NO_RACES',
-        numFinalHeats: 2,
-        completedQualifyingRaces: 0,
-        rule43Applies: false,
-        noRacesCompleted: true,
-        raceCountBreakdown: [],
-      }),
+      readEventStatus: jest.fn().mockResolvedValue(
+        eventStatusView({
+          series: 'qualifying',
+          round: 1,
+          heats: [statusHeat(11, 'Heat A1'), statusHeat(12, 'Heat B1')],
+          next: { kind: 'score', heat_id: 11, heat_name: 'Heat A1', race: 1 },
+        }),
+      ),
       recreateInitialHeatsAtomic: jest.fn().mockResolvedValue({
         success: true,
         createdHeats: 2,

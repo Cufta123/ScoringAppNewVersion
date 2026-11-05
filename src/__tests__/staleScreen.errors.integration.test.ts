@@ -255,7 +255,7 @@ describe('a stale or mistyped screen always gets a plain answer', () => {
     ['explainTieBreak', () => [GONE, GONE, GONE, true]],
     ['explainBoatScore', () => [eventId, GONE]],
     ['explainBoatScore', () => [GONE, boatId]],
-    ['getFinalSeriesEligibility', () => [GONE]],
+    ['readEventStatus', () => [GONE]],
     ['exportEventSnapshotToFile', () => [GONE]],
   ];
 

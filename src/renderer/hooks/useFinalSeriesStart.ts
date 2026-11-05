@@ -29,8 +29,8 @@ interface Options {
 /**
  * Starting the Final Series: the chain of questions (empty latest round,
  * recovery backup, SHRS Rule 4.3), the "cannot be undone" confirmation, and the
- * atomic start itself. Eligibility is decided in the main process; this only
- * turns its verdict into prompts.
+ * atomic start itself. Whether it may start is regatta-core's (the event
+ * status); this only turns its verdict into prompts.
  *
  * `startFinalSeries` and `confirmFinalSeries` are meant to be run through the
  * caller's exclusive-action runner: the chain opens several confirm dialogs,
@@ -54,13 +54,12 @@ export default function useFinalSeriesStart({
   const startFinalSeries = useCallback(async () => {
     if (finalSeriesStarted) return;
     try {
-      // SHRS eligibility (group counting, equal-race-count, Rule 4.3 window) is
-      // computed in the main process; the renderer only renders prompts.
-      const eligibility = await readNow(
-        queries.finalSeriesEligibility(eventId),
-      );
+      // Whether the Final Series may start, and the Rule 4.3 window, are
+      // regatta-core's (readEventStatus); the renderer only words prompts.
+      const status = await readNow(queries.eventStatus(eventId));
+      const { eligibility } = status.startFinal;
 
-      if (!eligibility.ok) {
+      if (!status.startFinal.ok) {
         reportInfo(
           finalSeriesBlockedMessage(eligibility),
           'Cannot start final series',

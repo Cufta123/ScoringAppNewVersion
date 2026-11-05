@@ -120,7 +120,9 @@ function stepText(step: NextStep): string {
     case 'score':
       return `score ${step.heat} race ${step.race}`;
     case 'createRound':
-      return `create round ${step.round} or start the Final Series`;
+      return step.finalSeries
+        ? `create round ${step.round} or start the Final Series`
+        : `create round ${step.round}`;
     default:
       return '';
   }

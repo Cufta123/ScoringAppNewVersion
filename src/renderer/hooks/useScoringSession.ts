@@ -16,7 +16,6 @@ import type { ScoringHeat } from './useScoringInput';
 interface Options {
   event: EventRow | null;
   finalSeriesStarted: boolean;
-  numQualifyingGroups: number;
 }
 
 /**
@@ -28,7 +27,6 @@ interface Options {
 export default function useScoringSession({
   event,
   finalSeriesStarted,
-  numQualifyingGroups,
 }: Options) {
   const [selectedHeat, setSelectedHeat] = useState<ScoringHeat | null>(null);
   const [isScoring, setIsScoring] = useState(false);
@@ -115,21 +113,22 @@ export default function useScoringSession({
     // Resolves true only when the scores are actually persisted, so a
     // concurrent exit attempt can wait on the real result.
     const runSubmit = async (): Promise<boolean> => {
-      // SHRS 3.2 warning: in a multi-heat qualifying series each heat group
-      // should only ever race once before redistribution. Warn any time the
-      // user tries to score a second (or later) race on a qualifying heat.
-      if (!finalSeriesStarted && numQualifyingGroups >= 2) {
-        const races = await readNow(
-          queries.heatRaces(event.event_id, selectedHeat.heat_id),
+      // SHRS 3.1 / 3.2: in a qualifying round of several heats each heat
+      // races once, then the boats are redistributed. The event status
+      // (regatta-core) says whether this heat's next race is one the round
+      // still has to sail; the rules allow another (older records have
+      // them), so it is a warning, asked before scoring.
+      const status = await readNow(queries.eventStatus(event.event_id));
+      const shown = status.heats.find(
+        (heat) => heat.heat_id === selectedHeat.heat_id,
+      );
+      if (shown && shown.races > 0 && !shown.score.offered) {
+        const proceed = await confirmAction(
+          raceAgainWarning(selectedHeat.heat_name, shown.races),
+          'Scoring warning',
+          { confirmLabel: 'Score anyway' },
         );
-        if (races.length >= 1) {
-          const proceed = await confirmAction(
-            raceAgainWarning(selectedHeat.heat_name, races.length),
-            'Scoring warning',
-            { confirmLabel: 'Score anyway' },
-          );
-          if (!proceed) return false;
-        }
+        if (!proceed) return false;
       }
 
       // Penalty math, race + score inserts, and the leaderboard recompute all

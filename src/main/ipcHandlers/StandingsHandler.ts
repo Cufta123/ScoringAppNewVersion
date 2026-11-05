@@ -5,7 +5,7 @@ import {
   overallRows,
   qualifyingRows,
 } from '../functions/libraryStandings';
-import { finalSeriesEligibility } from '../functions/libraryEvent';
+import { readEventStatus } from '../functions/libraryEvent';
 import { getMaxHeatSize } from '../functions/raceScoring';
 
 // SHRS 5.2: the boats in the largest heat, for the edit screen's points.
@@ -42,10 +42,12 @@ handle('explainBoatScore', async (_event, event_id, boat_id) => {
   return explainBoatScore(Number(event_id), Number(boat_id));
 });
 
-// SHRS validation of whether the Final Series can start. The renderer renders
-// prompts/messages from the returned reason; all the rule logic stays here.
-handle('getFinalSeriesEligibility', async (_event, event_id) => {
-  return finalSeriesEligibility(Number(event_id));
+// Where the event stands and what the race office may do now: the series,
+// the round, its heats, the next step and every action of the round bar and
+// the heat cards with the reason it is refused (regatta-core's eventStatus;
+// with the Final Series eligibility the Start Final Series questions use).
+handle('readEventStatus', async (_event, event_id) => {
+  return readEventStatus(Number(event_id));
 });
 
 // The three leaderboard reads are worked out by regatta-core from the

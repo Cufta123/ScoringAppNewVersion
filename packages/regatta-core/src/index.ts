@@ -8,6 +8,7 @@
  *   finalStandings(result.state);
  *   overallStandings(result.state);
  *   nextStep(result.state);
+ *   eventStatus(result.state);             // what may be done now, and why not
  *
  * Undo = take the decision out of the log and replay; if a later decision
  * depended on it, replay says which and why.
@@ -60,8 +61,26 @@ export {
 } from './rules/correction';
 export type { RaceCell, RaceColumnEdit } from './rules/correction';
 export type { BoatResult } from './event/score';
-export { nextInRound, nextStep } from './event/nextStep';
+export { hasRaceToSail, nextInRound, nextStep } from './event/nextStep';
 export type { HeatProgress, NextStep, RoundStep } from './event/nextStep';
+/** Where the event stands and what may be done now, with the reasons. */
+export { eventStatus } from './event/status';
+export type {
+  EventStatus,
+  FinalSeriesCheck,
+  FinalSeriesStatus,
+  HeatStatus,
+  Offer,
+  Verdict,
+} from './event/status';
+/** Undo as a new log: a heat's last race, the latest round. */
+export {
+  undoLastRace,
+  undoLatestRound,
+  undoRaceVerdict,
+  undoRoundVerdict,
+} from './event/undo';
+export type { Undone } from './event/undo';
 export {
   qualifyingStandings,
   qualifyingTieBreak,

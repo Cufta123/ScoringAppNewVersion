@@ -5,6 +5,7 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from './helpers/renderWithQuery';
 import HeatComponent from '../renderer/components/HeatComponent';
 import { confirmAction } from '../renderer/utils/userFeedback';
+import { eventStatusView } from './helpers/eventStatus';
 
 jest.mock(
   'react-world-flags',
@@ -41,15 +42,7 @@ describe('HeatComponent heat-count default', () => {
           readAllRaces: jest.fn().mockResolvedValue([]),
           readBoatsByHeat: jest.fn().mockResolvedValue([]),
           readLeaderboard: jest.fn().mockResolvedValue([]),
-          getFinalSeriesEligibility: jest.fn().mockResolvedValue({
-            ok: false,
-            reason: 'NO_RACES',
-            numFinalHeats: 0,
-            completedQualifyingRaces: 0,
-            rule43Applies: false,
-            noRacesCompleted: true,
-            raceCountBreakdown: [],
-          }),
+          readEventStatus: jest.fn().mockResolvedValue(eventStatusView()),
           createInitialHeatsAtomic: jest
             .fn()
             .mockResolvedValue({ success: true }),

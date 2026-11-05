@@ -1,23 +1,7 @@
 import { db } from '../../../public/Database/DBManager';
-import { findLatestHeatsBySuffix } from './creatingNewHeatsUtls';
 import type { HeatRow } from './seriesGuards';
 
-// Small shared read helpers for qualifying heats and their race counts. Used by
-// both the IPC handlers and the Final Series eligibility check.
-
-export function getLatestQualifyingHeats(event_id: number) {
-  const existingHeatsQuery = db.prepare(
-    `SELECT heat_name, heat_id FROM Heats WHERE event_id = ? AND heat_type = 'Qualifying'`,
-  );
-  const existingHeats = existingHeatsQuery.all(event_id);
-  const latestHeats = findLatestHeatsBySuffix(existingHeats);
-  if (latestHeats.length === 0) {
-    throw new Error(
-      'This event has no qualifying heats yet. Create the heats first.',
-    );
-  }
-  return latestHeats;
-}
+// Small shared reads of heats and races for the IPC handlers.
 
 /**
  * One heat by id, for a handler whose screen may be out of date: a heat that
@@ -62,13 +46,6 @@ export function latestRaceReader(): (
 
 export function getLatestRaceForHeat(heat_id: number): LatestRace | undefined {
   return latestRaceReader()(heat_id);
-}
-
-export function getRaceCountForHeat(heat_id: number): number {
-  const raceCountQuery = db.prepare(
-    `SELECT COUNT(*) as race_count FROM Races WHERE heat_id = ?`,
-  );
-  return raceCountQuery.get(heat_id).race_count;
 }
 
 // SHRS 5.2: the number of boats in the largest heat of a series — a single

@@ -13,6 +13,3 @@ export const unmatchedSailsMessage = (
   '1) Go back to heats and re-open scoring for this heat.\n' +
   '2) Check that each sail number belongs to the selected heat.\n' +
   '3) Re-enter the race results and submit again.';
-
-export const laterRoundBlocksUndoMessage = (laterRounds: string[]): string =>
-  `The next round (${laterRounds.join(', ')}) was already built from this round's results, so this race can't be undone on its own.\n\nUse "Undo round" at the top of the heats first, then undo the race.`;

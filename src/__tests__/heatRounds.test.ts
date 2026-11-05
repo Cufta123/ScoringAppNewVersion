@@ -1,6 +1,5 @@
 import { laterRoundHeatNames } from '../shared/heatNames';
 import {
-  laterRoundBlocksUndoMessage,
   raceAgainWarning,
   unmatchedSailsMessage,
 } from '../renderer/utils/heatRounds';
@@ -49,11 +48,5 @@ describe('messages', () => {
     const text = unmatchedSailsMessage('Heat A1', [12, 'ITA 7']);
     expect(text).toContain('not in Heat A1: 12, ITA 7.');
     expect(text).toContain('3) Re-enter the race results');
-  });
-
-  it('names the rounds that block the undo', () => {
-    expect(laterRoundBlocksUndoMessage(['Heat A2', 'Heat A3'])).toContain(
-      'The next round (Heat A2, Heat A3)',
-    );
   });
 });

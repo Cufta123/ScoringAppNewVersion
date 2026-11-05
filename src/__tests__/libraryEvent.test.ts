@@ -1,12 +1,16 @@
 /**
  * Whether the Final Series can start, and the largest heat, as the
- * Scoring page asks for them (functions/libraryEvent.ts): worked out by
- * regatta-core from the event's decision log. The scenarios of the old
- * getFinalSeriesEligibility tests, on logs.
+ * Scoring page asks for them (functions/libraryEvent.ts): regatta-core's
+ * eventStatus on the event's decision log, in the shape the Start Final
+ * Series questions read. The scenarios of the old getFinalSeriesEligibility
+ * tests, on logs.
  */
 import { replay, type Decision } from 'regatta-core';
 
 const mockLog: { current: Decision[] } = { current: [] };
+// The eligibility reads nothing but the log (the heats' ids are for
+// readEventStatus, tested on a real database in readEventStatus.integration).
+jest.mock('../../public/Database/DBManager', () => ({ db: {} }));
 jest.mock('../main/functions/libraryStandings', () => ({
   replayEvent: () => {
     // eslint-disable-next-line global-require

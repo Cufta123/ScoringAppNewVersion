@@ -87,6 +87,26 @@ const event = { event_id: 1, event_name: 'Test Event' };
 // The heat the mocked HeatComponent's undo button acts on. It is the latest
 // round here; the 'later round' test below adds Heat A2 on top of it.
 const heat = { heat_id: 10, heat_name: 'Heat A1', heat_type: 'Qualifying' };
+const allowed = { ok: true, offered: true };
+/** readEventStatus: every action allowed unless a test says otherwise. */
+const status = (undoRace = allowed) => ({
+  series: 'qualifying',
+  round: 1,
+  heats: [
+    {
+      heat_id: 10,
+      heat_name: 'Heat A1',
+      boat_ids: [],
+      races: 1,
+      score: { ok: true, offered: false },
+      undoRace,
+    },
+  ],
+  next: { kind: 'createRound', round: 2, finalSeries: true },
+  createRound: allowed,
+  undoRound: allowed,
+  startFinal: { ...allowed, eligibility: { ok: true, reason: 'OK' } },
+});
 
 // These actions each chain a confirm dialog and one or more DB round-trips with
 // no visible progress, and every one of them is destructive or builds a round.
@@ -129,6 +149,7 @@ describe('HeatRacePage round-level actions', () => {
       readAllHeats: jest.fn().mockResolvedValue([heat]),
       readBoatsByHeat: jest.fn().mockResolvedValue([]),
       readAllRaces: jest.fn().mockResolvedValue([]),
+      readEventStatus: jest.fn().mockResolvedValue(status()),
       createNewHeatsBasedOnLeaderboard: jest.fn(() => gate.promise),
       undoLatestHeatRedistribution: jest.fn(() => gate.promise),
       undoLastScoredRaceForHeat: jest.fn(() => gate.promise),
@@ -222,11 +243,12 @@ describe('HeatRacePage round-level actions', () => {
     await waitFor(() => expect(undoRace).toBeEnabled());
   });
 
-  it('explains instead of undoing when the next round was built from this one', async () => {
-    api.readAllHeats.mockResolvedValue([
-      heat,
-      { heat_id: 11, heat_name: 'Heat A2', heat_type: 'Qualifying' },
-    ]);
+  it('explains instead of undoing when the status refuses it', async () => {
+    const reason =
+      "The next round (Heat A2) was already built from this round's results, so this race cannot be undone on its own. Undo that round first, then the race.";
+    api.readEventStatus.mockResolvedValue(
+      status({ ok: false, offered: true, reason }),
+    );
     renderPage();
     const undoRace = await findButton('Undo Race 1');
 
@@ -240,12 +262,36 @@ describe('HeatRacePage round-level actions', () => {
       confirmAction,
     } = require('../renderer/utils/userFeedback');
     await waitFor(() =>
-      expect(reportInfo).toHaveBeenCalledWith(
-        expect.stringContaining('"Undo round"'),
-        'Undo not possible yet',
-      ),
+      expect(reportInfo).toHaveBeenCalledWith(reason, 'Undo not possible yet'),
     );
     expect(confirmAction).not.toHaveBeenCalled();
     expect(api.undoLastScoredRaceForHeat).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ['Undo round', 'undoRound', 'undoLatestHeatRedistribution'],
+    ['Create Round 2', 'createRound', 'createNewHeatsBasedOnLeaderboard'],
+  ])(
+    '%s: says the status’s reason instead of asking',
+    async (label, action, channel) => {
+      const reason = 'Cannot do that now, for a reason the library gives.';
+      api.readEventStatus.mockResolvedValue({
+        ...status(),
+        [action]: { ok: false, offered: true, reason },
+      });
+      renderPage();
+      fireEvent.click(await findButton(label));
+
+      // eslint-disable-next-line global-require
+      const {
+        reportInfo,
+        confirmAction,
+      } = require('../renderer/utils/userFeedback');
+      await waitFor(() =>
+        expect(reportInfo).toHaveBeenCalledWith(reason, expect.any(String)),
+      );
+      expect(confirmAction).not.toHaveBeenCalled();
+      expect(api[channel]).not.toHaveBeenCalled();
+    },
+  );
 });

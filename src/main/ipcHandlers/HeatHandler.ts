@@ -3,20 +3,14 @@ import {
   MAX_HEAT_SIZE,
   fewestHeats,
   movementImbalanceExpected,
+  undoLatestRound,
 } from 'regatta-core';
 import { db } from '../../../public/Database/DBManager';
 import handle from './handle';
 import { applyToEvent } from '../functions/libraryWrite';
 import { coreHeatId } from '../functions/eventLog';
-import { checkRaceCountForLatestHeats } from '../functions/creatingNewHeatsUtls';
-import {
-  getLatestQualifyingHeats,
-  requireHeat,
-} from '../functions/heatQueries';
-import {
-  assertQualifyingHeatIsOpen,
-  hasFinalSeriesStarted,
-} from '../functions/seriesGuards';
+import { requireHeat } from '../functions/heatQueries';
+import { assertQualifyingHeatIsOpen } from '../functions/seriesGuards';
 import {
   describeIndistinguishable,
   findIndistinguishableBoats,
@@ -217,19 +211,11 @@ handle('readAllRaces', async (event, heat_id) => {
 
 handle('createNewHeatsBasedOnLeaderboard', async (event, raw_event_id) => {
   const event_id = Number(raw_event_id);
-  // The qualifying series is closed once the Final Series has started (the
-  // fleets were split on its ranking, SHRS 4.2). The heats page hides this
-  // action then, but its state can be stale and the channel is reachable on
-  // its own, like every other qualifying write (assertQualifyingHeatIsOpen).
-  if (hasFinalSeriesStarted(event_id)) {
-    throw new Error(
-      'Cannot create new heats: the Final Series has already started, so the qualifying series is closed.',
-    );
-  }
-  const latestHeats = getLatestQualifyingHeats(event_id);
-  checkRaceCountForLatestHeats(latestHeats, db);
   // The next round (SHRS 3.1 Heat Movement Table, or the 3.2 published
-  // assignment) is regatta-core's: roundCreated.
+  // assignment) is regatta-core's: roundCreated. Replay refuses it, in the
+  // words the Scoring page shows (`readEventStatus`'s createRound), once
+  // the Final Series has started, with one heat, and until every heat with
+  // boats has sailed the round (a heat left with no boats holds nothing up).
   const { after } = applyToEvent(event_id, {
     decide: () => [{ type: 'roundCreated' }],
   });
@@ -248,66 +234,27 @@ handle('createNewHeatsBasedOnLeaderboard', async (event, raw_event_id) => {
 
 handle('undoLatestHeatRedistribution', async (event, raw_event_id) => {
   const event_id = Number(raw_event_id);
-  const latestHeats = getLatestQualifyingHeats(event_id);
-
-  // Guard against deleting the first round: "undo redistribution" must only
-  // remove a round that was created from a previous one. First-round heats end
-  // in suffix 1 (e.g. "Heat A1"); if nothing has a higher suffix there is no
-  // redistribution to undo and deleting would wipe the original heat setup.
-  const maxSuffix = latestHeats.reduce((max, heat) => {
-    const match = heat.heat_name.match(/(\d+)$/);
-    const suffix = match ? parseInt(match[1], 10) : 0;
-    return suffix > max ? suffix : max;
-  }, 0);
-  if (maxSuffix <= 1) {
-    throw new Error(
-      'There is no heat redistribution to undo — these are the first-round heats.',
-    );
-  }
-
-  const hasRaceQuery = db.prepare(
-    'SELECT COUNT(*) as race_count FROM Races WHERE heat_id = ?',
-  );
-
-  const heatsWithRaces = latestHeats.filter(
-    (heat) => hasRaceQuery.get(heat.heat_id).race_count > 0,
-  );
-
-  if (heatsWithRaces.length > 0) {
-    throw new Error(
-      'Cannot undo heat redistribution because the latest heats already contain races. Undo the last race first.',
-    );
-  }
-
-  // Take the round out of the log (with the late entries assigned to it)
-  // and let regatta-core work the event out again.
-  const round = maxSuffix;
-  const inRound = (heat: string) => heat.endsWith(String(round));
+  // Take the round out of the log (with the late entries assigned to it):
+  // regatta-core builds that log (`undoLatestRound`) and refuses, in the
+  // words the Scoring page shows (`readEventStatus`), the first round, a
+  // round that has raced, and any round once the Final Series started.
   let removedAssignments = 0;
+  let removedHeatNames: string[] = [];
   applyToEvent(event_id, {
     rewrite: (log, state) => {
-      removedAssignments = state.rounds[round - 1].reduce(
-        (n, heat) => n + heat.boats.length,
-        0,
-      );
-      const at = log.map((d) => d.type).lastIndexOf('roundCreated');
-      return log.filter(
-        (decision, i) =>
-          i !== at &&
-          !(
-            i > at &&
-            ((decision.type === 'boatAssigned' && inRound(decision.heat)) ||
-              (decision.type === 'boatMoved' && inRound(decision.to)))
-          ),
-      );
+      const undone = undoLatestRound(log);
+      if (!undone.ok) throw new Error(undone.reason);
+      const round = state.rounds[state.rounds.length - 1];
+      removedAssignments = round.reduce((n, heat) => n + heat.boats.length, 0);
+      removedHeatNames = round.map((heat) => `Heat ${heat.id}`);
+      return undone.log;
     },
   });
-  const result = { removedAssignments, removedHeats: latestHeats.length };
   return {
     success: true,
-    removedAssignments: result.removedAssignments,
-    removedHeats: result.removedHeats,
-    removedHeatNames: latestHeats.map((heat) => heat.heat_name),
+    removedAssignments,
+    removedHeats: removedHeatNames.length,
+    removedHeatNames,
   };
 });
 

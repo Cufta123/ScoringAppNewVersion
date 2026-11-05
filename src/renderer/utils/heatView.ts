@@ -1,9 +1,5 @@
 import { MAX_HEATS } from 'regatta-core';
 import type { HeatBoatRow } from '../types';
-import {
-  getHeatGroupFromName,
-  getHeatRoundFromName,
-} from '../../shared/heatNames';
 import { sailorFullName } from './sailorName';
 
 /** A heat with its boats and current race count, as displayed by the heats view. */
@@ -28,38 +24,6 @@ export const hasFinalHeats = (
 export const hasScoredRace = (
   heats: Array<Pick<HeatWithBoats, 'raceNumber'>>,
 ): boolean => heats.some((heat) => heat.raceNumber > 0);
-
-/**
- * The heats that are "current": every final fleet once the Final Series has
- * started, otherwise the latest round of each qualifying group.
- */
-export function getLastHeats<
-  T extends Pick<HeatWithBoats, 'heat_name' | 'heat_type'>,
->(heats: T[]): T[] {
-  const finalHeats = heats.filter(
-    (heat) => heat.heat_type.toLowerCase() === 'final',
-  );
-  if (finalHeats.length > 0) return finalHeats;
-
-  const latestRoundOfGroup = new Map<string, number>();
-  heats.forEach((heat) => {
-    const group = getHeatGroupFromName(heat.heat_name);
-    const round = getHeatRoundFromName(heat.heat_name);
-    if (group === null || round === null) return;
-    const known = latestRoundOfGroup.get(group);
-    if (known === undefined || known < round) {
-      latestRoundOfGroup.set(group, round);
-    }
-  });
-
-  return heats.filter((heat) => {
-    const group = getHeatGroupFromName(heat.heat_name);
-    return (
-      group !== null &&
-      getHeatRoundFromName(heat.heat_name) === latestRoundOfGroup.get(group)
-    );
-  });
-}
 
 /**
  * The main process words its own validation refusals for heat creation in

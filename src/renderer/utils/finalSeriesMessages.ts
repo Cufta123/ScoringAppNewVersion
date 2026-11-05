@@ -1,8 +1,8 @@
 /**
  * Why the Final Series cannot start yet, in words a scorer can act on.
  *
- * SHRS eligibility itself (group counting, equal-race-count, the Rule 4.3
- * window) is decided in the main process by getFinalSeriesEligibility; the
+ * SHRS eligibility itself (the round sailed, races completed, the Rule 4.3
+ * window) is regatta-core's (`eventStatus`, read as `readEventStatus`); the
  * renderer only turns its verdict into a prompt. Keeping that mapping here
  * makes each message checkable without driving the heats screen.
  */
@@ -22,6 +22,10 @@ export function finalSeriesBlockedMessage(
   eligibility: FinalSeriesEligibility,
 ): string {
   switch (eligibility.reason) {
+    case 'STARTED':
+      return 'The Final Series has already started.';
+    case 'REFUSED':
+      return `Cannot start the Final Series: ${eligibility.message ?? 'the rules do not allow it yet.'}`;
     case 'NO_HEATS':
       return 'No qualifying heats found. Please create heats before starting the Final Series.';
     case 'SINGLE_FLEET':

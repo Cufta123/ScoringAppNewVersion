@@ -8,14 +8,12 @@ import {
   reportError,
   reportInfo,
 } from '../utils/userFeedback';
-import { laterRoundBlocksUndoMessage } from '../utils/heatRounds';
-import { laterRoundHeatNames } from '../../shared/heatNames';
 import type { EventRow } from '../types';
+import type { EventStatusView, StatusAction } from '../../shared/eventStatus';
 import type { ScoringHeat } from './useScoringInput';
 
 interface Options {
   event: EventRow | null;
-  finalSeriesStarted: boolean;
 }
 
 /**
@@ -25,11 +23,12 @@ interface Options {
  * every one is destructive or builds a round, so they run one at a time
  * (`roundActionBusy` disables the buttons that start them). Each write reads
  * the event again before it resolves (api/writes.ts).
+ *
+ * Whether each may be done is the event status's (regatta-core): read fresh
+ * before asking, so a refusal is said up front instead of after a
+ * confirmation that can only fail. The main process refuses it again.
  */
-export default function useRoundActions({
-  event,
-  finalSeriesStarted,
-}: Options) {
+export default function useRoundActions({ event }: Options) {
   const { busy: roundActionBusy, runExclusive } = useExclusiveAction();
   const readNow = useReadNow();
   const affected = { eventId: event?.event_id };
@@ -46,13 +45,32 @@ export default function useRoundActions({
     affected,
   );
 
+  /**
+   * The verdict on one action from the status read now; a refusal is told
+   * (under `title`) and gives false. A failed read leaves it to the main
+   * process, which checks again.
+   */
+  const allowedNow = async (
+    pick: (status: EventStatusView) => StatusAction | undefined,
+    title: string,
+  ): Promise<boolean> => {
+    if (!event) return false;
+    let verdict: StatusAction | undefined;
+    try {
+      verdict = pick(await readNow(queries.eventStatus(event.event_id)));
+    } catch (_error) {
+      return true;
+    }
+    if (verdict && !verdict.ok) {
+      reportInfo(verdict.reason, title);
+      return false;
+    }
+    return true;
+  };
+
   const createNewHeats = async () => {
     if (!event) return;
-    if (finalSeriesStarted) {
-      reportInfo(
-        'Cannot create new heats based on leaderboard after the final series has started.',
-        'Action blocked',
-      );
+    if (!(await allowedNow((status) => status.createRound, 'Action blocked'))) {
       return;
     }
 
@@ -81,25 +99,19 @@ export default function useRoundActions({
 
   // Contextual action: invoked from inside the selected heat card.
   const undoLastRace = async (heat: ScoringHeat) => {
-    // If a later round was already built from this round's results, undoing
-    // this race would leave that round seeded from results that no longer
-    // exist (SHRS 3.1(2)). The main process refuses it; say so up front
-    // instead of asking for a confirmation that can only fail.
-    if (event) {
-      let laterRounds: string[] = [];
-      try {
-        const allHeats = await readNow(queries.heats(event.event_id));
-        laterRounds = laterRoundHeatNames(allHeats || [], heat.heat_name);
-      } catch (_error) {
-        // Best-effort pre-check only — the main process enforces the rule.
-      }
-      if (laterRounds.length > 0) {
-        reportInfo(
-          laterRoundBlocksUndoMessage(laterRounds),
-          'Undo not possible yet',
-        );
-        return;
-      }
+    // A heat whose round seeded the next one, or a qualifying heat once the
+    // Final Series started, keeps its races (SHRS 3.1(2), 4.2): say so up
+    // front. The status lists only the heats being sailed; any other heat
+    // is left to the main process.
+    if (
+      !(await allowedNow(
+        (status) =>
+          status.heats.find((shown) => shown.heat_id === heat.heat_id)
+            ?.undoRace,
+        'Undo not possible yet',
+      ))
+    ) {
+      return;
     }
 
     const confirmed = await confirmAction(
@@ -122,6 +134,11 @@ export default function useRoundActions({
 
   const undoRedistribution = async () => {
     if (!event) return;
+    if (
+      !(await allowedNow((status) => status.undoRound, 'Undo not possible'))
+    ) {
+      return;
+    }
     const confirmed = await confirmAction(
       'Undo latest heat redistribution?\n\nThis will delete the latest qualifying heats and all their boat assignments. This cannot be undone.',
       'Undo round',

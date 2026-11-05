@@ -4,8 +4,8 @@ import {
 } from '../renderer/utils/finalSeriesMessages';
 
 /**
- * The renderer's mapping from getFinalSeriesEligibility's verdict to the
- * prompt a scorer reads. Previously only reachable by driving the heats screen.
+ * The renderer's mapping from the status's Final Series verdict
+ * (readEventStatus, `startFinal.eligibility`) to the prompt a scorer reads. Previously only reachable by driving the heats screen.
  */
 describe('finalSeriesBlockedMessage', () => {
   it('explains that heats must exist first', () => {
@@ -18,6 +18,20 @@ describe('finalSeriesBlockedMessage', () => {
     const message = finalSeriesBlockedMessage({ reason: 'SINGLE_FLEET' });
     expect(message).toContain('SHRS 1.1');
     expect(message).toContain('no Final Series applies');
+  });
+
+  it('says the Final Series has started, and passes on the library’s reason', () => {
+    expect(finalSeriesBlockedMessage({ reason: 'STARTED' })).toBe(
+      'The Final Series has already started.',
+    );
+    expect(
+      finalSeriesBlockedMessage({
+        reason: 'REFUSED',
+        message: 'There are no qualifying results yet.',
+      }),
+    ).toBe(
+      'Cannot start the Final Series: There are no qualifying results yet.',
+    );
   });
 
   it('cites SHRS 4.2 when no qualifying race has been sailed', () => {

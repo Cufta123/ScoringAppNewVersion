@@ -258,6 +258,7 @@ describe('the qualifying series', () => {
     expect(nextStep(stateOf(round1))).toEqual({
       kind: 'createRound',
       round: 2,
+      finalSeries: true,
     });
   });
 });

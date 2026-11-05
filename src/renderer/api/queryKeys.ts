@@ -52,9 +52,8 @@ export const queryKeys = {
   /** getMaxHeatSize */
   maxHeatSize: (eventId: number, heatType: HeatType) =>
     ['event', eventId, 'maxHeatSize', heatType] as const,
-  /** getFinalSeriesEligibility */
-  finalSeriesEligibility: (eventId: number) =>
-    ['event', eventId, 'finalSeriesEligibility'] as const,
+  /** readEventStatus: where the event stands and what may be done now. */
+  eventStatus: (eventId: number) => ['event', eventId, 'status'] as const,
   /** explainBoatScore */
   scoreExplanation: (eventId: number, boatId: number) =>
     ['event', eventId, 'scoreExplanation', boatId] as const,

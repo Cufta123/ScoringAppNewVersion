@@ -1,6 +1,5 @@
 import {
   boatMoveQuestion,
-  getLastHeats,
   hasFinalHeats,
   hasScoredRace,
   isHeatRecreateRefusal,
@@ -25,47 +24,6 @@ const boat = {
   surname: 'Horvat',
   category_name: null,
 } as HeatBoatRow;
-
-describe('getLastHeats', () => {
-  it('keeps only the latest round of each group', () => {
-    const heats = [
-      heat('Heat A1'),
-      heat('Heat B1'),
-      heat('Heat A2'),
-      heat('Heat B2'),
-      heat('Heat A10'),
-    ];
-    expect(getLastHeats(heats).map((h) => h.heat_name)).toEqual([
-      'Heat B2',
-      'Heat A10',
-    ]);
-  });
-
-  it('does not let one group hide another group that is a round behind', () => {
-    const heats = [heat('Heat A2'), heat('Heat B1')];
-    expect(getLastHeats(heats).map((h) => h.heat_name)).toEqual([
-      'Heat A2',
-      'Heat B1',
-    ]);
-  });
-
-  it('returns only the final fleets once the Final Series exists', () => {
-    const heats = [
-      heat('Heat A1'),
-      heat('Heat B1'),
-      heat('Final Gold', 'Final'),
-      heat('Final Silver', 'Final'),
-    ];
-    expect(getLastHeats(heats).map((h) => h.heat_name)).toEqual([
-      'Final Gold',
-      'Final Silver',
-    ]);
-  });
-
-  it('drops names that are not heats', () => {
-    expect(getLastHeats([heat('Nonsense')])).toEqual([]);
-  });
-});
 
 describe('heat flags', () => {
   it('detects final heats and scored races', () => {

@@ -1,11 +1,12 @@
 import React from 'react';
-import type { RoundStatus } from '../../utils/roundStatus';
+import type { EventStatusView } from '../../../shared/eventStatus';
 import type { HeatWithBoats } from '../../utils/heatView';
 
 interface RoundBarProps {
-  status: RoundStatus<HeatWithBoats> | null;
-  /** SHRS 1.1: 2+ qualifying groups and no Final Series yet. */
-  canStartFinalSeries: boolean;
+  /** Where the event stands and what may be done (readEventStatus). */
+  status: EventStatusView | null;
+  /** The heats on screen, to open the next heat's scoring. */
+  heats: HeatWithBoats[];
   busy: boolean;
   noHeats: boolean;
   onScore: (heat: HeatWithBoats) => void;
@@ -20,14 +21,33 @@ interface RoundBarProps {
 }
 
 /**
+ * One line on where the series stands, worded from the status: "Round 4 ·
+ * 1 of 3 heats scored", or for one heat or the fleets the race being sailed.
+ */
+export function roundSummary(status: EventStatusView): string | null {
+  const { heats, next } = status;
+  if (status.series === 'entries' || heats.length === 0) return null;
+  if (status.series === 'qualifying' && heats.length > 1) {
+    const scored = heats.filter((heat) => heat.races > 0).length;
+    return `Round ${status.round} · ${scored} of ${heats.length} heats scored`;
+  }
+  const race = next.kind === 'score' ? next.race : 1;
+  if (heats.length === 1) return `Race ${race} next`;
+  const done = heats.filter((heat) => heat.races >= race).length;
+  const unit = status.series === 'final' ? 'fleets' : 'heats';
+  return `Race ${race} · ${done} of ${heats.length} ${unit} scored`;
+}
+
+/**
  * The top of the heats: where the series stands, then its one next step (the
  * green button, first) and the less frequent round actions after it, quieter.
- * Replaces a card of round buttons above the heats, a hint saying which
- * buttons appear where, and Start Final Series at the bottom.
+ * What is offered, and whether it may be done, is the status's
+ * (regatta-core's eventStatus); a refused action is shown disabled with the
+ * reason as its title.
  */
 export default function RoundBar({
   status,
-  canStartFinalSeries,
+  heats,
   busy,
   noHeats,
   onScore,
@@ -40,6 +60,13 @@ export default function RoundBar({
   onToggleDisplayMode = () => {},
 }: RoundBarProps) {
   const next = status?.next ?? null;
+  const summary = status ? roundSummary(status) : null;
+  const nextHeat =
+    next?.kind === 'score'
+      ? heats.find((heat) => heat.heat_id === next.heat_id)
+      : undefined;
+  const createRound = status?.createRound;
+  const undoRound = status?.undoRound;
   return (
     <div className="round-bar">
       <div className="round-bar-status">
@@ -47,16 +74,16 @@ export default function RoundBar({
           <i className="fa fa-flag" aria-hidden="true" />
           Heats
         </h2>
-        {status && (
+        {status && summary && (
           <p role="status">
             <span
               className={`round-bar-phase ${
-                status.phase === 'final' ? 'is-final' : 'is-qualifying'
+                status.series === 'final' ? 'is-final' : 'is-qualifying'
               }`}
             >
-              {status.phase === 'final' ? 'Final Series' : 'Qualifying'}
+              {status.series === 'final' ? 'Final Series' : 'Qualifying'}
             </span>
-            {status.summary}
+            {summary}
             {hasMultipleRounds && (
               <button
                 type="button"
@@ -73,31 +100,37 @@ export default function RoundBar({
       </div>
 
       <div className="round-bar-actions">
-        {next?.kind === 'score' && (
+        {next?.kind === 'score' && nextHeat && (
           <button
             type="button"
             className="btn-success"
-            onClick={() => onScore(next.heat)}
+            onClick={() => onScore(nextHeat)}
             disabled={busy}
           >
             <i className="fa fa-play" aria-hidden="true" />
-            Score {next.heat.heat_name}
+            Score {next.heat_name}
             {next.race > 1 ? ` · race ${next.race}` : ''}
           </button>
         )}
-        {next?.kind === 'createRound' && onCreateRound && (
-          <button
-            type="button"
-            className="btn-success"
-            onClick={onCreateRound}
-            disabled={busy}
-            title="Build the next round's heats from the current leaderboard"
-          >
-            <i className="fa fa-shuffle" aria-hidden="true" />
-            Create Round {next.round}
-          </button>
-        )}
-        {canStartFinalSeries && (
+        {next?.kind === 'createRound' &&
+          createRound?.offered &&
+          onCreateRound && (
+            <button
+              type="button"
+              className="btn-success"
+              onClick={onCreateRound}
+              disabled={busy || !createRound.ok}
+              title={
+                createRound.ok
+                  ? "Build the next round's heats from the current leaderboard"
+                  : createRound.reason
+              }
+            >
+              <i className="fa fa-shuffle" aria-hidden="true" />
+              Create Round {next.round}
+            </button>
+          )}
+        {status?.startFinal.offered && (
           <button
             type="button"
             className={
@@ -111,13 +144,17 @@ export default function RoundBar({
             Start Final Series
           </button>
         )}
-        {status?.canUndoRedistribution && onUndoRedistribution && (
+        {undoRound?.offered && onUndoRedistribution && (
           <button
             type="button"
             className="btn-ghost"
             onClick={onUndoRedistribution}
-            disabled={busy}
-            title="Delete the latest round's heats (built from the leaderboard)"
+            disabled={busy || !undoRound.ok}
+            title={
+              undoRound.ok
+                ? "Delete the latest round's heats (built from the leaderboard)"
+                : undoRound.reason
+            }
           >
             <i className="fa fa-undo" aria-hidden="true" />
             Undo round

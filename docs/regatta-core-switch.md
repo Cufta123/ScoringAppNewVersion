@@ -91,6 +91,35 @@ keep in step.
   - [x] Order and names (`sailOrder`, `penaltyOrder`, `raceSeeding`, `fleetNames`, `heatSizing`, the round bar's next heat): `compareBoats`, `inRecordingOrder` / `codeRank`, `movementImbalanceExpected`, `fleetName` / `fleetIndex`, `MAX_HEAT_SIZE` / `MAX_HEATS` / `fewestHeats`, `nextInRound` (what `nextStep` now uses)
   - [x] ESLint guard: `src/` cannot import the removed modules or declare their rule functions again (`.eslintrc.js`, AGENTS.md §1)
 
+- [x] Phase 8: one status from the library drives the screens (2026-11-05)
+  - [x] regatta-core `eventStatus(state)`: series (`entries` / `qualifying` / `final`), the round, the heats being sailed (boats, races), `nextStep` (its `createRound` now says whether the Final Series may start instead), and for every action the screens offer (score / undo a heat's race, create / undo a round, start the Final Series) `ok` or the reason, and `offered`. `ok` is exactly what replay accepts: a decision is tried on the state as replay applies it (`tryDecision`), an undo is checked by the function that builds its log (`undoLastRace`, `undoLatestRound`, moved from the handlers). Tested case by case and on every prefix of 40 random events against replay (`test/status.test.ts`)
+  - [x] IPC `readEventStatus` (`libraryEvent`: library heat ids to the app's heats), read under `['event', id, 'status']`; `getFinalSeriesEligibility` folded into it (`startFinal.eligibility`, same shape)
+  - [x] The round bar, the heat cards' buttons, Undo round, Start Final Series and the entries page's `HeatsSummary` read it; `useRoundActions` and the submit's SHRS 3.1 warning read it fresh. Removed: `utils/roundStatus.ts`, `getLastHeats`, the undo pre-check on heat names (`laterRoundBlocksUndoMessage`), the Final Series button's group count, `creatingNewHeatsUtls.ts` (`checkRaceCountForLatestHeats`) and the Final Series handler's own table checks: the handlers refuse what the status refuses, and the chaos test checks every round action against the status read before it
+
+## Phase 8: what changed for the user
+
+Where the old screen (or the handler behind it) decided differently from
+the library, the library is followed:
+
+- **A heat left with no boats** (every boat moved out before racing): the
+  round bar offered Create Round N / Start Final Series, then the main
+  process refused ("Not all heats have the same number of races yet";
+  "…not all sailed the same number of races"), counting the empty heat's 0
+  races. Now the round is complete and both are done (SHRS 1.1: a heat
+  with no boats has nothing to sail). Such a heat's card no longer offers
+  "Score race 1".
+- **A heat that sailed twice in a round** (older records): the green Create
+  Round N was enabled and refused on click. Now it is shown disabled with
+  the reason, "Every heat of this round must sail the same races first."
+- **Undo round while the round has races**: was enabled and refused on
+  click; now disabled with the reason as its title.
+- **A recorded round in a one-heat event** (converted records only): Undo
+  round is offered (the library takes it back); the old bar offered it
+  only in rounds of several heats. Start Final Series follows the round
+  being sailed (two or more heats), not every group letter ever used.
+- Refusals read before asking: Create Round, Undo round and Undo race say
+  the library's reason instead of a confirmation that could only fail.
+
 ## Phase 7: what changed for the user
 
 The correction rule moved unchanged (same code, same tests, now in the

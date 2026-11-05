@@ -731,9 +731,12 @@
             },
             "round": {
               "type": "number"
+            },
+            "finalSeries": {
+              "type": "boolean"
             }
           },
-          "required": ["kind", "round"],
+          "required": ["kind", "round", "finalSeries"],
           "additionalProperties": false
         }
       ]

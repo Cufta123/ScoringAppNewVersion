@@ -17,6 +17,7 @@ if (!result.ok) console.log(`Decision ${result.at}: ${result.reason}`);
 qualifyingStandings(result.state);
 overallStandings(result.state);
 nextStep(result.state); // { kind: 'score', heat: 'B3', race: 1 }
+eventStatus(result.state); // what may be done now, and why not
 explainScore(result.state, 'b7'); // her points race by race, with the rules
 explainTie(result.state, 'b7', 'b12'); // why one is ahead on equal points
 ```
@@ -44,7 +45,22 @@ it):
 | Order (SHRS 3, 5.3)          | `compareBoats`, `sameBoat`, `inRecordingOrder`, `codeRank`                                          |
 | Heats and fleets (SHRS 2, 4) | `MAX_HEAT_SIZE`, `MAX_HEATS`, `fewestHeats`, `movementImbalanceExpected`, `fleetName`, `fleetIndex` |
 | What next                    | `nextStep` (on an event), `nextInRound` (on a screen's own heats)                                   |
+| What may be done now         | `eventStatus` (each action: `ok` or the reason, and `offered`), `undoLastRace`, `undoLatestRound`   |
 | The same log, other boat ids | `renameBoats`, `boatsNamed`                                                                         |
+
+`eventStatus(state)` is where the event stands and what the race office
+may do now, for a screen: the series (`entries`, `qualifying`, `final`),
+the qualifying round, the heats being sailed (boats, races sailed), the one
+next step, and for every action a screen offers (score or undo a heat's
+race, create or undo a round, start the Final Series) `ok`, or `ok: false`
+with the reason in words for the race officer, and `offered` (the action
+belongs to this point of the event, so the screen shows it). `ok` is what
+replay accepts, decided by the same code: a decision is tried on the event
+as replay would apply it, and an undo by the function that builds the new
+log (`undoLastRace(log, heat)`, `undoLatestRound(log)`). The Final Series
+verdict carries why not (`check`: `NO_HEATS`, `SINGLE_FLEET`,
+`UNEQUAL_RACE_COUNTS`, `NO_RACES_COMPLETED`, `LATEST_ROUND_UNSAILED`, …)
+and whether SHRS 4.3 applies.
 
 `renameBoats(log, { oldId: newId, … })` gives the same event with the
 boats named as another program or database names them (every decision
@@ -108,17 +124,18 @@ upgrades older files, and a newer file is refused in words.
 npm test
 ```
 
-| Test                      | What                                                                |
-| ------------------------- | ------------------------------------------------------------------- |
-| `test/rules.test.ts`      | rule by rule (points, discards, seeding, fleets, ranking)           |
-| `test/event.test.ts`      | whole events through `replay`, from the rules' text                 |
-| `test/examples.test.ts`   | each `examples/*.json` gives `examples/expected/*.json`             |
-| `test/schema.test.ts`     | schemas up to date; examples and results valid; bad files refused   |
-| `test/cli.test.ts`        | command line: output, exit codes, error messages                    |
-| `test/isolation.test.ts`  | nothing in `src/` but the CLI imports outside the library           |
-| `test/correction.test.ts` | a result corrected in place (`applyRaceColumnEdit`)                 |
-| `test/app-rules.test.ts`  | codes, recording order, heat counts, fleet names, next heat, points |
-| `test/rename.test.ts`     | `renameBoats`: every decision type, refusals, same results renamed  |
+| Test                      | What                                                                               |
+| ------------------------- | ---------------------------------------------------------------------------------- |
+| `test/rules.test.ts`      | rule by rule (points, discards, seeding, fleets, ranking)                          |
+| `test/event.test.ts`      | whole events through `replay`, from the rules' text                                |
+| `test/examples.test.ts`   | each `examples/*.json` gives `examples/expected/*.json`                            |
+| `test/schema.test.ts`     | schemas up to date; examples and results valid; bad files refused                  |
+| `test/cli.test.ts`        | command line: output, exit codes, error messages                                   |
+| `test/isolation.test.ts`  | nothing in `src/` but the CLI imports outside the library                          |
+| `test/correction.test.ts` | a result corrected in place (`applyRaceColumnEdit`)                                |
+| `test/app-rules.test.ts`  | codes, recording order, heat counts, fleet names, next heat, points                |
+| `test/rename.test.ts`     | `renameBoats`: every decision type, refusals, same results renamed                 |
+| `test/status.test.ts`     | `eventStatus` and the undos: every action and reason; random events against replay |
 
 To add a case: put an event file in `examples/`, run `npm run examples`,
 and **check the new `examples/expected/` file by hand against the rules**

@@ -1,12 +1,16 @@
 /**
- * The verdict of `getFinalSeriesEligibility`: whether the Final Series can
- * start (SHRS 4.1 / 4.3) and, when it cannot, why. Defined once; the main
- * process builds it and the renderer turns it into a prompt.
+ * Whether the Final Series can start (SHRS 4.1 / 4.3) and, when it cannot,
+ * why: regatta-core's `eventStatus(...).startFinal`, in the shape the
+ * Start Final Series questions are worded from (`readEventStatus`). Defined
+ * once; the main process builds it and the renderer turns it into a prompt.
  */
 export type FinalSeriesEligibility = {
   ok: boolean;
   reason:
     | 'OK'
+    | 'STARTED'
+    // Refused for a reason none of the others names: `message` says it.
+    | 'REFUSED'
     | 'NO_HEATS'
     | 'SINGLE_FLEET'
     | 'UNEQUAL_RACE_COUNTS'
@@ -25,4 +29,6 @@ export type FinalSeriesEligibility = {
   // Numeric suffix of the latest round (e.g. "Heat A7" -> 7), for the message.
   latestRoundNumber: number | null;
   raceCountBreakdown: { name: string; count: number }[];
+  /** The library's reason when not ok. */
+  message?: string;
 };

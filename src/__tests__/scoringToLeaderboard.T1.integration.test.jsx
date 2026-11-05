@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { fireEvent, render, screen, waitFor } from './helpers/renderWithQuery';
 import HeatRacePage from '../renderer/pages/HeatRacePage/HeatRacePage';
 import LeaderboardPage from '../renderer/pages/LeaderboardPage/LeaderboardPage';
+import { eventStatusView, statusHeat } from './helpers/eventStatus';
 
 jest.mock('exceljs', () => {
   return function ExcelJS() {
@@ -161,6 +162,19 @@ describe('T1 integration: scoring flow to leaderboard display', () => {
             .mockImplementation(async (heatId) => racesByHeat[heatId] || []),
           readBoatsByHeat: jest.fn().mockResolvedValue(boats),
           getMaxHeatSize: jest.fn().mockResolvedValue(10),
+          readEventStatus: jest.fn().mockResolvedValue(
+            eventStatusView({
+              series: 'qualifying',
+              round: 1,
+              heats: [statusHeat(10, 'Heat A1')],
+              next: {
+                kind: 'score',
+                heat_id: 10,
+                heat_name: 'Heat A1',
+                race: 1,
+              },
+            }),
+          ),
           submitHeatRaceScoresAtomic: jest
             .fn()
             .mockImplementation(async ({ heat_id, placeNumbers }) => {

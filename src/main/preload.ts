@@ -72,7 +72,7 @@ const SQLITE_CHANNELS = {
     'getMaxHeatSize',
     'explainTieBreak',
     'explainBoatScore',
-    'getFinalSeriesEligibility',
+    'readEventStatus',
     'exportEventSnapshotToFile',
     'restoreEventSnapshotFromFile',
     'importEventSnapshotFromFile',

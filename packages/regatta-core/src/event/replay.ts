@@ -69,7 +69,7 @@ const qualifyingStarted = (state: EventState) =>
 const finalStarted = (state: EventState) => state.fleets !== null;
 
 /** Every heat of the current round has sailed the same number of races. */
-function roundComplete(state: EventState): boolean {
+export function roundComplete(state: EventState): boolean {
   const counts = currentRound(state)
     .filter((heat) => heat.boats.length > 0)
     .map((heat) => heat.races.length);
@@ -125,16 +125,28 @@ function checkLines(
   }
 }
 
+/**
+ * Why a heat's races can no longer change (a race scored, or its last race
+ * taken out), or null while it is open: a qualifying heat closes when the
+ * Final Series starts (the fleets were split on the qualifying ranking,
+ * SHRS 4.2) and when the next round is built from its round (SHRS 3.1(2)).
+ * Final fleets stay open (SHRS 4.5).
+ */
+export function closedHeat(state: EventState, heat: Heat): string | null {
+  if (heat.series !== 'qualifying') return null;
+  if (finalStarted(state)) {
+    return 'The Final Series has started: qualifying heats are closed.';
+  }
+  if (!currentRound(state).includes(heat)) {
+    return `${heat.id} is from an earlier round; that round is closed.`;
+  }
+  return null;
+}
+
 function scorableHeat(state: EventState, id: string): Heat {
   const heat = findHeat(state, id) ?? refuse(`There is no heat ${id}.`);
-  if (heat.series === 'qualifying') {
-    if (finalStarted(state)) {
-      refuse('The Final Series has started: qualifying heats are closed.');
-    }
-    if (!currentRound(state).includes(heat)) {
-      refuse(`${id} is from an earlier round; that round is closed.`);
-    }
-  }
+  const closed = closedHeat(state, heat);
+  if (closed) refuse(closed);
   return heat;
 }
 
@@ -745,6 +757,26 @@ export type ReplayResult =
       /** The event as the decisions before it left it. */
       state: EventState;
     };
+
+/**
+ * Whether `decision` would be accepted after the decisions that left the
+ * event in `state`: exactly what `replay([...log, decision])` answers, since
+ * replay applies each decision to the state the ones before it left. The
+ * state is not changed.
+ */
+export function tryDecision(
+  state: EventState,
+  decision: Decision,
+): { ok: true; state: EventState } | { ok: false; reason: string } {
+  const next = clone(state);
+  try {
+    applyDecision(next, decision);
+  } catch (error) {
+    if (!(error instanceof Refusal)) throw error;
+    return { ok: false, reason: error.message };
+  }
+  return { ok: true, state: next };
+}
 
 /** The event after every decision in `log`, or the first refusal. */
 export function replay(log: readonly Decision[]): ReplayResult {

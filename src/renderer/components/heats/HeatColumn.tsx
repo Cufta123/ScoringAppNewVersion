@@ -10,9 +10,15 @@ interface HeatColumnProps {
   /** Boats may be dragged to another heat (no race scored, no final series). */
   boatsDraggable: boolean;
   onBoatDrop: (e: React.DragEvent, toHeatId: number) => void;
-  /** Passed for the heats of the current round only (older ones are done). */
+  /**
+   * Passed when the event status offers the action for this heat (a heat
+   * of the round being sailed, or a fleet); older heats are done.
+   */
   onScore?: ((heat: HeatWithBoats) => void) | null;
   onUndoLastRace?: ((heat: HeatWithBoats) => void) | null;
+  /** Why the rules refuse it now (the button is disabled with this title). */
+  scoreRefused?: string | null;
+  undoRefused?: string | null;
   actionsDisabled?: boolean;
 }
 
@@ -33,6 +39,8 @@ function HeatColumn({
   onBoatDrop,
   onScore = null,
   onUndoLastRace = null,
+  scoreRefused = null,
+  undoRefused = null,
   actionsDisabled = false,
 }: HeatColumnProps) {
   const nextRace = heat.raceNumber + 1;
@@ -107,26 +115,30 @@ function HeatColumn({
           ))}
         </tbody>
       </table>
-      {(onScore || (onUndoLastRace && heat.raceNumber > 0)) && (
+      {(onScore || onUndoLastRace) && (
         <div className="heat-card-actions">
           {onScore && (
             <button
               type="button"
               className="btn-outline"
               onClick={() => onScore(heat)}
-              disabled={actionsDisabled}
+              disabled={actionsDisabled || scoreRefused !== null}
+              title={scoreRefused ?? undefined}
               aria-label={`Score race ${nextRace} in ${heat.heat_name}`}
             >
               <i className="fa fa-play" aria-hidden="true" /> Score race{' '}
               {nextRace}
             </button>
           )}
-          {onUndoLastRace && heat.raceNumber > 0 && (
+          {onUndoLastRace && (
             <button
               type="button"
               className="btn-ghost"
-              title={`Delete Race ${heat.raceNumber} in ${heat.heat_name}`}
-              disabled={actionsDisabled}
+              title={
+                undoRefused ??
+                `Delete Race ${heat.raceNumber} in ${heat.heat_name}`
+              }
+              disabled={actionsDisabled || undoRefused !== null}
               aria-busy={actionsDisabled}
               onClick={() => onUndoLastRace(heat)}
             >

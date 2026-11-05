@@ -4,14 +4,13 @@ import useHeatList from '../hooks/useHeatList';
 import useHeatManagement from '../hooks/useHeatManagement';
 import useHeatSnapshots from '../hooks/useHeatSnapshots';
 import useFinalSeriesStart from '../hooks/useFinalSeriesStart';
-import { getLastHeats } from '../utils/heatView';
+import useEventStatus from '../hooks/useEventStatus';
 import type { HeatWithBoats } from '../utils/heatView';
 import AppModal from './shared/AppModal';
 import UnassignedEntriesNotice from './UnassignedEntriesNotice';
 import HeatColumn from './heats/HeatColumn';
 import HeatSetupBar from './heats/HeatSetupBar';
 import RoundBar from './heats/RoundBar';
-import { roundStatus } from '../utils/roundStatus';
 import HeatsExportDialog from './export/HeatsExportDialog';
 import type { EventRow } from '../types';
 
@@ -78,21 +77,25 @@ function HeatComponent({
     runExclusive,
   });
 
-  const lastHeats = useMemo(() => getLastHeats(heats), [heats]);
+  // Where the event stands and what may be done now: regatta-core's
+  // eventStatus. The round being sailed, the next step and every button's
+  // verdict come from it; this screen decides nothing about rounds.
+  const { status, loadFailed: statusFailed } = useEventStatus(eventId);
+  const current = useMemo(
+    () => new Map((status?.heats ?? []).map((heat) => [heat.heat_id, heat])),
+    [status],
+  );
+  // Without a status (its read failed, and was reported) every heat is
+  // shown, with no buttons: the list is still there to read.
+  const lastHeats = useMemo(
+    () =>
+      statusFailed ? heats : heats.filter((heat) => current.has(heat.heat_id)),
+    [heats, current, statusFailed],
+  );
   const heatsToDisplay = displayLastHeats ? lastHeats : heats;
   const hasMultipleRounds = heats.length > lastHeats.length;
 
-  const status = useMemo(
-    () => roundStatus(heats, { finalSeriesStarted }),
-    [heats, finalSeriesStarted],
-  );
-  const currentHeatIds = useMemo(
-    () => new Set(lastHeats.map((heat) => heat.heat_id)),
-    [lastHeats],
-  );
-
   const canSetUp = !raceHappened && !finalSeriesStarted;
-  const canStartFinalSeries = numQualifyingGroups >= 2 && !finalSeriesStarted;
 
   return (
     <div className="section-block">
@@ -122,7 +125,7 @@ function HeatComponent({
 
       <RoundBar
         status={status}
-        canStartFinalSeries={canStartFinalSeries}
+        heats={heats}
         busy={busy || rowActionsDisabled}
         noHeats={heatsToDisplay.length === 0}
         onScore={onScoreHeat}
@@ -200,24 +203,21 @@ function HeatComponent({
       {heatsToDisplay.length > 0 && (
         <div className="heats-container">
           {heatsToDisplay.map((heat) => {
-            const current = currentHeatIds.has(heat.heat_id);
+            // The status offers a heat's buttons (a heat of the round being
+            // sailed, or a fleet) and says why one is refused.
+            const shown = current.get(heat.heat_id);
+            const score = shown?.score;
+            const undo = shown?.undoRace;
             return (
               <HeatColumn
                 key={heat.heat_id}
                 heat={heat}
                 boatsDraggable={canSetUp}
                 onBoatDrop={management.dropBoat}
-                onScore={
-                  current &&
-                  // SHRS 3.2: in a qualifying round of several heats each heat
-                  // races once, then the boats are redistributed.
-                  (finalSeriesStarted ||
-                    numQualifyingGroups < 2 ||
-                    heat.raceNumber === 0)
-                    ? onScoreHeat
-                    : null
-                }
-                onUndoLastRace={current ? onUndoLastRace : null}
+                onScore={score?.offered ? onScoreHeat : null}
+                scoreRefused={score && !score.ok ? score.reason : null}
+                onUndoLastRace={undo?.offered ? onUndoLastRace : null}
+                undoRefused={undo && !undo.ok ? undo.reason : null}
                 actionsDisabled={busy || rowActionsDisabled}
               />
             );

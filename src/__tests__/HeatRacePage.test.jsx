@@ -101,6 +101,32 @@ const heat = {
   heat_type: 'Qualifying',
 };
 
+/** readEventStatus with Heat A1 as the status shows it. */
+const statusWith = (heatStatus) => ({
+  series: 'qualifying',
+  round: 1,
+  heats: [
+    {
+      heat_id: 10,
+      heat_name: 'Heat A1',
+      boat_ids: [],
+      races: 0,
+      score: { ok: true, offered: true },
+      undoRace: { ok: false, offered: false, reason: 'Nothing to undo.' },
+      ...heatStatus,
+    },
+  ],
+  next: { kind: 'score', heat_id: 10, heat_name: 'Heat A1', race: 1 },
+  createRound: { ok: false, offered: false, reason: 'Not yet.' },
+  undoRound: { ok: false, offered: false, reason: 'First round.' },
+  startFinal: {
+    ok: false,
+    offered: true,
+    reason: 'Not yet.',
+    eligibility: { ok: false, reason: 'UNEQUAL_RACE_COUNTS' },
+  },
+});
+
 describe('HeatRacePage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -117,6 +143,7 @@ describe('HeatRacePage', () => {
           readAllHeats: jest.fn().mockResolvedValue([heat]),
           readBoatsByHeat: jest.fn().mockResolvedValue([]),
           readAllRaces: jest.fn().mockResolvedValue([]),
+          readEventStatus: jest.fn().mockResolvedValue(statusWith({})),
           submitHeatRaceScoresAtomic: jest
             .fn()
             .mockResolvedValue({ ok: true, raceNumber: 1, raceId: 999 }),
@@ -169,6 +196,49 @@ describe('HeatRacePage', () => {
       isFinalSeries: false,
     });
   });
+
+  // SHRS 3.1 / 3.2: the status says whether the round still expects this
+  // heat's race; a race it does not (allowed by the rules) is asked first.
+  it.each([
+    [{ races: 0, score: { ok: true, offered: true } }, false],
+    [{ races: 1, score: { ok: true, offered: false } }, true],
+  ])(
+    'asks before a race the round does not expect (%j)',
+    async (heatStatus, asked) => {
+      window.electron.sqlite.heatRaceDB.readEventStatus.mockResolvedValue(
+        statusWith(heatStatus),
+      );
+      render(
+        <MemoryRouter
+          initialEntries={[
+            { pathname: '/event/Test Event/heat-race', state: { event } },
+          ]}
+        >
+          <Routes>
+            <Route
+              path="/event/:eventName/heat-race"
+              element={<HeatRacePage />}
+            />
+          </Routes>
+        </MemoryRouter>,
+      );
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Start scoring mock' }),
+      );
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Submit scoring mock' }),
+      );
+      await waitFor(() =>
+        expect(
+          window.electron.sqlite.heatRaceDB.submitHeatRaceScoresAtomic,
+        ).toHaveBeenCalledTimes(1),
+      );
+      const warned = confirmAction.mock.calls.some(([text]) =>
+        String(text).includes('has already completed Race 1'),
+      );
+      expect(warned).toBe(asked);
+    },
+  );
 
   // The exit guard used to read a boolean "submitting" ref and, when it was
   // set, announce "Your scores were saved" and allow the exit. That ref is true

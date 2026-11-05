@@ -135,10 +135,19 @@ export const queries = {
         (await heatRaceDB.getMaxHeatSize(eventId, heatType)) || 0,
     }),
 
-  finalSeriesEligibility: (eventId: number) =>
+  /**
+   * Where the event stands and what the race office may do now, with the
+   * reasons (regatta-core's eventStatus): the round bar, the heat cards'
+   * buttons, Undo round, Start Final Series and the entries page's line.
+   */
+  eventStatus: (eventId: number) =>
     queryOptions({
-      queryKey: queryKeys.finalSeriesEligibility(eventId),
-      queryFn: () => heatRaceDB.getFinalSeriesEligibility(eventId),
+      queryKey: queryKeys.eventStatus(eventId),
+      queryFn: async () => {
+        const status = await heatRaceDB.readEventStatus(eventId);
+        if (!status) throw new Error('The event status came back empty.');
+        return status;
+      },
     }),
 
   scoreExplanation: (eventId: number, boatId: number) =>
