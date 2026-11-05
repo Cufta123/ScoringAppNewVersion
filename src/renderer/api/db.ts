@@ -29,6 +29,7 @@ import type {
   HeatBoatRow,
   HeatRow,
   InsertResult,
+  LeaderboardEditPreview,
   OverallLeaderboardEntry,
   RaceRow,
   RawLeaderboardEntry,
@@ -36,6 +37,7 @@ import type {
   TieBreakResult,
 } from '../types';
 import type { HistoryAction } from '../../shared/history/describe';
+import type { SaveRaceOperation } from '../utils/leaderboardSave';
 import type {
   ImportOwnerConflict,
   ImportSailorsSummary,
@@ -192,6 +194,14 @@ export interface HeatRaceDB {
   undoLatestHeatRedistribution(...args: unknown[]): Promise<unknown>;
   transferBoatBetweenHeats(...args: unknown[]): Promise<unknown>;
   saveLeaderboardRaceResultsAtomic(...args: unknown[]): Promise<unknown>;
+  /**
+   * The rows Save would give for these races (saved, read back, rolled
+   * back), or the rules' refusal in words.
+   */
+  previewLeaderboardEdit(
+    eventId: number,
+    operations: SaveRaceOperation[],
+  ): Promise<LeaderboardEditPreview>;
   submitHeatRaceScoresAtomic(...args: unknown[]): Promise<unknown>;
   startFinalSeriesAtomic(...args: unknown[]): Promise<unknown>;
   getMaxHeatSize(eventId: number, seriesType: string): Promise<number>;

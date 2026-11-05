@@ -126,6 +126,8 @@ type Score = {
   round: number;
   raceNumber: number;
   points: number;
+  /** Excluded (SHRS 5.4), as the library decided. */
+  excluded?: boolean;
 };
 
 /** The per-race columns for a boat's scores, in race order. */
@@ -149,6 +151,7 @@ function raceColumns(
       status: cell?.status ?? 'DNC',
       held_place: cell?.held_place ?? '',
       points: score.points,
+      excluded: score.excluded ? 1 : 0,
     };
   });
   const join = (key: keyof (typeof columns)[number]) =>
@@ -159,6 +162,9 @@ function raceColumns(
     race_ids: join('race_id'),
     race_statuses: join('status'),
     race_held_places: join('held_place'),
+    // 1 where the score is excluded (SHRS 5.4): the screens mark these and
+    // never work the discards out themselves.
+    race_excluded: join('excluded'),
   };
 }
 

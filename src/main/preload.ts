@@ -50,6 +50,7 @@ const SQLITE_CHANNELS = {
     'transferBoatBetweenHeats',
     'readLeaderboard',
     'saveLeaderboardRaceResultsAtomic',
+    'previewLeaderboardEdit',
     'submitHeatRaceScoresAtomic',
     'readFinalLeaderboard',
     'readOverallLeaderboard',

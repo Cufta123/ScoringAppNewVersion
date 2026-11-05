@@ -56,3 +56,28 @@ export function applyToEvent(
     return { before, after: result.state, log: next };
   })();
 }
+
+const ROLLBACK = Symbol('preview');
+
+/**
+ * What a change would give, without keeping it: the change is applied
+ * exactly as `applyToEvent` applies it (log, replay, tables), `read` runs on
+ * the result, and the transaction is rolled back. A screen that previews
+ * with this shows what the write would store, because it is the write.
+ */
+export function previewOnEvent<T>(
+  eventId: number,
+  change: Parameters<typeof applyToEvent>[1],
+  read: (applied: Applied) => T,
+): T {
+  let result: { value: T } | undefined;
+  try {
+    db.transaction(() => {
+      result = { value: read(applyToEvent(eventId, change)) };
+      throw ROLLBACK;
+    })();
+  } catch (error) {
+    if (error !== ROLLBACK) throw error;
+  }
+  return result!.value;
+}

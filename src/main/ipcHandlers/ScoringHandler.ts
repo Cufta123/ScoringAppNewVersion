@@ -6,7 +6,7 @@ import {
 } from 'regatta-core';
 import { db } from '../../../public/Database/DBManager';
 import handle from './handle';
-import { applyToEvent } from '../functions/libraryWrite';
+import { applyToEvent, previewOnEvent } from '../functions/libraryWrite';
 import { correctionDecisions } from '../functions/libraryCorrection';
 import { sanitizePositiveInteger } from '../functions/validation';
 import { coreHeatId } from '../functions/eventLog';
@@ -15,6 +15,12 @@ import {
   scoringPenaltyStatuses,
 } from '../functions/scoreStatus';
 import { logError } from '../errorLog';
+import { explainError } from '../../shared/errors/explainError';
+import {
+  finalRows,
+  overallRows,
+  qualifyingRows,
+} from '../functions/libraryStandings';
 import { getLatestRaceForHeat, requireHeat } from '../functions/heatQueries';
 import { lockDiscardProfileForRace } from '../functions/eventSettings';
 import { assertQualifyingHeatIsOpen } from '../functions/seriesGuards';
@@ -270,11 +276,6 @@ handle(
       );
     }
 
-    // Rollback guard for the in-memory assignment-snapshot cache: the cache
-    // Map survives a DB rollback, so back up each touched race's frozen rows
-    // and restore them wholesale on failure. A presence-only guard is not
-    // enough because an unshield mutates an existing entry rather than adding
-    // one (RULE-M21).
     // Each saved race becomes the race office's corrected sheet and the
     // committee's decisions that changed; regatta-core works the event out
     // again and the tables follow, all in one transaction.
@@ -295,3 +296,45 @@ handle(
     return { success: true, updatedCount: safeOperations.length };
   },
 );
+
+/**
+ * The leaderboard edit preview: the races as the edit screen shows them,
+ * saved exactly as Save saves them, read back, and rolled back. The screen
+ * shows these rows, so what is shown before Save is what Save stores. A
+ * change the rules refuse comes back as `{ ok: false, reason }` (the words
+ * Save would refuse with), not as an error.
+ */
+handle('previewLeaderboardEdit', async (_event, raw_event_id, operations) => {
+  const event_id = Number(raw_event_id);
+  const safeOperations = (Array.isArray(operations) ? operations : []).filter(
+    (operation) => Array.isArray(operation?.cells),
+  );
+  try {
+    return previewOnEvent(
+      event_id,
+      {
+        decide: (state) =>
+          safeOperations.flatMap((operation) =>
+            correctionDecisions(
+              event_id,
+              state,
+              Number(operation.raceId),
+              operation.cells,
+            ),
+          ),
+      },
+      () => ({
+        ok: true as const,
+        eventResults: qualifyingRows(event_id),
+        finalResults: finalRows(event_id),
+        overallResults: overallRows(event_id),
+      }),
+    );
+  } catch (error) {
+    // The rules' refusal is the answer; anything else is a failure (handle()
+    // logs and words it).
+    const explained = explainError(error);
+    if (explained.kind !== 'refusal') throw error;
+    return { ok: false as const, reason: explained.message };
+  }
+});

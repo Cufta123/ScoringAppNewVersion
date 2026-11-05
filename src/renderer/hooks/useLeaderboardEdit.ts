@@ -18,6 +18,10 @@ import {
   withRedressAverage,
 } from '../utils/leaderboardEdit';
 import { buildRaceOperations } from '../utils/leaderboardSave';
+import {
+  buildStandings,
+  type DiscardProfiles,
+} from '../utils/leaderboardStandings';
 import type { LeaderboardEditSession } from './useLeaderboardEditSession';
 import { cloneEntries } from '../utils/leaderboardUtils';
 import type { LeaderboardEntry } from '../types';
@@ -29,6 +33,7 @@ interface EditInputs {
   leaderboard: LeaderboardEntry[];
   eventLeaderboard: LeaderboardEntry[];
   discardProfile: string;
+  discardProfiles: DiscardProfiles;
   /** Largest heat of the series being edited (SHRS 5.2). */
   maxHeatSize: number;
   fetchLeaderboard: () => Promise<void>;
@@ -49,6 +54,7 @@ export default function useLeaderboardEdit(
     leaderboard,
     eventLeaderboard,
     discardProfile,
+    discardProfiles,
     maxHeatSize,
     fetchLeaderboard,
     checkFinalSeriesStarted,
@@ -98,6 +104,63 @@ export default function useLeaderboardEdit(
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [hasUnsavedChanges]);
+
+  // The library's answer for the latest edit only: an answer to an earlier
+  // edit that arrives late is dropped.
+  const previewSeqRef = useRef(0);
+  // Leaving edit mode, a save or new saved rows make any answer on its way
+  // out of date.
+  useEffect(() => {
+    previewSeqRef.current += 1;
+  }, [editMode, savedRows]);
+
+  /**
+   * Show what Save would store. The rows just edited (re-ranked here at
+   * once) are sent as Save sends them; the main process saves them,
+   * reads the standings back and rolls back (previewLeaderboardEdit), and
+   * those rows replace the draft. So totals, discards, redress averages and
+   * places on screen are regatta-core's, not a second calculation. Without
+   * an answer (an older main process) the draft stays as worked out here;
+   * Save is the check either way.
+   */
+  const previewWithLibrary = (rows: LeaderboardEntry[]) => {
+    if (editIsStaleRef.current) return;
+    previewSeqRef.current += 1;
+    const seq = previewSeqRef.current;
+    let request: ReturnType<typeof heatRaceDB.previewLeaderboardEdit>;
+    try {
+      request = heatRaceDB.previewLeaderboardEdit(
+        eventId,
+        buildRaceOperations(rows, savedRows, userEditsRef.current),
+      );
+    } catch {
+      return;
+    }
+    Promise.resolve(request)
+      .then((preview) => {
+        if (seq !== previewSeqRef.current || !preview) return undefined;
+        if (editIsStaleRef.current || savingRef.current) return undefined;
+        if (!preview.ok) {
+          reportWarning(preview.reason, 'This change cannot be saved');
+          return undefined;
+        }
+        const { leaderboard: shown } = buildStandings({
+          eventResults: preview.eventResults,
+          finalResults: preview.finalResults,
+          overallResults: preview.overallResults,
+          finalSeriesStarted,
+          profiles: discardProfiles,
+        });
+        const byBoat = new Map(shown.map((row) => [row.boat_id, row]));
+        setEditableLeaderboard((current) =>
+          current.map((row) => byBoat.get(row.boat_id) ?? row),
+        );
+        return undefined;
+      })
+      .catch(() => {
+        // No preview: the draft stays as worked out here.
+      });
+  };
 
   const toggleEditMode = async () => {
     if (editMode && hasUnsavedChanges) {
@@ -210,6 +273,7 @@ export default function useLeaderboardEdit(
       userEditsRef.current.set(key, edit),
     );
     setEditableLeaderboard(refreshed.rows);
+    previewWithLibrary(refreshed.rows);
   };
 
   const confirmRdg2 = () => {
@@ -293,6 +357,7 @@ export default function useLeaderboardEdit(
     );
     setEditableLeaderboard(refreshed.rows);
     setRdg2Picker(null);
+    previewWithLibrary(refreshed.rows);
   };
 
   const handleSave = async () => {

@@ -164,6 +164,27 @@ export const applyExclusions = (
   };
 };
 
+/** Mark the scores the library excluded and total the rest. */
+const markExcluded = (
+  rawPositions: string[],
+  scoreValues: string[],
+  excludedFlags: string[],
+): { markedRaces: string[]; total: number } => {
+  const excluded = (i: number) => excludedFlags[i] === '1';
+  return {
+    markedRaces: rawPositions.map((race, i) =>
+      excluded(i)
+        ? `(${stripExclusionParens(race)})`
+        : stripExclusionParens(race),
+    ),
+    total: sumPoints(
+      scoreValues
+        .filter((_value, i) => !excluded(i))
+        .map((value) => parseFloat(stripExclusionParens(value)) || 0),
+    ),
+  };
+};
+
 /**
  * Process a raw leaderboard DB entry into display-ready format.
  */
@@ -185,15 +206,22 @@ export const processLeaderboardEntry = (
   const { race_held_places: heldCsv, ...columns } = entry;
   const heldPlaces =
     typeof heldCsv === 'string' ? { race_held_places: heldCsv.split(',') } : {};
-  const { markedRaces, total } = applyExclusions(
-    races,
-    race_statuses,
-    race_points,
-    discardProfile,
-    seriesRaceCount,
-  );
+  // The excluded scores as regatta-core decided them (every read from the
+  // main process carries them); worked out here only for rows without them.
+  const excludedCsv =
+    typeof entry.race_excluded === 'string' ? entry.race_excluded : null;
+  const { markedRaces, total } = excludedCsv
+    ? markExcluded(races, race_points, excludedCsv.split(','))
+    : applyExclusions(
+        races,
+        race_statuses,
+        race_points,
+        discardProfile,
+        seriesRaceCount,
+      );
+  const { race_excluded: _excluded, ...shown } = columns;
   return {
-    ...columns,
+    ...shown,
     races: markedRaces,
     race_points,
     race_ids,
@@ -204,7 +232,7 @@ export const processLeaderboardEntry = (
     // total can be stale if the profile changed without a recompute. Fall back
     // to the stored value only when there are no races to compute from.
     computed_total:
-      races.length > 0
+      races.length > 0 && !excludedCsv
         ? total
         : (entry.total_points_final ?? entry.total_points_event ?? null),
   };

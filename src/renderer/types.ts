@@ -201,6 +201,8 @@ export interface RawLeaderboardEntry {
   race_statuses?: string | null;
   /** RRS A6.2: the place each RDG / DPI cell kept ('' for none), as CSV. */
   race_held_places?: string | null;
+  /** 1 where the score is excluded (SHRS 5.4, decided by regatta-core). */
+  race_excluded?: string | null;
   total_points_final?: number | null;
   total_points_event?: number | null;
   /** Results of a qualifying round still being sailed (not counted). */
@@ -252,6 +254,19 @@ export interface OverallLeaderboardEntry {
   overall_rank?: number | null;
   [key: string]: unknown;
 }
+
+/**
+ * What the leaderboard edit would save (previewLeaderboardEdit): the three
+ * reads as they would be after Save, or the rules' refusal.
+ */
+export type LeaderboardEditPreview =
+  | {
+      ok: true;
+      eventResults: RawLeaderboardEntry[];
+      finalResults: RawLeaderboardEntry[];
+      overallResults: OverallLeaderboardEntry[];
+    }
+  | { ok: false; reason: string };
 
 // --- Tie-break (SHRS 5.7) explanation, from `explainTieBreak` ----------------
 // Defined once in src/shared/scoring/tieBreakTypes.ts (the main process builds

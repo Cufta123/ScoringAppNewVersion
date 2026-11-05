@@ -47,6 +47,7 @@ export default function useLeaderboard(eventId: number) {
     discardProfile: finalSeriesStarted
       ? discardProfiles.final
       : discardProfiles.qualifying,
+    discardProfiles,
     maxHeatSize: finalSeriesStarted
       ? maxHeatSizes.final
       : maxHeatSizes.qualifying,

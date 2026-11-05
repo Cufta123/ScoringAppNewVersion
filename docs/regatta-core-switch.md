@@ -19,8 +19,9 @@ commits. The comparison test (`regattaCore.differential`) runs throughout.
 - Reads (`readLeaderboard`, final, overall, explanations, eligibility,
   heats for the next round, the Final split) come from the replayed log.
 - Undo, "go back to a point", and backups work on the log.
-- The renderer runs the library itself for the edit preview, so what is
-  shown before Save is what Save stores.
+- The edit preview is the library's answer: the main process saves the
+  edit as Save would, reads the standings back and rolls back, so what is
+  shown before Save is what Save stores (it is the same code).
 - Removed: `Leaderboard`, `FinalLeaderboard`, `GlobalLeaderboard`, the
   recompute, the per-boat scoring/standings code in `src/main/functions`
   and `src/shared/scoring`, the SHRS 3.1(5) snapshot tables.
@@ -66,7 +67,12 @@ keep in step.
 - [x] Phase 2: the leaderboard reads, both explanations and the Final Series eligibility come from the library (`libraryStandings`, `libraryExplain`, `libraryEvent`). `getMaxHeatSize` stays on the tables until the writes move
 - [x] Phase 3: every scoring write goes through the library (`libraryWrite`); the event's decision log is stored (`Decisions`, migration 9, `decisionStore`), converted from the tables the first time an event is used (notes and anomalies in `EventLogs`); reads replay the stored log; the tables are the projection. Restores of backups, imports and the old history paths convert the tables again (until phase 4). A boat's details edit is a boatChanged in each of her events
 - [x] Phase 4: undo from the history and going back to a point work on the stored log (`logHistory`): an undo withdraws the action's decisions and brings back, as its own, the ones it withdrew (so undoing an undo works the same way); going back makes the log what it was right after that action, and the event's own columns come back from the journal. A point before the event's log was converted uses the row-based history and converts again. Chaos (200 sessions) and the comparison (200 events) pass
-- [ ] Phase 5
+- [ ] Phase 5 (in progress)
+  - [x] The Final Series refuses a round built but not sailed (R7): the screen says to undo or sail it
+  - [x] The event form reads the discard locks and `qualifying_started` from the races (R11)
+  - [x] Every read carries the library's excluded scores (`race_excluded`); the screens mark them and take the library's totals
+  - [x] The edit preview is the library's: each edit is saved as Save saves it, read back and rolled back (`previewLeaderboardEdit`, `libraryWrite.previewOnEvent`), and those rows replace the draft. Before, the draft kept the places from before the edit (29 of 30 random sessions); `leaderboardEdit.wysiwyg` now checks the whole draft against the leaderboard after Save, qualifying and Final
+  - [ ] The renderer's own discard / redress / column maths only gives the instant draft; move it to the library or drop it (phase 6)
 - [ ] Phase 6
 
 ## Conversion

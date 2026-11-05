@@ -284,6 +284,80 @@ describe('leaderboard edits: Save writes exactly what the screen shows', () => {
   });
 });
 
+// What the leaderboard shows for a boat, edit mode or not.
+const shownRow = (row) => ({
+  boat: row.boat_id,
+  races: row.races,
+  points: row.race_points,
+  statuses: row.race_statuses,
+  held: row.race_held_places ?? null,
+  total: row.computed_total,
+  place: row.place ?? null,
+  overall: row.total_points_combined ?? null,
+  overallRank: row.overall_rank ?? null,
+});
+const settle = () =>
+  act(async () => {
+    for (let i = 0; i < 5; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    }
+  });
+
+/** The leaderboard after Save shows what the draft showed, boat by boat. */
+function expectDraftSaved(seed, draft, rows) {
+  const byBoat = new Map(rows.map((row) => [row.boat_id, shownRow(row)]));
+  expect({ seed, rows: draft }).toEqual({
+    seed,
+    rows: draft.map((row) => byBoat.get(row.boat)),
+  });
+}
+
+describe('the draft is the leaderboard Save gives (the library previews every edit)', () => {
+  const SEEDS = Array.from(
+    { length: Number(process.env.EDIT_SEEDS || 30) },
+    (_, i) => i + 1,
+  );
+  it.each(SEEDS)('seed %i', async (seed) => {
+    const rand = prng(seed * 7919);
+    const eventId = await scoredEvent(rand, {
+      boats: 8 + Math.floor(rand() * 16),
+      heats: 2 + Math.floor(rand() * 2),
+      rounds: 1 + Math.floor(rand() * 3),
+    });
+    const { result, unmount } = await openEditor(eventId);
+
+    const edits = 1 + Math.floor(rand() * 6);
+    for (let k = 0; k < edits; k += 1) {
+      const edit = randomEdit(rand, result.current.editableLeaderboard);
+      act(() => {
+        result.current.handleRaceChange(
+          edit.entry.boat_id,
+          edit.raceIndex,
+          edit.value,
+          edit.status,
+        );
+      });
+      // eslint-disable-next-line no-await-in-loop
+      await settle();
+    }
+    const draft = result.current.editableLeaderboard.map(shownRow);
+
+    mockChoice.current = 'extra';
+    await act(async () => {
+      await result.current.handleSave();
+    });
+    expect(reportError).not.toHaveBeenCalled();
+    await waitFor(() => expect(result.current.editMode).toBe(false));
+
+    expectDraftSaved(seed, draft, result.current.leaderboard);
+    unmount();
+    db.close();
+  });
+});
+
 describe('a single correction scores the race as if it had been entered so', () => {
   const SEEDS = Array.from(
     { length: Number(process.env.EDIT_SEEDS || 30) },
@@ -451,15 +525,20 @@ describe('final series edits: Save writes exactly what the screen shows', () => 
           edit.status,
         );
       });
+      // eslint-disable-next-line no-await-in-loop
+      await settle();
     }
     const shown = [...touched].map((raceId) => ({
       raceId,
       boats: shownRace(result.current.editableLeaderboard, raceId),
     }));
+    const draft = result.current.editableLeaderboard.map(shownRow);
     await act(async () => {
       await result.current.handleSave();
     });
     expect(reportError).not.toHaveBeenCalled();
+    await waitFor(() => expect(result.current.editMode).toBe(false));
+    expectDraftSaved(seed, draft, result.current.leaderboard);
     shown.forEach(({ raceId, boats }) => {
       expect({ seed, raceId, race: savedRace(raceId) }).toEqual({
         seed,

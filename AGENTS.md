@@ -358,7 +358,16 @@ Shared (renderer + main) — one definition per rule, imported by both processes
   whole races (an operation without `cells` is refused); the old per-boat
   `updateRaceResult` / `applyRaceResultUpdate` path and its `shift_positions`
   flag are gone. The preview (`handleRaceChange`) and the main process both
-  call this module; do not reintroduce a local copy.
+  call this module; do not reintroduce a local copy. That local re-rank is
+  only the instant draft: after every edit the hook sends the touched races
+  to `previewLeaderboardEdit`, which saves them exactly as Save does, reads
+  the three standings back and rolls back (`libraryWrite.previewOnEvent`);
+  those rows replace the draft, so totals, discards, redress averages and
+  places on screen are regatta-core's. A change the rules refuse comes back
+  as `{ ok: false, reason }` and is shown as a warning. Reads carry
+  `race_excluded` (1 per excluded score); `processLeaderboardEntry` marks
+  those and takes the library's total, and works discards out itself only
+  for rows without it.
 
 When extending the handler, keep this pattern: pure logic goes in a
 `functions/` module (so it is unit-testable), the handler only wires IPC.
