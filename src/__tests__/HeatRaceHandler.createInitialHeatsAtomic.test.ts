@@ -1,147 +1,146 @@
-export {};
-
-// BK-4: createInitialHeatsAtomic must reject a heat-creation request whose boats
-// share a sail number (or have empty sail numbers) instead of silently dropping
-// one of them from the serpentine assignment.
-
-type PrepareStatement = {
-  get?: (...args: any[]) => any;
-  all?: (...args: any[]) => any[];
-  run?: (...args: any[]) => any;
-};
+/** @jest-environment node */
+/**
+ * Creating the first heats (createInitialHeatsAtomic), through the real
+ * handler on real SQLite: the screen's checks (boats it cannot tell
+ * apart), then regatta-core's SHRS 3.1(1) draw.
+ */
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { DatabaseSync } = require('node:sqlite');
 
 const handlerRegistry: Record<string, (...args: any[]) => any> = {};
-
 jest.mock('electron', () => ({
   ipcMain: {
     handle: jest.fn((channel: string, callback: (...args: any[]) => any) => {
       handlerRegistry[channel] = callback;
     }),
+    on: jest.fn(),
   },
+  dialog: { showSaveDialog: jest.fn(), showOpenDialog: jest.fn() },
+  app: { getPath: jest.fn(() => '/tmp') },
 }));
 
-function sqlContains(sql: string, fragment: string) {
-  return sql.replace(/\s+/g, ' ').trim().includes(fragment);
-}
+const mockDbHolder: { current: any } = { current: null };
+jest.mock('../../public/Database/DBManager', () => {
+  // eslint-disable-next-line global-require
+  const { createSqliteDbMock } = require('./fixtures/eventLifecycleSchema');
+  // eslint-disable-next-line no-use-before-define
+  return { db: createSqliteDbMock(mockDbHolderRef) };
+});
+const mockDbHolderRef = mockDbHolder;
 
-type BoatRow = {
-  boat_id: number;
-  sail_number: string | number;
-  country: string;
-};
-let boats: BoatRow[];
-const insertedHeats: Array<{
-  event_id: number;
-  heat_name: string;
-  heat_type: string;
-}> = [];
-const insertedHeatBoats: Array<{ heat_id: number; boat_id: number }> = [];
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { migrate } = require('../../public/Database/schema');
 
-const dbMock = {
-  transaction: jest.fn((fn: (...args: any[]) => any) => fn),
-  prepare: jest.fn((sql: string): PrepareStatement => {
-    if (
-      sqlContains(sql, 'SELECT COUNT(*) AS count FROM Heats WHERE event_id = ?')
-    ) {
-      return { get: jest.fn(() => ({ count: 0 })) };
-    }
-    if (sqlContains(sql, 'SELECT b.boat_id, b.sail_number, b.country')) {
-      return { all: jest.fn(() => boats.map((b) => ({ ...b }))) };
-    }
-    if (
-      sqlContains(
-        sql,
-        'INSERT INTO Heats (event_id, heat_name, heat_type) VALUES (?, ?, ?)',
-      )
-    ) {
-      return {
-        run: jest.fn(
-          (event_id: number, heat_name: string, heat_type: string) => {
-            insertedHeats.push({ event_id, heat_name, heat_type });
-            return { lastInsertRowid: 100 + insertedHeats.length, changes: 1 };
-          },
-        ),
-      };
-    }
-    if (
-      sqlContains(sql, 'INSERT INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)')
-    ) {
-      return {
-        run: jest.fn((heat_id: number, boat_id: number) => {
-          insertedHeatBoats.push({ heat_id, boat_id });
-          return { changes: 1 };
-        }),
-      };
-    }
-    throw new Error(`Unhandled SQL in test mock: ${sql}`);
-  }),
-};
+const call = (channel: string, ...args: any[]) =>
+  handlerRegistry[channel]({}, ...args);
+const EVENT = 1;
+let db: any;
 
-jest.mock('../../public/Database/DBManager', () => ({ db: dbMock }));
+beforeAll(() => {
+  jest.spyOn(console, 'log').mockImplementation(() => {});
+  jest.spyOn(console, 'warn').mockImplementation(() => {});
+  jest.spyOn(console, 'error').mockImplementation(() => {});
+  require('../main/ipcHandlers/HeatRaceHandler');
+});
+afterAll(() => jest.restoreAllMocks());
+beforeEach(() => {
+  db = new DatabaseSync(':memory:');
+  db.exec('PRAGMA foreign_keys = ON');
+  migrate(db);
+  mockDbHolder.current = db;
+  db.prepare(
+    `INSERT INTO Events (event_id, event_name, event_location, start_date, end_date)
+     VALUES (?, 'E', 'X', '2026-05-01', '2026-05-02')`,
+  ).run(EVENT);
+});
+afterEach(() => db.close());
 
-describe('createInitialHeatsAtomic duplicate-sail guard (BK-4)', () => {
-  beforeAll(() => {
-    // eslint-disable-next-line global-require
-    require('../main/ipcHandlers/HeatRaceHandler');
+/** Entered directly, as older data or an import can hold them. */
+const enter = (boats: [string, unknown][]) =>
+  boats.forEach(([country, sail], i) => {
+    db.prepare(
+      'INSERT INTO Boats (boat_id, sail_number, country, model) VALUES (?, ?, ?, ?)',
+    ).run(i + 1, sail, country, 'IOM');
+    db.prepare('INSERT INTO Boat_Event (boat_id, event_id) VALUES (?, ?)').run(
+      i + 1,
+      EVENT,
+    );
   });
+const heats = () =>
+  db
+    .prepare(
+      `SELECT h.heat_name, b.country || ' ' || b.sail_number AS boat
+       FROM Heats h JOIN Heat_Boat hb ON hb.heat_id = h.heat_id
+       JOIN Boats b ON b.boat_id = hb.boat_id ORDER BY h.heat_name, boat`,
+    )
+    .all()
+    .map((row: any) => `${row.heat_name}: ${row.boat}`);
 
-  beforeEach(() => {
-    boats = [
-      { boat_id: 1, sail_number: '101', country: 'CRO' },
-      { boat_id: 2, sail_number: '102', country: 'CRO' },
-      { boat_id: 3, sail_number: '103', country: 'CRO' },
-    ];
-    insertedHeats.length = 0;
-    insertedHeatBoats.length = 0;
-    dbMock.prepare.mockClear();
-    dbMock.transaction.mockClear();
+it('draws two nations sharing a sail number (ITA 12, CRO 12)', async () => {
+  enter([
+    ['CRO', 101],
+    ['AUS', 101],
+  ]);
+  await expect(call('createInitialHeatsAtomic', EVENT, 2)).resolves.toEqual({
+    success: true,
+    createdHeats: 2,
+    assignedBoats: 2,
   });
+  expect(heats()).toEqual(['Heat A1: AUS 101', 'Heat B1: CRO 101']);
+});
 
-  it('creates heats when two nations share a sail number (ITA 12, CRO 12)', async () => {
-    boats = [
-      { boat_id: 1, sail_number: '101', country: 'CRO' },
-      { boat_id: 2, sail_number: '101', country: 'AUS' },
-    ];
+it('refuses the same boat entered twice, and writes nothing', async () => {
+  enter([
+    ['CRO', 101],
+    ['CRO', 101],
+  ]);
+  await expect(call('createInitialHeatsAtomic', EVENT, 2)).rejects.toThrow(
+    /CRO 101 is entered 2 times/,
+  );
+  expect(heats()).toEqual([]);
+});
 
-    await expect(
-      handlerRegistry.createInitialHeatsAtomic({}, 1, 2),
-    ).resolves.toMatchObject({ success: true, assignedBoats: 2 });
+it('refuses two boats with no sail number', async () => {
+  enter([
+    ['CRO', ''],
+    ['AUS', ''],
+  ]);
+  await expect(call('createInitialHeatsAtomic', EVENT, 2)).rejects.toThrow(
+    /2 boats have no sail number/,
+  );
+});
+
+it('draws SHRS 3.1(1): national letters, then sail number, A B B A', async () => {
+  enter([
+    ['CRO', 3],
+    ['CRO', 1],
+    ['AUS', 9],
+    ['CRO', 2],
+  ]);
+  await expect(call('createInitialHeatsAtomic', EVENT, 2)).resolves.toEqual({
+    success: true,
+    createdHeats: 2,
+    assignedBoats: 4,
   });
+  // Seeded AUS 9, CRO 1, CRO 2, CRO 3 -> A, B, B, A.
+  expect(heats()).toEqual([
+    'Heat A1: AUS 9',
+    'Heat A1: CRO 3',
+    'Heat B1: CRO 1',
+    'Heat B1: CRO 2',
+  ]);
+});
 
-  it('rejects heat creation when the same sail is entered twice', async () => {
-    boats = [
-      { boat_id: 1, sail_number: '101', country: 'CRO' },
-      { boat_id: 2, sail_number: ' 101', country: 'CRO' },
-    ];
-
-    await expect(
-      handlerRegistry.createInitialHeatsAtomic({}, 1, 2),
-    ).rejects.toThrow(/CRO 101 is entered 2 times/);
-
-    expect(insertedHeats).toHaveLength(0);
-    expect(insertedHeatBoats).toHaveLength(0);
-  });
-
-  it('rejects heat creation when two boats have an empty sail number', async () => {
-    boats = [
-      { boat_id: 1, sail_number: '', country: 'CRO' },
-      { boat_id: 2, sail_number: '', country: 'AUS' },
-    ];
-
-    await expect(
-      handlerRegistry.createInitialHeatsAtomic({}, 1, 2),
-    ).rejects.toThrow(/2 boats have no sail number/);
-  });
-
-  it('still creates heats for boats with distinct sail numbers', async () => {
-    const result = await handlerRegistry.createInitialHeatsAtomic({}, 1, 2);
-
-    expect(result).toMatchObject({
-      success: true,
-      createdHeats: 2,
-      assignedBoats: 3,
-    });
-    expect(insertedHeats).toHaveLength(2);
-    expect(insertedHeatBoats).toHaveLength(3);
-  });
+it('refuses heats that already exist, and more heats than boats (SHRS 2.1)', async () => {
+  enter([
+    ['CRO', 1],
+    ['CRO', 2],
+  ]);
+  await expect(call('createInitialHeatsAtomic', EVENT, 3)).rejects.toThrow(
+    /2 boats cannot fill 3 heats/,
+  );
+  await call('createInitialHeatsAtomic', EVENT, 1);
+  await expect(call('createInitialHeatsAtomic', EVENT, 1)).rejects.toThrow(
+    /Heats already exist/,
+  );
 });

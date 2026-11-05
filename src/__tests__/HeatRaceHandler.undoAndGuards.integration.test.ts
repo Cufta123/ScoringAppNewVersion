@@ -220,11 +220,20 @@ describe('undo, series guards and missed-round DNCs (real SQLite, FKs on)', () =
       expect(boatsIn(db, 'Heat B1')).toContain(LATE_ENTRY);
     });
 
-    it('refuses a heat that has already raced', async () => {
+    it('takes her into a heat that has raced: DNC for its race (RRS A5.1, parity R3)', async () => {
       await scoreHeat(db, 'Heat A1');
       await expect(
         handlerRegistry.insertHeatBoat({}, heatId(db, 'Heat A1'), LATE_ENTRY),
-      ).rejects.toThrow(/already raced/);
+      ).resolves.toMatchObject({ lastInsertRowid: expect.any(Number) });
+      const dnc = db
+        .prepare(
+          `SELECT s.status FROM Scores s JOIN Races r ON r.race_id = s.race_id
+           JOIN Heats h ON h.heat_id = r.heat_id
+           WHERE h.heat_name = 'Heat A1' AND s.boat_id = ?`,
+        )
+        .all(LATE_ENTRY);
+      // The round is not complete (B1 has not sailed): no DNC yet.
+      expect(dnc).toEqual([]);
     });
 
     it('refuses a second heat in the same round', async () => {
@@ -235,7 +244,7 @@ describe('undo, series guards and missed-round DNCs (real SQLite, FKs on)', () =
       );
       await expect(
         handlerRegistry.insertHeatBoat({}, heatId(db, 'Heat B1'), LATE_ENTRY),
-      ).rejects.toThrow(/already in Heat A1/);
+      ).rejects.toThrow(/already in a heat of this round/);
     });
 
     it('refuses a boat that is not entered in the event', async () => {

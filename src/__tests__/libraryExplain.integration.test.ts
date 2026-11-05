@@ -346,8 +346,11 @@ async function runEvent(seed: number) {
   const rounds = 2 + Math.floor(rand() * 4);
   for (let round = 1; round <= rounds; round += 1) {
     if (round > 1) {
-      // eslint-disable-next-line no-await-in-loop
-      await call('createNewHeatsBasedOnLeaderboard', eventId);
+      // One heat sails as one fleet: its races go on in A1 (SHRS 1.1).
+      if (heatCount > 1) {
+        // eslint-disable-next-line no-await-in-loop
+        await call('createNewHeatsBasedOnLeaderboard', eventId);
+      }
       if (rand() < 0.15) {
         // Entered late, in no heat: DNC in every race she missed (RRS A5.1).
         // eslint-disable-next-line no-await-in-loop

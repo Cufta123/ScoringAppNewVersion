@@ -152,8 +152,8 @@ describe('correctness review (real SQLite, FKs on)', () => {
     });
   });
 
-  describe('RRS A8.2 with a heat that sails two races before the next round', () => {
-    it('ranks the tied boats on the race sailed last (race numbers restart every round)', async () => {
+  describe('RRS A8.2 in a one-fleet event', () => {
+    it('ranks the tied boats on the race sailed last', async () => {
       db = seed(4);
       const [P, Q, X, Y] = [1, 2, 3, 4];
       await handlerRegistry.createInitialHeatsAtomic({}, EVENT_ID, 1);
@@ -171,12 +171,12 @@ describe('correctness review (real SQLite, FKs on)', () => {
         );
         expect(result.ok).toBe(true);
       };
-      // Round 1: two races in Heat A1 (race numbers 1 and 2), then round 2:
-      // one race in Heat A2 (race number 1, but the last race sailed).
+      // One heat sails as one fleet (SHRS 1.1): three races in Heat A1.
+      // (It used to build a round "A2" for one heat; regatta-core keeps the
+      // fleet in A1, and the race numbers carry on.)
       await sail('Heat A1', [P, X, Y, Q]);
       await sail('Heat A1', [Q, P, X, Y]);
-      await handlerRegistry.createNewHeatsBasedOnLeaderboard({}, EVENT_ID);
-      await sail('Heat A2', [P, Y, Q, X]);
+      await sail('Heat A1', [P, Y, Q, X]);
       const lastRaceId = db
         .prepare('SELECT MAX(race_id) AS id FROM Races')
         .get().id as number;

@@ -90,6 +90,9 @@ const GUARDS: RegExp[] = [
   /Nothing was changed after this point/i,
   /has no qualifying heats yet/i, // back to before the heats
   /No boats are registered for this event yet/i, // back to before the entries
+  /boats cannot fill .* heats/i, // more heats than boats (SHRS 2.1, parity R4)
+  /must sail the same races first/i, // round incomplete (regatta-core)
+  /fleet sails as one/i, // no new round for one heat (SHRS 1.1)
 ];
 
 const isGuard = (error: unknown) =>

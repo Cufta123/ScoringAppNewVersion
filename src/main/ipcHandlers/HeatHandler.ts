@@ -2,26 +2,13 @@ import { db } from '../../../public/Database/DBManager';
 import handle from './handle';
 import { applyToEvent } from '../functions/libraryWrite';
 import { coreHeatId } from '../functions/eventLog';
-import {
-  assignBoatsToInitialHeatsSerpentine,
-  checkRaceCountForLatestHeats,
-  compareByCountryThenSail,
-} from '../functions/creatingNewHeatsUtls';
+import { checkRaceCountForLatestHeats } from '../functions/creatingNewHeatsUtls';
 import {
   getLatestQualifyingHeats,
-  getRaceCountForHeat,
   requireHeat,
 } from '../functions/heatQueries';
-import { getHeatRoundFromName } from '../functions/scoreStatus';
-import {
-  SHRS_MAX_BOATS_PER_HEAT,
-  getEventQualifyingAssignmentMode,
-} from '../functions/eventSettings';
-import {
-  getLatestRaceRowsForHeats,
-  getOddEvenMovementAdvisory,
-} from '../functions/raceSeeding';
-import { getAssignmentRowsForHeatRace } from '../functions/assignmentShield';
+import { SHRS_MAX_BOATS_PER_HEAT } from '../functions/eventSettings';
+import { getOddEvenMovementAdvisory } from '../functions/raceSeeding';
 import {
   assertQualifyingHeatIsOpen,
   hasFinalSeriesStarted,
@@ -30,10 +17,6 @@ import {
   describeIndistinguishable,
   findIndistinguishableBoats,
 } from '../../shared/boatKeys';
-import prepareHeatWriters from '../functions/heatWriters';
-import planNextRound, {
-  type PreAssignedBoat,
-} from '../functions/nextRoundPlan';
 
 handle('readAllHeats', async (event, event_id) => {
   const heats = db
@@ -45,9 +28,6 @@ handle('readAllHeats', async (event, event_id) => {
 handle('insertHeatBoat', async (event, heat_id, boat_id) => {
   const heatRow = requireHeat(heat_id);
 
-  // Used to place a late entry (UnassignedEntriesNotice). Only safe where it
-  // cannot rewrite a result: an entered boat, into a qualifying heat of the
-  // current round that has not raced, and not already in that round.
   if (heatRow.heat_type === 'Final') {
     throw new Error(
       'Boats cannot be added to a Final Series fleet: fleets are fixed once the Final Series starts (SHRS 4.1).',
@@ -60,55 +40,31 @@ handle('insertHeatBoat', async (event, heat_id, boat_id) => {
   if (!entered) {
     throw new Error('That boat is not entered in this event.');
   }
-  if (getRaceCountForHeat(Number(heat_id)) > 0) {
-    throw new Error(
-      `"${heatRow.heat_name}" has already raced, so a boat cannot join it. Add her to a heat that has not raced yet.`,
-    );
-  }
-  const round = getHeatRoundFromName(heatRow.heat_name);
-  const alreadyInRound = (
-    db
-      .prepare(
-        `SELECT h.heat_name FROM Heat_Boat hb
-         JOIN Heats h ON h.heat_id = hb.heat_id
-         WHERE hb.boat_id = ? AND h.event_id = ? AND h.heat_type = 'Qualifying'`,
-      )
-      .all(boat_id, heatRow.event_id) as { heat_name: string }[]
-  ).find(
-    (row) =>
-      getHeatRoundFromName(row.heat_name) === round &&
-      row.heat_name !== heatRow.heat_name,
-  );
-  if (alreadyInRound) {
-    throw new Error(
-      `That boat is already in ${alreadyInRound.heat_name} this round.`,
-    );
-  }
-
-  const boatsInHeat = db
-    .prepare('SELECT COUNT(*) as count FROM Heat_Boat WHERE heat_id = ?')
-    .get(heat_id) as { count: number };
-
-  if (boatsInHeat.count >= SHRS_MAX_BOATS_PER_HEAT) {
-    throw new Error(
-      `Cannot assign more than ${SHRS_MAX_BOATS_PER_HEAT} boats to one heat.`,
-    );
-  }
-
-  // BK-1: OR IGNORE so re-adding a boat already in this heat is a benign no-op
-  // rather than a UNIQUE-constraint throw now that (heat_id, boat_id) is unique.
-  const result = db
-    .prepare('INSERT OR IGNORE INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)')
-    .run(heat_id, boat_id);
-  return { lastInsertRowid: result.lastInsertRowid };
+  // A late entry joins a heat of the current round (boatAssigned), also
+  // one that has raced: she is DNC for its races (RRS A5.1, parity R3).
+  // regatta-core refuses a second heat this round and a 21st boat.
+  applyToEvent(Number(heatRow.event_id), {
+    decide: () => [
+      {
+        type: 'boatAssigned',
+        boat: String(boat_id),
+        heat: coreHeatId(heatRow.heat_name),
+      },
+    ],
+  });
+  const row = db
+    .prepare('SELECT rowid FROM Heat_Boat WHERE heat_id = ? AND boat_id = ?')
+    .get(heat_id, boat_id) as { rowid: number } | undefined;
+  return { lastInsertRowid: row?.rowid ?? 0 };
 });
 
 /**
- * Validate an initial-heat split and work out where every boat goes, WITHOUT
- * writing anything. Separated from the insert so "recreate" can prove the new
- * split is buildable before it throws the current heats away.
+ * What the screen must hear before heats are drawn, in its own terms: the
+ * heat count, entries to draw, boats it could not tell apart, and the
+ * fewest heats for the entries (SHRS 2.3). The draw itself (SHRS 3.1(1)) is
+ * regatta-core's.
  */
-function planInitialHeats(event_id: number, num_heats: unknown) {
+function checkInitialHeats(event_id: number, num_heats: unknown) {
   const numHeats = Number(num_heats);
   if (!Number.isInteger(numHeats) || numHeats < 1 || numHeats > 26) {
     throw new Error('Number of heats must be between 1 and 26.');
@@ -133,9 +89,6 @@ function planInitialHeats(event_id: number, num_heats: unknown) {
     );
   }
 
-  // Boats are placed by boat_id, so ITA 12 and CRO 12 are fine; only two
-  // boats no one could tell apart in scoring (same letters and number) stop
-  // the heats from being made.
   const indistinguishable = findIndistinguishableBoats(boats);
   if (indistinguishable.length > 0) {
     throw new Error(
@@ -151,31 +104,18 @@ function planInitialHeats(event_id: number, num_heats: unknown) {
         `Use at least ${minHeats} heats.`,
     );
   }
-
-  boats.sort(compareByCountryThenSail);
-  const heatIndices = assignBoatsToInitialHeatsSerpentine(
-    boats.length,
-    numHeats,
-  );
-  return { numHeats, boats, heatIndices };
+  return numHeats;
 }
 
-/** Write a plan from `planInitialHeats`. Caller supplies the transaction. */
-function insertPlannedInitialHeats(
-  event_id: number,
-  plan: ReturnType<typeof planInitialHeats>,
-) {
-  const { insertHeatStmt, insertHeatBoatStmt } = prepareHeatWriters();
-  const heatIds: number[] = [];
-  for (let i = 0; i < plan.numHeats; i += 1) {
-    const heatName = `Heat ${String.fromCharCode(65 + i)}1`;
-    const inserted = insertHeatStmt.run(event_id, heatName, 'Qualifying');
-    heatIds.push(Number(inserted.lastInsertRowid));
-  }
-  plan.boats.forEach((boat, i) => {
-    insertHeatBoatStmt.run(heatIds[plan.heatIndices[i]], boat.boat_id);
+/** The first round, drawn by regatta-core (heatsCreated). */
+function drawFirstRound(event_id: number, numHeats: number) {
+  const { after } = applyToEvent(event_id, {
+    decide: () => [{ type: 'heatsCreated', heatCount: numHeats }],
   });
-  return { createdHeats: plan.numHeats, assignedBoats: plan.boats.length };
+  return {
+    createdHeats: numHeats,
+    assignedBoats: after.rounds[0].flatMap((heat) => heat.boats).length,
+  };
 }
 
 /**
@@ -198,55 +138,6 @@ function assertNoScoredRacesForEvent(event_id: number) {
   }
 }
 
-/** Drop an event's heats and their assignments. Caller supplies the transaction. */
-function wipeHeatsForEvent(event_id: number) {
-  try {
-    db.prepare(
-      `DELETE FROM RaceAssignmentSnapshots WHERE race_id IN (
-        SELECT r.race_id FROM Races r
-        JOIN Heats h ON r.heat_id = h.heat_id
-        WHERE h.event_id = ?
-      )`,
-    ).run(event_id);
-  } catch (_snapshotError) {
-    // Older databases may not have RaceAssignmentSnapshots yet.
-  }
-
-  db.prepare(
-    `DELETE FROM Scores WHERE race_id IN (
-      SELECT r.race_id FROM Races r
-      JOIN Heats h ON r.heat_id = h.heat_id
-      WHERE h.event_id = ?
-    )`,
-  ).run(event_id);
-
-  db.prepare(
-    `DELETE FROM Races WHERE heat_id IN (
-      SELECT heat_id FROM Heats WHERE event_id = ?
-    )`,
-  ).run(event_id);
-
-  const heatBoats = db
-    .prepare(
-      'DELETE FROM Heat_Boat WHERE heat_id IN (SELECT heat_id FROM Heats WHERE event_id = ?)',
-    )
-    .run(event_id);
-
-  const heatRows = db
-    .prepare('DELETE FROM Heats WHERE event_id = ?')
-    .run(event_id);
-
-  return {
-    heatBoatsChanges: heatBoats.changes,
-    heatsChanges: heatRows.changes,
-  };
-}
-
-// First-round heat creation, atomically: validates up front (boats exist, the
-// SHRS 20-boat cap holds), seeds boats by SHRS 3 order and assigns them with
-// the SHRS 3.1 serpentine — all in one transaction so a failure can never
-// leave half-created heats behind (the old renderer-side per-row IPC loop
-// could die at the 21st boat of a heat with no rollback).
 handle('createInitialHeatsAtomic', async (_event, raw_event_id, num_heats) => {
   const event_id = Number(raw_event_id);
   const existingHeats = db
@@ -258,11 +149,8 @@ handle('createInitialHeatsAtomic', async (_event, raw_event_id, num_heats) => {
 
   // Validation, SHRS 3 seeding order and the SHRS 3.1 serpentine assignment
   // all resolve before the transaction opens, so a failure writes nothing.
-  const plan = planInitialHeats(event_id, num_heats);
-  const createHeats = db.transaction(() =>
-    insertPlannedInitialHeats(event_id, plan),
-  );
-  return { success: true, ...createHeats() };
+  const numHeats = checkInitialHeats(event_id, num_heats);
+  return { success: true, ...drawFirstRound(event_id, numHeats) };
 });
 
 /**
@@ -285,13 +173,10 @@ handle(
   async (_event, raw_event_id, num_heats) => {
     const event_id = Number(raw_event_id);
     assertNoScoredRacesForEvent(event_id);
-    const plan = planInitialHeats(event_id, num_heats);
-
-    const recreate = db.transaction(() => {
-      wipeHeatsForEvent(event_id);
-      return insertPlannedInitialHeats(event_id, plan);
-    });
-    return { success: true, ...recreate() };
+    const numHeats = checkInitialHeats(event_id, num_heats);
+    // A new first round replaces the heats (regatta-core refuses once
+    // racing has started); one transaction, so a refusal keeps the old ones.
+    return { success: true, ...drawFirstRound(event_id, numHeats) };
   },
 );
 
@@ -340,64 +225,15 @@ handle('createNewHeatsBasedOnLeaderboard', async (event, raw_event_id) => {
   }
   const latestHeats = getLatestQualifyingHeats(event_id);
   checkRaceCountForLatestHeats(latestHeats, db);
-  const raceRows = getLatestRaceRowsForHeats(latestHeats);
-
-  // All reads first, then plan, then one transaction of writes.
-  const mode = getEventQualifyingAssignmentMode(event_id);
-  const boatsByHeatId = new Map<number, PreAssignedBoat[]>();
-  const rankedBoatIdsByHeatId = new Map<number, number[]>();
-  if (mode === 'pre-assigned') {
-    const boatsInHeatQuery = db.prepare(
-      `SELECT hb.boat_id, b.country, b.sail_number
-       FROM Heat_Boat hb
-       JOIN Boats b ON b.boat_id = hb.boat_id
-       WHERE hb.heat_id = ?`,
-    );
-    latestHeats.forEach((heat) => {
-      boatsByHeatId.set(
-        heat.heat_id,
-        boatsInHeatQuery.all(heat.heat_id) as PreAssignedBoat[],
-      );
-    });
-  } else {
-    raceRows.forEach((row) => {
-      rankedBoatIdsByHeatId.set(
-        row.heat_id,
-        getAssignmentRowsForHeatRace(row.heat_id, row.race_id).map(
-          (boat) => boat.boat_id,
-        ),
-      );
-    });
-  }
-
-  const plan = planNextRound({
-    latestHeats,
-    mode,
-    boatsByHeatId,
-    rankedBoatIdsByHeatId,
+  // The next round (SHRS 3.1 Heat Movement Table, or the 3.2 published
+  // assignment) is regatta-core's: roundCreated.
+  const { after } = applyToEvent(event_id, {
+    decide: () => [{ type: 'roundCreated' }],
   });
-  if (!plan.ok) {
-    throw new Error(plan.refusal);
-  }
-
-  // Persist the new heats and their boat assignments atomically so a failure
-  // can never leave half-created heats behind.
-  const { insertHeatStmt, insertHeatBoatStmt } = prepareHeatWriters();
-  const persistNewHeats = db.transaction(() => {
-    const heatIds = plan.heatNames.map((heatName) =>
-      Number(
-        insertHeatStmt.run(event_id, heatName, 'Qualifying').lastInsertRowid,
-      ),
-    );
-    plan.assignments.forEach(({ heatIndex, boatId }) => {
-      insertHeatBoatStmt.run(heatIds[heatIndex], boatId);
-    });
-  });
-  persistNewHeats();
-
+  const round = after.rounds[after.rounds.length - 1];
   const advisory = getOddEvenMovementAdvisory(
-    plan.heatCount,
-    plan.assignments.length,
+    round.length,
+    round.reduce((n, heat) => n + heat.boats.length, 0),
   );
 
   return advisory ? { success: true, advisory } : { success: true };
@@ -436,24 +272,30 @@ handle('undoLatestHeatRedistribution', async (event, raw_event_id) => {
     );
   }
 
-  const deleteHeatBoatQuery = db.prepare(
-    'DELETE FROM Heat_Boat WHERE heat_id = ?',
-  );
-  const deleteHeatQuery = db.prepare('DELETE FROM Heats WHERE heat_id = ?');
-
-  const transaction = db.transaction(() => {
-    let removedAssignments = 0;
-    let removedHeats = 0;
-
-    latestHeats.forEach((heat) => {
-      removedAssignments += deleteHeatBoatQuery.run(heat.heat_id).changes;
-      removedHeats += deleteHeatQuery.run(heat.heat_id).changes;
-    });
-
-    return { removedAssignments, removedHeats };
+  // Take the round out of the log (with the late entries assigned to it)
+  // and let regatta-core work the event out again.
+  const round = maxSuffix;
+  const inRound = (heat: string) => heat.endsWith(String(round));
+  let removedAssignments = 0;
+  applyToEvent(event_id, {
+    rewrite: (log, state) => {
+      removedAssignments = state.rounds[round - 1].reduce(
+        (n, heat) => n + heat.boats.length,
+        0,
+      );
+      const at = log.map((d) => d.type).lastIndexOf('roundCreated');
+      return log.filter(
+        (decision, i) =>
+          i !== at &&
+          !(
+            i > at &&
+            ((decision.type === 'boatAssigned' && inRound(decision.heat)) ||
+              (decision.type === 'boatMoved' && inRound(decision.to)))
+          ),
+      );
+    },
   });
-
-  const result = transaction();
+  const result = { removedAssignments, removedHeats: latestHeats.length };
   return {
     success: true,
     removedAssignments: result.removedAssignments,
