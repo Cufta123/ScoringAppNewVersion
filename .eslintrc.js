@@ -286,9 +286,7 @@ module.exports = {
         extensions: ['.js', '.jsx', '.ts', '.tsx'],
         moduleDirectory: ['node_modules', 'src/'],
       },
-      webpack: {
-        config: require.resolve('./.erb/configs/webpack.config.eslint.ts'),
-      },
+      // tsconfig.json `paths`: `regatta-core` is packages/regatta-core/src.
       typescript: {},
     },
     'import/parsers': {

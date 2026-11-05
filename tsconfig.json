@@ -13,7 +13,7 @@
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "allowJs": true,
-    "outDir": ".erb/dll",
+    "outDir": "out/tsc",
     "paths": {
       "regatta-core": ["./packages/regatta-core/src/index.ts"],
       "regatta-core/*": ["./packages/regatta-core/*"]
@@ -23,7 +23,8 @@
     "test",
     "release/build",
     "release/app/dist",
-    ".erb/dll",
+    "out",
+    "electron.vite.config.ts",
     "report-worker"
   ]
 }

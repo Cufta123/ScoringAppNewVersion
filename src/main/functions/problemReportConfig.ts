@@ -8,7 +8,7 @@
  */
 export const PROBLEM_REPORT_ENDPOINT =
   'https://iom-report.antonio-luksic2002.workers.dev/report';
-// Put in at build time (webpack.config.main.prod.ts) from IOM_REPORT_KEY or
+// Put in at build time (electron.vite.config.ts) from IOM_REPORT_KEY or
 // the git-ignored .report-key file: the repository is public, the key is not.
 export const PROBLEM_REPORT_APP_KEY = process.env.IOM_REPORT_KEY ?? '';
 

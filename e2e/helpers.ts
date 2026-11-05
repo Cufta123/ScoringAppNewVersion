@@ -8,10 +8,11 @@ import {
   type Page,
 } from '@playwright/test';
 
-// Path to the built main bundle. Production mode makes resolveHtmlPath load the
-// built renderer from disk (file://) instead of the dev server, so these tests
-// require a production build at `release/app/dist` (run `npm run build` first,
-// or use `npm run test:smoke`).
+// Path to the built main bundle (`electron-vite build`). The production build
+// loads the built renderer from disk (file://, release/app/dist/renderer)
+// instead of the dev server, so these tests require a production build at
+// `release/app/dist` (run `npm run build` first, or use `npm run test:smoke`).
+// `npm start`'s dev build is in out/ and is never used here.
 export const MAIN_ENTRY = path.join(
   __dirname,
   '..',

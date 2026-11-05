@@ -37,3 +37,39 @@ export function resolveDataDir({
   );
   return legacy || userData;
 }
+
+/**
+ * Where `npm start` (the app run from this repository, unpackaged) keeps its
+ * database, relative to the repository: git-ignored, because it holds real
+ * names.
+ */
+export const DEV_DATA_DIR = path.join('public', 'Database', 'data');
+
+/**
+ * Where the webpack dev build (before electron-vite, Nov 2026) kept it: next
+ * to its main bundle in .erb/dll, so in practice there and not in
+ * DEV_DATA_DIR.
+ */
+export const LEGACY_DEV_DATA_DIRS = [
+  path.join('.erb', 'dll', 'public', 'Database', 'data'),
+];
+
+/**
+ * The developer's data folder: DEV_DATA_DIR when it has a database (or when
+ * no earlier dev folder has), else the earlier one that has, so switching
+ * build tools does not hide the developer's data.
+ */
+export function resolveDevDataDir({
+  repoRoot,
+  exists,
+}: {
+  repoRoot: string;
+  exists: (file: string) => boolean;
+}): string {
+  const current = path.join(repoRoot, DEV_DATA_DIR);
+  if (exists(path.join(current, DB_FILE))) return current;
+  const legacy = LEGACY_DEV_DATA_DIRS.map((dir) =>
+    path.join(repoRoot, dir),
+  ).find((dir) => exists(path.join(dir, DB_FILE)));
+  return legacy || current;
+}

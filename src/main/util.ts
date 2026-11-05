@@ -1,37 +1,30 @@
 /* eslint import/prefer-default-export: off */
 import { URL } from 'url';
 import path from 'path';
-import fs from 'fs';
 
+/**
+ * The page the main window loads. `npm start` (electron-vite dev) serves the
+ * renderer from its dev server, with hot reload, and says where in
+ * ELECTRON_RENDERER_URL; every other run loads the built page beside the
+ * main bundle's folder (release/app/dist/renderer, or the packaged copy).
+ */
 export function resolveHtmlPath(htmlFileName: string) {
-  const filePath = path.resolve(__dirname, '../renderer/', htmlFileName);
-  // In development prefer the dev server URL, but if the built file exists
-  // (e.g. when running a packaged/unpacked release) prefer the file URL.
-  if (process.env.NODE_ENV === 'development') {
-    const port = process.env.PORT || 1212;
-    const url = new URL(`http://localhost:${port}`);
+  const devServer = process.env.ELECTRON_RENDERER_URL;
+  if (process.env.NODE_ENV === 'development' && devServer) {
+    const url = new URL(devServer);
     url.pathname = htmlFileName;
-    try {
-      if (!fs.existsSync(filePath)) return url.href;
-    } catch (_) {
-      return url.href;
-    }
+    return url.href;
   }
-
+  const filePath = path.resolve(__dirname, '../renderer/', htmlFileName);
   return `file://${filePath}`;
 }
 
+/**
+ * The preload bundle, built beside the main bundle's folder (out/preload in
+ * dev, release/app/dist/preload in the build and the packaged app).
+ */
 export function resolvePreloadPath(): string {
-  // Prefer the built preload that sits next to the main bundle — this is correct
-  // both when packaged and when running an unpackaged production build. Fall back
-  // to the dev DLL location only when that built file is absent.
-  const builtPreload = path.resolve(__dirname, 'preload.js');
-  try {
-    if (fs.existsSync(builtPreload)) return builtPreload;
-  } catch (_) {
-    // fall through to the dev path
-  }
-  return path.resolve(__dirname, '../../.erb/dll/preload.js');
+  return path.resolve(__dirname, '../preload/preload.js');
 }
 
 /**

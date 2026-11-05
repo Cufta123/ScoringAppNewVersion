@@ -61,6 +61,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
+          # 20.19+: electron-vite and Vite 8 need it (the latest 20.x is).
           node-version: 20
           cache: npm
 
@@ -72,7 +73,7 @@ jobs:
       - name: Typecheck (tsc --noEmit)
         run: npm run typecheck
 
-      - name: Build Webpack (React / main code)
+      - name: Build (electron-vite: main, preload, renderer)
         # The problem-report key goes into the released app (repo secret).
         env:
           IOM_REPORT_KEY: ${{ secrets.IOM_REPORT_KEY }}
@@ -106,6 +107,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
+          # 20.19+: electron-vite and Vite 8 need it (the latest 20.x is).
           node-version: 20
           cache: npm
 
@@ -113,7 +115,7 @@ jobs:
         # postinstall rebuilds better-sqlite3 against the bundled Electron.
         run: npm install
 
-      - name: Build Webpack (React / main code)
+      - name: Build (electron-vite: main, preload, renderer)
         run: npm run build
 
       - name: Install Electron GUI system libraries + Xvfb

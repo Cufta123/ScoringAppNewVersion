@@ -20,6 +20,8 @@ node_modules
 
 release/app/dist
 release/build
+# Before electron-vite (Nov 2026) `npm start` kept the developer database in
+# .erb/dll/public/Database/data; DBManager still uses it where it exists.
 .erb/dll
 
 .idea
@@ -31,6 +33,7 @@ npm-debug.log.*
 # The developer database (npm start) holds real names: never commit it
 public/Database/data/
 
+# electron-vite's dev build (npm start) and tsc's incremental info
 out/
 # Playwright
 /test-results/

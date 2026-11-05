@@ -14,7 +14,7 @@ import {
   hasUserData,
   writeBackup,
 } from './backup';
-import { resolveDataDir } from './dataLocation';
+import { DB_FILE, resolveDataDir, resolveDevDataDir } from './dataLocation';
 
 /**
  * The app's connection. Typed, so the compiler checks how it is used; a
@@ -36,6 +36,8 @@ export type Db = Database.Database;
 // Installed, the data lives in Electron's data folder, or in the folder an
 // earlier build (named after the template) used, if that is where the
 // results are (dataLocation.ts). The app's own browser data follows it.
+// Run from the repository (`npm start`), it lives in the repository
+// (resolveDevDataDir), whichever build tool built the main process.
 const packagedDbPath = (): string => {
   const dir = resolveDataDir({
     userData: app.getPath('userData'),
@@ -43,14 +45,18 @@ const packagedDbPath = (): string => {
     exists: fs.existsSync,
   });
   if (dir !== app.getPath('userData')) app.setPath('userData', dir);
-  return path.join(dir, 'scoring_app.db');
+  return path.join(dir, DB_FILE);
 };
+
+const devDbPath = (): string =>
+  path.join(
+    resolveDevDataDir({ repoRoot: app.getAppPath(), exists: fs.existsSync }),
+    DB_FILE,
+  );
 
 export const dbPath: string =
   process.env.SCORING_APP_DB_PATH ||
-  (app.isPackaged
-    ? packagedDbPath()
-    : path.join(__dirname, 'public', 'Database', 'data', 'scoring_app.db'));
+  (app.isPackaged ? packagedDbPath() : devDbPath());
 
 const dataDir = path.dirname(dbPath);
 console.log(`Database path: ${dbPath}`);

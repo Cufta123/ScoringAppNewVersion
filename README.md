@@ -5,7 +5,7 @@ Desktop app for running and scoring IOM regattas (Electron + React).
 ## Requirements
 
 - Windows 10/11
-- Node.js 20.x or newer
+- Node.js 20.19+ or 22.12+ (electron-vite / Vite 8)
 - npm 10.x or newer
 
 ## Project Root
@@ -24,12 +24,24 @@ npm install
 npm start
 ```
 
-If `npm start` fails because old build artifacts are missing/corrupt, run:
+`npm start` runs `electron-vite dev --watch`: the window loads the renderer
+from the Vite dev server on `http://localhost:1212` (`PORT=4343 npm start`
+for another port) with hot reload; a change in `src/main` rebuilds the main
+process and restarts the app. The dev build goes to `out/` (git-ignored),
+never over the production build. The developer database is
+`public\Database\data\scoring_app.db` (git-ignored), or
+`.erb\dll\public\Database\data\scoring_app.db` where the old webpack dev
+build left one.
+
+## Build
 
 ```cmd
-npm run build:dll
-npm start
+npm run build
 ```
+
+`electron-vite build` (config: `electron.vite.config.ts`) writes the
+production main, preload and renderer to `release\app\dist\{main,preload,renderer}`.
+The GUI tests (`npx playwright test`) run that build.
 
 ## Build / Package for Windows
 
@@ -71,6 +83,8 @@ If you also see old files like `Scoring App Setup ...`, they are leftovers from 
 ## Useful Commands
 
 - `npm test` or `npm run test:unit`: run unit tests
+- `npm run typecheck`: TypeScript (the app, and the build config)
+- `npx playwright test`: GUI tests against `npm run build`'s output
 - `npm run lint`: lint source files
 - `npm run lint:fix`: auto-fix lint issues
 

@@ -20,7 +20,8 @@ node_modules
 
 release/app/dist
 release/build
-.erb/dll
+# electron-vite's dev build (npm start)
+out
 # The report service is a separate Cloudflare Worker with its own tests.
 report-worker
 
@@ -30,6 +31,3 @@ npm-debug.log.*
 *.sass.d.ts
 *.scss.d.ts
 
-# eslint ignores hidden directories by default:
-# https://github.com/eslint/eslint/issues/8429
-!.erb

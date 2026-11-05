@@ -117,12 +117,13 @@ if (isDebug) {
 }
 
 // Content-Security-Policy applied to every renderer response. The renderer only
-// loads same-origin bundles plus data: URIs (inline flag SVGs, webpack-inlined
-// fonts) and uses inline style attributes, so we can keep this tight. In
-// development webpack's eval source maps and HMR websocket need looser rules.
+// loads same-origin bundles plus data: URIs (inline flag SVGs, fonts Vite
+// inlined) and uses inline style attributes, so we can keep this tight. In
+// development the Vite dev server's hot reload needs looser rules: its React
+// Refresh preamble is an inline script, and it talks over a websocket.
 const buildContentSecurityPolicy = (): string => {
   const scriptSrc = isDebug
-    ? "script-src 'self' 'unsafe-eval'"
+    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
     : "script-src 'self'";
   const connectSrc = isDebug
     ? "connect-src 'self' ws://localhost:* http://localhost:*"

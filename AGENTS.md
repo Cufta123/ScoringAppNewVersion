@@ -7,7 +7,8 @@ Use this document first. Only search the repo when this file does not answer the
 
 - Product: IOM Regatta Manager desktop app.
 - Domain: event setup, sailor/boat management, heat/race scoring, leaderboards, final series handling.
-- Stack: Electron (main), React (renderer), TypeScript + JavaScript, SQLite via better-sqlite3.
+- Stack: Electron (main), React (renderer), TypeScript, SQLite via
+  better-sqlite3, built with electron-vite (Vite).
 - **The rules live in `packages/regatta-core`; the app must not implement
   SHRS / RRS scoring.** Every rule of SHRS 2026-1 and RRS 2025-2028
   Appendix A (points, codes and their order, penalties, redress, discards,
@@ -77,13 +78,20 @@ Use this document first. Only search the repo when this file does not answer the
   change journal triggers: `journal.ts`; views: `views.ts`; automatic
   backups: `backup.ts`; the installed app's data folder: `dataLocation.ts`
 - App menu: `src/main/menu.ts`
+- Build: `electron.vite.config.ts` (electron-vite: main, preload, renderer;
+  the `regatta-core` alias, the report key, where each part is written —
+  §7). The renderer's page is `src/renderer/index.html`.
 - Unit test config: `jest.unit.config.ts`
 
 ## 3. Runtime Architecture
 
 ### Main process
 
-- Creates `BrowserWindow` and loads renderer via `resolveHtmlPath('index.html')`.
+- Creates `BrowserWindow` and loads renderer via `resolveHtmlPath('index.html')`
+  (`main/util.ts`): under `npm start` the Vite dev server
+  (`ELECTRON_RENDERER_URL`, set by electron-vite), otherwise the built
+  `../renderer/index.html` beside the main bundle's folder. The preload is
+  `../preload/preload.js` (`resolvePreloadPath`).
 - Enables `contextIsolation: true` and uses preload bridge.
 - Imports all handler modules for side-effect registration.
 
@@ -332,7 +340,12 @@ DB file paths:
   Builds before Nov 2026 used the template's name; `src/main/database/dataLocation.ts`
   keeps a computer on `<appData>/electron-react-boilerplate` when its database
   is there (and points userData at it), so a renamed build never looks empty.
-- Dev: from `public/Database/data/scoring_app.db`
+- Dev (`npm start`, not packaged): `<repo>/public/Database/data/scoring_app.db`
+  (git-ignored; `app.getAppPath()` is the repo), unless only
+  `<repo>/.erb/dll/public/Database/data/scoring_app.db` exists — where the
+  webpack dev build (before Nov 2026) actually kept it, next to its bundle —
+  which is then used (`resolveDevDataDir` in `dataLocation.ts`).
+- `SCORING_APP_DB_PATH` overrides both (the e2e tests: a fresh file per run).
 
 ## 5. Domain Rules And Scoring Notes
 
@@ -728,9 +741,31 @@ Event locking was removed entirely (June 2026):
 
 Run from repo root.
 
-- Install deps: `npm install`
-- Dev app: `npm start`
-- Build/package Windows: `npm run package`
+- Install deps: `npm install` (its `postinstall`, `electron-builder
+install-app-deps`, installs `release/app`'s native `better-sqlite3` and
+  rebuilds it for Electron)
+- Dev app: `npm start` = `electron-vite dev --watch`: renderer from the Vite
+  dev server on port 1212 (`PORT=…` for another; a busy port is refused)
+  with hot reload; main and preload built to `out/` (git-ignored) and
+  rebuilt on change, a main change restarting the app. In dev the main
+  bundle loads `better-sqlite3` from `release/app/node_modules` by absolute
+  path (`output.paths` in the config).
+- Build: `npm run build` = `electron-vite build` → `release/app/dist/main/main.js`,
+  `release/app/dist/preload/preload.js`, `release/app/dist/renderer/`
+  (`index.html` + `assets/`). Main and preload are CommonJS, every
+  dependency bundled except `release/app`'s (`better-sqlite3`, left to
+  `require`); `NODE_ENV` (and in the production main `DEBUG_PROD`,
+  `START_MINIMIZED`, `IOM_REPORT_KEY`) are replaced at build time with
+  `define`, as the webpack builds did.
+- Build/package Windows: `npm run package` (build + `electron-builder --win
+--x64`; productName, appId, icons, `extraResources`, asar with `*.node`
+  unpacked are in package.json `build`; the packaged app is `release/app`:
+  its `dist` and `node_modules`). Locally on macOS without Wine:
+  `npx electron-builder --mac --dir`.
+- Typecheck: `npm run typecheck` (`tsconfig.json` for the app and tests,
+  `tsconfig.node.json` for `electron.vite.config.ts`)
+- GUI tests: `npm run build`, then `npx playwright test` (they launch
+  `release/app/dist/main/main.js`)
 - Lint: `npm run lint`
 - Lint fix: `npm run lint:fix`
 - Unit tests: `npm run test:unit` (curated subset in `jest.unit.config.ts`)
@@ -1174,7 +1209,7 @@ For most feature/fix requests, do this in order:
   ESLint, deployed as `iom-report` on the developer's Cloudflare account;
   secrets APP_KEY, RESEND_API_KEY, TO_ADDRESS). The URL is in
   `functions/problemReportConfig.ts`; the key is NOT in the (public) repo: the
-  prod webpack config puts it in from `IOM_REPORT_KEY` or the git-ignored
+  production build (`electron.vite.config.ts`, `define`) puts it in from `IOM_REPORT_KEY` or the git-ignored
   `.report-key` file (CI: the `IOM_REPORT_KEY` repo secret), and a build
   without it keeps reports on the computer.
   `SCORING_APP_REPORT_URL` / `_KEY` override them; with `SCORING_APP_HIDDEN=1`

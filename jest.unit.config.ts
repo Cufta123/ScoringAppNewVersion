@@ -10,7 +10,7 @@ const config: Config = {
   moduleFileExtensions: ['js', 'jsx', 'ts', 'tsx', 'json'],
   moduleNameMapper: {
     '\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff|woff2|mp4|webm|wav|mp3|m4a|aac|oga)$':
-      '<rootDir>/.erb/mocks/fileMock.js',
+      '<rootDir>/src/__tests__/helpers/fileMock.js',
     '\\.(css|less|sass|scss)$': 'identity-obj-proxy',
     // The scoring library (packages/regatta-core), as the app imports it.
     '^regatta-core$': '<rootDir>/packages/regatta-core/src/index.ts',
@@ -21,7 +21,6 @@ const config: Config = {
   testEnvironment: 'node',
   testPathIgnorePatterns: [
     'release/app/dist',
-    '.erb/dll',
     '<rootDir>/src/__tests__/fixtures/',
     '<rootDir>/src/__tests__/helpers/',
     // The template's whole-app render test needs a built bundle (test:full).
