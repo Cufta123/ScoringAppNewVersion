@@ -1,0 +1,71 @@
+# Switching the app to regatta-core
+
+Goal: the app scores only through `packages/regatta-core`. The event is its
+decision log, stored in the database; heats, results, standings and
+explanations are worked out from it by the library; nothing derived is
+stored except as a rebuildable projection while the screens still read it.
+
+Started 2026-11-05 on `core/scoring-library`. Each phase ends with the full
+suite green (`npm run test:unit`), typecheck and lint clean, and its own
+commits. The comparison test (`regattaCore.differential`) runs throughout.
+
+## End state
+
+- `Decisions` table: one row per decision, in order, per event. The only
+  scoring data that is written.
+- Every handler that changes an event turns the request into a decision,
+  replays the log with it (the library refuses in words what the rules do
+  not allow), and appends it.
+- Reads (`readLeaderboard`, final, overall, explanations, eligibility,
+  heats for the next round, the Final split) come from the replayed log.
+- Undo, "go back to a point", and backups work on the log.
+- The renderer runs the library itself for the edit preview, so what is
+  shown before Save is what Save stores.
+- Removed: `Leaderboard`, `FinalLeaderboard`, `GlobalLeaderboard`, the
+  recompute, the per-boat scoring/standings code in `src/main/functions`
+  and `src/shared/scoring`, the SHRS 3.1(5) snapshot tables.
+
+## Phases
+
+0. **Library in the app build.** `regatta-core` importable from main,
+   renderer and tests (tsconfig paths, webpack, jest).
+1. **The log beside the tables (dual write).** Migration: `Decisions`
+   table. Every scoring handler also appends its decision in the same
+   transaction; existing events get a log converted from their tables and
+   checked by replaying it against the stored heats and scores. Tests
+   compare the log's results with the tables after every handler call.
+2. **Reads from the log.** Standings, explanations, eligibility, next-round
+   heats and the Final split read the replayed log; the tables become a
+   projection rebuilt from it.
+3. **Writes through the log.** Handlers build the decision first; replay
+   decides; the projection is rebuilt. The old validation and scoring code
+   goes.
+4. **History on the log.** Decision ids; undo = withdraw a decision (kept
+   on record, can be redone); go back = replay a prefix; backups and
+   snapshots = the event file plus people.
+5. **Renderer.** Reads the library's results; the edit preview replays
+   the log with the edit; the duplicated renderer scoring goes.
+6. **Cleanup.** Remove the projection tables the screens no longer read,
+   old tests replaced by library tests, AGENTS.md.
+
+## Decisions taken
+
+- The renderer keeps its IPC shapes until phase 5, so phases 1-4 change
+  only the main process and the database.
+- Existing events are converted, never dropped. An event whose stored state
+  the library refuses (e.g. an entry after the Final started, R1) is
+  reported by the migration with the reason; see "Conversion" below.
+
+## Progress
+
+- [x] Phase 0: `regatta-core` resolves in tsc, webpack (main checked) and both Jest configs
+- [ ] Phase 1
+- [ ] Phase 2
+- [ ] Phase 3
+- [ ] Phase 4
+- [ ] Phase 5
+- [ ] Phase 6
+
+## Conversion
+
+(filled in during phase 1)

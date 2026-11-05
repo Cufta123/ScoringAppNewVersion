@@ -12,6 +12,8 @@ const config: Config = {
     '\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff|woff2|mp4|webm|wav|mp3|m4a|aac|oga)$':
       '<rootDir>/.erb/mocks/fileMock.js',
     '\\.(css|less|sass|scss)$': 'identity-obj-proxy',
+    // The scoring library (packages/regatta-core), as the app imports it.
+    '^regatta-core$': '<rootDir>/packages/regatta-core/src/index.ts',
   },
   // No setupFiles – we do not require a pre-built Electron bundle for unit tests
   setupFiles: [],

@@ -13,7 +13,10 @@
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "allowJs": true,
-    "outDir": ".erb/dll"
+    "outDir": ".erb/dll",
+    "paths": {
+      "regatta-core": ["./packages/regatta-core/src/index.ts"]
+    }
   },
   "exclude": [
     "test",
