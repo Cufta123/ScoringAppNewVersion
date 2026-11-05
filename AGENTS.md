@@ -187,9 +187,15 @@ Important migration details:
   (`functions/libraryStandings.ts`); the place, status and kept place shown
   in each race are the stored ones. `refreshStandings` still runs first: it
   completes missing DNS / DNC rows (the conversion reads them) and keeps
-  `Leaderboard` / `FinalLeaderboard` for the readers not yet on the library
-  (explanations, eligibility, the Final split). Tests that mock the
-  database for a read mock `functions/libraryStandings` too.
+  `Leaderboard` / `FinalLeaderboard` for the writers not yet on the library
+  (the Final split, the next round). The explanations (`explainBoatScore`,
+  `explainTieBreak`: `functions/libraryExplain.ts`) and
+  `getFinalSeriesEligibility` (`functions/libraryEvent.ts`) come from the
+  library too; `getMaxHeatSize` stays the count the writes score with until
+  they move. `functions/projectEvent.ts` writes the library's state into
+  the tables (phase 3); `projectEvent.roundtrip.test.ts` checks that the
+  tables convert back to the same event. Tests that mock the database for a
+  read mock `functions/libraryStandings` too.
 
 DB file paths:
 

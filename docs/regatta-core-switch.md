@@ -63,8 +63,8 @@ keep in step.
 
 - [x] Phase 0: `regatta-core` resolves in tsc, webpack (main checked) and both Jest configs
 - [x] Phase 1: `eventToLog` / `checkEventLog`, checked after every step of the comparison test (400 events) and the chaos test (200 sessions)
-- [ ] Phase 2: 2a done — the three leaderboard reads come from the library (`functions/libraryStandings.ts`). Still to do: explanations, eligibility, `getMaxHeatSize`, then stop reading `Leaderboard` / `FinalLeaderboard`
-- [ ] Phase 3
+- [x] Phase 2: the leaderboard reads, both explanations and the Final Series eligibility come from the library (`libraryStandings`, `libraryExplain`, `libraryEvent`). `getMaxHeatSize` stays on the tables until the writes move
+- [ ] Phase 3: 3a done — `projectEvent` (library state into the tables, round trip checked on 1,000 events). Next: the handlers, one by one, build the decision, replay it on the converted log, and project
 - [ ] Phase 4
 - [ ] Phase 5
 - [ ] Phase 6

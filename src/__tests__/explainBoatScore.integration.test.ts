@@ -3,8 +3,11 @@ export {};
 
 /**
  * The score explanation through the real IPC handler and a real SQLite engine,
- * on the same 150 seeded random events as the scoring characterisation: for
- * every boat, the explained series totals must equal the stored leaderboard.
+ * on 150 seeded random events: for every boat, the explained series totals
+ * must equal the leaderboard the screen reads (readLeaderboard /
+ * readFinalLeaderboard / readOverallLeaderboard). Both come from regatta-core
+ * (switch phase 2); before it, this compared the explanation with the stored
+ * Leaderboard tables, which the old recompute filled from the stored points.
  */
 
 const handlerRegistry: Record<string, (...args: any[]) => any> = {};
@@ -31,13 +34,8 @@ const mockDbHolderRef = mockDbHolder;
 
 // eslint-disable-next-line import/first, import/order
 import { buildRandomEvent, EVENT_ID } from './fixtures/randomEvents';
-// eslint-disable-next-line import/first, import/order
-import {
-  recomputeEventLeaderboard,
-  recomputeFinalLeaderboard,
-} from '../main/functions/leaderboardRecompute';
 
-describe('explainBoatScore agrees with the stored leaderboard', () => {
+describe('explainBoatScore agrees with the leaderboard', () => {
   beforeAll(() => {
     jest.spyOn(console, 'log').mockImplementation(() => {});
     jest.spyOn(console, 'warn').mockImplementation(() => {});
@@ -54,22 +52,16 @@ describe('explainBoatScore agrees with the stored leaderboard', () => {
       mockDbHolder.current = db;
       try {
         // Reading the leaderboard backfills missed-round DNCs, as the app does.
-        await handlerRegistry.readLeaderboard({}, EVENT_ID);
-        recomputeEventLeaderboard(EVENT_ID);
-        if (hasFinal) recomputeFinalLeaderboard(EVENT_ID);
-
-        const qualifying = db
-          .prepare(
-            'SELECT boat_id, total_points_event FROM Leaderboard WHERE event_id = ?',
-          )
-          .all(EVENT_ID);
+        const qualifying = await handlerRegistry.readLeaderboard({}, EVENT_ID);
         const finals = new Map(
-          db
-            .prepare(
-              'SELECT boat_id, total_points_final FROM FinalLeaderboard WHERE event_id = ?',
-            )
-            .all(EVENT_ID)
-            .map((row: any) => [row.boat_id, row.total_points_final]),
+          (await handlerRegistry.readFinalLeaderboard({}, EVENT_ID)).map(
+            (row: any) => [row.boat_id, row.total_points_final],
+          ),
+        );
+        const overall = new Map(
+          (await handlerRegistry.readOverallLeaderboard({}, EVENT_ID)).map(
+            (row: any) => [row.boat_id, row.overall_points],
+          ),
         );
 
         for (const row of qualifying) {
@@ -97,10 +89,7 @@ describe('explainBoatScore agrees with the stored leaderboard', () => {
               boat: row.boat_id,
               total: finals.get(row.boat_id),
             });
-            expect(explanation.overall.points).toBeCloseTo(
-              row.total_points_event + finals.get(row.boat_id),
-              6,
-            );
+            expect(explanation.overall.points).toBe(overall.get(row.boat_id));
           } else {
             expect(explanation.final).toBeNull();
           }

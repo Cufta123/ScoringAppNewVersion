@@ -1,15 +1,17 @@
 import handle from './handle';
-import explainTieBreak from '../functions/explainTieBreak';
-import explainBoatScore from '../functions/explainScore';
+import { explainBoatScore, explainTieBreak } from '../functions/libraryExplain';
 import refreshStandings from '../functions/standings';
 import {
   finalRows,
   overallRows,
   qualifyingRows,
 } from '../functions/libraryStandings';
-import { getFinalSeriesEligibility } from '../functions/finalSeriesEligibility';
+import { finalSeriesEligibility } from '../functions/libraryEvent';
 import { getMaxHeatSize } from '../functions/raceScoring';
 
+// SHRS 5.2: the boats in the largest heat, for the edit screen's points.
+// Until the writes go through regatta-core (switch phase 3) this stays the
+// count the writes score with, so the screen shows what Save stores.
 handle('getMaxHeatSize', async (event, event_id, heat_type) => {
   return getMaxHeatSize(
     Number(event_id),
@@ -24,6 +26,9 @@ handle('getMaxHeatSize', async (event, event_id, heat_type) => {
 handle(
   'explainTieBreak',
   async (_event, event_id, boatAId, boatBId, isFinalSeries) => {
+    // regatta-core works it out from the stored results, as the leaderboard
+    // reads do (functions/libraryExplain.ts); complete them first.
+    refreshStandings(Number(event_id));
     return explainTieBreak(
       Number(event_id),
       String(boatAId),
@@ -43,7 +48,8 @@ handle('explainBoatScore', async (_event, event_id, boat_id) => {
 // SHRS validation of whether the Final Series can start. The renderer renders
 // prompts/messages from the returned reason; all the rule logic stays here.
 handle('getFinalSeriesEligibility', async (_event, event_id) => {
-  return getFinalSeriesEligibility(Number(event_id));
+  refreshStandings(Number(event_id));
+  return finalSeriesEligibility(Number(event_id));
 });
 
 // The three leaderboard reads are worked out by regatta-core from the
