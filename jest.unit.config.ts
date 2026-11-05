@@ -28,7 +28,10 @@ const config: Config = {
   },
   // Every test under src/__tests__. This used to be a hand-kept list, and a
   // test missing from it silently never ran here (only under test:full).
-  testMatch: ['**/src/__tests__/**/*.test.[jt]s?(x)'],
+  testMatch: [
+    '**/src/__tests__/**/*.test.[jt]s?(x)',
+    '<rootDir>/packages/*/test/**/*.test.ts',
+  ],
 };
 
 export default config;

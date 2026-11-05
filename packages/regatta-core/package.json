@@ -1,0 +1,8 @@
+{
+  "name": "regatta-core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SHRS 2026-1 heat racing: a log of decisions in, heats, scores and standings out. No database, no UI.",
+  "main": "src/index.ts",
+  "license": "MIT"
+}

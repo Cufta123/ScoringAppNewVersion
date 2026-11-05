@@ -37,6 +37,41 @@ module.exports = {
   },
   overrides: [
     {
+      // packages/regatta-core is a standalone library: decisions in, results
+      // out. It must not import the app, the database or any runtime.
+      files: ['packages/regatta-core/**/*.ts'],
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          {
+            patterns: [
+              {
+                group: [
+                  '**/src/main/**',
+                  '**/src/renderer/**',
+                  '**/src/shared/**',
+                  '**/public/**',
+                ],
+                message: 'regatta-core stands alone; pass data in instead.',
+              },
+              {
+                group: [
+                  'electron',
+                  'react',
+                  'react-dom',
+                  'better-sqlite3',
+                  'node:*',
+                  'fs',
+                  'path',
+                ],
+                message: 'regatta-core runs anywhere: no runtime APIs.',
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
       // src/shared is the scoring core: plain TypeScript that the main process
       // and the renderer both run, and that a future results viewer can run
       // too. It must not reach into either side or into the database, UI or
