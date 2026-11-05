@@ -68,10 +68,12 @@ export interface Ranked<T> {
 
 /**
  * Lowest total first. Equal totals are broken by `compare`, the higher
- * place first (SHRS 5.7(ii)(3)): the place goes to the boat no other tied
- * boat beats, then the rest are compared again. When every boat is beaten
- * by another (a circle, which the rules do not settle), `fallback` decides
- * the place. Boats `compare` cannot separate share the place.
+ * place first (SHRS 5.7(ii)(3)): the place goes to every tied boat no other
+ * tied boat beats (no rule separates those from each other, so they share
+ * it), then the rest are compared again for the next place. When every boat
+ * is beaten by another (a circle, which the rules do not settle),
+ * `fallback` decides the place. Within a shared place boats keep their
+ * input order.
  */
 export function rankByTotal<T>(
   items: readonly T[],
@@ -91,29 +93,39 @@ export function rankByTotal<T>(
       const remaining = [...groups.get(key)!];
       let circle = false;
       while (remaining.length > 0) {
-        const unbeaten = remaining.find((candidate) =>
+        // Every boat no remaining boat beats. If one beat another, the
+        // other would not be here: they are all level with each other.
+        const unbeaten = remaining.filter((candidate) =>
           remaining.every((other) => compare(other, candidate) >= 0),
         );
-        const item = unbeaten ?? [...remaining].sort(fallback)[0];
-        if (unbeaten === undefined) circle = true;
-        remaining.splice(remaining.indexOf(item), 1);
-        // She shares the place above only if no rule separates her from
-        // ANY boat on it: the pairwise 5.7(ii) comparison is not
-        // transitive, so being level with the boat just above is not
-        // enough when another boat on that place beats her.
-        const above = ranked[ranked.length - 1];
-        const onPlace =
-          above !== undefined && total(above.item) === key
-            ? ranked.filter((r) => r.place === above.place)
-            : [];
-        const shares =
-          onPlace.length > 0 &&
-          onPlace.every((r) => compare(r.item, item) === 0);
-        ranked.push({
-          item,
-          place: shares ? above.place : ranked.length + 1,
-          ...(circle ? { circular: true } : {}),
-        });
+        if (unbeaten.length > 0) {
+          const place = ranked.length + 1;
+          const flag = circle ? { circular: true } : {};
+          unbeaten.forEach((item) => {
+            remaining.splice(remaining.indexOf(item), 1);
+            ranked.push({ item, place, ...flag });
+          });
+        } else {
+          circle = true;
+          const item = [...remaining].sort(fallback)[0];
+          remaining.splice(remaining.indexOf(item), 1);
+          // A circle: she shares the place above only if no rule separates
+          // her from ANY boat on it (the pairwise 5.7(ii) comparison is not
+          // transitive).
+          const above = ranked[ranked.length - 1];
+          const onPlace =
+            above !== undefined && total(above.item) === key
+              ? ranked.filter((r) => r.place === above.place)
+              : [];
+          const shares =
+            onPlace.length > 0 &&
+            onPlace.every((r) => compare(r.item, item) === 0);
+          ranked.push({
+            item,
+            place: shares ? above.place : ranked.length + 1,
+            circular: true,
+          });
+        }
       }
     });
   return ranked;

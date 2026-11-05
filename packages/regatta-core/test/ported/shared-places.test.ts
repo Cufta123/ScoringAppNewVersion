@@ -74,12 +74,11 @@ describe('shared places when the tie-break is not transitive', () => {
       // c never shares b's place: b beat her in A3.
       expect(of('c').place).toBeGreaterThan(of('b').place);
       expect(explainTie(state, 'b', 'c').ahead).toBe('b');
-      // a is level with both; she shares a place with one of them (which
-      // one follows the national letters / sail number order, as for any
-      // boats no rule separates), never ahead of b nor behind c.
-      expect(of('a').place).toBeGreaterThanOrEqual(of('b').place);
-      expect(of('a').place).toBeLessThanOrEqual(of('c').place);
-      expect([of('b').place, of('c').place]).toContain(of('a').place);
+      // SHRS 5.7(ii)(3), the higher place first: no tied boat beats a or
+      // b, so they share it, whatever their sail numbers; c, beaten by b,
+      // takes the next place.
+      expect(of('a').place).toBe(of('b').place);
+      expect(of('c').place).toBe(of('b').place + 2);
     },
   );
 });

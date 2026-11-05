@@ -46,6 +46,7 @@ it and the app will when it moves onto the library (step 2).
 | R10 | A final fleet that has not raced, order       | qualifying place                         | 1.5                                                                                                                                                | library; app at switch     |
 | R11 | Discard setting after every race is undone    | unlocked                                 | 5.4: may change "before the warning signal for the first race"                                                                                     | library; app at switch     |
 | R12 | Redress or a correction for a "no heat" DNC   | possible                                 | RRS A9, 62.1                                                                                                                                       | library; app at switch     |
+| R13 | Three tied, one level with two others         | every unbeaten boat shares the place     | 5.7(ii)(3): the higher place first                                                                                                                 | library; app               |
 
 R6 and R8 change who goes to Gold and who wins a tie in rare cases; the
 rules do not settle them word for word, so a race officer's view is still
@@ -176,3 +177,9 @@ Found and fixed in the app with it:
   own races, so "level" is not transitive). The result depended on the
   order the boats were looked at. She now shares a place only with boats no
   rule separates her from. Found by the explanation tests.
+- R13 (decided 2026-11-05): a level with b and with c, b ahead of c. The
+  place went to the first boat no other beat, in sail-number order, so
+  whether a shared b's place or c's depended on sail numbers. SHRS
+  5.7(ii)(3) settles the higher place first: it goes to every boat no tied
+  boat beats (a and b, who are level with each other), and c takes the next
+  one (`rules/ranking.ts`, `test/ported/shared-places.test.ts`).
