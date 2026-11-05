@@ -106,15 +106,18 @@ function ComparePanel({
     const boatAName = sailorFullName(boatA);
     const boatBName = sailorFullName(boatB);
 
-    const routeFallback =
-      tieBreak?.steps?.find((step) =>
-        String(step.rule || '').startsWith('SHRS'),
-      ) || null;
+    // The main process sends the route (which rules apply) on its own; only
+    // an answer without one has it as its first SHRS step. Every other step
+    // is shown, SHRS ones included: SHRS 5.7(ii)(3) is why one boat of a
+    // group tie is ahead of another.
+    const routeFallback = routeStep
+      ? null
+      : tieBreak?.steps?.find((step) =>
+          String(step.rule || '').startsWith('SHRS'),
+        ) || null;
 
     const visibleSteps =
-      tieBreak?.steps?.filter(
-        (step) => !String(step.rule || '').startsWith('SHRS'),
-      ) || [];
+      tieBreak?.steps?.filter((step) => step !== routeFallback) || [];
 
     const route =
       routeStep ||
