@@ -9,9 +9,23 @@ export {};
  * standings (totals and places).
  *
  * The steps: entries (some late), first heats, scoring (finishers, codes,
- * ties, ZFP/SCP), rounds by the Heat Movement Table or pre-assignment,
- * race-office corrections, protest decisions (DSQ, DPI, RDG1, RDG3), the
- * Final Series split and its races.
+ * ties, ZFP/SCP) with the heats of a round and the final fleets in any
+ * order, rounds by the Heat Movement Table or pre-assignment, race-office
+ * corrections (also of a race with protest decisions in it), protest
+ * decisions (DSQ, DPI, RDG1, RDG2 with the races the committee picks, RDG3;
+ * on finishers and on boats with a code on the sheet), undoing a heat's
+ * last race, the Final Series split and its races.
+ *
+ * Not generated: a second race in a heat of a several-heat qualifying
+ * round (the scoring page offers no Score there, SHRS 3.2; the handler
+ * itself does not refuse it), and ties that involve a ZFP/SCP/T1 boat: RRS
+ * 44.3(c) 2025-2028 adds the penalty to her shared points (library), the app
+ * to her place (docs/parity, "Found while checking the rules").
+ *
+ * Known differences decided in docs/parity ("library; app at switch") are
+ * counted and printed, and end that event, instead of failing it: R8 (a DNC
+ * for a boat with no heat in a 5.7 tie-break) and R9 (an RDG1/RDG2 with
+ * nothing left to average).
  */
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires, import/order
@@ -80,8 +94,15 @@ interface AppHeat {
 
 /** Standings where SHRS 5.7 went round in a circle (see `settled`). */
 const CIRCLES = new Set<string>();
+/** Events stopped at parity R9, a stale average redress (`staleRedress`). */
+const KNOWN_R9 = new Map<number, string>();
+/** Events stopped at parity R8, a no-heat DNC in a tie-break (`settled`). */
+const KNOWN_R8 = new Map<number, string>();
 /** What the random events covered, so a quiet run is not an empty one. */
 const COVERED: Record<string, number> = {};
+const cover = (kind: string) => {
+  COVERED[kind] = (COVERED[kind] ?? 0) + 1;
+};
 
 async function runEvent(seed: number): Promise<string[]> {
   invalidateAssignmentSnapshotCache();
@@ -247,122 +268,20 @@ async function runEvent(seed: number): Promise<string[]> {
       heat_name: string;
       heat_type: string;
     }[];
-  const protested = new Set<number>();
-
-  /** The race office enters a race again from scratch. */
-  const correctRace = async () => {
-    const race = pick(appRaces().filter((r) => !protested.has(r.race_id)));
-    if (!race) return;
-    // The heat's boats: the race's scores also hold the DNCs the app files
-    // there for boats that had no heat.
-    const heat = heats().find((h) => h.heat_name === race.heat_name)!;
-    const rows = boatsIn(heat.heat_id);
-    // A race-office sheet: the app takes any DSQ/DNE/DGM it saves for a
-    // protest decision (it does not record who decided), so a correction
-    // here uses DNF instead; protest decisions are a step of their own.
-    const lines = randomRace(race.heat_name, rows).lines.map((line) =>
-      line.code === 'DSQ' ? { ...line, code: 'DNF' as const } : line,
+  /**
+   * A race for a correction or a protest decision: half the time one of the
+   * heats still open (the current round, or the final fleets), so undoing
+   * a race also meets the decisions about it.
+   */
+  const someRace = () => {
+    const s = state();
+    const open = new Set(
+      (s.fleets ?? s.rounds[s.rounds.length - 1] ?? []).map((h) => h.id),
     );
-    // Places as the edit screen holds them: boats level share a place, the
-    // next boat takes the place after all of them (RRS A7).
-    let finishers = 0;
-    let place = 0;
-    const cells = lines.map((line) => {
-      if (!line.code) {
-        finishers += 1;
-        if (!line.tied) place = finishers;
-      }
-      return {
-        boatId: Number(line.boat),
-        position: line.code ? rows.length : place,
-        status: line.code ?? line.penalty ?? 'FINISHED',
-        edited: true,
-      };
-    });
-    await call(
-      'saveLeaderboardRaceResultsAtomic',
-      eventId,
-      [{ raceId: String(race.race_id), cells }],
-      race.heat_type === 'Final',
-    );
-    log.push({
-      type: 'raceCorrected',
-      race: { heat: coreHeatId(race.heat_name), race: race.race_number },
-      lines,
-    });
+    const all = appRaces();
+    const recent = all.filter((r) => open.has(coreHeatId(r.heat_name)));
+    return pick(recent.length > 0 && rand() < 0.5 ? recent : all);
   };
-
-  /** A protest committee decision about one finisher. */
-  const decideProtest = async () => {
-    const race = pick(appRaces());
-    if (!race) return;
-    const rows = (
-      db
-        .prepare(
-          `SELECT boat_id, position, points, COALESCE(status,'FINISHED') AS status,
-                  held_place FROM Scores WHERE race_id = ? ORDER BY score_id`,
-        )
-        .all(race.race_id) as any[]
-    ).map(({ held_place, ...row }) =>
-      held_place != null ? { ...row, heldPlace: held_place } : row,
-    );
-    const finishers = rows
-      .map((row, index) => ({ row, index }))
-      .filter(({ row }) => row.status === 'FINISHED');
-    if (finishers.length === 0) return;
-    const { row, index } = pick(finishers);
-    const maxBoats = await call('getMaxHeatSize', eventId, race.heat_type);
-    const kind = pick(['DSQ', 'DPI', 'RDG3', 'RDG1'] as const);
-    const given = 1 + int(0, 8);
-    const newPosition =
-      kind === 'DSQ' ? row.position : kind === 'RDG1' ? maxBoats + 1 : given;
-    const cells = applyRaceColumnEdit(
-      rows.map((r) => ({
-        position: r.position,
-        points: r.points,
-        status: r.status,
-        ...(r.heldPlace != null ? { heldPlace: r.heldPlace } : {}),
-      })),
-      {
-        index,
-        previousPosition: row.position,
-        previousStatus: row.status,
-        newPosition,
-        newPoints: newPosition,
-        newStatus: kind,
-        maxBoats,
-      },
-    );
-    await call(
-      'saveLeaderboardRaceResultsAtomic',
-      eventId,
-      [
-        {
-          raceId: String(race.race_id),
-          cells: cells.map((cell, i) => ({
-            boatId: rows[i].boat_id,
-            position: cell.position,
-            status: cell.status,
-            edited: i === index,
-            ...(/^(RDG|DPI)/.test(cell.status)
-              ? { heldPlace: cell.heldPlace ?? null }
-              : {}),
-          })),
-        },
-      ],
-      race.heat_type === 'Final',
-    );
-    protested.add(race.race_id);
-    const outcome: core.ProtestOutcome =
-      kind === 'DPI' || kind === 'RDG3' ? { kind, points: given } : { kind };
-    log.push({
-      type: 'protestDecided',
-      race: { heat: coreHeatId(race.heat_name), race: race.race_number },
-      boat: String(row.boat_id),
-      outcome,
-    });
-  };
-
   /** Both sides must accept a step, or both refuse it. */
   const both = async (
     label: string,
@@ -386,47 +305,493 @@ async function runEvent(seed: number): Promise<string[]> {
     return appError === null && coreError === null;
   };
 
+  const refOf = (race: { heat_name: string; race_number: number }) => ({
+    heat: coreHeatId(race.heat_name),
+    race: race.race_number,
+  });
+  /** The library's race (sheet and protest decisions) for an app race. */
+  const coreRace = (ref: core.RaceRef) =>
+    [...state().rounds.flat(), ...(state().fleets ?? [])].find(
+      (h) => h.id === ref.heat,
+    )!.races[ref.race - 1];
+  const scoreRows = (raceId: number) =>
+    (
+      db
+        .prepare(
+          `SELECT boat_id, position, points, COALESCE(status,'FINISHED') AS status,
+                  held_place FROM Scores WHERE race_id = ? ORDER BY score_id`,
+        )
+        .all(raceId) as any[]
+    ).map(({ held_place, ...row }) =>
+      held_place != null ? { ...row, heldPlace: held_place } : row,
+    ) as {
+      boat_id: number;
+      position: number;
+      points: number;
+      status: string;
+      heldPlace?: number;
+    }[];
+  const OUT_OF_ORDER = new Set(['DSQ', 'DNE', 'DGM']);
+
+  /**
+   * The race office enters a race again: a new sheet for every boat the
+   * protest committee has not decided about. A boat with a decision keeps
+   * her line where it was on the sheet and her decision (the app keeps her
+   * cell as it is; the library keeps `protests` beside the new sheet).
+   */
+  const correctRace = async () => {
+    // Often a race with protest decisions in it.
+    const decided = appRaces().filter(
+      (r) => Object.keys(coreRace(refOf(r)).protests).length > 0,
+    );
+    const race =
+      decided.length > 0 && rand() < 0.4 ? pick(decided) : someRace();
+    if (!race) return '';
+    const ref = refOf(race);
+    const { lines: sheet, protests } = coreRace(ref);
+    // The heat's boats: the race's scores also hold the DNCs the app files
+    // there for boats that had no heat.
+    const heat = heats().find((h) => h.heat_name === race.heat_name)!;
+    const free = boatsIn(heat.heat_id).filter(
+      (b) => !(String(b.boat_id) in protests),
+    );
+    // A race-office sheet: the app takes any DSQ/DNE/DGM it saves for a
+    // protest decision (it does not record who decided), so a correction
+    // here uses DNF instead; protest decisions are a step of their own.
+    const lines: core.RaceLine[] =
+      free.length > 0
+        ? randomRace(race.heat_name, free).lines.map((line) =>
+            line.code === 'DSQ' ? { ...line, code: 'DNF' as const } : line,
+          )
+        : [];
+    sheet.forEach((line, i) => {
+      if (line.boat in protests) {
+        lines.splice(Math.min(i, lines.length), 0, { ...line });
+      }
+    });
+    // A tie needs a finisher above, and never involves a ZFP/SCP/T1 boat:
+    // there RRS 44.3(c) 2025-2028 (library) and the app differ on purpose
+    // (see the header).
+    let above: core.RaceLine | undefined;
+    lines.forEach((line, i) => {
+      if (line.code) return;
+      if (line.tied && (!above || above.penalty || line.penalty)) {
+        const { tied: _dropped, ...rest } = line;
+        lines[i] = rest;
+      }
+      above = lines[i];
+    });
+    // Places as the edit screen shows them: boats level share a place, the
+    // next boat takes the place after all of them (RRS A7); a disqualified
+    // boat is out of the order (A6.1); redress and DPI keep their place
+    // (A6.2) and their points.
+    const slot = new Map<string, number>();
+    const groups: string[][] = [];
+    lines.forEach((line) => {
+      if (line.code) return;
+      if (line.tied && groups.length > 0) {
+        groups[groups.length - 1].push(line.boat);
+      } else groups.push([line.boat]);
+    });
+    let next = 1;
+    groups.forEach((group) => {
+      const holders = group.filter(
+        (boat) => !OUT_OF_ORDER.has(protests[boat]?.kind ?? ''),
+      );
+      holders.forEach((boat) => slot.set(boat, next));
+      next += holders.length;
+    });
+    const stored = new Map(
+      scoreRows(race.race_id).map((row) => [String(row.boat_id), row]),
+    );
+    const cells = lines.map((line) => {
+      if (line.boat in protests) {
+        const kept = stored.get(line.boat)!;
+        return {
+          boatId: Number(line.boat),
+          position: kept.position,
+          status: kept.status,
+          edited: false,
+          ...(/^(RDG|DPI)/.test(kept.status)
+            ? { heldPlace: slot.get(line.boat) ?? null }
+            : {}),
+        };
+      }
+      return {
+        boatId: Number(line.boat),
+        position: line.code ? lines.length : slot.get(line.boat)!,
+        status: line.code ?? line.penalty ?? 'FINISHED',
+        edited: true,
+      };
+    });
+    const label =
+      Object.keys(protests).length > 0
+        ? 'a correction after a protest'
+        : 'a correction';
+    await both(
+      label,
+      () =>
+        call(
+          'saveLeaderboardRaceResultsAtomic',
+          eventId,
+          [{ raceId: String(race.race_id), cells }],
+          race.heat_type === 'Final',
+        ),
+      { type: 'raceCorrected', race: ref, lines },
+    );
+    return label;
+  };
+
+  /**
+   * A protest committee decision about one boat of the race's heat that has
+   * none there yet: a finisher, a ZFP/SCP boat, or a boat with a code on
+   * the sheet (DNF, OCS, …). RDG2 averages races the committee picks from
+   * the ones her leaderboard row shows (counted races of the same series).
+   */
+  const decideProtest = async () => {
+    const race = someRace();
+    if (!race) return '';
+    const ref = refOf(race);
+    const { lines: sheet, protests } = coreRace(ref);
+    const rows = scoreRows(race.race_id);
+    const candidates = rows
+      .map((row, index) => ({ row, index }))
+      .filter(
+        ({ row }) =>
+          sheet.some((line) => line.boat === String(row.boat_id)) &&
+          !(String(row.boat_id) in protests),
+      );
+    if (candidates.length === 0) return '';
+    // Often a boat with a code on the sheet (DNF, OCS, …).
+    const coded = candidates.filter(({ row }) =>
+      sheet.some((l) => l.boat === String(row.boat_id) && l.code),
+    );
+    const { row, index } = pick(
+      coded.length > 0 && rand() < 0.4 ? coded : candidates,
+    );
+    const line = sheet.find((l) => l.boat === String(row.boat_id))!;
+    const maxBoats = await call('getMaxHeatSize', eventId, race.heat_type);
+    let kind = pick(['DSQ', 'DPI', 'RDG3', 'RDG1', 'RDG2'] as const);
+    let chosen: {
+      race_id: number;
+      race_number: number;
+      heat_name: string;
+    }[] = [];
+    if (kind === 'RDG2') {
+      const offered = db
+        .prepare(
+          `SELECT r.race_id, r.race_number, h.heat_name FROM Scores s
+           JOIN Races r ON r.race_id = s.race_id
+           JOIN Heats h ON h.heat_id = r.heat_id
+           JOIN CountedRaces cr ON cr.race_id = r.race_id
+           WHERE s.boat_id = ? AND h.event_id = ? AND h.heat_type = ?
+             AND r.race_id <> ?
+           ORDER BY r.race_id`,
+        )
+        .all(row.boat_id, eventId, race.heat_type, race.race_id) as {
+        race_id: number;
+        race_number: number;
+        heat_name: string;
+      }[];
+      chosen = offered.filter(() => rand() < 0.5);
+      if (chosen.length === 0 && offered.length > 0) chosen = [pick(offered)];
+      if (chosen.length === 0) kind = 'RDG1';
+    }
+    const given = 1 + int(0, 8);
+    const newPosition =
+      kind === 'DSQ'
+        ? row.position
+        : kind === 'RDG1' || kind === 'RDG2'
+          ? maxBoats + 1
+          : given;
+    const cells = applyRaceColumnEdit(
+      rows.map((r) => ({
+        position: r.position,
+        points: r.points,
+        status: r.status,
+        ...(r.heldPlace != null ? { heldPlace: r.heldPlace } : {}),
+      })),
+      {
+        index,
+        previousPosition: row.position,
+        previousStatus: row.status,
+        newPosition,
+        newPoints: newPosition,
+        newStatus: kind,
+        maxBoats,
+      },
+    );
+    const outcome: core.ProtestOutcome =
+      kind === 'DPI' || kind === 'RDG3'
+        ? { kind, points: given }
+        : kind === 'RDG2'
+          ? { kind, races: chosen.map(refOf) }
+          : { kind };
+    const label = `a protest decision${line.code ? ' on a non-finisher' : ''}${
+      kind === 'RDG2' ? ' (RDG2)' : ''
+    }`;
+    await both(
+      label,
+      () =>
+        call(
+          'saveLeaderboardRaceResultsAtomic',
+          eventId,
+          [
+            {
+              raceId: String(race.race_id),
+              cells: cells.map((cell, i) => ({
+                boatId: rows[i].boat_id,
+                position: cell.position,
+                status: cell.status,
+                edited: i === index,
+                ...(/^(RDG|DPI)/.test(cell.status)
+                  ? { heldPlace: cell.heldPlace ?? null }
+                  : {}),
+                ...(i === index && kind === 'RDG2'
+                  ? { rdgRaceIds: chosen.map((c) => c.race_id) }
+                  : {}),
+              })),
+            },
+          ],
+          race.heat_type === 'Final',
+        ),
+      {
+        type: 'protestDecided',
+        race: ref,
+        boat: String(row.boat_id),
+        outcome,
+      },
+    );
+    return label;
+  };
+
+  /**
+   * Undo the last race of a heat (the scoring page's Undo race N). In the
+   * library: that `raceScored` leaves the log with every later decision
+   * about the race (corrections, protest decisions); an RDG2 that averaged
+   * it keeps its other races, as the app keeps the stored race ids and
+   * finds no race for the deleted one.
+   */
+  const undoRace = async () => {
+    const s = state();
+    const open = new Set(
+      (s.fleets ?? s.rounds[s.rounds.length - 1] ?? []).map((h) => h.id),
+    );
+    const raced = heats().filter((h) => raceCount(h.heat_id) > 0);
+    const openRaced = raced.filter((h) => open.has(coreHeatId(h.heat_name)));
+    // Often a race with decisions about it (corrections, protests, RDG2
+    // choices); now and then a closed heat, where both must refuse.
+    const lastRef = (h: AppHeat) => ({
+      heat: coreHeatId(h.heat_name),
+      race: raceCount(h.heat_id),
+    });
+    const about = (r: core.RaceRef) => (d: core.Decision) =>
+      ((d.type === 'raceCorrected' || d.type === 'protestDecided') &&
+        d.race.heat === r.heat &&
+        d.race.race === r.race) ||
+      (d.type === 'protestDecided' &&
+        d.outcome.kind === 'RDG2' &&
+        d.outcome.races.some((x) => x.heat === r.heat && x.race === r.race));
+    const withDecisions = openRaced.filter((h) => log.some(about(lastRef(h))));
+    const roll = rand();
+    const heat = pick(
+      withDecisions.length > 0 && roll < 0.7
+        ? withDecisions
+        : openRaced.length > 0 && roll < 0.93
+          ? openRaced
+          : raced,
+    );
+    if (!heat) return '';
+    const ref = {
+      heat: coreHeatId(heat.heat_name),
+      race: raceCount(heat.heat_id),
+    };
+    const sameRef = (r: core.RaceRef) =>
+      r.heat === ref.heat && r.race === ref.race;
+    let at = -1;
+    log.forEach((d, i) => {
+      if (d.type === 'raceScored' && sameRef(d.race)) at = i;
+    });
+    if (at < 0) {
+      problems.push(
+        `seed ${seed}: ${heat.heat_name} race ${ref.race} not in the log`,
+      );
+      return '';
+    }
+    const undone = log.flatMap((d, i): core.Decision[] => {
+      if (i <= at) return i === at ? [] : [d];
+      if (
+        (d.type === 'raceCorrected' || d.type === 'protestDecided') &&
+        sameRef(d.race)
+      ) {
+        return [];
+      }
+      if (d.type === 'protestDecided' && d.outcome.kind === 'RDG2') {
+        return [
+          {
+            ...d,
+            outcome: {
+              kind: 'RDG2',
+              races: d.outcome.races.filter((r) => !sameRef(r)),
+            },
+          },
+        ];
+      }
+      return [d];
+    });
+    const label = `an undo${open.has(ref.heat) ? '' : ' of a closed heat'}`;
+    let appError: string | null = null;
+    try {
+      await call('undoLastScoredRaceForHeat', heat.heat_id);
+    } catch (error) {
+      appError = (error as Error).message;
+    }
+    const coreResult = core.replay(undone);
+    const coreError = coreResult.ok ? null : coreResult.reason;
+    if ((appError === null) !== (coreError === null)) {
+      problems.push(
+        `seed ${seed}: undo ${heat.heat_name} race ${ref.race}: app ${appError ?? 'accepted'}, core ${coreError ?? 'accepted'}`,
+      );
+    }
+    if (appError === null && coreError === null) {
+      const later = log.slice(at + 1);
+      const dropped = later.length - (undone.length - at);
+      if (dropped > 0) cover('undo: decisions on the race dropped');
+      if (
+        later.some(
+          (d) =>
+            d.type === 'protestDecided' &&
+            d.outcome.kind === 'RDG2' &&
+            !sameRef(d.race) &&
+            d.outcome.races.some(sameRef),
+        )
+      ) {
+        cover('undo: race taken out of an RDG2');
+      }
+      log.splice(0, log.length, ...undone);
+    }
+    return label;
+  };
+
+  /**
+   * Parity R9 (docs/parity, "library; app at switch"): an RDG1/RDG2 with
+   * no race left to average. The library scores it as no place (largest
+   * heat + 1) on every read; the app keeps the points it stored last (an
+   * average of races since undone or no longer counted, or the DNF score
+   * of a smaller largest heat). Returns those redress scores where the two
+   * differ.
+   */
+  const staleRedress = (s: core.EventState) => {
+    const raceIn = (ref: core.RaceRef) =>
+      [...s.rounds.flat(), ...(s.fleets ?? [])].find((h) => h.id === ref.heat)!
+        .races[ref.race - 1];
+    const averaged = (code?: string) => code === 'RDG1' || code === 'RDG2';
+    const found: string[] = [];
+    [
+      core.qualifyingStandings(s).standings,
+      ...(s.fleets ? core.finalStandings(s).map((f) => f.standings) : []),
+    ].forEach((standings) =>
+      standings.forEach(({ boat, scores }) =>
+        scores.forEach((score) => {
+          const { ref } = score;
+          if (!ref || !averaged(score.code)) return;
+          const outcome = raceIn(ref).protests[boat];
+          const chosen = outcome?.kind === 'RDG2' ? outcome.races : null;
+          const pool = scores.filter(
+            (other) =>
+              other.race !== score.race &&
+              !averaged(other.code) &&
+              (!chosen ||
+                chosen.some(
+                  (r) =>
+                    other.ref?.heat === r.heat && other.ref?.race === r.race,
+                )),
+          );
+          if (pool.length > 0) return;
+          const app = db
+            .prepare(
+              `SELECT s.points FROM Scores s JOIN Races r ON r.race_id = s.race_id
+               JOIN Heats h ON h.heat_id = r.heat_id
+               WHERE h.event_id = ? AND h.heat_name IN (?, ?)
+                 AND r.race_number = ? AND s.boat_id = ?`,
+            )
+            .get(
+              eventId,
+              `Heat ${ref.heat}`,
+              `Final ${ref.heat}`,
+              ref.race,
+              Number(boat),
+            ) as { points: number } | undefined;
+          if (app && app.points !== score.points) {
+            found.push(
+              `${boat} ${score.code} in ${ref.heat} race ${ref.race}: app ${app.points}, core ${score.points}`,
+            );
+          }
+        }),
+      ),
+    );
+    return found;
+  };
+
+  /** False when the standings were not compared (a known difference). */
   const compare = async (step: string) => {
     const s = state();
     const where = `seed ${seed}, after ${step}`;
-    heats().forEach((heat) => {
-      const appBoats = boatsIn(heat.heat_id)
-        .map((b) => String(b.boat_id))
-        .sort();
-      const found = s.rounds
-        .flat()
-        .concat(s.fleets ?? [])
-        .find((h) => h.id === coreHeatId(heat.heat_name));
-      const coreBoats = [...(found?.boats ?? [])].sort();
-      if (appBoats.join() !== coreBoats.join()) {
-        problems.push(
-          `${where}: ${heat.heat_name} app [${appBoats}] core [${coreBoats}]`,
-        );
-      }
-    });
-
+    const stale = staleRedress(s);
+    if (stale.length > 0) {
+      KNOWN_R9.set(seed, `after ${step}: ${stale.join('; ')}`);
+      return false;
+    }
     const diff = (
       name: string,
       a: Map<string, string>,
       b: Map<string, string>,
+      known: (boat: string) => boolean = () => false,
     ) => {
       const boats = new Set([...a.keys(), ...b.keys()]);
       const wrong = [...boats].filter((boat) => a.get(boat) !== b.get(boat));
-      if (wrong.length > 0) {
-        problems.push(
-          `${where}: ${name} ${wrong
-            .map((boat) => `${boat} app ${a.get(boat)} core ${b.get(boat)}`)
-            .join('; ')}`,
-        );
+      if (wrong.length === 0) return false;
+      const text = `${name} ${wrong
+        .map((boat) => `${boat} app ${a.get(boat)} core ${b.get(boat)}`)
+        .join('; ')}`;
+      if (wrong.every(known)) {
+        KNOWN_R8.set(seed, `after ${step}: ${text}`);
+        return true;
       }
+      problems.push(`${where}: ${text}`);
+      return false;
     };
+
+    /**
+     * Parity R8 (docs/parity, "library; app at switch"): a boat with no
+     * heat in a qualifying race is scored DNC; the app files the row under
+     * a heat of that round, and its SHRS 5.7(ii) tie-break then counts the
+     * race as one she sailed with that heat's boats. The library shares it
+     * with nobody (5.7(ii)(1)). Pairs of boats that "met" only that way.
+     */
+    const metOnlyInTheApp = new Set(
+      (
+        db
+          .prepare(
+            `SELECT s.boat_id AS a, hb.boat_id AS b FROM Scores s
+             JOIN Races r ON r.race_id = s.race_id
+             JOIN Heats h ON h.heat_id = r.heat_id
+             JOIN Heat_Boat hb ON hb.heat_id = h.heat_id
+             WHERE h.event_id = ? AND NOT EXISTS (
+               SELECT 1 FROM Heat_Boat x
+               WHERE x.heat_id = h.heat_id AND x.boat_id = s.boat_id)`,
+          )
+          .all(eventId) as { a: number; b: number }[]
+      ).flatMap(({ a, b }) => [`${a}|${b}`, `${b}|${a}`]),
+    );
 
     /**
      * Places compared exactly. Where SHRS 5.7 goes round in a circle (A
      * ahead of B ahead of C ahead of A) both settle it the same way: the
      * boat no tied boat beats first, a true circle by plain RRS A8. Circles
      * are counted; outside one, an order that puts a boat above one that
-     * beats her head-to-head is an error.
+     * beats her head-to-head is an error. A difference only among boats
+     * tied with an R8 pair is counted as R8 (returns true).
      */
     type Row = { boat: string; total: number; place: number; group: string };
     const settled = (
@@ -435,9 +800,23 @@ async function runEvent(seed: number): Promise<string[]> {
       coreRows: Array<Row & { circular?: boolean }>,
       tie: (a: string, b: string) => number,
     ) => {
-      const groups = new Map<string, Row[]>();
-      appRows.forEach((row) =>
-        groups.set(row.group, [...(groups.get(row.group) ?? []), row]),
+      const groupsOf = (rows: Row[]) => {
+        const groups = new Map<string, Row[]>();
+        rows.forEach((row) =>
+          groups.set(row.group, [...(groups.get(row.group) ?? []), row]),
+        );
+        return groups;
+      };
+      const groups = groupsOf(appRows);
+      const coreGroups = groupsOf(coreRows);
+      const r8 = (group: Row[] = []) =>
+        group.some((x) =>
+          group.some((y) => metOnlyInTheApp.has(`${x.boat}|${y.boat}`)),
+        );
+      const r8Groups = new Set(
+        [...groups, ...coreGroups]
+          .filter(([, group]) => r8(group))
+          .map(([key]) => key),
       );
       // In a true circle every order puts someone above a boat that beats
       // her; elsewhere no order may.
@@ -445,7 +824,7 @@ async function runEvent(seed: number): Promise<string[]> {
         coreRows.filter((r) => r.circular).map((r) => r.group),
       );
       groups.forEach((group, key) => {
-        if (circular.has(key)) return;
+        if (circular.has(key) || r8Groups.has(key)) return;
         group.forEach((x) =>
           group.forEach((y) => {
             if (x.place < y.place && tie(y.boat, x.boat) < 0) {
@@ -459,12 +838,21 @@ async function runEvent(seed: number): Promise<string[]> {
       if (coreRows.some((row) => row.circular)) CIRCLES.add(`${seed}:${name}`);
       const view = (rows: Row[]) =>
         new Map(rows.map((row) => [row.boat, `${row.total}@${row.place}`]));
-      diff(name, view(appRows), view(coreRows));
+      const groupOf = (rows: Row[], boat: string) =>
+        rows.find((row) => row.boat === boat)?.group ?? '';
+      return diff(
+        name,
+        view(appRows),
+        view(coreRows),
+        (boat) =>
+          r8Groups.has(groupOf(appRows, boat)) &&
+          r8Groups.has(groupOf(coreRows, boat)),
+      );
     };
 
     await call('readLeaderboard', eventId);
     const qTie = core.qualifyingTieBreak(s);
-    settled(
+    const r8InQualifying = settled(
       'qualifying',
       (
         db
@@ -483,6 +871,9 @@ async function runEvent(seed: number): Promise<string[]> {
         .standings.map((r) => ({ ...r, group: String(r.total) })),
       qTie,
     );
+    // The fleet split ranks the qualifying standings: an R8 difference
+    // there can move boats between fleets, so the event stops here.
+    if (r8InQualifying) return false;
 
     if (s.fleets) {
       await call('readFinalLeaderboard', eventId);
@@ -514,7 +905,7 @@ async function runEvent(seed: number): Promise<string[]> {
     }
 
     const finalRaced = (s.fleets ?? []).some((f) => f.races.length > 0);
-    settled(
+    const r8InOverall = settled(
       'overall',
       ((await call('readOverallLeaderboard', eventId)) as any[]).map((r) => ({
         boat: String(r.boat_id),
@@ -530,6 +921,26 @@ async function runEvent(seed: number): Promise<string[]> {
       })),
       finalRaced ? core.overallTieBreak(s) : qTie,
     );
+    if (r8InOverall) return false;
+
+    // Heats last: a difference in the standings explains one in the fleets.
+    heats().forEach((heat) => {
+      const appBoats = boatsIn(heat.heat_id)
+        .map((b) => String(b.boat_id))
+        .sort();
+      const found = s.rounds
+        .flat()
+        .concat(s.fleets ?? [])
+        .find((h) => h.id === coreHeatId(heat.heat_name));
+      const coreBoats = [...(found?.boats ?? [])].sort();
+      if (appBoats.join() !== coreBoats.join()) {
+        problems.push(
+          `${where}: ${heat.heat_name} app [${appBoats}] core [${coreBoats}]`,
+        );
+      }
+    });
+
+    return true;
   };
 
   try {
@@ -546,24 +957,25 @@ async function runEvent(seed: number): Promise<string[]> {
     log.push({ type: 'heatsCreated', heatCount });
     await compare('the first heats');
 
-    const steps = int(10, 30);
+    const steps = int(12, 34);
     for (let step = 0; step < steps && problems.length === 0; step += 1) {
       const s = state();
       const next = core.nextStep(s);
       const r = rand();
       let label = '';
-      if (r < 0.08 && !s.fleets) {
+      if (r < 0.07 && !s.fleets) {
         label = 'a late entry';
         // eslint-disable-next-line no-await-in-loop
         await enterBoat();
-      } else if (r < 0.16) {
-        label = 'a correction';
+      } else if (r < 0.15) {
         // eslint-disable-next-line no-await-in-loop
-        await correctRace();
+        label = await correctRace();
       } else if (r < 0.24) {
-        label = 'a protest decision';
         // eslint-disable-next-line no-await-in-loop
-        await decideProtest();
+        label = await decideProtest();
+      } else if (r < 0.32) {
+        // eslint-disable-next-line no-await-in-loop
+        label = await undoRace();
       } else if (next.kind === 'createRound') {
         if (s.rounds.length >= 2 && rand() < 0.4) {
           label = 'the final split';
@@ -587,20 +999,28 @@ async function runEvent(seed: number): Promise<string[]> {
           );
         }
       } else if (next.kind === 'score') {
-        const heat = heats().find(
-          (h) => coreHeatId(h.heat_name) === next.heat,
-        )!;
-        label = `scoring ${heat.heat_name} race ${raceCount(heat.heat_id) + 1}`;
+        // Not always the heat the library would name next: the heats of a
+        // qualifying round in any order, and any final fleet (SHRS 4.5).
+        const round = s.rounds[s.rounds.length - 1];
+        const open = (
+          s.fleets ??
+          (round.length > 1 ? round.filter((h) => h.races.length === 0) : round)
+        ).filter((h) => h.boats.length > 0);
+        const id = open.length > 1 && rand() < 0.6 ? pick(open).id : next.heat;
+        const heat = heats().find((h) => coreHeatId(h.heat_name) === id)!;
+        label = `scoring${id === next.heat ? '' : ' out of order'} ${heat.heat_name} race ${raceCount(heat.heat_id) + 1}`;
         // eslint-disable-next-line no-await-in-loop
         await scoreHeat(heat);
       }
       if (label) {
         const kind = label
           .replace(/ (\d+|Heat.*|Final.*)$/, '')
-          .replace(/^scoring.*/, 'scoring');
+          .replace(/^(scoring( out of order)?).*/, '$1');
         COVERED[kind] = (COVERED[kind] ?? 0) + 1;
+        // A known difference (R9) ends the event: what follows can depend
+        // on it (the final split ranks the qualifying standings).
         // eslint-disable-next-line no-await-in-loop
-        await compare(label);
+        if (!(await compare(label))) break;
       }
     }
   } catch (error) {
@@ -634,6 +1054,16 @@ async function runEvent(seed: number): Promise<string[]> {
                  JOIN Heats h ON h.heat_id = r.heat_id ORDER BY r.race_id, s.position`,
               )
               .all(),
+            // SHRS 3.1(5): the places the app froze for protest decisions.
+            frozen: db
+              .prepare(
+                `SELECT h.heat_name, r.race_number, f.rank, f.boat_id,
+                        f.frozen_position, f.frozen_status
+                 FROM RaceAssignmentSnapshots f
+                 JOIN Races r ON r.race_id = f.race_id
+                 JOIN Heats h ON h.heat_id = r.heat_id ORDER BY f.race_id, f.rank`,
+              )
+              .all(),
           },
           null,
           1,
@@ -657,6 +1087,16 @@ describe('regatta-core agrees with the app', () => {
     jest.restoreAllMocks();
     process.stdout.write(
       `regatta-core vs app: 5.7 circles in ${CIRCLES.size} standings\n` +
+        `parity R9 (stale RDG1/RDG2 average, known): ${KNOWN_R9.size} events stopped${[
+          ...KNOWN_R9,
+        ]
+          .map(([seed, what]) => `\n  seed ${seed} ${what}`)
+          .join('')}\n` +
+        `parity R8 (no-heat DNC in a 5.7 tie-break, known): ${KNOWN_R8.size} events stopped${[
+          ...KNOWN_R8,
+        ]
+          .map(([seed, what]) => `\n  seed ${seed} ${what}`)
+          .join('')}\n` +
         `steps compared: ${JSON.stringify(COVERED)}\n`,
     );
   });

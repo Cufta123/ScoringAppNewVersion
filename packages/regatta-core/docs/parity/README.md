@@ -109,12 +109,37 @@ name? }`, refused if it collides with another entry.
    decision instead of deletion (part of step 3, the decision log in the
    database).
 
-## The comparison test misses
+## The comparison test
 
-RDG2; undo; heats scored out of A, B, C order; two or more races per round
-with several heats; protests on boats that did not finish; corrections
-after a protest in the same race. These go into
-`src/__tests__/regattaCore.differential.integration.test.ts` next.
+`src/__tests__/regattaCore.differential.integration.test.ts` now also
+generates RDG2, undo of a heat's last race, heats scored out of A, B, C
+order, protests on boats that did not finish, and corrections after a
+protest in the same race. Two races per round with several heats is not
+generated: the app's scoring page does not offer it. It counts R8 and R9
+(known, "app at switch") and stops that event instead of failing.
+
+At `DIFF_SEEDS=400`, after the fixes below, 399 events agree. The one that
+does not (seed 105) is a known app bug:
+
+- **App: SHRS 3.1(5) after a correction.** A protest decision freezes the
+  pre-decision order for the next round's heats; a later race-office
+  correction of the same race un-shields only the edited boat, so a boat
+  with a protest decision keeps her place from the old sheet (and wins a
+  dead heat against the corrected boat). 3.1(5) shields protest decisions
+  only; the race office's corrected sheet should set the assignment. The
+  app stores one combined result per boat, not the race office's sheet
+  beside the committee's decisions, so it cannot rebuild the corrected
+  sheet without the decision; the library keeps them apart. Rare (a
+  decision, then a correction of that race before the next round);
+  fixed by the switch.
+
+Found and fixed in the app with it:
+
+- **5.7 circles and shared places followed the database's row order.** A
+  4-boat circle entered in reverse sail order had a different winner in
+  the app and the library. The app's rankings now take boats no rule
+  separates in SHRS order (national letters, sail number), as the library
+  does (`functions/boatOrder.ts`).
 
 ## For the switch (step 2)
 
