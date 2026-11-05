@@ -2,8 +2,8 @@
 
 import '@testing-library/jest-dom';
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { fireEvent, render, screen, waitFor } from './helpers/renderWithQuery';
 import { confirmAction } from '../renderer/utils/userFeedback';
 
 const mockLeftPage = jest.fn();

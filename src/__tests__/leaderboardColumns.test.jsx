@@ -2,7 +2,7 @@
 
 import '@testing-library/jest-dom';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen } from './helpers/renderWithQuery';
 import QualifyingTable from '../renderer/components/leaderboard/QualifyingTable';
 import { hasMixedBoatTypes } from '../renderer/utils/leaderboardUtils';
 import {

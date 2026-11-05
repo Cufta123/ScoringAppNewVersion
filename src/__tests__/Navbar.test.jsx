@@ -2,8 +2,8 @@
 
 import '@testing-library/jest-dom';
 import React from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { fireEvent, render, screen, within } from './helpers/renderWithQuery';
 import Navbar from '../renderer/components/Navbar';
 import { requestProblemReport } from '../renderer/utils/problemReport';
 

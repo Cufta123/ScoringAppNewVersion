@@ -1,9 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { exactPoints as roundPoints } from 'regatta-core';
-import { heatRaceDB } from '../../api/db';
+import { queries } from '../../api/queries';
 import useDialogFocus from '../../hooks/useDialogFocus';
 import type {
-  BoatScoreExplanation,
   ExplainedRace,
   Reason,
   SeriesBlock,
@@ -146,31 +146,15 @@ function ScoreExplanationDialog({
 }: ScoreExplanationDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
-  const [explanation, setExplanation] = useState<BoatScoreExplanation | null>(
-    null,
-  );
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!target) return undefined;
-    let cancelled = false;
-    setExplanation(null);
-    setError(null);
-    Promise.resolve()
-      .then(() => heatRaceDB.explainBoatScore(eventId, target.boatId))
-      .then((result) => {
-        if (!cancelled) setExplanation(result);
-        return null;
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setError(describeError(err, 'explaining a score'));
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [eventId, target]);
+  // Shown in the dialog itself (it has room for the reason), not as a toast.
+  const query = useQuery({
+    ...queries.scoreExplanation(eventId, target?.boatId ?? -1),
+    enabled: target != null,
+  });
+  const explanation = query.data ?? null;
+  const error = query.isError
+    ? describeError(query.error, 'explaining a score')
+    : null;
 
   useDialogFocus(dialogRef, Boolean(target), onClose, closeRef);
 

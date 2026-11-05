@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import useExclusiveAction from '../hooks/useExclusiveAction';
 import useHeatList from '../hooks/useHeatList';
 import useHeatManagement from '../hooks/useHeatManagement';
@@ -29,12 +29,6 @@ interface HeatComponentProps {
   // Set while the PARENT is running one of its own round-level actions, so
   // the per-heat buttons can't start a second one underneath it.
   rowActionsDisabled?: boolean;
-  onQualifyingGroupCountChange?: ((count: number) => void) | null;
-  /** Notifies the host page whenever the final-series state changes (started
-   * here, detected on load, or reset by a snapshot restore) so the page's own
-   * copy of that state can never go stale. */
-  onFinalSeriesStateChange?: ((started: boolean) => void) | null;
-  refreshToken?: number;
 }
 
 function HeatComponent({
@@ -44,9 +38,6 @@ function HeatComponent({
   onCreateRound = null,
   onUndoRedistribution = null,
   rowActionsDisabled = false,
-  onQualifyingGroupCountChange = null,
-  onFinalSeriesStateChange = null,
-  refreshToken = 0,
 }: HeatComponentProps) {
   const eventId = event.event_id;
   const [displayLastHeats, setDisplayLastHeats] = useState(true);
@@ -62,6 +53,8 @@ function HeatComponent({
   // the disabled state on the trigger buttons.
   const { busy, runExclusive } = useExclusiveAction();
 
+  // The host page reads the same list (one query, useHeatList), so what it
+  // knows about the series can never disagree with what is shown here.
   const {
     heats,
     loadFailed,
@@ -69,40 +62,21 @@ function HeatComponent({
     raceHappened,
     numQualifyingGroups,
     finalSeriesStarted,
-    markFinalSeriesStarted,
-    reload,
-  } = useHeatList(eventId, refreshToken);
+  } = useHeatList(eventId);
 
-  const snapshots = useHeatSnapshots(eventId, reload);
+  const snapshots = useHeatSnapshots(eventId);
   const finalSeries = useFinalSeriesStart({
     eventId,
     finalSeriesStarted,
-    markFinalSeriesStarted,
-    reloadHeats: reload,
     saveBackupFile: snapshots.saveBackupFile,
   });
   const management = useHeatManagement({
     eventId,
-    refreshToken,
     heats,
     numQualifyingGroups,
     heatsLocked: raceHappened || finalSeriesStarted,
-    reloadHeats: reload,
     runExclusive,
   });
-
-  // Tell the host page what the heats say, so its own copy can never go stale.
-  // Without the final-series report, starting the final series from this
-  // embedded component would leave the Heat Race page believing it is still in
-  // qualifying — final races would then be submitted and displayed with
-  // qualifying semantics.
-  useEffect(() => {
-    onQualifyingGroupCountChange?.(numQualifyingGroups);
-  }, [numQualifyingGroups, onQualifyingGroupCountChange]);
-
-  useEffect(() => {
-    onFinalSeriesStateChange?.(finalSeriesStarted);
-  }, [finalSeriesStarted, onFinalSeriesStateChange]);
 
   const lastHeats = useMemo(() => getLastHeats(heats), [heats]);
   const heatsToDisplay = displayLastHeats ? lastHeats : heats;
@@ -205,10 +179,8 @@ function HeatComponent({
           heats={heats}
           raceHappened={raceHappened}
           finalSeriesStarted={finalSeriesStarted}
-          refreshKey={heats}
           busy={busy || rowActionsDisabled}
           runExclusive={runExclusive}
-          onAssigned={reload}
         />
       )}
 

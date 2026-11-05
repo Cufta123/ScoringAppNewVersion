@@ -7,7 +7,7 @@ import {
   screen,
   waitFor,
   within,
-} from '@testing-library/react';
+} from './helpers/renderWithQuery';
 import ResultsExportDialog from '../renderer/components/export/ResultsExportDialog';
 import StartingListExportDialog from '../renderer/components/export/StartingListExportDialog';
 import HeatsExportDialog from '../renderer/components/export/HeatsExportDialog';
@@ -434,6 +434,13 @@ describe('export dialogs', () => {
     });
 
     it('saves a chosen picture with the event, replaced or removed later', async () => {
+      // As the main process keeps it: what is saved is what is read back.
+      let stored = null;
+      eventDB.readEventExportLogo.mockImplementation(async () => stored);
+      eventDB.saveEventExportLogo.mockImplementation(async (_id, logo) => {
+        stored = logo;
+        return { success: true };
+      });
       prepareLogo.mockResolvedValue('data:image/png;base64,BBBB');
       await renderResults({ ...resultsProps });
       choose(new File(['x'], 'logo.png', { type: 'image/png' }));

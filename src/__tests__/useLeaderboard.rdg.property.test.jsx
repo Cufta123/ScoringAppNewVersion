@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 
 import '@testing-library/jest-dom';
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from './helpers/renderWithQuery';
 import useLeaderboard from '../renderer/hooks/useLeaderboard';
 
 jest.mock('exceljs', () => {

@@ -8,7 +8,7 @@
 
 import '@testing-library/jest-dom';
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from './helpers/renderWithQuery';
 import ConfirmDialogHost from '../renderer/components/shared/ConfirmDialogHost';
 import { confirmAction } from '../renderer/utils/userFeedback';
 

@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 
 import '@testing-library/jest-dom';
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from './helpers/renderWithQuery';
 import useLeaderboard from '../renderer/hooks/useLeaderboard';
 import {
   reportError,
@@ -360,16 +360,18 @@ describe('useLeaderboard scoring/edit flow', () => {
       });
 
       // Sent as Save sends it: the whole race, the typed cell marked.
-      expect(preview).toHaveBeenCalledWith(5, [
-        {
-          raceId: '201',
-          cells: [
-            { boatId: 'b1', position: 2, status: 'FINISHED', edited: false },
-            { boatId: 'b2', position: 3, status: 'FINISHED', edited: false },
-            { boatId: 'b3', position: 1, status: 'FINISHED', edited: true },
-          ],
-        },
-      ]);
+      await waitFor(() =>
+        expect(preview).toHaveBeenCalledWith(5, [
+          {
+            raceId: '201',
+            cells: [
+              { boatId: 'b1', position: 2, status: 'FINISHED', edited: false },
+              { boatId: 'b2', position: 3, status: 'FINISHED', edited: false },
+              { boatId: 'b3', position: 1, status: 'FINISHED', edited: true },
+            ],
+          },
+        ]),
+      );
       await waitFor(() =>
         expect(
           result.current.editableLeaderboard.find((e) => e.boat_id === 'b3')
@@ -1150,10 +1152,7 @@ describe('useLeaderboard scoring/edit flow', () => {
   });
 
   it('refuses to save an edit started before the history changed the results', async () => {
-    const {
-      notifyEventDataChanged,
-    } = require('../renderer/utils/eventDataChanged');
-    const { result } = renderHook(() => useLeaderboard(1));
+    const { result, queryClient } = renderHook(() => useLeaderboard(1));
     await waitFor(() => expect(result.current.loading).toBe(false));
     await act(async () => {
       await result.current.toggleEditMode();
@@ -1161,12 +1160,29 @@ describe('useLeaderboard scoring/edit flow', () => {
     act(() => {
       result.current.handleRaceChange('b2', 0, null, 'DSQ');
     });
-    // Someone went back in the history (another screen).
-    act(() => notifyEventDataChanged(1));
-    expect(reportWarning).toHaveBeenCalledWith(
-      expect.stringMatching(/changed in the history while you were editing/),
-      'Results changed',
+    const draft = JSON.parse(
+      JSON.stringify(result.current.editableLeaderboard),
     );
+    // Someone went back in the history (another screen): the results are
+    // different now, and the event's queries are invalidated.
+    window.electron.sqlite.heatRaceDB.readLeaderboard.mockResolvedValue(
+      baseLeaderboardRows.map((row) =>
+        row.boat_id === 'b3'
+          ? { ...row, race_statuses: 'DNF', race_points: '4' }
+          : row,
+      ),
+    );
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: ['event', 1] });
+    });
+    await waitFor(() =>
+      expect(reportWarning).toHaveBeenCalledWith(
+        expect.stringMatching(/changed in the history while you were editing/),
+        'Results changed',
+      ),
+    );
+    // The draft is not replaced underneath the user.
+    expect(result.current.editableLeaderboard).toEqual(draft);
     await act(async () => {
       await result.current.handleSave();
     });
@@ -1175,6 +1191,42 @@ describe('useLeaderboard scoring/edit flow', () => {
       window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic,
     ).not.toHaveBeenCalled();
     expect(result.current.editMode).toBe(true);
+
+    // Cancel Editing shows the results as they are now.
+    await act(async () => {
+      await result.current.toggleEditMode();
+    });
+    expect(result.current.editMode).toBe(false);
+    expect(
+      result.current.editableLeaderboard.find((e) => e.boat_id === 'b3')
+        .race_statuses[0],
+    ).toBe('DNF');
+  });
+
+  it('an unchanged reread while editing keeps the edit saveable', async () => {
+    const { result, queryClient } = renderHook(() => useLeaderboard(1));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () => {
+      await result.current.toggleEditMode();
+    });
+    act(() => {
+      result.current.handleRaceChange('b2', 0, null, 'DSQ');
+    });
+    // A write that changed nothing on this board (a logo, a report marked
+    // read) reads the event again: the same rows come back.
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: ['event', 1] });
+    });
+    expect(reportWarning).not.toHaveBeenCalledWith(
+      expect.anything(),
+      'Results changed',
+    );
+    await act(async () => {
+      await result.current.handleSave();
+    });
+    expect(
+      window.electron.sqlite.heatRaceDB.saveLeaderboardRaceResultsAtomic,
+    ).toHaveBeenCalledTimes(1);
   });
 
   describe('invalid typed results', () => {
@@ -1276,7 +1328,7 @@ describe('useLeaderboard scoring/edit flow', () => {
   });
 
   describe('LB-1: fetch cancellation and stale-edit clearing', () => {
-    it('exits edit mode and clears queued edits when the series flips to final and re-fetches', async () => {
+    it('shows nothing (loading) until the series is known, then the final standings', async () => {
       let resolveHeats;
       window.electron.sqlite.heatRaceDB.readAllHeats.mockImplementation(
         () =>
@@ -1302,26 +1354,49 @@ describe('useLeaderboard scoring/edit flow', () => {
       ]);
 
       const { result } = renderHook(() => useLeaderboard(1));
-      await waitFor(() => expect(result.current.loading).toBe(false));
+      // The qualifying rows are in, but which series is shown (and edited)
+      // is not known yet: no edit can start on the wrong one.
+      await waitFor(() =>
+        expect(
+          window.electron.sqlite.heatRaceDB.readLeaderboard,
+        ).toHaveBeenCalled(),
+      );
+      expect(result.current.loading).toBe(true);
+      expect(result.current.leaderboard).toEqual([]);
 
+      await act(async () => {
+        resolveHeats([{ heat_type: 'Final' }]);
+      });
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      expect(result.current.finalSeriesStarted).toBe(true);
+      expect(result.current.leaderboard.map((e) => e.boat_id)).toEqual(['f1']);
+    });
+
+    it('the series flipping underneath an edit (history) refuses its Save', async () => {
+      const { result, queryClient } = renderHook(() => useLeaderboard(1));
+      await waitFor(() => expect(result.current.loading).toBe(false));
       await act(async () => {
         await result.current.toggleEditMode();
       });
       act(() => {
         result.current.handleRaceChange('b2', 0, null, 'DSQ');
       });
-      expect(result.current.editMode).toBe(true);
 
-      // Final heats arrive -> fetchLeaderboard re-runs in final mode, which must
-      // clear the queued edit and leave edit mode.
+      // Going back in the history started the Final Series again.
+      window.electron.sqlite.heatRaceDB.readAllHeats.mockResolvedValue([
+        { heat_type: 'Final' },
+      ]);
       await act(async () => {
-        resolveHeats([{ heat_type: 'Final' }]);
+        await queryClient.invalidateQueries({ queryKey: ['event', 1] });
       });
-
       await waitFor(() => expect(result.current.finalSeriesStarted).toBe(true));
-      await waitFor(() => expect(result.current.editMode).toBe(false));
+      await waitFor(() =>
+        expect(reportWarning).toHaveBeenCalledWith(
+          expect.stringMatching(/changed in the history/),
+          'Results changed',
+        ),
+      );
 
-      // The queued DSQ edit was cleared by the re-fetch: a save sends nothing.
       await act(async () => {
         await result.current.handleSave();
       });
@@ -1330,7 +1405,7 @@ describe('useLeaderboard scoring/edit flow', () => {
       ).not.toHaveBeenCalled();
     });
 
-    it('ignores a late qualifying fetch once the final series has started', async () => {
+    it('shows the final standings with the qualifying read, whenever it comes', async () => {
       let releaseQualifyingRead;
       window.electron.sqlite.heatRaceDB.readLeaderboard.mockImplementationOnce(
         () =>
@@ -1367,25 +1442,33 @@ describe('useLeaderboard scoring/edit flow', () => {
       );
 
       const { result } = renderHook(() => useLeaderboard(1));
-      await waitFor(() => expect(result.current.finalSeriesStarted).toBe(true));
       await waitFor(() =>
-        expect(result.current.leaderboard.some((e) => e.boat_id === 'f1')).toBe(
-          true,
-        ),
+        expect(
+          window.electron.sqlite.heatRaceDB.readOverallLeaderboard,
+        ).toHaveBeenCalled(),
       );
+      expect(result.current.loading).toBe(true);
 
-      // Release the stale qualifying fetch after the final data is in place.
+      // The qualifying read comes back last.
       await act(async () => {
         releaseQualifyingRead(JSON.parse(JSON.stringify(baseLeaderboardRows)));
       });
+      await waitFor(() => expect(result.current.loading).toBe(false));
 
-      // The stale qualifying fetch must not have overwritten the final standings.
+      // The page shows the final fleets, never the qualifying rows as if
+      // they were the final standings.
+      expect(result.current.finalSeriesStarted).toBe(true);
       expect(result.current.leaderboard.some((e) => e.boat_id === 'f1')).toBe(
         true,
       );
       expect(result.current.leaderboard.some((e) => e.boat_id === 'b1')).toBe(
         false,
       );
+      expect(result.current.eventLeaderboard.map((e) => e.boat_id)).toEqual([
+        'b1',
+        'b2',
+        'b3',
+      ]);
     });
   });
 

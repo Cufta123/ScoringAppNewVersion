@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook } from './helpers/renderWithQuery';
 import useExportOptions, {
   exportOptionsKey,
   mergeStoredOptions,

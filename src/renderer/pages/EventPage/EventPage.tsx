@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState } from 'react';
 import Select from 'react-select';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import SailorForm from '../../components/SailorForm';
 import SailorList from '../../components/SailorList';
 import SailorImport from '../../components/SailorImport';
@@ -9,15 +10,15 @@ import EventHeader from '../../components/shared/EventHeader';
 import LoadingState from '../../components/shared/LoadingState';
 import './EventPage.css';
 import HeatsSummary from '../../components/heats/HeatsSummary';
-import { useEventDataChanged } from '../../utils/eventDataChanged';
 import {
   reportError,
   reportInfo,
   reportWarning,
   getErrorMessage,
 } from '../../utils/userFeedback';
-import { checkRaceHappened } from '../../utils/raceStatus';
-import { eventDB, sailorDB } from '../../api/db';
+import { eventDB } from '../../api/db';
+import { queries, useReportQueryError } from '../../api/queries';
+import { useWrite } from '../../api/writes';
 import type { EventBoatRow } from '../../types';
 import useRouteEvent from '../../hooks/useRouteEvent';
 import { sailorFullName } from '../../utils/sailorName';
@@ -43,85 +44,67 @@ const ADD_MODES = [
   { id: 'bulk', label: 'CSV file', icon: 'fa-table' },
 ] as const;
 
+const NO_EVENT = -1;
+
 function EventPage() {
   const navigate = useNavigate();
   const { name } = useParams();
   const event = useRouteEvent(name);
   const eventId = event?.event_id;
+  const hasEvent = eventId != null;
 
-  const [boats, setBoats] = useState<MappedEventBoat[]>([]);
-  const [boatsLoading, setBoatsLoading] = useState(true);
-  const [allBoats, setAllBoats] = useState<EventBoatRow[]>([]);
-  const [selectedBoats, setSelectedBoats] = useState<readonly BoatOption[]>([]);
-  const [addSailorMode, setAddSailorMode] = useState('single');
-  const [raceHappened, setRaceHappened] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
+  // What this page shows is read through the query cache: any write to the
+  // event (here, on another page, or going back in the history) reads it
+  // again (api/writes.ts).
+  const entriesQuery = useQuery({
+    ...queries.entries(eventId ?? NO_EVENT),
+    enabled: hasEvent,
+  });
+  useReportQueryError(entriesQuery, 'Could not load boats for this event.');
+  const boatsOnFileQuery = useQuery({
+    ...queries.boatsOnFile(),
+    enabled: hasEvent,
+  });
+  useReportQueryError(boatsOnFileQuery, 'Could not load all boats.');
+  const raceHappenedQuery = useQuery({
+    ...queries.raceHappened(eventId ?? NO_EVENT),
+    enabled: hasEvent,
+  });
+  useReportQueryError(raceHappenedQuery, 'Could not check race status.');
 
-  const fetchBoatsWithSailors = useCallback(async () => {
-    if (!eventId) return;
-
-    setBoatsLoading(true);
-    try {
-      const boatsWithSailors = await eventDB.readBoatsByEvent(eventId);
-      const mappedBoats: MappedEventBoat[] = boatsWithSailors.map((boat) => ({
+  const boats = useMemo<MappedEventBoat[]>(
+    () =>
+      (entriesQuery.data ?? []).map((boat) => ({
         ...boat,
         sailor: boat.name,
         club: boat.club_name ?? '', // Map club_name to club
         country: boat.boat_country ?? '', // Map country_name to country
         category: boat.category_name ?? '', // Map category_name to category
-      }));
-      setBoats(mappedBoats);
-    } catch (error) {
-      reportError('Could not load boats for this event.', error);
-    } finally {
-      setBoatsLoading(false);
-    }
-  }, [eventId]);
+      })),
+    [entriesQuery.data],
+  );
+  const boatsLoading = entriesQuery.isPending;
+  const allBoats = boatsOnFileQuery.data ?? [];
+  const raceHappened = raceHappenedQuery.data ?? false;
 
-  const fetchAllBoats = useCallback(async () => {
-    try {
-      const fetchedBoats = await sailorDB.readAllBoats();
-      setAllBoats(fetchedBoats);
-    } catch (error) {
-      reportError('Could not load all boats.', error);
-    }
-  }, []);
+  const [selectedBoats, setSelectedBoats] = useState<readonly BoatOption[]>([]);
+  const [addSailorMode, setAddSailorMode] = useState('single');
+  const [exportOpen, setExportOpen] = useState(false);
 
-  const checkIfRaceHappened = useCallback(async () => {
-    if (!eventId) return;
-
-    try {
-      setRaceHappened(await checkRaceHappened(eventId));
-    } catch (error) {
-      reportError('Could not check race status.', error);
-    }
-  }, [eventId]);
-
-  useEffect(() => {
-    if (event) {
-      fetchBoatsWithSailors();
-      fetchAllBoats();
-      checkIfRaceHappened();
-    }
-  }, [event, fetchBoatsWithSailors, fetchAllBoats, checkIfRaceHappened]);
-
-  // Going back in the history (or an undo there) changed entries, heats or
-  // races behind this page: load them again.
-  const [heatsRefreshToken, setHeatsRefreshToken] = useState(0);
-  useEventDataChanged(eventId ?? undefined, () => {
-    fetchBoatsWithSailors();
-    checkIfRaceHappened();
-    setHeatsRefreshToken((token) => token + 1);
-  });
-
-  const handleAddSailor = () => {
-    fetchBoatsWithSailors();
-  };
-
-  const handleImportComplete = useCallback(() => {
-    fetchBoatsWithSailors();
-    fetchAllBoats();
-  }, [fetchBoatsWithSailors, fetchAllBoats]);
+  const enterBoats = useWrite(
+    (boatIds: number[], toEvent: number) =>
+      Promise.all(
+        boatIds.map((boatId) =>
+          eventDB.associateBoatWithEvent(boatId, toEvent),
+        ),
+      ),
+    (_result, [, toEvent]) => ({ eventId: toEvent }),
+  );
+  const removeBoat = useWrite(
+    (boatId: number, fromEvent: number) =>
+      eventDB.removeBoatFromEvent(boatId, fromEvent),
+    (_result, [, fromEvent]) => ({ eventId: fromEvent }),
+  );
 
   const handleHeatRaceClick = () => {
     if (!event) return;
@@ -142,15 +125,7 @@ function EventPage() {
 
     try {
       const boatIds = selectedBoats.map((option) => option.value);
-      await Promise.all(
-        boatIds.map((boatId) =>
-          eventDB.associateBoatWithEvent(boatId, event.event_id),
-        ),
-      );
-      fetchBoatsWithSailors();
-      setAllBoats((prevBoats) =>
-        prevBoats.filter((boat) => !boatIds.includes(boat.boat_id)),
-      );
+      await enterBoats(boatIds, event.event_id);
       setSelectedBoats([]); // Clear the selected boats
     } catch (error) {
       reportError('Could not add selected boats to the event.', error);
@@ -176,20 +151,8 @@ function EventPage() {
     }
 
     try {
-      await eventDB.removeBoatFromEvent(boatId, event.event_id);
-
-      // Find the removed boat
-      const removedBoat = boats.find((boat) => boat.boat_id === boatId);
-
-      // Remove the boat from the boats state first
-      setBoats((prevBoats) =>
-        prevBoats.filter((boat) => boat.boat_id !== boatId),
-      );
-
-      // Then add the removed boat to the allBoats state
-      if (removedBoat) {
-        setAllBoats((prevBoats) => [...prevBoats, removedBoat]);
-      }
+      // The entries are read again; the boat is back among the boats on file.
+      await removeBoat(boatId, event.event_id);
       return true;
     } catch (error) {
       const message = getErrorMessage(error);
@@ -242,10 +205,7 @@ function EventPage() {
         />
 
         {/* Where the racing stands; the heats are on the Scoring page. */}
-        <HeatsSummary
-          eventId={event.event_id}
-          refreshToken={heatsRefreshToken}
-        />
+        <HeatsSummary eventId={event.event_id} />
 
         {/* ── Warning banner ─── */}
         {raceHappened && (
@@ -292,10 +252,7 @@ function EventPage() {
 
             <div className="tab-panel" key={addSailorMode}>
               {addSailorMode === 'single' && (
-                <SailorForm
-                  onAddSailor={handleAddSailor}
-                  eventId={event.event_id}
-                />
+                <SailorForm eventId={event.event_id} />
               )}
               {addSailorMode === 'existing' && (
                 <>
@@ -342,10 +299,7 @@ function EventPage() {
                 </>
               )}
               {addSailorMode === 'bulk' && (
-                <SailorImport
-                  eventId={event.event_id}
-                  onImportComplete={handleImportComplete}
-                />
+                <SailorImport eventId={event.event_id} />
               )}
             </div>
           </div>
@@ -358,7 +312,6 @@ function EventPage() {
             loading={boatsLoading}
             onRemoveBoat={handleRemoveBoat}
             canRemove={!raceHappened}
-            onRefreshSailors={fetchBoatsWithSailors}
             headerActions={
               <div className="list-header-actions">
                 <button

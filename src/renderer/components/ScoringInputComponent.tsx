@@ -9,6 +9,8 @@ export type { ScoredBoat, ScoringHeat };
 export type { ScoringBoat } from '../hooks/useScoringInput';
 
 interface ScoringInputComponentProps {
+  /** The event the heat is in (its boats are read under the event's key). */
+  eventId: number;
   heat: ScoringHeat;
   onSubmit: (boatPlaces: ScoredBoat[]) => void | Promise<void>;
   /** Notifies the parent when a not-yet-submitted finish order exists, so it
@@ -19,11 +21,12 @@ interface ScoringInputComponentProps {
 const ignoreDirtyChange = () => {};
 
 function ScoringInputComponent({
+  eventId,
   heat,
   onSubmit,
   onDirtyChange = ignoreDirtyChange,
 }: ScoringInputComponentProps) {
-  const scoring = useScoringInput({ heat, onSubmit, onDirtyChange });
+  const scoring = useScoringInput({ eventId, heat, onSubmit, onDirtyChange });
 
   return (
     <div className="scoring-layout">

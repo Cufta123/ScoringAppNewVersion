@@ -3,7 +3,7 @@
 import '@testing-library/jest-dom';
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from './helpers/renderWithQuery';
 import EventList from '../renderer/components/EventList';
 import { confirmAction } from '../renderer/utils/userFeedback';
 

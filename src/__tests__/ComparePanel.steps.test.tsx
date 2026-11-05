@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 import '@testing-library/jest-dom';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen } from './helpers/renderWithQuery';
 import ComparePanel from '../renderer/components/leaderboard/ComparePanel';
 import type { CompareInfo, LeaderboardEntry } from '../renderer/types';
 

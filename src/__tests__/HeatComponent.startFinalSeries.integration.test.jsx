@@ -2,7 +2,7 @@
 
 import '@testing-library/jest-dom';
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from './helpers/renderWithQuery';
 import HeatComponent from '../renderer/components/HeatComponent';
 import { confirmAction, confirmChoice } from '../renderer/utils/userFeedback';
 
@@ -99,13 +99,7 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
   });
 
   it('starts final series through a single atomic backend IPC call', async () => {
-    render(
-      <HeatComponent
-        event={{ event_id: 77 }}
-        onScoreHeat={jest.fn()}
-        onQualifyingGroupCountChange={jest.fn()}
-      />,
-    );
+    render(<HeatComponent event={{ event_id: 77 }} onScoreHeat={jest.fn()} />);
 
     await waitFor(() => {
       expect(
@@ -160,13 +154,7 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
         ],
       });
 
-    render(
-      <HeatComponent
-        event={{ event_id: 77 }}
-        onScoreHeat={jest.fn()}
-        onQualifyingGroupCountChange={jest.fn()}
-      />,
-    );
+    render(<HeatComponent event={{ event_id: 77 }} onScoreHeat={jest.fn()} />);
 
     await waitFor(() => {
       expect(
@@ -231,13 +219,7 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
     });
     confirmChoiceMock.mockImplementation(() => shs43ChoicePromise);
 
-    render(
-      <HeatComponent
-        event={{ event_id: 77 }}
-        onScoreHeat={jest.fn()}
-        onQualifyingGroupCountChange={jest.fn()}
-      />,
-    );
+    render(<HeatComponent event={{ event_id: 77 }} onScoreHeat={jest.fn()} />);
 
     await waitFor(() => {
       expect(
@@ -295,13 +277,7 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
       });
     confirmChoiceMock.mockResolvedValue('extra');
 
-    render(
-      <HeatComponent
-        event={{ event_id: 77 }}
-        onScoreHeat={jest.fn()}
-        onQualifyingGroupCountChange={jest.fn()}
-      />,
-    );
+    render(<HeatComponent event={{ event_id: 77 }} onScoreHeat={jest.fn()} />);
 
     await waitFor(() => {
       expect(
@@ -355,13 +331,7 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
         ],
       });
 
-    render(
-      <HeatComponent
-        event={{ event_id: 77 }}
-        onScoreHeat={jest.fn()}
-        onQualifyingGroupCountChange={jest.fn()}
-      />,
-    );
+    render(<HeatComponent event={{ event_id: 77 }} onScoreHeat={jest.fn()} />);
 
     await waitFor(() => {
       expect(
@@ -403,13 +373,7 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
       });
     confirmChoiceMock.mockResolvedValue('cancel');
 
-    render(
-      <HeatComponent
-        event={{ event_id: 77 }}
-        onScoreHeat={jest.fn()}
-        onQualifyingGroupCountChange={jest.fn()}
-      />,
-    );
+    render(<HeatComponent event={{ event_id: 77 }} onScoreHeat={jest.fn()} />);
     await waitFor(() => {
       expect(
         screen.getByRole('button', { name: /start final series/i }),
@@ -451,11 +415,7 @@ describe('HeatComponent start final series integration (UI + IPC chain)', () => 
       confirmChoiceMock.mockResolvedValue(choice);
 
       render(
-        <HeatComponent
-          event={{ event_id: 77 }}
-          onScoreHeat={jest.fn()}
-          onQualifyingGroupCountChange={jest.fn()}
-        />,
+        <HeatComponent event={{ event_id: 77 }} onScoreHeat={jest.fn()} />,
       );
       await waitFor(() => {
         expect(

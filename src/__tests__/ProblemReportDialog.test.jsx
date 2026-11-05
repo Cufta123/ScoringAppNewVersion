@@ -8,7 +8,7 @@ import {
   render,
   screen,
   waitFor,
-} from '@testing-library/react';
+} from './helpers/renderWithQuery';
 import ProblemReportHost from '../renderer/components/ProblemReportHost';
 import ProblemReportDialog from '../renderer/components/ProblemReportDialog';
 import { confirmAction } from '../renderer/utils/userFeedback';

@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { eventDB } from '../../api/db';
+import { queries } from '../../api/queries';
+import { useWrite } from '../../api/writes';
 import { formatDateTimeShort } from '../../utils/formatDate';
 import { reportError } from '../../utils/userFeedback';
-import type { ConversionReport } from '../../../shared/conversionReport';
 
 /** SQLite's CURRENT_TIMESTAMP is UTC without a zone: say so. */
 const utc = (at: string) =>
@@ -21,31 +23,20 @@ const plural = (n: number, one: string, many: string) =>
  * exactly, where there is one).
  */
 export default function ConversionNotice({ eventId }: { eventId: number }) {
-  const [report, setReport] = useState<ConversionReport | null>(null);
+  // An older main process, or no report: nothing to show (a failed read too).
+  const report = useQuery(queries.conversionReport(eventId)).data ?? null;
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-    Promise.resolve()
-      .then(() => eventDB.readConversionReport(eventId))
-      .then((next) => {
-        if (alive) setReport(next ?? null);
-        return undefined;
-      })
-      .catch(() => {
-        // An older main process, or no report: nothing to show.
-      });
-    return () => {
-      alive = false;
-    };
-  }, [eventId]);
+  // The report is read again, and is then marked seen.
+  const markSeen = useWrite(
+    (id: number) => eventDB.markConversionReportSeen(id),
+    (_result, [id]) => ({ eventId: id }),
+  );
 
   if (!report || report.seen) return null;
 
   const confirm = async () => {
     try {
-      await eventDB.markConversionReportSeen(eventId);
-      setReport({ ...report, seen: true });
+      await markSeen(eventId);
     } catch (error) {
       reportError('Could not note that you have read this.', error);
     }

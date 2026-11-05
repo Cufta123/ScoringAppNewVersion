@@ -2,8 +2,9 @@
 
 import '@testing-library/jest-dom';
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from './helpers/renderWithQuery';
 import UnassignedEntriesNotice from '../renderer/components/UnassignedEntriesNotice';
+import { queryKeys } from '../renderer/api/queryKeys';
 
 jest.mock('../renderer/utils/userFeedback', () => ({
   ...jest.requireActual('../renderer/utils/userFeedback'),
@@ -55,25 +56,23 @@ describe('UnassignedEntriesNotice', () => {
   ];
 
   const renderNotice = (props = {}) => {
-    const onAssigned = jest.fn();
-    render(
+    return render(
       <UnassignedEntriesNotice
         eventId={1}
         heats={heats}
         raceHappened
         finalSeriesStarted={false}
-        refreshKey={0}
         busy={false}
         runExclusive={(fn) => fn()}
-        onAssigned={onAssigned}
         {...props}
       />,
     );
-    return { onAssigned };
   };
 
   it('names the late entry and adds her to a heat that has not raced', async () => {
-    const { onAssigned } = renderNotice();
+    const { queryClient } = renderNotice();
+    // The heats as the cache holds them (what the heats view shows).
+    queryClient.setQueryData(queryKeys.heatList(1), heats);
 
     expect(
       await screen.findByText(/1 entered boat is not in any heat/i),
@@ -89,7 +88,12 @@ describe('UnassignedEntriesNotice', () => {
     await waitFor(() =>
       expect(api.heatRaceDB.insertHeatBoat).toHaveBeenCalledWith(20, 5),
     );
-    expect(onAssigned).toHaveBeenCalled();
+    // The heats view reads the heats again, with her in Heat B1.
+    await waitFor(() =>
+      expect(
+        queryClient.getQueryState(queryKeys.heatList(1)).isInvalidated,
+      ).toBe(true),
+    );
   });
 
   it('points to Recreate Heats before the first race', async () => {

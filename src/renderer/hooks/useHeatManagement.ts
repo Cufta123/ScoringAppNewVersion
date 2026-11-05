@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import type React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { fewestHeats } from 'regatta-core';
-import { eventDB, heatRaceDB } from '../api/db';
+import { heatRaceDB } from '../api/db';
+import { queries } from '../api/queries';
+import { useRefreshEvent, useWrite } from '../api/writes';
 import {
   confirmAction,
   getErrorMessage,
@@ -21,12 +24,10 @@ import type { HeatBoatRow } from '../types';
 
 interface Options {
   eventId: number;
-  refreshToken: number;
   heats: HeatWithBoats[];
   numQualifyingGroups: number;
   /** A race has been scored or the Final Series has started: heats are frozen. */
   heatsLocked: boolean;
-  reloadHeats: () => Promise<void>;
   runExclusive: <T>(fn: () => Promise<T>) => Promise<T | undefined>;
 }
 
@@ -37,11 +38,9 @@ interface Options {
  */
 export default function useHeatManagement({
   eventId,
-  refreshToken,
   heats,
   numQualifyingGroups,
   heatsLocked,
-  reloadHeats,
   runExclusive,
 }: Options) {
   const heatsCreated = heats.length > 0;
@@ -53,29 +52,31 @@ export default function useHeatManagement({
   // heats are already on (the useful default for "Recreate Heats"), else the
   // fewest heats the entry list allows. A choice is never overwritten.
   const [chosenHeatCount, setChosenHeatCount] = useState<number | null>(null);
-  // Boats entered in the event; null until read (or if the read failed).
-  const [entryCount, setEntryCount] = useState<number | null>(null);
 
-  // Read the entry list size: it sets the default and the SHRS 2.1 warning.
-  // Defensive on both sides: a read that rejects or an unavailable channel
-  // must not take the component down; the main process still refuses a split
-  // that breaks SHRS 2.3.
-  useEffect(() => {
-    let cancelled = false;
-    const readEntries = async () => {
-      try {
-        const entries = await eventDB.readBoatsByEvent(eventId);
-        if (cancelled) return;
-        setEntryCount(Array.isArray(entries) ? entries.length : 0);
-      } catch {
-        // Keep whatever the control already shows.
-      }
-    };
-    readEntries();
-    return () => {
-      cancelled = true;
-    };
-  }, [eventId, refreshToken]);
+  // The entry list size sets the default and the SHRS 2.1 warning. A read
+  // that fails keeps whatever the control already shows (null until read);
+  // the main process still refuses a split that breaks SHRS 2.3.
+  const entries = useQuery(queries.entries(eventId)).data;
+  const entryCount = entries ? entries.length : null;
+
+  // Each resolves once the event's heats are read again (api/writes.ts).
+  const affected = { eventId };
+  const createInitialHeats = useWrite(
+    (heatCount: number) =>
+      heatRaceDB.createInitialHeatsAtomic(eventId, heatCount),
+    affected,
+  );
+  const recreateInitialHeats = useWrite(
+    (heatCount: number) =>
+      heatRaceDB.recreateInitialHeatsAtomic(eventId, heatCount),
+    affected,
+  );
+  const transferBoatBetweenHeats = useWrite(
+    (fromHeatId: number, toHeatId: number, boatId: number) =>
+      heatRaceDB.transferBoatBetweenHeats(fromHeatId, toHeatId, boatId),
+    affected,
+  );
+  const refreshEvent = useRefreshEvent();
 
   const minimumHeats = fewestHeats(entryCount ?? 0);
   let numHeats = minimumHeats;
@@ -118,13 +119,13 @@ export default function useHeatManagement({
       // Validation (boats exist, SHRS 20-boat cap), SHRS 3 seeding order and
       // the SHRS 3.1 serpentine assignment all run in the main process inside
       // one transaction — a failure can never leave half-created heats.
-      await heatRaceDB.createInitialHeatsAtomic(eventId, numHeats);
+      await createInitialHeats(numHeats);
     } catch (error) {
       const message = getErrorMessage(error);
       if (message.includes('Heats already exist')) {
         reportInfo('Heats already exist for this event.', 'Action blocked');
         // Show them: the list on screen was evidently out of date.
-        await reloadHeats();
+        await refreshEvent(eventId);
         return;
       }
       // Surface the main process's plain-language validation messages
@@ -139,8 +140,14 @@ export default function useHeatManagement({
       return;
     }
     reportInfo('Heats created successfully!', 'Success');
-    await reloadHeats();
-  }, [heatsLocked, eventId, numHeats, extraHeatsNote, reloadHeats]);
+  }, [
+    heatsLocked,
+    eventId,
+    numHeats,
+    extraHeatsNote,
+    createInitialHeats,
+    refreshEvent,
+  ]);
 
   const recreateHeats = useCallback(async () => {
     if (heatsLocked) {
@@ -169,7 +176,7 @@ export default function useHeatManagement({
       // destructive half first, so anything that made the create fail — a
       // duplicate sail number added since, an entry list that no longer fits
       // the chosen heat count — left the event with NO heats.
-      await heatRaceDB.recreateInitialHeatsAtomic(eventId, numHeats);
+      await recreateInitialHeats(numHeats);
     } catch (error) {
       const message = getErrorMessage(error);
       // The main process authors plain-language validation messages for these;
@@ -183,8 +190,7 @@ export default function useHeatManagement({
       return;
     }
     reportInfo('Heats recreated successfully!', 'Success');
-    await reloadHeats();
-  }, [heatsLocked, eventId, numHeats, extraHeatsNote, reloadHeats]);
+  }, [heatsLocked, numHeats, extraHeatsNote, recreateInitialHeats]);
 
   const transferBoat = useCallback(
     async (boat: HeatBoatRow, fromHeatId: number, toHeatId: number) => {
@@ -209,19 +215,14 @@ export default function useHeatManagement({
       if (!confirmed) return;
 
       try {
-        await heatRaceDB.transferBoatBetweenHeats(
-          fromHeatId,
-          toHeatId,
-          boat.boat_id,
-        );
+        await transferBoatBetweenHeats(fromHeatId, toHeatId, boat.boat_id);
       } catch (error) {
         reportError('Could not transfer boat between heats.', error);
         return;
       }
       reportInfo('Boat transferred successfully!', 'Success');
-      await reloadHeats();
     },
-    [heatsLocked, heats, reloadHeats],
+    [heatsLocked, heats, transferBoatBetweenHeats],
   );
 
   const dropBoat = useCallback(

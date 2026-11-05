@@ -1,7 +1,5 @@
 import { useMemo } from 'react';
 import { compareFleetGroups, getFlagCode } from '../utils/leaderboardUtils';
-import { reportWarning } from '../utils/userFeedback';
-import { useEventDataChanged } from '../utils/eventDataChanged';
 import useLeaderboardEditSession from './useLeaderboardEditSession';
 import useLeaderboardStandings from './useLeaderboardStandings';
 import useLeaderboardCompare from './useLeaderboardCompare';
@@ -10,16 +8,13 @@ import type { LeaderboardEntry } from '../types';
 
 /**
  * The leaderboard page's state and actions, put together from:
- *  - useLeaderboardStandings: loading the standings,
+ *  - useLeaderboardStandings: the standings, read through the query cache
+ *    (read again after any write to the event, here or in the history),
  *  - useLeaderboardEditSession + useLeaderboardEdit: editing and saving results,
  *  - useLeaderboardCompare: the compare / tie-break panel.
  */
 export default function useLeaderboard(eventId: number) {
   const session = useLeaderboardEditSession();
-  const standings = useLeaderboardStandings(eventId, {
-    onReload: session.endEdits,
-    onLoaded: session.showRows,
-  });
   const {
     leaderboard,
     eventLeaderboard,
@@ -27,9 +22,7 @@ export default function useLeaderboard(eventId: number) {
     loading,
     finalSeriesStarted,
     maxHeatSizes,
-    fetchLeaderboard,
-    checkFinalSeriesStarted,
-  } = standings;
+  } = useLeaderboardStandings(eventId);
 
   const compare = useLeaderboardCompare(
     eventId,
@@ -46,29 +39,10 @@ export default function useLeaderboard(eventId: number) {
     maxHeatSize: finalSeriesStarted
       ? maxHeatSizes.final
       : maxHeatSizes.qualifying,
-    fetchLeaderboard,
-    checkFinalSeriesStarted,
     resetCompare: compare.resetCompare,
   });
 
-  // The results changed behind this page (an undo or going back in the event
-  // history). Reload, unless the user is editing: their unsaved edits must not
-  // be thrown away. While editing, the screen now shows results that are no
-  // longer there; saving them would silently put the old results back, so Save
-  // is refused until the edit is started again.
-  const { editMode, editIsStaleRef } = session;
-  useEventDataChanged(eventId, () => {
-    if (editMode) {
-      editIsStaleRef.current = true;
-      reportWarning(
-        'The results were changed in the history while you were editing. Press Cancel Editing to see them, then edit again.',
-        'Results changed',
-      );
-      return;
-    }
-    checkFinalSeriesStarted();
-    fetchLeaderboard();
-  });
+  const { editMode } = session;
 
   const hasEventData = eventLeaderboard.length > 0;
   // "Final data" means at least one final race has been scored — not merely
@@ -80,7 +54,12 @@ export default function useLeaderboard(eventId: number) {
     (entry) => (entry.races?.length ?? 0) > 0,
   );
 
-  const { editableLeaderboard } = session;
+  // While editing, the draft; otherwise the saved standings as they are now
+  // (a change from the history shows at once, a change under an edit never
+  // replaces the draft: useLeaderboardEdit).
+  const editableLeaderboard = editMode
+    ? session.editableLeaderboard
+    : leaderboard;
   const groupedLeaderboard = useMemo(
     () =>
       editableLeaderboard?.reduce(

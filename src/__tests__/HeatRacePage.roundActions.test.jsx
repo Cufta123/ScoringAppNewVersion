@@ -2,14 +2,14 @@
 
 import '@testing-library/jest-dom';
 import React from 'react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import {
   act,
   fireEvent,
   render,
   screen,
   waitFor,
-} from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+} from './helpers/renderWithQuery';
 import HeatRacePage from '../renderer/pages/HeatRacePage/HeatRacePage';
 
 jest.mock(
@@ -28,15 +28,11 @@ jest.mock(
   '../renderer/components/HeatComponent',
   () =>
     function HeatComponentMock({
-      onQualifyingGroupCountChange,
       onUndoLastRace,
       onCreateRound,
       onUndoRedistribution,
       rowActionsDisabled,
     }) {
-      React.useEffect(() => {
-        onQualifyingGroupCountChange(2);
-      }, [onQualifyingGroupCountChange]);
       rowActionsDisabledSpy(rowActionsDisabled);
       return (
         <>
@@ -131,6 +127,7 @@ describe('HeatRacePage round-level actions', () => {
     gate = deferred();
     api = {
       readAllHeats: jest.fn().mockResolvedValue([heat]),
+      readBoatsByHeat: jest.fn().mockResolvedValue([]),
       readAllRaces: jest.fn().mockResolvedValue([]),
       createNewHeatsBasedOnLeaderboard: jest.fn(() => gate.promise),
       undoLatestHeatRedistribution: jest.fn(() => gate.promise),

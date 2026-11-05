@@ -2,7 +2,7 @@
 
 import '@testing-library/jest-dom';
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from './helpers/renderWithQuery';
 import QualifyingTable from '../renderer/components/leaderboard/QualifyingTable';
 import ScoreExplanationDialog from '../renderer/components/leaderboard/ScoreExplanationDialog';
 

@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
-import { heatRaceDB } from '../api/db';
-import { reportError } from '../utils/userFeedback';
+import { useState, useCallback, useMemo, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { queries, useReportQueryError } from '../api/queries';
 import {
   buildCompareBase,
   buildCompareInfo,
@@ -23,7 +23,6 @@ export default function useLeaderboardCompare(
 ) {
   const [compareMode, setCompareMode] = useState(false);
   const [selectedBoatIds, setSelectedBoatIds] = useState<number[]>([]);
-  const [compareInfo, setCompareInfo] = useState<CompareInfo | null>(null);
 
   const handleCompareRowClick = (
     boat_id: number,
@@ -49,47 +48,36 @@ export default function useLeaderboardCompare(
     setSelectedBoatIds([]);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const allEntries = finalSeriesStarted ? leaderboard : eventLeaderboard;
-    const base = buildCompareBase(
-      allEntries,
-      selectedBoatIds,
+  // The two boats as the standings show them now (null: not two selected).
+  const base = useMemo(
+    () =>
+      buildCompareBase(
+        finalSeriesStarted ? leaderboard : eventLeaderboard,
+        selectedBoatIds,
+        finalSeriesStarted,
+      ),
+    [selectedBoatIds, finalSeriesStarted, eventLeaderboard, leaderboard],
+  );
+  const tieBreak = useQuery({
+    ...queries.tieBreak(
+      eventId,
+      base?.boatA.boat_id ?? -1,
+      base?.boatB.boat_id ?? -1,
       finalSeriesStarted,
-    );
-    if (!base) {
-      setCompareInfo(null);
-      return undefined;
-    }
+    ),
+    enabled: base != null,
+  });
+  useReportQueryError(tieBreak, 'Could not compute tie-break comparison.');
 
-    (async () => {
-      try {
-        const res = await heatRaceDB.explainTieBreak(
-          eventId,
-          base.boatA.boat_id,
-          base.boatB.boat_id,
-          finalSeriesStarted,
-        );
-        if (cancelled || !res) return;
-        setCompareInfo(buildCompareInfo(base, res));
-      } catch (error) {
-        if (!cancelled) {
-          reportError('Could not compute tie-break comparison.', error);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    selectedBoatIds,
-    finalSeriesStarted,
-    eventLeaderboard,
-    leaderboard,
-    eventId,
-  ]);
+  // Until the decision for a new pair (or the standings read again) arrives,
+  // the panel keeps showing the last one, as it always did.
+  const lastInfoRef = useRef<CompareInfo | null>(null);
+  const compareInfo = useMemo(() => {
+    if (!base) return null;
+    if (!tieBreak.data) return lastInfoRef.current;
+    return buildCompareInfo(base, tieBreak.data);
+  }, [base, tieBreak.data]);
+  lastInfoRef.current = compareInfo;
 
   return {
     compareMode,

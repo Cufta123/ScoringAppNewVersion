@@ -1,46 +1,26 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { eventDB } from '../api/db';
+import { queries, useReportQueryError } from '../api/queries';
+import { useWrite } from '../api/writes';
 import { LogoRefusal, prepareLogo } from '../exports/logo';
 import { reportError, reportWarning } from '../utils/userFeedback';
 
 /**
- * The event's logo for the exported documents: loaded when the export dialog
+ * The event's logo for the exported documents: read when the export dialog
  * opens, chosen once per event (shrunk to 600 px and stored with the event),
  * replaced or removed from the dialog. A refused file leaves the stored logo
- * as it was and says why.
+ * as it was and says why. A change is read back through the query cache
+ * before the dialog shows it, so a slow read can never overwrite it.
  */
 export default function useEventLogo(eventId: number, open: boolean) {
-  const [logo, setLogo] = useState<string | null>(null);
+  const query = useQuery({ ...queries.exportLogo(eventId), enabled: open });
+  useReportQueryError(query, 'Could not read the event logo.');
+  const logo = query.data ?? null;
   const [busy, setBusy] = useState(false);
-  // A slow read must not overwrite a logo that was just chosen.
-  const changed = useRef(false);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    let cancelled = false;
-    changed.current = false;
-    (async () => {
-      try {
-        const stored = await eventDB.readEventExportLogo(eventId);
-        if (!cancelled && !changed.current) setLogo(stored ?? null);
-      } catch (error) {
-        if (!cancelled) {
-          reportError('Could not read the event logo.', error);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [eventId, open]);
-
-  const save = useCallback(
-    async (next: string | null) => {
-      await eventDB.saveEventExportLogo(eventId, next);
-      changed.current = true;
-      setLogo(next);
-    },
-    [eventId],
+  const save = useWrite(
+    (next: string | null) => eventDB.saveEventExportLogo(eventId, next),
+    { eventId },
   );
 
   /** Use this picture as the event's logo. */

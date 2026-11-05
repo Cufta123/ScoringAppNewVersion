@@ -1,13 +1,16 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Flag from 'react-world-flags';
 import useDialogFocus from '../hooks/useDialogFocus';
 import IOC_NATIONS from '../constants/iocNations';
 import { getFlagCode } from '../utils/leaderboardUtils';
 import { SUBGROUP_OPTIONS, toSubgroupLabel } from '../../shared/subgroups';
 import { sailorDB } from '../api/db';
+import { queries } from '../api/queries';
+import { useWrite } from '../api/writes';
 import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
 import { sailorFullName } from '../utils/sailorName';
-import type { CategoryRow, ClubRow } from '../types';
+import type { CategoryRow } from '../types';
 import type { SailorListSailor } from './SailorList';
 
 /** The fields the dialog edits, as typed (untrimmed). */
@@ -138,7 +141,6 @@ interface SailorEditDialogProps {
   eventSailors: SailorListSailor[];
   categories: CategoryRow[];
   onClose: () => void;
-  onSaved: () => void;
 }
 
 /**
@@ -151,7 +153,6 @@ export default function SailorEditDialog({
   eventSailors,
   categories,
   onClose,
-  onSaved,
 }: SailorEditDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const firstFieldRef = useRef<HTMLInputElement>(null);
@@ -160,24 +161,17 @@ export default function SailorEditDialog({
   const [draft, setDraft] = useState<Draft>(() => draftOf(sailor));
   const [errors, setErrors] = useState<FieldErrors>({});
   const [saving, setSaving] = useState(false);
-  const [clubs, setClubs] = useState<ClubRow[]>([]);
-
-  // Club names for the suggestions; the field still takes any new name.
-  useEffect(() => {
-    let alive = true;
-    const load = async () => {
-      try {
-        const rows = await sailorDB.readAllClubs();
-        if (alive && Array.isArray(rows)) setClubs(rows);
-      } catch (_error) {
-        // Only the suggestions are missing; typing a club still works.
-      }
-    };
-    load();
-    return () => {
-      alive = false;
-    };
-  }, []);
+  // Club names for the suggestions; the field still takes any new name, so a
+  // failed read only leaves the suggestions out.
+  const clubsQuery = useQuery(queries.clubs());
+  const clubs = useMemo(() => clubsQuery.data ?? [], [clubsQuery.data]);
+  // A sailor and her boat are shown in every event she sailed (one record
+  // each, AGENTS.md section 10): everything is read again.
+  const updateSailor = useWrite(
+    (...args: Parameters<typeof sailorDB.updateSailor>) =>
+      sailorDB.updateSailor(...args),
+    'everything',
+  );
 
   const dirty = useMemo(() => {
     const saved = draftOf(sailor);
@@ -278,7 +272,7 @@ export default function SailorEditDialog({
     setSaving(true);
     try {
       const country = draft.country.trim().toUpperCase();
-      const result = await sailorDB.updateSailor({
+      const result = await updateSailor({
         name: draft.name.trim(),
         surname: draft.surname.trim(),
         category_name: draft.category,
@@ -296,7 +290,6 @@ export default function SailorEditDialog({
       }
       reportInfo('Sailor details saved.', 'Saved');
       setSaving(false);
-      onSaved();
       onClose();
     } catch (error) {
       setSaving(false);

@@ -5,8 +5,6 @@ import { getHeatRoundFromName } from '../../../shared/heatNames';
 
 interface HeatsSummaryProps {
   eventId: number;
-  /** Bump to load again (the history changed the event). */
-  refreshToken?: number;
 }
 
 const plural = (count: number, one: string, many: string) =>
@@ -17,14 +15,9 @@ const plural = (count: number, one: string, many: string) =>
  * themselves (creating them, moving boats, the Final Series, backups) live
  * on the Scoring page only.
  */
-export default function HeatsSummary({
-  eventId,
-  refreshToken = 0,
-}: HeatsSummaryProps) {
-  const { heats, heatsCreated, loadFailed, finalSeriesStarted } = useHeatList(
-    eventId,
-    refreshToken,
-  );
+export default function HeatsSummary({ eventId }: HeatsSummaryProps) {
+  const { heats, heatsCreated, loadFailed, finalSeriesStarted } =
+    useHeatList(eventId);
 
   let text: string;
   if (loadFailed) {

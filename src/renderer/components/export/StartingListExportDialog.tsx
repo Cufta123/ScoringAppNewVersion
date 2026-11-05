@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import ExportDialog from './ExportDialog';
 import CommonOptionsFields from './CommonOptionsFields';
 import { CheckField, OptionSection, SelectField } from './OptionFields';
@@ -6,8 +7,7 @@ import useExportOptions from '../../hooks/useExportOptions';
 import useDocumentPreview from '../../hooks/useDocumentPreview';
 import useEventLogo from '../../hooks/useEventLogo';
 import useExportRunner from '../../hooks/useExportRunner';
-import { eventDB } from '../../api/db';
-import { reportError } from '../../utils/userFeedback';
+import { queries, useReportQueryError } from '../../api/queries';
 import {
   DEFAULT_COMMON_SETTINGS,
   eventInfoOf,
@@ -57,6 +57,8 @@ interface StartingListExportDialogProps {
 }
 
 /** The export dialog of the event page's entry list. */
+const NO_BOATS: StartingListBoat[] = [];
+
 export default function StartingListExportDialog({
   open,
   onClose,
@@ -71,23 +73,10 @@ export default function StartingListExportDialog({
   const { common, doc } = settings;
   const logo = useEventLogo(eventId, open);
 
-  // Always the entries as saved now, read when the dialog opens.
-  const [boats, setBoats] = useState<StartingListBoat[]>([]);
-  useEffect(() => {
-    if (!open) return undefined;
-    let cancelled = false;
-    (async () => {
-      try {
-        const rows = await eventDB.readBoatsByEvent(eventId);
-        if (!cancelled) setBoats(Array.isArray(rows) ? rows : []);
-      } catch (error) {
-        if (!cancelled) reportError('Could not read the entries.', error);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [eventId, open]);
+  // Always the entries as saved now (read again after any change to them).
+  const entries = useQuery({ ...queries.entries(eventId), enabled: open });
+  useReportQueryError(entries, 'Could not read the entries.');
+  const boats: StartingListBoat[] = entries.data ?? NO_BOATS;
 
   const flags = useMemo(
     () =>

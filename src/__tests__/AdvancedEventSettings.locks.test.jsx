@@ -2,7 +2,7 @@
 
 import '@testing-library/jest-dom';
 import React, { useEffect } from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen } from './helpers/renderWithQuery';
 import useEventSettings from '../renderer/hooks/useEventSettings';
 import AdvancedEventSettings from '../renderer/components/AdvancedEventSettings';
 import {

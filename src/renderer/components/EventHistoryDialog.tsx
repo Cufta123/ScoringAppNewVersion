@@ -1,11 +1,8 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { eventDB } from '../api/db';
+import { queries } from '../api/queries';
+import { useWrite } from '../api/writes';
 import useDialogFocus, { refocusIfLost } from '../hooks/useDialogFocus';
 import { formatDateTime } from '../utils/formatDate';
 import { HistoryAction, summarizeAction } from '../../shared/history/describe';
@@ -15,7 +12,6 @@ import {
   restorePreview,
   undoneActions,
 } from '../../shared/history/restore';
-import { notifyEventDataChanged } from '../utils/eventDataChanged';
 import BackupFileSection from './history/BackupFileSection';
 import { plainReason, describeError } from '../utils/userFeedback';
 
@@ -136,8 +132,6 @@ function EventHistoryDialog({
   const dialogRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
-  const [actions, setActions] = useState<HistoryAction[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
 
   const [busy, setBusy] = useState(false);
@@ -146,47 +140,46 @@ function EventHistoryDialog({
   const [goBackTarget, setGoBackTarget] = useState<GoBackTarget | null>(null);
   const confirmCancelRef = useRef<HTMLButtonElement>(null);
 
-  const load = useCallback(
-    (isActive: () => boolean = () => true) =>
-      Promise.resolve()
-        .then(() => eventDB.readEventHistory(eventId))
-        .then((result) => {
-          if (isActive()) setActions(result);
-          return null;
-        })
-        .catch((err: unknown) => {
-          if (isActive()) {
-            setError(describeError(err, 'loading the history'));
-          }
-        }),
-    [eventId],
-  );
+  // The history is read through the query cache like everything else about
+  // the event: any write to the event (an undo here included) reads it again.
+  const history = useQuery({
+    ...queries.history(eventId),
+    enabled: open,
+  });
+  const actions = history.data ?? null;
+  const error = history.isError
+    ? describeError(history.error, 'loading the history')
+    : null;
 
   useEffect(() => {
-    if (!open) return undefined;
-    let cancelled = false;
-    setActions(null);
-    setError(null);
+    if (!open) return;
     setNotice(null);
     setUndoError(null);
     setGoBackTarget(null);
     setFilter('');
-    load(() => !cancelled);
-    return () => {
-      cancelled = true;
-    };
-  }, [open, load]);
+  }, [open]);
 
-  // Both changes of the event run the same way: clear the last message, do it,
-  // tell the world the event's data changed, reload the list.
+  // An undo or a go-back changes the whole event: once it has succeeded every
+  // screen showing the event reads it again (api/writes.ts) — the leaderboard
+  // keeps an edit in progress and refuses its Save; a scoring view whose heat
+  // changed is closed — and so does this list.
+  const revert = useWrite(
+    (actionId: number) => eventDB.revertHistoryAction(eventId, actionId),
+    { eventId },
+  );
+  const restoreToPoint = useWrite(
+    (actionId: number) => eventDB.restoreEventToHistoryPoint(eventId, actionId),
+    { eventId },
+  );
+
+  // Both changes of the event run the same way: clear the last message, do it
+  // (the event, this list included, is read again), say what happened.
   const runChange = async (change: () => Promise<void>, failure: string) => {
     setBusy(true);
     setNotice(null);
     setUndoError(null);
     try {
       await change();
-      notifyEventDataChanged(eventId);
-      await load();
     } catch (err) {
       setUndoError(plainReason(err) ?? failure);
     } finally {
@@ -196,7 +189,7 @@ function EventHistoryDialog({
 
   const undo = (actionId: number, label: string) =>
     runChange(async () => {
-      await eventDB.revertHistoryAction(eventId, actionId);
+      await revert(actionId);
       setNotice(
         `Undone: ${label}. The standings were recalculated. The undo is in the history and can be undone too.`,
       );
@@ -204,10 +197,7 @@ function EventHistoryDialog({
 
   const goBack = (target: GoBackTarget) =>
     runChange(async () => {
-      const result = await eventDB.restoreEventToHistoryPoint(
-        eventId,
-        target.actionId,
-      );
+      const result = await restoreToPoint(target.actionId);
       setGoBackTarget(null);
       setNotice(
         `The event is back to how it was after “${target.label}” (${formatTime(target.at)}). ` +

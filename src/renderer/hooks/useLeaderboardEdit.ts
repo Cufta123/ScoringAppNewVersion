@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { heatRaceDB } from '../api/db';
+import { useWrite } from '../api/writes';
 import {
   confirmAction,
   reportError,
@@ -27,8 +29,6 @@ interface EditInputs {
   eventLeaderboard: LeaderboardEntry[];
   /** Largest heat of the series being edited (SHRS 5.2). */
   maxHeatSize: number;
-  fetchLeaderboard: () => Promise<void>;
-  checkFinalSeriesStarted: () => Promise<void>;
   resetCompare: () => void;
 }
 
@@ -38,6 +38,11 @@ interface EditInputs {
  * re-ranks the edited race with regatta-core (utils/leaderboardEdit); totals,
  * discards and redress averages are the library's, from the preview. The
  * state is in useLeaderboardEditSession.
+ *
+ * The saved standings come from the query cache, which reads them again after
+ * any write to the event. While editing, a change of them that is not our own
+ * Save (an undo or a go-back in the history) leaves the draft as it is and
+ * marks it stale: Save is refused until the edit is started again.
  */
 export default function useLeaderboardEdit(
   session: LeaderboardEditSession,
@@ -47,13 +52,12 @@ export default function useLeaderboardEdit(
     leaderboard,
     eventLeaderboard,
     maxHeatSize,
-    fetchLeaderboard,
-    checkFinalSeriesStarted,
     resetCompare,
   }: EditInputs,
 ) {
   const {
     editMode,
+    editModeRef,
     setEditMode,
     editableLeaderboard,
     setEditableLeaderboard,
@@ -96,14 +100,41 @@ export default function useLeaderboardEdit(
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [hasUnsavedChanges]);
 
-  // The library's answer for the latest edit only: an answer to an earlier
-  // edit that arrives late is dropped.
-  const previewSeqRef = useRef(0);
-  // Leaving edit mode, a save or new saved rows make any answer on its way
-  // out of date.
+  // Save: the event is read again before it resolves (api/writes.ts).
+  const saveResults = useWrite(
+    (...args: Parameters<typeof heatRaceDB.saveLeaderboardRaceResultsAtomic>) =>
+      heatRaceDB.saveLeaderboardRaceResultsAtomic(...args),
+    (_result, [id]) => ({ eventId: id }),
+  );
+
+  // The library's preview of the draft: a write the main process rolls back,
+  // so it changes nothing and invalidates nothing. Only the answer to the
+  // LATEST edit is applied (TanStack Query calls a mutate's own callbacks for
+  // the newest call only), and `resetPreview` drops the one on its way
+  // (leaving edit mode, Save, the results changing underneath).
+  const { mutate: requestPreview, reset: resetPreview } = useMutation({
+    mutationFn: (operations: ReturnType<typeof buildRaceOperations>) =>
+      heatRaceDB.previewLeaderboardEdit(eventId, operations),
+    // Each answer holds the three standings: none is kept once superseded.
+    gcTime: 0,
+  });
+
+  // The saved results changed while editing, and not by our own Save: the
+  // draft is left as the user made it, but Save is refused (it would put the
+  // old results back over the new ones) until the edit is started again.
+  const lastSavedRowsRef = useRef(savedRows);
   useEffect(() => {
-    previewSeqRef.current += 1;
-  }, [editMode, savedRows]);
+    if (lastSavedRowsRef.current === savedRows) return;
+    lastSavedRowsRef.current = savedRows;
+    if (!editModeRef.current || savingRef.current) return;
+    if (editIsStaleRef.current) return;
+    editIsStaleRef.current = true;
+    resetPreview();
+    reportWarning(
+      'The results were changed in the history while you were editing. Press Cancel Editing to see them, then edit again.',
+      'Results changed',
+    );
+  }, [savedRows, editModeRef, editIsStaleRef, resetPreview]);
 
   /**
    * Show what Save would store. The rows just edited (the race re-ranked
@@ -116,24 +147,19 @@ export default function useLeaderboardEdit(
    */
   const previewWithLibrary = (rows: LeaderboardEntry[]) => {
     if (editIsStaleRef.current) return;
-    previewSeqRef.current += 1;
-    const seq = previewSeqRef.current;
-    let request: ReturnType<typeof heatRaceDB.previewLeaderboardEdit>;
+    let operations: ReturnType<typeof buildRaceOperations>;
     try {
-      request = heatRaceDB.previewLeaderboardEdit(
-        eventId,
-        buildRaceOperations(rows, savedRows, userEditsRef.current),
-      );
+      operations = buildRaceOperations(rows, savedRows, userEditsRef.current);
     } catch {
       return;
     }
-    Promise.resolve(request)
-      .then((preview) => {
-        if (seq !== previewSeqRef.current || !preview) return undefined;
-        if (editIsStaleRef.current || savingRef.current) return undefined;
+    requestPreview(operations, {
+      onSuccess: (preview) => {
+        if (!preview || !editModeRef.current) return;
+        if (editIsStaleRef.current || savingRef.current) return;
         if (!preview.ok) {
           reportWarning(preview.reason, 'This change cannot be saved');
-          return undefined;
+          return;
         }
         const { leaderboard: shown } = buildStandings({
           eventResults: preview.eventResults,
@@ -145,11 +171,9 @@ export default function useLeaderboardEdit(
         setEditableLeaderboard((current) =>
           current.map((row) => byBoat.get(row.boat_id) ?? row),
         );
-        return undefined;
-      })
-      .catch(() => {
-        // No preview: the draft stays as re-ranked here.
-      });
+      },
+      // No preview: the draft stays as re-ranked here.
+    });
   };
 
   const toggleEditMode = async () => {
@@ -162,13 +186,11 @@ export default function useLeaderboardEdit(
       if (!shouldDiscard) return;
     }
 
+    // Late preview answers are for the edit being left (or not started).
+    resetPreview();
     session.showRows(savedRows);
-    if (editMode && editIsStaleRef.current) {
-      // Leaving a stale edit: show what is there now.
-      editIsStaleRef.current = false;
-      checkFinalSeriesStarted();
-      fetchLeaderboard();
-    }
+    // Leaving a stale edit: the saved standings (read again already) show.
+    if (editMode) editIsStaleRef.current = false;
     clearEdits();
     // Editing and comparing don't mix: row clicks (bubbling up from the edit
     // inputs) would toggle compare selection, and the compare panel reads
@@ -330,6 +352,7 @@ export default function useLeaderboardEdit(
       return;
     }
     savingRef.current = true;
+    resetPreview();
     try {
       if (!editableLeaderboard || !leaderboard) {
         throw new Error('Leaderboard data is not initialized');
@@ -351,20 +374,16 @@ export default function useLeaderboardEdit(
 
       setSaving(true);
       try {
-        await heatRaceDB.saveLeaderboardRaceResultsAtomic(
-          eventId,
-          updateOperations,
-          finalSeriesStarted,
-        );
+        // Resolves once the standings are read again (a read that fails is
+        // reported by the standings themselves; the save has persisted).
+        await saveResults(eventId, updateOperations, finalSeriesStarted);
 
-        // LB-5: clear the queued edits and leave edit mode BEFORE refetching.
-        // If the refetch throws, the save has still persisted — leaving these
-        // here (in the old ordering) meant a retry re-sent stale pre-save edits
-        // on top of the already-persisted data.
+        // LB-5: the save has persisted, so the queued edits are done with
+        // whatever the read after it gave: a retry must never re-send stale
+        // pre-save edits on top of the already-persisted data. Leaving edit
+        // mode shows the saved standings.
         clearEdits();
         setEditMode(false);
-
-        await fetchLeaderboard();
         reportInfo(
           'Your leaderboard changes have been saved.',
           'Leaderboard saved',

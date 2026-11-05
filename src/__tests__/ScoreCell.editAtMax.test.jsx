@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 
 import '@testing-library/jest-dom';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent } from './helpers/renderWithQuery';
 import ScoreCell from '../renderer/components/leaderboard/ScoreCell';
 import { EditValidityProvider } from '../renderer/components/leaderboard/editValidity';
 

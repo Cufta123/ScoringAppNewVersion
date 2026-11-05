@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
-import { heatRaceDB } from '../api/db';
+import { useQuery } from '@tanstack/react-query';
+import { queries, useReportQueryError } from '../api/queries';
 import { entryKeysFor } from '../../shared/boatKeys';
 import useExclusiveAction from './useExclusiveAction';
 import {
@@ -48,6 +49,7 @@ export interface ScoringHeat {
 }
 
 interface Options {
+  eventId: number;
   heat: ScoringHeat;
   onSubmit: (boatPlaces: ScoredBoat[]) => void | Promise<void>;
   /** Told whenever an unsubmitted finish order exists (or stops existing). */
@@ -64,12 +66,12 @@ const applyEdit = (state: FinishEntryState, edit: EntryEdit) => edit(state);
  * wires them to React and to the heat's IPC read.
  */
 export default function useScoringInput({
+  eventId,
   heat,
   onSubmit,
   onDirtyChange,
 }: Options) {
   const [entry, edit] = useReducer(applyEdit, undefined, emptyFinishEntry);
-  const [validBoats, setValidBoats] = useState<SailNumber[]>([]);
   const [invalidBoatNumbers, setInvalidBoatNumbers] = useState<string[]>([]);
   // The boats the last failed submit named as missing, and a counter that
   // changes with every failed submit (the boat table scrolls to the first one
@@ -77,11 +79,19 @@ export default function useScoringInput({
   // place nor a penalty (see `missingSails` below).
   const [missingMarked, setMissingMarked] = useState<SailNumber[]>([]);
   const [missingToken, setMissingToken] = useState(0);
-  // Inline error state so a boat-fetch failure shows a persistent banner with a
-  // Retry button, not just a fleeting toast.
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  // Bumped by Retry to re-trigger the fetch effect without changing the heat.
-  const [fetchToken, setFetchToken] = useState(0);
+  // The heat's boats as the database has them. A failure shows a persistent
+  // banner with a Retry button (fetchError), not just a fleeting toast.
+  const boatsQuery = useQuery(queries.heatBoats(eventId, heat.heat_id));
+  useReportQueryError(boatsQuery, 'Could not load boats for selected heat.');
+  const fetchError =
+    boatsQuery.isError && !boatsQuery.isFetching
+      ? describeError(boatsQuery.error, 'loading the boats of a heat')
+      : null;
+  const validBoats = useMemo<SailNumber[]>(() => {
+    const boats = boatsQuery.data ?? [];
+    const keys = entryKeysFor(boats);
+    return boats.map((boat) => keys.get(String(boat.boat_id))!);
+  }, [boatsQuery.data]);
   // Guards against a double-submit writing the same heat twice (SHRS
   // integrity): locked from the first click until the atomic write settles.
   const { busy: submitting, runExclusive } = useExclusiveAction();
@@ -103,35 +113,12 @@ export default function useScoringInput({
     return byKey;
   }, [heat.boats, entryKeyOf]);
 
-  // Reset and load the heat's boats whenever the heat changes (or on Retry).
+  // A new heat starts from an empty finish order.
   useEffect(() => {
-    let isActive = true;
-
     edit(() => emptyFinishEntry());
-    setValidBoats([]);
     setInvalidBoatNumbers([]);
     setMissingMarked([]);
-    setFetchError(null);
-
-    const fetchBoats = async () => {
-      try {
-        const boats = await heatRaceDB.readBoatsByHeat(heat.heat_id);
-        if (!isActive) return;
-        const keys = entryKeysFor(boats);
-        setValidBoats(boats.map((boat) => keys.get(String(boat.boat_id))!));
-      } catch (error) {
-        if (!isActive) return;
-        setFetchError(describeError(error, 'loading the boats of a heat'));
-        reportError('Could not load boats for selected heat.', error);
-      }
-    };
-
-    fetchBoats();
-
-    return () => {
-      isActive = false;
-    };
-  }, [heat.heat_id, fetchToken]);
+  }, [heat.heat_id]);
 
   // Tell the parent whenever an unsubmitted finish order exists so it can warn
   // before navigating away (a place or a penalty counts as work-in-progress).
@@ -242,8 +229,7 @@ export default function useScoringInput({
   );
 
   const retryFetch = () => {
-    setFetchError(null);
-    setFetchToken((token) => token + 1);
+    boatsQuery.refetch();
   };
 
   const submit = async () => {

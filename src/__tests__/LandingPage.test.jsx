@@ -2,8 +2,8 @@
 
 import '@testing-library/jest-dom';
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { fireEvent, render, screen } from './helpers/renderWithQuery';
 import LandingPage from '../renderer/pages/LandingPage/LandingPage';
 
 jest.mock('../renderer/components/EventForm', () => {

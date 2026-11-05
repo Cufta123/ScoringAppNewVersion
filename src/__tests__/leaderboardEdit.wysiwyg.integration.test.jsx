@@ -13,7 +13,7 @@
  * corrected finish had been entered on the scoring screen in the first place.
  */
 import '@testing-library/jest-dom';
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from './helpers/renderWithQuery';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires, import/order
 const { DatabaseSync } = require('node:sqlite');

@@ -6,11 +6,19 @@ import type { LeaderboardEntry, RdgMetaEntry, Rdg2PickerState } from '../types';
 /**
  * The state of one leaderboard edit session: whether editing is on, the draft
  * rows, the cells the user touched, the RDG metadata and picker. It holds state
- * only; the actions that change it live in useLeaderboardEdit, and the loader
- * (useLeaderboardStandings) resets it through `endEdits` / `showRows`.
+ * only; the actions that change it live in useLeaderboardEdit. The draft is
+ * what the page shows while editing; outside edit mode it shows the saved
+ * standings themselves (useLeaderboard).
  */
 export default function useLeaderboardEditSession() {
-  const [editMode, setEditMode] = useState(false);
+  const [editMode, setEditModeState] = useState(false);
+  // The same, readable at once in a callback or an effect (an answer that
+  // arrives after editing ended must see it ended, whatever React rendered).
+  const editModeRef = useRef(false);
+  const setEditMode = useCallback((on: boolean) => {
+    editModeRef.current = on;
+    setEditModeState(on);
+  }, []);
   const [editableLeaderboard, setEditableLeaderboard] = useState<
     LeaderboardEntry[]
   >([]);
@@ -24,9 +32,10 @@ export default function useLeaderboardEditSession() {
   const [rdgMeta, setRdgMeta] = useState<Record<string, RdgMetaEntry>>({});
   // rdg2Picker: the open multi-race selector state for one specific cell
   const [rdg2Picker, setRdg2Picker] = useState<Rdg2PickerState | null>(null);
-  // Set when the results changed behind the page while editing (an undo or a
-  // go-back in the history): the draft shows results that are no longer there,
-  // so Save is refused until the edit is started again.
+  // Set when the saved results changed behind the page while editing (an undo
+  // or a go-back in the history, read again by the query cache): the draft
+  // shows results that are no longer there, so Save is refused until the edit
+  // is started again. The draft itself is never replaced underneath the user.
   const editIsStaleRef = useRef(false);
   // Cells holding typed input that cannot be saved (a place outside 1..boats
   // in the race, points of 0 …), keyed `${boatId}-${raceIndex}` → a sentence
@@ -54,19 +63,14 @@ export default function useLeaderboardEditSession() {
     setRdg2Picker(null);
   }, []);
 
-  /** A (re)load replaces the source of truth: drop the edits, leave edit mode. */
-  const endEdits = useCallback(() => {
-    clearEdits();
-    setEditMode(false);
-  }, [clearEdits]);
-
-  /** Start the draft from freshly loaded or saved rows. */
+  /** Start the draft from the saved rows. */
   const showRows = useCallback((rows: LeaderboardEntry[]) => {
     setEditableLeaderboard(cloneEntries(rows));
   }, []);
 
   return {
     editMode,
+    editModeRef,
     setEditMode,
     editableLeaderboard,
     setEditableLeaderboard,
@@ -79,7 +83,6 @@ export default function useLeaderboardEditSession() {
     invalidCells,
     reportInvalidCell,
     clearEdits,
-    endEdits,
     showRows,
   };
 }

@@ -2,14 +2,23 @@
 
 import '@testing-library/jest-dom';
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from './helpers/renderWithQuery';
 import SailorForm from '../renderer/components/SailorForm';
+import { queryKeys } from '../renderer/api/queryKeys';
 import {
   confirmAction,
   reportError,
   reportInfo,
   reportWarning,
 } from '../renderer/utils/userFeedback';
+
+// The entry list on the page and the clubs on file (the suggestions), as the
+// cache holds them: entering a sailor must have them read again.
+function watchLists(queryClient) {
+  const entries = queryKeys.entries(99);
+  queryClient.setQueryData(entries, []);
+  return () => queryClient.getQueryState(entries).isInvalidated;
+}
 
 // The form hands everything to ONE main-process call (enterSailorInEvent),
 // which writes club, sailor, boat and entry together; what it stores is
@@ -115,7 +124,7 @@ describe('SailorForm', () => {
       { race_id: 1 },
     ]);
 
-    render(<SailorForm onAddSailor={jest.fn()} eventId={99} />);
+    render(<SailorForm eventId={99} />);
 
     expect(
       await screen.findByText(/no more sailors can be added/i),
@@ -126,11 +135,17 @@ describe('SailorForm', () => {
   });
 
   it('enters the sailor with one call and reports success', async () => {
-    const onAddSailor = jest.fn();
-    render(<SailorForm onAddSailor={onAddSailor} eventId={99} />);
+    const { queryClient } = render(<SailorForm eventId={99} />);
+    const entriesReread = watchLists(queryClient);
     fillForm();
 
-    await waitFor(() => expect(onAddSailor).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(reportInfo).toHaveBeenCalledWith(
+        'Sailor and boat added successfully.',
+        'Success',
+      ),
+    );
+    expect(entriesReread()).toBe(true);
     expect(enterSailorInEvent).toHaveBeenCalledTimes(1);
     expect(enterSailorInEvent).toHaveBeenCalledWith(
       {
@@ -159,11 +174,17 @@ describe('SailorForm', () => {
       })
       .mockResolvedValueOnce({ ...entered, createdBoat: false });
     confirmAction.mockResolvedValue(true);
-    const onAddSailor = jest.fn();
-    render(<SailorForm onAddSailor={onAddSailor} eventId={99} />);
+    const { queryClient } = render(<SailorForm eventId={99} />);
+    const entriesReread = watchLists(queryClient);
     fillForm();
 
-    await waitFor(() => expect(onAddSailor).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(reportInfo).toHaveBeenCalledWith(
+        'Sailor and boat added successfully.',
+        'Success',
+      ),
+    );
+    expect(entriesReread()).toBe(true);
     expect(confirmAction.mock.calls[0][0]).toMatch(
       /already registered to Ana Kovač/,
     );
@@ -181,13 +202,15 @@ describe('SailorForm', () => {
       ownerName: 'Ana Kovač',
     });
     confirmAction.mockResolvedValue(false);
-    const onAddSailor = jest.fn();
-    render(<SailorForm onAddSailor={onAddSailor} eventId={99} />);
+    render(<SailorForm eventId={99} />);
     fillForm();
 
     await waitFor(() => expect(confirmAction).toHaveBeenCalled());
     expect(enterSailorInEvent).toHaveBeenCalledTimes(1);
-    expect(onAddSailor).not.toHaveBeenCalled();
+    expect(reportInfo).not.toHaveBeenCalledWith(
+      'Sailor and boat added successfully.',
+      'Success',
+    );
     expect(reportInfo).not.toHaveBeenCalled();
   });
 
@@ -196,8 +219,7 @@ describe('SailorForm', () => {
       status: 'alreadyEntered',
       boatId: 12,
     });
-    const onAddSailor = jest.fn();
-    render(<SailorForm onAddSailor={onAddSailor} eventId={99} />);
+    render(<SailorForm eventId={99} />);
     fillForm();
 
     await waitFor(() =>
@@ -206,7 +228,10 @@ describe('SailorForm', () => {
         'Already registered',
       ),
     );
-    expect(onAddSailor).not.toHaveBeenCalled();
+    expect(reportInfo).not.toHaveBeenCalledWith(
+      'Sailor and boat added successfully.',
+      'Success',
+    );
   });
 
   it('shows the refusal of a sail number the event already has', async () => {
@@ -215,7 +240,7 @@ describe('SailorForm', () => {
         'Sail CRO 1234 is already entered in this event. Check the sail number and country.',
       ),
     );
-    render(<SailorForm onAddSailor={jest.fn()} eventId={99} />);
+    render(<SailorForm eventId={99} />);
     fillForm();
 
     await waitFor(() =>
@@ -228,7 +253,7 @@ describe('SailorForm', () => {
   });
 
   it('trims stray spaces before sending', async () => {
-    render(<SailorForm onAddSailor={jest.fn()} eventId={99} />);
+    render(<SailorForm eventId={99} />);
     fillForm({ first: '  Ivan ', last: 'Horvat  ', club: ' YC Split ' });
 
     await waitFor(() => expect(enterSailorInEvent).toHaveBeenCalled());
@@ -240,7 +265,7 @@ describe('SailorForm', () => {
   });
 
   it('refuses a name made only of spaces and sends nothing', async () => {
-    render(<SailorForm onAddSailor={jest.fn()} eventId={99} />);
+    render(<SailorForm eventId={99} />);
     fillForm({ first: '   ' });
 
     await waitFor(() =>

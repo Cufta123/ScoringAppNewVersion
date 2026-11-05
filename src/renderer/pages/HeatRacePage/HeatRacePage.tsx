@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import HeatComponent from '../../components/HeatComponent';
 import ScoringInputComponent from '../../components/ScoringInputComponent';
@@ -6,65 +6,58 @@ import Navbar from '../../components/Navbar';
 import EventHeader from '../../components/shared/EventHeader';
 import LoadingState from '../../components/shared/LoadingState';
 import './HeatRacePage.css';
-import { reportError, reportWarning } from '../../utils/userFeedback';
-import { heatRaceDB } from '../../api/db';
-import { hasFinalHeats, type HeatWithBoats } from '../../utils/heatView';
-import { useEventDataChanged } from '../../utils/eventDataChanged';
+import { reportWarning } from '../../utils/userFeedback';
+import type { HeatWithBoats } from '../../utils/heatView';
 import useRouteEvent from '../../hooks/useRouteEvent';
+import useHeatList from '../../hooks/useHeatList';
 import useRoundActions from '../../hooks/useRoundActions';
 import useScoringSession from '../../hooks/useScoringSession';
 
 function HeatRacePage() {
   const { eventName } = useParams();
   const event = useRouteEvent(eventName);
-  // Both reported by HeatComponent whenever its heats load, so the page's copy
-  // can never go stale (and are re-read below when the history changes them).
-  const [finalSeriesStarted, setFinalSeriesStarted] = useState(false);
-  const [numQualifyingGroups, setNumQualifyingGroups] = useState(0);
-  // Bumped to tell HeatComponent to re-fetch its heats after a round-level
-  // action (create-from-leaderboard, undo) without forcing a full remount.
-  const [heatsRefreshToken, setHeatsRefreshToken] = useState(0);
-  const refreshHeats = useCallback(() => {
-    setHeatsRefreshToken((token) => token + 1);
-  }, []);
+  // The same heat list HeatComponent shows (one query): whether the Final
+  // Series has started and how many qualifying groups there are can never
+  // disagree with it, also while the scoring view hides it.
+  const heatList = useHeatList(event?.event_id);
+  const { finalSeriesStarted, numQualifyingGroups } = heatList;
 
   const scoring = useScoringSession({
     event,
     finalSeriesStarted,
     numQualifyingGroups,
   });
-  const { selectedHeat, isScoring, closeScoring } = scoring;
-  const rounds = useRoundActions({ event, finalSeriesStarted, refreshHeats });
+  const { selectedHeat, isScoring, isSubmitting, closeScoring } = scoring;
+  const rounds = useRoundActions({ event, finalSeriesStarted });
 
-  // After going back in the history (or an undo there) the heat being scored
-  // may be gone or may have been raced already; leave its scoring view then,
-  // rather than let a finish order be submitted into a heat that changed.
-  const onEventDataChanged = useCallback(async () => {
-    refreshHeats();
-    if (!event?.event_id) return;
-    try {
-      const allHeats = await heatRaceDB.readAllHeats(event.event_id);
-      setFinalSeriesStarted(hasFinalHeats(allHeats));
-      if (isScoring && selectedHeat) {
-        const stillThere = allHeats.some(
-          (heat) => heat.heat_id === selectedHeat.heat_id,
-        );
-        const races = stillThere
-          ? await heatRaceDB.readAllRaces(selectedHeat.heat_id)
-          : [];
-        if (!stillThere || races.length !== (selectedHeat.raceNumber ?? 0)) {
-          closeScoring();
-          reportWarning(
-            `${selectedHeat.heat_name} changed in the history while you were scoring it, so its scoring was closed. Nothing was saved for it; open it again if it still needs scoring.`,
-            'Heat changed',
-          );
-        }
-      }
-    } catch (error) {
-      reportError('Could not reload the heats.', error);
+  // The heat list is read again after any change to the event — also one made
+  // in the history (an undo, going back) while this heat is being scored.
+  // If the heat is gone or has been raced since it was opened, leave its
+  // scoring view, rather than let a finish order be submitted into a heat
+  // that changed. (Our own submit changes it too: not while it runs, and it
+  // closes the view itself.)
+  const { loadedHeats, loading: heatsLoading } = heatList;
+  useEffect(() => {
+    if (!isScoring || !selectedHeat || isSubmitting) return;
+    if (!loadedHeats || heatsLoading) return;
+    const now = loadedHeats.find(
+      (heat) => heat.heat_id === selectedHeat.heat_id,
+    );
+    if (!now || now.raceNumber !== (selectedHeat.raceNumber ?? 0)) {
+      closeScoring();
+      reportWarning(
+        `${selectedHeat.heat_name} changed in the history while you were scoring it, so its scoring was closed. Nothing was saved for it; open it again if it still needs scoring.`,
+        'Heat changed',
+      );
     }
-  }, [event?.event_id, isScoring, selectedHeat, refreshHeats, closeScoring]);
-  useEventDataChanged(event?.event_id, onEventDataChanged);
+  }, [
+    loadedHeats,
+    heatsLoading,
+    isScoring,
+    isSubmitting,
+    selectedHeat,
+    closeScoring,
+  ]);
 
   if (!event) {
     return <LoadingState label="Loading event…" />;
@@ -92,14 +85,11 @@ function HeatRacePage() {
         {!isScoring ? (
           <HeatComponent
             event={event}
-            refreshToken={heatsRefreshToken}
             onScoreHeat={scoreHeat}
             onUndoLastRace={rounds.undoLastRace}
             onCreateRound={rounds.createNewHeats}
             onUndoRedistribution={rounds.undoRedistribution}
             rowActionsDisabled={rounds.roundActionBusy}
-            onQualifyingGroupCountChange={setNumQualifyingGroups}
-            onFinalSeriesStateChange={setFinalSeriesStarted}
           />
         ) : (
           <>
@@ -132,6 +122,7 @@ function HeatRacePage() {
             </div>
             {selectedHeat && (
               <ScoringInputComponent
+                eventId={event.event_id}
                 heat={selectedHeat}
                 onSubmit={scoring.submitScores}
                 onDirtyChange={scoring.setHasUnsavedEntry}

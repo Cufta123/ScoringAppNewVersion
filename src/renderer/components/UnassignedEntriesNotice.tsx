@@ -1,5 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { eventDB, heatRaceDB } from '../api/db';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { heatRaceDB } from '../api/db';
+import { queries } from '../api/queries';
+import { useWrite } from '../api/writes';
 import type { EventBoatRow } from '../types';
 import { reportError } from '../utils/userFeedback';
 import { findUnassignedEntries, suggestHeat } from '../utils/unassignedEntries';
@@ -11,12 +14,9 @@ interface UnassignedEntriesNoticeProps {
   heats: HeatForAssignment[];
   raceHappened: boolean;
   finalSeriesStarted: boolean;
-  /** Bumped by the parent whenever heats or entries may have changed. */
-  refreshKey: unknown;
   /** Disables the Add buttons while another heat action runs. */
   busy: boolean;
   runExclusive: (action: () => Promise<void>) => Promise<unknown>;
-  onAssigned: () => void;
 }
 
 /**
@@ -32,32 +32,19 @@ export default function UnassignedEntriesNotice({
   heats,
   raceHappened,
   finalSeriesStarted,
-  refreshKey,
   busy,
   runExclusive,
-  onAssigned,
 }: UnassignedEntriesNoticeProps) {
-  const [entries, setEntries] = useState<EventBoatRow[]>([]);
+  // Advisory only: a read that fails shows no notice (the heats view itself
+  // reports load failures), and must never take the heats view down.
+  const entries = useQuery(queries.entries(eventId)).data ?? [];
   const [targets, setTargets] = useState<Record<number, number>>({});
-
-  useEffect(() => {
-    let cancelled = false;
-    // Through a promise chain so even a synchronous throw from the IPC layer
-    // lands in the catch: this notice is advisory and must never take the
-    // heats view down with it.
-    Promise.resolve()
-      .then(() => eventDB.readBoatsByEvent(eventId))
-      .then((rows) => {
-        if (!cancelled) setEntries(Array.isArray(rows) ? rows : []);
-        return null;
-      })
-      .catch(() => {
-        // Advisory only; the heats view itself reports load failures.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [eventId, refreshKey]);
+  // The heats are read again once she is in one.
+  const insertHeatBoat = useWrite(
+    (heatId: number, boatId: number) =>
+      heatRaceDB.insertHeatBoat(heatId, boatId),
+    { eventId },
+  );
 
   const { unassigned, openHeats } = findUnassignedEntries(
     entries,
@@ -75,8 +62,7 @@ export default function UnassignedEntriesNotice({
       const heatId = targets[boat.boat_id] ?? suggested;
       if (heatId == null) return;
       try {
-        await heatRaceDB.insertHeatBoat(heatId, boat.boat_id);
-        onAssigned();
+        await insertHeatBoat(heatId, boat.boat_id);
       } catch (error) {
         reportError(
           `Could not add sail ${boat.sail_number} to the heat.`,

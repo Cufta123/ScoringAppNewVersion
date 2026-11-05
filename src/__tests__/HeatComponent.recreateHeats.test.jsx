@@ -2,7 +2,7 @@
 
 import '@testing-library/jest-dom';
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from './helpers/renderWithQuery';
 import HeatComponent from '../renderer/components/HeatComponent';
 import { confirmAction } from '../renderer/utils/userFeedback';
 
@@ -36,13 +36,7 @@ describe('HeatComponent recreate heats', () => {
   let api;
 
   const renderComponent = () =>
-    render(
-      <HeatComponent
-        event={{ event_id: 77 }}
-        onScoreHeat={jest.fn()}
-        onQualifyingGroupCountChange={jest.fn()}
-      />,
-    );
+    render(<HeatComponent event={{ event_id: 77 }} onScoreHeat={jest.fn()} />);
 
   const clickRecreate = async () => {
     await waitFor(() => {

@@ -2,7 +2,7 @@
 
 import '@testing-library/jest-dom';
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from './helpers/renderWithQuery';
 import EventForm from '../renderer/components/EventForm';
 import EventList from '../renderer/components/EventList';
 import { reportInfo } from '../renderer/utils/userFeedback';

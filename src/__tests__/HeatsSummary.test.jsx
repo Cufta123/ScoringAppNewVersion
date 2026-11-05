@@ -2,7 +2,7 @@
 
 import '@testing-library/jest-dom';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen } from './helpers/renderWithQuery';
 import HeatsSummary from '../renderer/components/heats/HeatsSummary';
 
 const heat = (heat_id, heat_name, heat_type = 'Qualifying') => ({

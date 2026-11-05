@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   confirmAction,
   confirmChoice,
@@ -7,6 +8,8 @@ import {
   reportInfo,
 } from '../utils/userFeedback';
 import { eventDB, heatRaceDB } from '../api/db';
+import { queryKeys } from '../api/queryKeys';
+import { useWrite } from '../api/writes';
 import type { EventRow } from '../types';
 import useEventSettings, {
   reportInvalidSettings,
@@ -20,13 +23,9 @@ import {
 
 interface EventListProps {
   events: EventRow[];
-  onEventsChanged?: (() => void) | null;
 }
 
-export default function EventList({
-  events,
-  onEventsChanged = null,
-}: EventListProps) {
+export default function EventList({ events }: EventListProps) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
   const [editLocation, setEditLocation] = useState('');
@@ -40,6 +39,18 @@ export default function EventList({
   const editBaselineRef = useRef<Record<string, unknown> | null>(null);
 
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const updateEvent = useWrite(
+    (...args: Parameters<typeof eventDB.updateEvent>) =>
+      eventDB.updateEvent(...args),
+    (_result, [eventId]) => ({ eventId }),
+  );
+  const deleteEvent = useWrite(async (eventId: number) => {
+    const result = await eventDB.deleteEvent(eventId);
+    // Nothing of it is left to show.
+    queryClient.removeQueries({ queryKey: queryKeys.event(eventId) });
+    return result;
+  }, 'events');
 
   const currentEditSnapshot = (): Record<string, unknown> => ({
     name: editName,
@@ -172,7 +183,7 @@ export default function EventList({
     try {
       // Store trimmed values so the saved name matches the rename-collision
       // check above (and never keys the route with trailing whitespace).
-      await eventDB.updateEvent(
+      await updateEvent(
         editingId,
         editName.trim(),
         editLocation.trim(),
@@ -182,7 +193,6 @@ export default function EventList({
       );
       setEditingId(null);
       settings.setAdvancedEnabled(false);
-      if (onEventsChanged) onEventsChanged();
     } catch (error) {
       reportError('Could not update the event.', error);
     } finally {
@@ -227,8 +237,7 @@ export default function EventList({
     }
 
     try {
-      await eventDB.deleteEvent(eventId);
-      if (onEventsChanged) onEventsChanged();
+      await deleteEvent(eventId);
       reportInfo('Event deleted successfully.', 'Success');
     } catch (error) {
       reportError('Could not delete the event.', error);

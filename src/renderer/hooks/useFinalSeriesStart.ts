@@ -1,5 +1,7 @@
 import { useCallback, useState } from 'react';
 import { canExportEventSnapshot, heatRaceDB } from '../api/db';
+import { queries } from '../api/queries';
+import { useReadNow, useWrite } from '../api/writes';
 import {
   confirmAction,
   confirmChoice,
@@ -20,8 +22,6 @@ interface PendingStart {
 interface Options {
   eventId: number;
   finalSeriesStarted: boolean;
-  markFinalSeriesStarted: () => void;
-  reloadHeats: () => Promise<void>;
   /** Writes a recovery backup; true when saved, false when cancelled. */
   saveBackupFile: () => Promise<boolean>;
 }
@@ -39,19 +39,26 @@ interface Options {
 export default function useFinalSeriesStart({
   eventId,
   finalSeriesStarted,
-  markFinalSeriesStarted,
-  reloadHeats,
   saveBackupFile,
 }: Options) {
   // Set once every question is answered; its presence IS "the modal is open".
   const [pending, setPending] = useState<PendingStart | null>(null);
+  const readNow = useReadNow();
+  // Resolves once the event (its heats, now with the fleets) is read again.
+  const startAtomic = useWrite(
+    (...args: Parameters<typeof heatRaceDB.startFinalSeriesAtomic>) =>
+      heatRaceDB.startFinalSeriesAtomic(...args),
+    (_result, [id]) => ({ eventId: id }),
+  );
 
   const startFinalSeries = useCallback(async () => {
     if (finalSeriesStarted) return;
     try {
       // SHRS eligibility (group counting, equal-race-count, Rule 4.3 window) is
       // computed in the main process; the renderer only renders prompts.
-      const eligibility = await heatRaceDB.getFinalSeriesEligibility(eventId);
+      const eligibility = await readNow(
+        queries.finalSeriesEligibility(eventId),
+      );
 
       if (!eligibility.ok) {
         reportInfo(
@@ -131,7 +138,7 @@ export default function useFinalSeriesStart({
         error,
       );
     }
-  }, [eventId, finalSeriesStarted, saveBackupFile]);
+  }, [eventId, finalSeriesStarted, saveBackupFile, readNow]);
 
   const cancelFinalSeries = useCallback(() => setPending(null), []);
 
@@ -142,11 +149,7 @@ export default function useFinalSeriesStart({
 
     const start = async (allowOversize: boolean): Promise<void> => {
       try {
-        await heatRaceDB.startFinalSeriesAtomic(
-          eventId,
-          allowOversize,
-          applyRule43,
-        );
+        await startAtomic(eventId, allowOversize, applyRule43);
       } catch (error) {
         const message = getErrorMessage(error);
         if (
@@ -164,12 +167,10 @@ export default function useFinalSeriesStart({
         reportError('Could not start final series.', error);
         return;
       }
-      markFinalSeriesStarted();
       reportInfo('Final Series started successfully!', 'Success');
-      await reloadHeats();
     };
     await start(false);
-  }, [pending, eventId, markFinalSeriesStarted, reloadHeats]);
+  }, [pending, eventId, startAtomic]);
 
   return {
     confirmOpen: pending !== null,

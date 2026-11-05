@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { heatRaceDB } from '../api/db';
+import { queries } from '../api/queries';
+import { useReadNow, useWrite } from '../api/writes';
 import {
   confirmAction,
   reportError,
@@ -38,6 +40,13 @@ export default function useScoringSession({
   const submitInFlightRef = useRef<Promise<boolean> | null>(null);
   // Mirrors the ref for rendering (a ref alone would not re-render the button).
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const readNow = useReadNow();
+  // Resolves once the event (heats, races, standings) is read again.
+  const submitRace = useWrite(
+    (...args: Parameters<typeof heatRaceDB.submitHeatRaceScoresAtomic>) =>
+      heatRaceDB.submitHeatRaceScoresAtomic(...args),
+    (_result, [scores]) => ({ eventId: scores.event_id }),
+  );
 
   const startScoring = useCallback(() => {
     setHasUnsavedEntry(false);
@@ -110,7 +119,9 @@ export default function useScoringSession({
       // should only ever race once before redistribution. Warn any time the
       // user tries to score a second (or later) race on a qualifying heat.
       if (!finalSeriesStarted && numQualifyingGroups >= 2) {
-        const races = await heatRaceDB.readAllRaces(selectedHeat.heat_id);
+        const races = await readNow(
+          queries.heatRaces(event.event_id, selectedHeat.heat_id),
+        );
         if (races.length >= 1) {
           const proceed = await confirmAction(
             raceAgainWarning(selectedHeat.heat_name, races.length),
@@ -123,7 +134,7 @@ export default function useScoringSession({
 
       // Penalty math, race + score inserts, and the leaderboard recompute all
       // happen atomically in the main process (see submitHeatRaceScoresAtomic).
-      const result = await heatRaceDB.submitHeatRaceScoresAtomic({
+      const result = await submitRace({
         event_id: event.event_id,
         heat_id: selectedHeat.heat_id,
         placeNumbers,

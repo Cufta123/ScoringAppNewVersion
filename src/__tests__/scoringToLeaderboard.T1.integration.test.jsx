@@ -2,8 +2,8 @@
 
 import '@testing-library/jest-dom';
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { fireEvent, render, screen, waitFor } from './helpers/renderWithQuery';
 import HeatRacePage from '../renderer/pages/HeatRacePage/HeatRacePage';
 import LeaderboardPage from '../renderer/pages/LeaderboardPage/LeaderboardPage';
 
@@ -35,11 +35,7 @@ jest.mock(
 jest.mock(
   '../renderer/components/HeatComponent',
   () =>
-    function ({ onScoreHeat, onQualifyingGroupCountChange }) {
-      React.useEffect(() => {
-        onQualifyingGroupCountChange(1);
-      }, [onQualifyingGroupCountChange]);
-
+    function ({ onScoreHeat }) {
       return (
         <button
           type="button"

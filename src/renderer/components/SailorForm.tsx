@@ -1,6 +1,7 @@
 /* eslint-disable jsx-a11y/label-has-associated-control */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import Autosuggest from 'react-autosuggest';
+import { useQuery } from '@tanstack/react-query';
 import {
   confirmAction,
   reportError,
@@ -8,53 +9,44 @@ import {
   reportWarning,
   getErrorMessage,
 } from '../utils/userFeedback';
-import { checkRaceHappened } from '../utils/raceStatus';
 
 import IOC_NATIONS from '../constants/iocNations';
 import { SUBGROUP_OPTIONS } from '../../shared/subgroups';
 import { sailorDB } from '../api/db';
+import { queries, useReportQueryError } from '../api/queries';
+import { useWrite } from '../api/writes';
 import type { ClubRow } from '../types';
 
 interface SailorFormProps {
-  onAddSailor: () => void;
   eventId: number;
 }
 
-function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
+function SailorForm({ eventId }: SailorFormProps) {
   const [name, setName] = useState('');
   const [surname, setSurname] = useState('');
   const [subgroup, setSubgroup] = useState('');
   const [club, setClub] = useState('');
-  const [clubs, setClubs] = useState<ClubRow[]>([]);
   const [selectedCountry, setSelectedCountry] = useState('');
   const [sailNumber, setSailNumber] = useState('');
   const [model, setModel] = useState('');
-  const [raceHappened, setRaceHappened] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [suggestions, setSuggestions] = useState<ClubRow[]>([]);
   const nameInputRef = React.useRef<HTMLInputElement>(null);
 
-  const fetchClubs = async () => {
-    try {
-      const allClubs = await sailorDB.readAllClubs();
-      setClubs(allClubs);
-    } catch (error) {
-      reportError('Could not load clubs.', error);
-    }
-  };
+  const clubsQuery = useQuery(queries.clubs());
+  useReportQueryError(clubsQuery, 'Could not load clubs.');
+  const clubs = clubsQuery.data ?? [];
+  const raceHappenedQuery = useQuery(queries.raceHappened(eventId));
+  useReportQueryError(raceHappenedQuery, 'Could not check race status.');
+  const raceHappened = raceHappenedQuery.data ?? false;
 
-  const checkIfRaceHappened = useCallback(async () => {
-    try {
-      setRaceHappened(await checkRaceHappened(eventId));
-    } catch (error) {
-      reportError('Could not check race status.', error);
-    }
-  }, [eventId]);
-
-  useEffect(() => {
-    fetchClubs();
-    checkIfRaceHappened();
-  }, [checkIfRaceHappened]);
+  // The entries are read again, and a new club or boat shows up on file
+  // (the club suggestions for the next sailor).
+  const enterSailor = useWrite(
+    (...args: Parameters<typeof sailorDB.enterSailorInEvent>) =>
+      sailorDB.enterSailorInEvent(...args),
+    { eventId, onFile: true },
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,7 +101,7 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
       };
       let outcome;
       try {
-        outcome = await sailorDB.enterSailorInEvent(entry, eventId);
+        outcome = await enterSailor(entry, eventId);
         if (outcome.status === 'ownerConflict') {
           const typedName = `${firstName} ${lastName}`;
           const proceed = await confirmAction(
@@ -122,7 +114,7 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
             { confirmLabel: 'Use existing sailor', cancelLabel: 'Cancel' },
           );
           if (!proceed) return;
-          outcome = await sailorDB.enterSailorInEvent(entry, eventId, {
+          outcome = await enterSailor(entry, eventId, {
             useRegisteredSailor: true,
           });
         }
@@ -145,9 +137,6 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
         return;
       }
 
-      // New clubs show up in the suggestions for the next sailor.
-      fetchClubs();
-
       // Clear only the per-sailor fields. Country and Club are intentionally
       // retained: rosters are usually entered club-by-club / nation-by-nation,
       // so keeping them saves re-selecting the same values for every sailor.
@@ -160,7 +149,6 @@ function SailorForm({ onAddSailor, eventId }: SailorFormProps) {
       // away without reaching for the mouse.
       nameInputRef.current?.focus();
 
-      onAddSailor();
       reportInfo('Sailor and boat added successfully.', 'Success');
     } catch (error) {
       reportError('Could not add the sailor and boat.', error);

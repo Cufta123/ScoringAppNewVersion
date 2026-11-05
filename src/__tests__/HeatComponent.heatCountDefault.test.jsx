@@ -2,7 +2,7 @@
 
 import '@testing-library/jest-dom';
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from './helpers/renderWithQuery';
 import HeatComponent from '../renderer/components/HeatComponent';
 import { confirmAction } from '../renderer/utils/userFeedback';
 
@@ -56,13 +56,7 @@ describe('HeatComponent heat-count default', () => {
         },
       },
     };
-    render(
-      <HeatComponent
-        event={{ event_id: 5 }}
-        onScoreHeat={jest.fn()}
-        onQualifyingGroupCountChange={jest.fn()}
-      />,
-    );
+    render(<HeatComponent event={{ event_id: 5 }} onScoreHeat={jest.fn()} />);
   };
 
   afterEach(() => {

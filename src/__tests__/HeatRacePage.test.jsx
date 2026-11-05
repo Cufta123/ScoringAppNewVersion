@@ -2,14 +2,14 @@
 
 import '@testing-library/jest-dom';
 import React from 'react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import {
   act,
   fireEvent,
   render,
   screen,
   waitFor,
-} from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+} from './helpers/renderWithQuery';
 import HeatRacePage from '../renderer/pages/HeatRacePage/HeatRacePage';
 import {
   confirmAction,
@@ -17,7 +17,7 @@ import {
   reportInfo,
   reportWarning,
 } from '../renderer/utils/userFeedback';
-import { notifyEventDataChanged } from '../renderer/utils/eventDataChanged';
+import { queryKeys } from '../renderer/api/queryKeys';
 
 jest.mock(
   '../renderer/components/Navbar',
@@ -36,11 +36,7 @@ jest.mock(
 jest.mock(
   '../renderer/components/HeatComponent',
   () =>
-    function ({ onScoreHeat, onQualifyingGroupCountChange }) {
-      React.useEffect(() => {
-        onQualifyingGroupCountChange(1);
-      }, [onQualifyingGroupCountChange]);
-
+    function ({ onScoreHeat }) {
       return (
         <div>
           <button
@@ -119,6 +115,7 @@ describe('HeatRacePage', () => {
         },
         heatRaceDB: {
           readAllHeats: jest.fn().mockResolvedValue([heat]),
+          readBoatsByHeat: jest.fn().mockResolvedValue([]),
           readAllRaces: jest.fn().mockResolvedValue([]),
           submitHeatRaceScoresAtomic: jest
             .fn()
@@ -219,6 +216,12 @@ describe('HeatRacePage', () => {
       const backButton = screen.getByRole('button', { name: /Back to Heats/ });
       expect(backButton).toBeDisabled();
 
+      // The write starts once the mutation runs (a microtask later).
+      await waitFor(() =>
+        expect(
+          window.electron.sqlite.heatRaceDB.submitHeatRaceScoresAtomic,
+        ).toHaveBeenCalled(),
+      );
       await act(async () => {
         rejectSubmit(new Error('database is locked'));
       });
@@ -257,6 +260,12 @@ describe('HeatRacePage', () => {
 
       // Try to leave while the save is still in flight, then let it fail.
       fireEvent.click(screen.getByRole('button', { name: 'Navbar home' }));
+      // The write starts once the mutation runs (a microtask later).
+      await waitFor(() =>
+        expect(
+          window.electron.sqlite.heatRaceDB.submitHeatRaceScoresAtomic,
+        ).toHaveBeenCalled(),
+      );
       await act(async () => {
         rejectSubmit(new Error('database is locked'));
       });
@@ -289,6 +298,12 @@ describe('HeatRacePage', () => {
         await screen.findByRole('button', { name: 'Submit scoring mock' }),
       );
 
+      // The write starts once the mutation runs (a microtask later).
+      await waitFor(() =>
+        expect(
+          window.electron.sqlite.heatRaceDB.submitHeatRaceScoresAtomic,
+        ).toHaveBeenCalled(),
+      );
       await act(async () => {
         resolveSubmit({ ok: true, raceNumber: 1, raceId: 999 });
       });
@@ -309,6 +324,13 @@ describe('HeatRacePage', () => {
   });
 
   describe('the history changed the heat being scored', () => {
+    // Undo / go back in the history: the event's queries are invalidated,
+    // as the history dialog's writes do (api/writes.ts).
+    const historyChanged = (queryClient) =>
+      act(async () => {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.event(1) });
+      });
+
     const renderPage = () =>
       render(
         <MemoryRouter
@@ -326,7 +348,7 @@ describe('HeatRacePage', () => {
       );
 
     it('closes the scoring of a heat that is gone, saying nothing was saved', async () => {
-      renderPage();
+      const { queryClient } = renderPage();
       fireEvent.click(
         await screen.findByRole('button', { name: 'Start scoring mock' }),
       );
@@ -334,9 +356,7 @@ describe('HeatRacePage', () => {
 
       // Going back in the history removed the round.
       window.electron.sqlite.heatRaceDB.readAllHeats.mockResolvedValue([]);
-      await act(async () => {
-        notifyEventDataChanged(1);
-      });
+      await historyChanged(queryClient);
 
       await waitFor(() =>
         expect(
@@ -351,15 +371,37 @@ describe('HeatRacePage', () => {
       );
     });
 
-    it('keeps scoring a heat the history did not touch', async () => {
-      renderPage();
+    it('closes the scoring of a heat raced since it was opened', async () => {
+      const { queryClient } = renderPage();
       fireEvent.click(
         await screen.findByRole('button', { name: 'Start scoring mock' }),
       );
       await screen.findByRole('button', { name: 'Submit scoring mock' });
-      await act(async () => {
-        notifyEventDataChanged(1);
-      });
+
+      // Going back brought back a race of this heat.
+      window.electron.sqlite.heatRaceDB.readAllRaces.mockResolvedValue([
+        { race_id: 1, heat_id: 10, race_number: 1 },
+      ]);
+      await historyChanged(queryClient);
+
+      await waitFor(() =>
+        expect(reportWarning).toHaveBeenCalledWith(
+          expect.stringMatching(/Heat A1 changed in the history/),
+          'Heat changed',
+        ),
+      );
+      expect(
+        screen.queryByRole('button', { name: 'Submit scoring mock' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('keeps scoring a heat the history did not touch', async () => {
+      const { queryClient } = renderPage();
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Start scoring mock' }),
+      );
+      await screen.findByRole('button', { name: 'Submit scoring mock' });
+      await historyChanged(queryClient);
       expect(
         screen.getByRole('button', { name: 'Submit scoring mock' }),
       ).toBeInTheDocument();

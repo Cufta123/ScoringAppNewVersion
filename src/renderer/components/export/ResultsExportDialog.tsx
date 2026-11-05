@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import ExportDialog from './ExportDialog';
 import CommonOptionsFields from './CommonOptionsFields';
 import { CheckField, OptionSection, SelectField } from './OptionFields';
@@ -6,8 +7,7 @@ import useExportOptions from '../../hooks/useExportOptions';
 import useDocumentPreview from '../../hooks/useDocumentPreview';
 import useEventLogo from '../../hooks/useEventLogo';
 import useExportRunner from '../../hooks/useExportRunner';
-import { eventDB } from '../../api/db';
-import { reportError } from '../../utils/userFeedback';
+import { queries, useReportQueryError } from '../../api/queries';
 import {
   DEFAULT_COMMON_SETTINGS,
   eventInfoOf,
@@ -91,30 +91,17 @@ export default function ResultsExportDialog({
   const logo = useEventLogo(eventId, open);
 
   // The Club column needs the club of each boat, which the standings rows do
-  // not carry: read it from the entry list when the dialog opens.
-  const [clubs, setClubs] = useState<Record<number, string>>({});
-  useEffect(() => {
-    if (!open) return undefined;
-    let cancelled = false;
-    (async () => {
-      try {
-        const boats = await eventDB.readBoatsByEvent(eventId);
-        if (cancelled) return;
-        const byBoat: Record<number, string> = {};
-        boats.forEach((boat) => {
-          const club = (boat.club_name ?? '').trim();
-          if (club) byBoat[boat.boat_id] = club;
-        });
-        setClubs(byBoat);
-      } catch (error) {
-        if (!cancelled)
-          reportError('Could not read the clubs of the boats.', error);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [eventId, open]);
+  // not carry: read from the entry list (as saved now) while the dialog is open.
+  const entries = useQuery({ ...queries.entries(eventId), enabled: open });
+  useReportQueryError(entries, 'Could not read the clubs of the boats.');
+  const clubs = useMemo(() => {
+    const byBoat: Record<number, string> = {};
+    (entries.data ?? []).forEach((boat) => {
+      const club = (boat.club_name ?? '').trim();
+      if (club) byBoat[boat.boat_id] = club;
+    });
+    return byBoat;
+  }, [entries.data]);
   const hasClubs = Object.keys(clubs).length > 0;
 
   const input = useMemo<ResultsInput>(

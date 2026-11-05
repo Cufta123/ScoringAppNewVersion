@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { reportError, reportInfo } from '../utils/userFeedback';
 import { eventDB } from '../api/db';
+import { queries } from '../api/queries';
+import { useReadNow, useWrite } from '../api/writes';
 import useExclusiveAction from '../hooks/useExclusiveAction';
 import useEventSettings, {
   reportInvalidSettings,
@@ -20,6 +22,12 @@ function EventForm({ onEventCreated = null }: EventFormProps) {
   // a plain `submitting` state let two quick Enter presses both create it.
   const { busy: submitting, runExclusive } = useExclusiveAction();
   const settings = useEventSettings();
+  const readNow = useReadNow();
+  const insertEvent = useWrite(
+    (...args: Parameters<typeof eventDB.insertEvent>) =>
+      eventDB.insertEvent(...args),
+    'events',
+  );
 
   const createEvent = async () => {
     if (eventStartDate && eventEndDate && eventEndDate < eventStartDate) {
@@ -33,7 +41,7 @@ function EventForm({ onEventCreated = null }: EventFormProps) {
     // Event routes are keyed by name (/event/:name), so duplicate names would
     // collide on navigation. Block them before inserting.
     try {
-      const existingEvents = await eventDB.readAllEvents();
+      const existingEvents = await readNow(queries.events());
       const nameTaken =
         Array.isArray(existingEvents) &&
         existingEvents.some(
@@ -63,7 +71,7 @@ function EventForm({ onEventCreated = null }: EventFormProps) {
       // Store the trimmed values so what's saved matches what the duplicate
       // check above normalized — otherwise a stray trailing space passes the
       // check yet is written into the name that keys the /event/:name route.
-      await eventDB.insertEvent(
+      await insertEvent(
         eventName.trim(),
         eventLocation.trim(),
         eventStartDate,

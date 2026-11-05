@@ -1,45 +1,42 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import EventForm from '../../components/EventForm';
 import EventList from '../../components/EventList';
 import Navbar from '../../components/Navbar';
 import { reportError, reportInfo } from '../../utils/userFeedback';
 import useExclusiveAction from '../../hooks/useExclusiveAction';
 import './LandingPage.css';
-import { eventDB, heatRaceDB } from '../../api/db';
-import type { EventRow } from '../../types';
+import { heatRaceDB } from '../../api/db';
+import { queries, useReportQueryError } from '../../api/queries';
+import { useWrite } from '../../api/writes';
 
 function LandingPage() {
-  // null = not loaded yet; [] = loaded and empty
-  const [events, setEvents] = useState<EventRow[] | null>(null);
+  const eventsQuery = useQuery(queries.events());
+  useReportQueryError(eventsQuery, 'Could not load your events.');
+  // undefined = not loaded yet; [] = loaded and empty
+  const events = eventsQuery.data;
   // Distinguish "load failed" from "no events yet" — otherwise a failed read
   // would show the first-run onboarding and make the user think their events
   // are gone.
-  const [loadFailed, setLoadFailed] = useState(false);
-
-  const refreshEvents = useCallback(async () => {
-    try {
-      const allEvents = await eventDB.readAllEvents();
-      setEvents(Array.isArray(allEvents) ? allEvents : []);
-      setLoadFailed(false);
-    } catch (error) {
-      reportError('Could not load your events.', error);
-      setLoadFailed(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    refreshEvents();
-  }, [refreshEvents]);
+  const loadFailed = eventsQuery.isError;
+  const { refetch } = eventsQuery;
+  const retryLoad = useCallback(() => {
+    refetch();
+  }, [refetch]);
 
   // A backup file as a new event: from another computer, or an event that
-  // was deleted after "Back up, then delete".
+  // was deleted after "Back up, then delete". It brings its own sailors and
+  // boats too, so everything is read again.
+  const importFromFile = useWrite(
+    () => heatRaceDB.importEventSnapshotFromFile(),
+    'everything',
+  );
   const { busy: importing, runExclusive } = useExclusiveAction();
   const importEvent = () =>
     runExclusive(async () => {
       try {
-        const result = await heatRaceDB.importEventSnapshotFromFile();
+        const result = await importFromFile();
         if (result?.canceled) return;
-        await refreshEvents();
         reportInfo(
           `"${result?.eventName}" was added from the backup file, with its sailors, heats and results.`,
           'Event imported',
@@ -56,10 +53,7 @@ function LandingPage() {
   // simply there.
   const [creating, setCreating] = useState(false);
   const formOpen = isFirstRun || creating;
-  const onEventCreated = useCallback(async () => {
-    setCreating(false);
-    await refreshEvents();
-  }, [refreshEvents]);
+  const onEventCreated = useCallback(() => setCreating(false), []);
 
   return (
     <div>
@@ -109,11 +103,7 @@ function LandingPage() {
               Your events may still be saved — the app just couldn’t read them
               right now. Please try again.
             </p>
-            <button
-              type="button"
-              className="btn-success"
-              onClick={refreshEvents}
-            >
+            <button type="button" className="btn-success" onClick={retryLoad}>
               <i className="fa fa-rotate-right" aria-hidden="true" /> Retry
             </button>
           </div>
@@ -147,7 +137,7 @@ function LandingPage() {
         {/* ── Existing events ─── */}
         {hasEvents && (
           <section className="landing-card" aria-label="Your events">
-            <EventList events={events} onEventsChanged={refreshEvents} />
+            <EventList events={events} />
           </section>
         )}
 

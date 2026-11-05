@@ -1,183 +1,124 @@
-import { useState, useEffect, useCallback } from 'react';
-import { heatRaceDB } from '../api/db';
-import { reportError } from '../utils/userFeedback';
+import { useMemo, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { queries, useReportQueryError } from '../api/queries';
 import { hasFinalHeats } from '../utils/heatView';
-import { buildStandings } from '../utils/leaderboardStandings';
+import {
+  buildStandings,
+  type BuiltStandings,
+} from '../utils/leaderboardStandings';
 import type { LeaderboardEntry, OverallLeaderboardEntry } from '../types';
 
-interface MaxHeatSizes {
-  qualifying: number;
-  final: number;
+interface Standings extends BuiltStandings {
+  overallLeaderboard: OverallLeaderboardEntry[];
+  /** The series the rows are of. */
+  finalSeriesStarted: boolean;
 }
 
-/**
- * What the edit session must do around a (re)load. Both callbacks must be
- * stable (they are dependencies of the loader).
- */
-interface LoadCallbacks {
-  /** Called before the first await: a reload makes queued edits stale. */
-  onReload: () => void;
-  /** Called with the freshly built rows, in the same step as the standings. */
-  onLoaded: (rows: LeaderboardEntry[]) => void;
-}
+/** The first of several reads' failures, as one (reported once). */
+const firstFailure = (
+  ...results: { error: unknown; errorUpdatedAt: number }[]
+) => ({
+  error: results.find((result) => result.error)?.error ?? null,
+  errorUpdatedAt: Math.max(...results.map((result) => result.errorUpdatedAt)),
+});
 
 /**
- * Loading the standings: whether the Final Series has started, the largest heat
- * of each series, and the qualifying / final / overall rows. Every read rebuilds
- * the standings from the scores in the main process (AGENTS.md section 4), so
- * loading is reads only.
+ * The standings, read through the query cache: whether the Final Series has
+ * started (from the heats), the largest heat of each series, and the
+ * qualifying / final / overall rows. Every read rebuilds the standings from
+ * the event's log in the main process (AGENTS.md section 4), so loading is
+ * reads only; any write to the event reads them again (api/writes.ts).
+ *
+ * The rows change only once every read they are built from has come back,
+ * so a refresh never shows final fleets next to the qualifying rows of
+ * before (the reads ran together, as one Promise.all, before the cache).
  */
-export default function useLeaderboardStandings(
-  eventId: number,
-  { onReload, onLoaded }: LoadCallbacks,
-) {
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [eventLeaderboard, setEventLeaderboard] = useState<LeaderboardEntry[]>(
-    [],
-  );
-  const [overallLeaderboard, setOverallLeaderboard] = useState<
-    OverallLeaderboardEntry[]
-  >([]);
-  const [loading, setLoading] = useState(true);
+export default function useLeaderboardStandings(eventId: number) {
+  const heats = useQuery(queries.heats(eventId));
+  useReportQueryError(heats, 'Could not check final series status.');
   // LB-16 / RULE-m4: there is no separate `activeTab` state. The series being
-  // viewed/edited is fully determined by `finalSeriesStarted` — the leaderboard
-  // page only makes the *active* series' cells editable (qualifying cells only
-  // before finals start; final cells only after), so the discard profile and
-  // largest-heat used for an edit always match that cell's series (SHRS
-  // 5.1/5.4/5.2). The old `activeTab` was always kept in lockstep with
-  // `finalSeriesStarted` and consumed by nothing, so it was removed.
-  const [finalSeriesStarted, setFinalSeriesStarted] = useState(false);
-  // Largest-heat size per series, used for SHRS 5.2 penalty scoring
-  // (penalty points = largest heat size + 1). Sourced from the main process.
-  const [maxHeatSizes, setMaxHeatSizes] = useState<MaxHeatSizes>({
-    qualifying: 0,
-    final: 0,
+  // viewed/edited is fully determined by `finalSeriesStarted` — the
+  // leaderboard page only makes the *active* series' cells editable, so the
+  // discard profile and largest heat used for an edit always match that
+  // cell's series (SHRS 5.1/5.4/5.2). It can go back to false: going back in
+  // the history can undo the start.
+  const finalSeriesStarted = useMemo(
+    () => hasFinalHeats(heats.data ?? []),
+    [heats.data],
+  );
+
+  // Largest heat per series, for SHRS 5.2 (boats in the largest heat + 1).
+  const maxQualifying = useQuery(queries.maxHeatSize(eventId, 'Qualifying'));
+  const maxFinal = useQuery(queries.maxHeatSize(eventId, 'Final'));
+  // The edit screen then scores DNF & co. from the entry count, which can
+  // differ from what Save writes; say so instead of guessing quietly.
+  useReportQueryError(
+    firstFailure(maxQualifying, maxFinal),
+    'Could not read the heat sizes. While editing, codes such as DNF may show a different score until you reload the page; Save always uses the right one.',
+  );
+
+  // The final standings are only read once the Final Series has started.
+  const qualifying = useQuery(queries.qualifyingStandings(eventId));
+  const final = useQuery({
+    ...queries.finalStandings(eventId),
+    enabled: finalSeriesStarted,
   });
-
-  // LB-1: `isActive` gives the mount effect a cancellation handle so a slow
-  // `readAllHeats` that resolves after unmount never calls setState, and the
-  // status flip can't be applied twice.
-  const checkFinalSeriesStarted = useCallback(
-    async (isActive: () => boolean = () => true) => {
-      try {
-        const heats = await heatRaceDB.readAllHeats(eventId);
-        if (!isActive()) return;
-        // Can go back to false: going back in the history can undo the start.
-        setFinalSeriesStarted(hasFinalHeats(heats));
-      } catch (error) {
-        if (isActive()) {
-          reportError('Could not check final series status.', error);
-        }
-      }
-    },
-    [eventId],
+  const overall = useQuery({
+    ...queries.overallStandings(eventId),
+    enabled: finalSeriesStarted,
+  });
+  useReportQueryError(
+    firstFailure(qualifying, final, overall),
+    'Could not load leaderboard data.',
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    checkFinalSeriesStarted(() => !cancelled);
-    return () => {
-      cancelled = true;
+  const built = useMemo<Standings | null>(() => {
+    if (!qualifying.data) return null;
+    if (finalSeriesStarted && (!final.data || !overall.data)) return null;
+    return {
+      ...buildStandings({
+        eventResults: qualifying.data,
+        finalResults: finalSeriesStarted ? (final.data ?? []) : [],
+        overallResults: finalSeriesStarted ? (overall.data ?? []) : [],
+        finalSeriesStarted,
+      }),
+      overallLeaderboard: finalSeriesStarted ? (overall.data ?? []) : [],
+      finalSeriesStarted,
     };
-  }, [checkFinalSeriesStarted]);
+  }, [qualifying.data, final.data, overall.data, finalSeriesStarted]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [qualifying, final] = await Promise.all([
-          heatRaceDB.getMaxHeatSize(eventId, 'Qualifying'),
-          heatRaceDB.getMaxHeatSize(eventId, 'Final'),
-        ]);
-        if (!cancelled) {
-          setMaxHeatSizes({ qualifying: qualifying || 0, final: final || 0 });
-        }
-      } catch (error) {
-        // The edit screen then scores DNF & co. from the entry count, which
-        // can differ from what Save writes; say so instead of guessing quietly.
-        if (!cancelled) {
-          reportError(
-            'Could not read the heat sizes. While editing, codes such as DNF may show a different score until you reload the page; Save always uses the right one.',
-            error,
-          );
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [eventId, finalSeriesStarted]);
+  // Keep the last complete set while any read it depends on is on its way.
+  const settled =
+    !heats.isFetching &&
+    !qualifying.isFetching &&
+    !(finalSeriesStarted && (final.isFetching || overall.isFetching));
+  const shownRef = useRef<Standings | null>(null);
+  if (settled && built) shownRef.current = built;
+  const shown = shownRef.current;
 
-  const fetchLeaderboard = useCallback(
-    async (isActive?: () => boolean) => {
-      // LB-1 / LB-5: a (re)fetch replaces the source of truth, so any queued
-      // session edits are now stale. Clear them and leave edit mode BEFORE any
-      // await — a late-arriving qualifying fetch must never overwrite final-series
-      // data, and a fetch that throws after a successful save must not leave
-      // stale edits that a retry would re-apply on top of already-persisted data.
-      onReload();
-      try {
-        // Every read below rebuilds the standings from the scores in the main
-        // process first (AGENTS.md section 4), so no separate recompute call is
-        // needed here. The final standings are only used once the Final Series
-        // has started.
-        const [finalResults, eventResults, overallResults] = await Promise.all([
-          finalSeriesStarted
-            ? heatRaceDB.readFinalLeaderboard(eventId)
-            : Promise.resolve([]),
-          heatRaceDB.readLeaderboard(eventId),
-          finalSeriesStarted
-            ? heatRaceDB.readOverallLeaderboard(eventId)
-            : Promise.resolve([]),
-        ]);
+  const failed =
+    qualifying.isError ||
+    (finalSeriesStarted && (final.isError || overall.isError));
+  // Until the series is known and its rows are in (or could not be read).
+  const loading = heats.isPending || (!shown && !failed);
 
-        // LB-1: if a newer fetch superseded this one while it awaited, bail out
-        // before applying any state so a late qualifying-mode result can't
-        // overwrite the correct final-series data.
-        if (isActive && !isActive()) return;
-
-        const { eventRows, leaderboard: rows } = buildStandings({
-          eventResults,
-          finalResults,
-          overallResults,
-          finalSeriesStarted,
-        });
-        setEventLeaderboard(eventRows);
-        if (finalSeriesStarted) {
-          setOverallLeaderboard(overallResults);
-        }
-        setLeaderboard(rows);
-        onLoaded(rows);
-      } catch (error) {
-        // LB-1: a superseded fetch should not surface its failure — the newer
-        // fetch owns the outcome.
-        if (isActive && !isActive()) return;
-        reportError('Could not load leaderboard data.', error);
-      } finally {
-        // LB-1: only the latest fetch may clear `loading`; a cancelled fetch that
-        // finished early would otherwise flip it off while a newer fetch runs.
-        if (!isActive || isActive()) setLoading(false);
-      }
-    },
-    [eventId, finalSeriesStarted, onReload, onLoaded],
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchLeaderboard(() => !cancelled);
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchLeaderboard]);
-
-  return {
-    leaderboard,
-    eventLeaderboard,
-    overallLeaderboard,
-    loading,
+  const standings: Standings = shown ?? {
+    eventRows: [],
+    leaderboard: [],
+    overallLeaderboard: [],
     finalSeriesStarted,
-    maxHeatSizes,
-    fetchLeaderboard,
-    checkFinalSeriesStarted,
+  };
+  return {
+    leaderboard: standings.leaderboard as LeaderboardEntry[],
+    eventLeaderboard: standings.eventRows,
+    overallLeaderboard: standings.overallLeaderboard,
+    loading,
+    // The series of the rows shown (a refresh that changes it shows both
+    // together).
+    finalSeriesStarted: standings.finalSeriesStarted,
+    maxHeatSizes: {
+      qualifying: maxQualifying.data ?? 0,
+      final: maxFinal.data ?? 0,
+    },
   };
 }

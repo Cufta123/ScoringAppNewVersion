@@ -9,8 +9,9 @@ import {
   screen,
   waitFor,
   within,
-} from '@testing-library/react';
+} from './helpers/renderWithQuery';
 import EventHistoryDialog from '../renderer/components/EventHistoryDialog';
+import { queryKeys } from '../renderer/api/queryKeys';
 import Navbar from '../renderer/components/Navbar';
 
 const mockReadHistory = jest.fn();
@@ -36,6 +37,20 @@ jest.mock('../renderer/utils/userFeedback', () => ({
   reportInfo: jest.fn(),
   reportError: jest.fn(),
 }));
+
+// What the other screens show of event 4 (and of another event), in the
+// cache the dialog shares with them: an undo, a go-back or a restore must
+// invalidate the event's queries, so every screen showing it reads it again.
+function watchScreens(queryClient) {
+  const shown = queryKeys.standings(4, 'qualifying');
+  const other = queryKeys.standings(5, 'qualifying');
+  queryClient.setQueryData(shown, []);
+  queryClient.setQueryData(other, []);
+  return {
+    eventReread: () => queryClient.getQueryState(shown).isInvalidated,
+    otherReread: () => queryClient.getQueryState(other).isInvalidated,
+  };
+}
 
 const where = (sail) => ({ sail, heat_name: 'Heat A1', race_number: 1 });
 const score = (position, points, status = 'FINISHED') => ({
@@ -214,10 +229,11 @@ describe('undo from the history', () => {
       .mockResolvedValueOnce(actions)
       .mockResolvedValueOnce(undoneHistory);
     mockRevert.mockResolvedValue({ success: true, actionId: 3 });
-    const changed = jest.fn();
-    window.addEventListener('scoring-app:event-data-changed', changed);
 
-    render(<EventHistoryDialog eventId={4} open onClose={jest.fn()} />);
+    const { queryClient } = render(
+      <EventHistoryDialog eventId={4} open onClose={jest.fn()} />,
+    );
+    const screens = watchScreens(queryClient);
     await screen.findByText('Result changed');
     const undoButtons = screen.getAllByRole('button', { name: /^Undo: / });
     // "Race scored" (index 1) is undone on the scoring page instead.
@@ -229,9 +245,10 @@ describe('undo from the history', () => {
       'Undone: Result changed. The standings were recalculated.',
     );
     expect(mockRevert).toHaveBeenCalledWith(4, 2);
-    expect(changed).toHaveBeenCalledTimes(1);
-    expect(changed.mock.calls[0][0].detail).toEqual({ eventId: 4 });
-    window.removeEventListener('scoring-app:event-data-changed', changed);
+    // The other screens showing the event read it again; another event's
+    // screens do not.
+    expect(screens.eventReread()).toBe(true);
+    expect(screens.otherReread()).toBe(false);
 
     // The reloaded history shows the undo, and the decision as undone; the
     // undo itself can be undone.
@@ -376,10 +393,12 @@ describe('go back to a point in the history', () => {
       actionId: 4,
       undoneActions: 1,
     });
-    const changed = jest.fn();
-    window.addEventListener('scoring-app:event-data-changed', changed);
-    render(<EventHistoryDialog eventId={4} open onClose={jest.fn()} />);
+    const { queryClient } = render(
+      <EventHistoryDialog eventId={4} open onClose={jest.fn()} />,
+    );
+    const screens = watchScreens(queryClient);
     await screen.findByText('Result changed');
+    expect(screens.eventReread()).toBe(false);
 
     fireEvent.click(
       screen.getByRole('button', { name: /^Go back to here: Race scored/ }),
@@ -393,8 +412,7 @@ describe('go back to a point in the history', () => {
       /back to how it was after “Race scored”.*1 later action was taken back.*backup was saved/,
     );
     expect(mockRestore).toHaveBeenCalledWith(4, 2);
-    expect(changed).toHaveBeenCalledTimes(1);
-    window.removeEventListener('scoring-app:event-data-changed', changed);
+    expect(screens.eventReread()).toBe(true);
 
     // The step is the newest entry; what it took back is marked Undone; it
     // can itself be undone (back to just before it, i.e. after entry 3).
@@ -452,9 +470,10 @@ describe('go back to a point in the history', () => {
     });
     fireEvent.click(go);
     fireEvent.click(go);
-    expect(mockRestore).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(mockRestore).toHaveBeenCalled());
     finish({ success: true, actionId: 9, undoneActions: 2 });
     await screen.findByRole('status');
+    expect(mockRestore).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -480,16 +499,16 @@ describe('backup file in the history dialog', () => {
   it('restores from a file after asking, and the pages reload', async () => {
     mockConfirm.mockResolvedValue(true);
     mockRestoreFile.mockResolvedValue({ ok: true });
-    const changed = jest.fn();
-    window.addEventListener('scoring-app:event-data-changed', changed);
-    render(<EventHistoryDialog eventId={4} open onClose={jest.fn()} />);
+    const { queryClient } = render(
+      <EventHistoryDialog eventId={4} open onClose={jest.fn()} />,
+    );
+    const screens = watchScreens(queryClient);
     fireEvent.click(
       await screen.findByRole('button', { name: /Restore from file/ }),
     );
     await screen.findByText(/No changes recorded yet/);
-    await waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
-    expect(changed.mock.calls[0][0].detail).toEqual({ eventId: 4 });
-    window.removeEventListener('scoring-app:event-data-changed', changed);
+    // A file can bring sailors and boats too: everything is read again.
+    await waitFor(() => expect(screens.eventReread()).toBe(true));
     expect(mockConfirm.mock.calls[0][0]).toMatch(/will be replaced/);
     expect(mockRestoreFile).toHaveBeenCalledWith(4);
   });

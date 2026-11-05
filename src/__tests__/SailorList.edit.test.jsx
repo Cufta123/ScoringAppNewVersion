@@ -8,8 +8,9 @@ import {
   screen,
   waitFor,
   within,
-} from '@testing-library/react';
+} from './helpers/renderWithQuery';
 import SailorList from '../renderer/components/SailorList';
+import { queryKeys } from '../renderer/api/queryKeys';
 import { confirmAction } from '../renderer/utils/userFeedback';
 
 jest.mock(
@@ -51,12 +52,12 @@ const sailors = [
 ];
 
 let updateSailor;
-let onRefreshSailors;
+// The event's entry list as the cache holds it (what the page shows).
+let entriesReread;
 
 beforeEach(() => {
   jest.clearAllMocks();
   updateSailor = jest.fn().mockResolvedValue({ success: true });
-  onRefreshSailors = jest.fn();
   window.electron = {
     sqlite: {
       sailorDB: {
@@ -72,13 +73,12 @@ beforeEach(() => {
 });
 
 const openEdit = (who = 'Ana A') => {
-  render(
-    <SailorList
-      sailors={sailors}
-      onRefreshSailors={onRefreshSailors}
-      onRemoveBoat={jest.fn()}
-    />,
+  const { queryClient } = render(
+    <SailorList sailors={sailors} onRemoveBoat={jest.fn()} />,
   );
+  const entries = queryKeys.entries(3);
+  queryClient.setQueryData(entries, sailors);
+  entriesReread = () => queryClient.getQueryState(entries).isInvalidated;
   fireEvent.click(screen.getByLabelText(`Edit ${who}`));
   return screen.getByRole('dialog', { name: 'Edit sailor' });
 };
@@ -175,7 +175,8 @@ describe('SailorList: the edit dialog', () => {
     await waitFor(() =>
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
     );
-    expect(onRefreshSailors).toHaveBeenCalledTimes(1);
+    // A sailor is one record in every event: the lists are read again.
+    expect(entriesReread()).toBe(true);
   });
 
   it('closes without saving when nothing was changed', async () => {

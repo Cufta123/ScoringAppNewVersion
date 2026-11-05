@@ -1,19 +1,21 @@
 import { useCallback, useEffect } from 'react';
 import { heatRaceDB } from '../api/db';
+import { useWrite } from '../api/writes';
 import useSnapshotHistory from './useSnapshotHistory';
 import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
 
 /**
- * The recovery-backup actions of the heats view: save the event to a file,
- * restore it from one, and the "Recent backups" list that remembers what was
- * saved. `onRestored` runs once a restore has replaced the event's data, so
- * the caller can reload what it shows.
+ * The recovery-backup actions of an event: save it to a file, restore it from
+ * one, and the "Recent backups" list that remembers what was saved. A restore
+ * replaces the event's data (its entries can bring sailors and boats), so
+ * every screen reads everything again (api/writes.ts).
  */
-export default function useHeatSnapshots(
-  eventId: number,
-  onRestored: () => Promise<void>,
-) {
+export default function useHeatSnapshots(eventId: number) {
   const { history, load: loadHistory, remember } = useSnapshotHistory(eventId);
+  const restoreFromFile = useWrite(
+    (id: number) => heatRaceDB.restoreEventSnapshotFromFile(id),
+    'everything',
+  );
 
   useEffect(() => {
     loadHistory();
@@ -50,16 +52,14 @@ export default function useHeatSnapshots(
     if (!confirmed) return;
 
     try {
-      const result = await heatRaceDB.restoreEventSnapshotFromFile(eventId);
+      const result = await restoreFromFile(eventId);
       if (result?.canceled) return;
-
-      await onRestored();
 
       reportInfo('Event restored from backup.', 'Backup restored');
     } catch (error) {
       reportError('Could not restore backup.', error);
     }
-  }, [eventId, onRestored]);
+  }, [eventId, restoreFromFile]);
 
   return { history, saveBackupFile, saveBackup, restoreBackup };
 }

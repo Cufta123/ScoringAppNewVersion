@@ -3,21 +3,28 @@ import Papa from 'papaparse';
 import { sailorDB, type ImportSailorsResult } from '../api/db';
 import type { ImportOwnerConflict } from '../../shared/importSailors';
 import { describeError } from '../utils/userFeedback';
+import { useWrite } from '../api/writes';
 
 const TEMPLATE_CSV =
   'name,surname,birthday,sail_number,country,model,club_name,category_name\nJohn,Doe,,12345,CRO,Laser,YC Zagreb,M\nJane,Smith,,67890,SVN,Optimist,JK Piran,U16';
 
 interface SailorImportProps {
   eventId: number;
-  onImportComplete?: (() => void) | null;
 }
 
-function SailorImport({ eventId, onImportComplete = null }: SailorImportProps) {
+function SailorImport({ eventId }: SailorImportProps) {
   // Only name, surname, sail number and country are required — matching the
   // single-entry form. birthday, model, club and subgroup are optional.
   const REQUIRED_COLUMNS = ['name', 'surname', 'sail_number', 'country'];
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // A known sailor's club or subgroup can change with an import, and she is
+  // shown in every event she sailed: everything is read again.
+  const importSailors = useWrite(
+    (...args: Parameters<typeof sailorDB.importSailors>) =>
+      sailorDB.importSailors(...args),
+    'everything',
+  );
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ImportSailorsResult | null>(null);
   // Parsed-but-not-yet-imported rows, held for a preview/confirm step so a
@@ -92,12 +99,11 @@ function SailorImport({ eventId, onImportComplete = null }: SailorImportProps) {
     if (!pending) return;
     setBusy(true);
     try {
-      const res = await sailorDB.importSailors(
+      const res = await importSailors(
         pending.rows.map((r) => ({ ...r, eventId })),
         { ownerConflicts },
       );
       setResult(res);
-      if ((res.imported ?? 0) > 0 && onImportComplete) onImportComplete();
     } catch (error) {
       setResult({
         imported: 0,

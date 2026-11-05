@@ -1,8 +1,16 @@
 /** @jest-environment jsdom */
 
 import '@testing-library/jest-dom';
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from './helpers/renderWithQuery';
 import useHeatList from '../renderer/hooks/useHeatList';
+import { queryKeys } from '../renderer/api/queryKeys';
+
+// A write to the event (here, or in the history) invalidates it: the list is
+// read again (api/writes.ts).
+const eventChanged = (queryClient) =>
+  act(async () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.event(5) });
+  });
 
 const reportErrorMock = jest.fn();
 jest.mock('../renderer/utils/userFeedback', () => ({
@@ -44,7 +52,7 @@ describe('useHeatList', () => {
       heatId === 1 ? [{ race_id: 1 }] : [],
     );
 
-    const { result } = renderHook(() => useHeatList(5, 0));
+    const { result } = renderHook(() => useHeatList(5));
 
     await waitFor(() => expect(result.current.heatsCreated).toBe(true));
     expect(result.current.heats.map((h) => h.raceNumber)).toEqual([1, 0]);
@@ -56,16 +64,22 @@ describe('useHeatList', () => {
   it('applies only the newest of two overlapping loads', async () => {
     const slow = deferred();
     api.readAllHeats
+      .mockResolvedValueOnce([
+        { heat_id: 3, heat_name: 'Heat A3', heat_type: 'Qualifying' },
+      ])
       .mockReturnValueOnce(slow.promise)
       .mockResolvedValueOnce([
         { heat_id: 2, heat_name: 'Heat A2', heat_type: 'Qualifying' },
       ]);
 
-    const { result, rerender } = renderHook(
-      ({ token }) => useHeatList(5, token),
-      { initialProps: { token: 0 } },
+    const { result, queryClient } = renderHook(() => useHeatList(5));
+    await waitFor(() =>
+      expect(result.current.heats.map((h) => h.heat_id)).toEqual([3]),
     );
-    rerender({ token: 1 });
+    // Two changes in a row: the first read again is still on its way when
+    // the second starts.
+    await eventChanged(queryClient);
+    await eventChanged(queryClient);
 
     await waitFor(() =>
       expect(result.current.heats.map((h) => h.heat_id)).toEqual([2]),
@@ -84,16 +98,13 @@ describe('useHeatList', () => {
     api.readAllHeats.mockResolvedValue([
       { heat_id: 9, heat_name: 'Final Gold', heat_type: 'Final' },
     ]);
-    const { result, rerender } = renderHook(
-      ({ token }) => useHeatList(5, token),
-      { initialProps: { token: 0 } },
-    );
+    const { result, queryClient } = renderHook(() => useHeatList(5));
     await waitFor(() => expect(result.current.finalSeriesStarted).toBe(true));
 
     api.readAllHeats.mockResolvedValue([
       { heat_id: 1, heat_name: 'Heat A1', heat_type: 'Qualifying' },
     ]);
-    rerender({ token: 1 });
+    await eventChanged(queryClient);
 
     await waitFor(() => expect(result.current.finalSeriesStarted).toBe(false));
   });
@@ -102,14 +113,11 @@ describe('useHeatList', () => {
     api.readAllHeats.mockResolvedValue([
       { heat_id: 9, heat_name: 'Final Gold', heat_type: 'Final' },
     ]);
-    const { result, rerender } = renderHook(
-      ({ token }) => useHeatList(5, token),
-      { initialProps: { token: 0 } },
-    );
+    const { result, queryClient } = renderHook(() => useHeatList(5));
     await waitFor(() => expect(result.current.finalSeriesStarted).toBe(true));
 
     api.readAllHeats.mockRejectedValue(new Error('offline'));
-    rerender({ token: 1 });
+    await eventChanged(queryClient);
 
     await waitFor(() => expect(result.current.loadFailed).toBe(true));
     expect(result.current.heats).toEqual([]);

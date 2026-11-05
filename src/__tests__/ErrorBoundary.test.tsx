@@ -2,8 +2,8 @@
 
 import '@testing-library/jest-dom';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { render, screen } from './helpers/renderWithQuery';
 import ErrorBoundary from '../renderer/components/ErrorBoundary';
 
 // A component that throws while rendering, to trigger the boundary.

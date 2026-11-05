@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 import '@testing-library/jest-dom';
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from './helpers/renderWithQuery';
 import ConversionNotice from '../renderer/components/leaderboard/ConversionNotice';
 import type { ConversionReport } from '../shared/conversionReport';
 
@@ -45,7 +45,13 @@ describe('ConversionNotice', () => {
   });
 
   it('says how many results changed, lists them, and goes once confirmed', async () => {
-    api.readConversionReport.mockResolvedValue(report());
+    // As the main process does: once marked, the report reads as seen.
+    let seen = false;
+    api.readConversionReport.mockImplementation(async () => report({ seen }));
+    api.markConversionReportSeen.mockImplementation(async () => {
+      seen = true;
+      return { success: true };
+    });
     render(<ConversionNotice eventId={7} />);
     expect(
       await screen.findByText(

@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Flag from 'react-world-flags';
 import { getFlagCode } from '../utils/leaderboardUtils';
 import { toSubgroupLabel } from '../../shared/subgroups';
-import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
-import { sailorDB } from '../api/db';
+import { confirmAction, reportInfo } from '../utils/userFeedback';
+import { queries, useReportQueryError } from '../api/queries';
 import LoadingState from './shared/LoadingState';
 import SailorEditDialog from './SailorEditDialog';
-import type { CategoryRow } from '../types';
 import { sailorFullName } from '../utils/sailorName';
 
 // Numeric-aware, case-insensitive comparison so "Sail №" sorts 9, 10, 100
@@ -67,7 +67,6 @@ interface SailorListProps {
   onRemoveBoat: (boatId: number) => boolean | void | Promise<boolean | void>;
   /** False once a race is scored: the entry list is fixed (WTH instead). */
   canRemove?: boolean;
-  onRefreshSailors: () => void;
   headerActions?: React.ReactNode;
   /** True while the parent is still fetching boats — distinguishes "loading"
    * from a genuinely empty list so we don't flash "No sailors registered". */
@@ -78,14 +77,18 @@ function SailorList({
   sailors,
   onRemoveBoat,
   canRemove = true,
-  onRefreshSailors,
   headerActions = null,
   loading = false,
 }: SailorListProps) {
   const [sortCriteria, setSortCriteria] = useState('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [editingSailorId, setEditingSailorId] = useState<number | null>(null);
-  const [categories, setCategories] = useState<CategoryRow[]>([]);
+  const categoriesQuery = useQuery(queries.categories());
+  useReportQueryError(
+    categoriesQuery,
+    'Could not load the category list, so categories cannot be changed here until the page is reloaded.',
+  );
+  const categories = categoriesQuery.data ?? [];
 
   const handleSort = (col: string) => {
     if (col === sortCriteria) {
@@ -112,26 +115,6 @@ function SailorList({
         ) * dir,
     );
   }, [sailors, sortCriteria, sortDirection]);
-
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const result = await sailorDB.readAllCategories();
-        if (result) {
-          setCategories(result);
-        } else {
-          reportError('Could not load the category list.');
-        }
-      } catch (error) {
-        reportError(
-          'Could not load the category list, so categories cannot be changed here until the page is reloaded.',
-          error,
-        );
-      }
-    };
-
-    fetchCategories();
-  }, []);
 
   // Always the boat as saved now, so a refresh while the dialog is open
   // (another window, an import) cannot leave it editing a stale copy.
@@ -296,7 +279,6 @@ function SailorList({
           eventSailors={sailors}
           categories={categories}
           onClose={() => setEditingSailorId(null)}
-          onSaved={onRefreshSailors}
         />
       )}
     </div>

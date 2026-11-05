@@ -8,7 +8,7 @@ import {
   screen,
   waitFor,
   within,
-} from '@testing-library/react';
+} from './helpers/renderWithQuery';
 import SailorList from '../renderer/components/SailorList';
 
 jest.mock(

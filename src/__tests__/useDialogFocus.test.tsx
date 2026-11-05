@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 import '@testing-library/jest-dom';
 import React, { useRef } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from './helpers/renderWithQuery';
 import useDialogFocus, {
   refocusIfLost,
 } from '../renderer/hooks/useDialogFocus';

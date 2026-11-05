@@ -1,7 +1,6 @@
-import React, { useCallback } from 'react';
+import React from 'react';
 import useHeatSnapshots from '../../hooks/useHeatSnapshots';
 import useExclusiveAction from '../../hooks/useExclusiveAction';
-import { notifyEventDataChanged } from '../../utils/eventDataChanged';
 import { formatDateTime } from '../../utils/formatDate';
 
 interface BackupFileSectionProps {
@@ -19,14 +18,8 @@ export default function BackupFileSection({
   eventId,
   disabled = false,
 }: BackupFileSectionProps) {
-  const onRestored = useCallback(async () => {
-    // The pages reload what they show (heats, entries, standings).
-    notifyEventDataChanged(eventId);
-  }, [eventId]);
-  const { history, saveBackup, restoreBackup } = useHeatSnapshots(
-    eventId,
-    onRestored,
-  );
+  // A restore reads every screen's data again (heats, entries, standings).
+  const { history, saveBackup, restoreBackup } = useHeatSnapshots(eventId);
   const { busy, runExclusive } = useExclusiveAction();
   const off = busy || disabled;
 
