@@ -45,7 +45,7 @@ it and the app will when it moves onto the library (step 2).
 | R9  | RDG1/RDG2 with nothing to average             | worked out again on each read            | RRS A9: an average of her races                                                                                                                    | library; app at switch     |
 | R10 | A final fleet that has not raced, order       | qualifying place                         | 1.5                                                                                                                                                | library; app at switch     |
 | R11 | Discard setting after every race is undone    | unlocked                                 | 5.4: may change "before the warning signal for the first race"                                                                                     | library; app at switch     |
-| R12 | Redress or a correction for a "no heat" DNC   | possible                                 | RRS A9, 62.1                                                                                                                                       | to do (library)            |
+| R12 | Redress or a correction for a "no heat" DNC   | possible                                 | RRS A9, 62.1                                                                                                                                       | library; app at switch     |
 
 R6 and R8 change who goes to Gold and who wins a tie in rare cases; the
 rules do not settle them word for word, so a race officer's view is still
