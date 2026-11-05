@@ -2075,53 +2075,6 @@ small.form-locked-note {
   gap: 10px;
 }
 
-.final-series-bar {
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 2px solid var(--bg);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 10px;
-}
-
-.final-series-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.final-series-hint {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
-.snapshot-history {
-  margin-top: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-}
-
-.snapshot-history-title {
-  font-size: 0.88rem;
-  font-weight: 700;
-  margin-bottom: 6px;
-}
-
-.snapshot-history ul {
-  margin: 0;
-  padding-left: 18px;
-}
-
-.snapshot-history li {
-  font-size: 0.82rem;
-  color: #4d6276;
-  list-style: disc;
-}
-
 /* ── Scoring input ───────────────────────────────────────── */
 .scoring-layout {
   display: flex;
@@ -2796,6 +2749,36 @@ button.submit-scores-btn.is-unavailable:hover {
 }
 
 /* ── Event history dialog ─── */
+.backup-file {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.backup-file h4 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+  color: var(--navy-light);
+}
+
+.backup-file p {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+}
+
+.backup-file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.backup-file p.backup-file-recent {
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+}
+
 .history-modal .help-modal-body {
   max-height: 60vh;
 }

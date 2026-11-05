@@ -3,19 +3,38 @@
 import '@testing-library/jest-dom';
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import EventHistoryDialog from '../renderer/components/EventHistoryDialog';
 import Navbar from '../renderer/components/Navbar';
 
 const mockReadHistory = jest.fn();
 const mockRevert = jest.fn();
 const mockRestore = jest.fn();
+const mockExportFile = jest.fn();
+const mockRestoreFile = jest.fn();
 jest.mock('../renderer/api/db', () => ({
   eventDB: {
     readEventHistory: (...args) => mockReadHistory(...args),
     revertHistoryAction: (...args) => mockRevert(...args),
     restoreEventToHistoryPoint: (...args) => mockRestore(...args),
   },
+  heatRaceDB: {
+    exportEventSnapshotToFile: (...args) => mockExportFile(...args),
+    restoreEventSnapshotFromFile: (...args) => mockRestoreFile(...args),
+  },
+}));
+const mockConfirm = jest.fn();
+jest.mock('../renderer/utils/userFeedback', () => ({
+  ...jest.requireActual('../renderer/utils/userFeedback'),
+  confirmAction: (...args) => mockConfirm(...args),
+  reportInfo: jest.fn(),
+  reportError: jest.fn(),
 }));
 
 const where = (sail) => ({ sail, heat_name: 'Heat A1', race_number: 1 });
@@ -142,7 +161,7 @@ describe('History button in the navbar', () => {
       </MemoryRouter>,
     );
     expect(
-      screen.queryByRole('button', { name: 'Open event history' }),
+      screen.queryByRole('button', { name: 'Open history and backups' }),
     ).not.toBeInTheDocument();
 
     rerender(
@@ -150,8 +169,12 @@ describe('History button in the navbar', () => {
         <Navbar event={{ event_id: 7, event_name: 'Kup' }} />
       </MemoryRouter>,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Open event history' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Event history' });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Open history and backups' }),
+    );
+    const dialog = await screen.findByRole('dialog', {
+      name: 'History and backups',
+    });
     expect(
       await within(dialog).findByText(/No changes recorded yet/),
     ).toBeInTheDocument();
@@ -432,5 +455,52 @@ describe('go back to a point in the history', () => {
     expect(mockRestore).toHaveBeenCalledTimes(1);
     finish({ success: true, actionId: 9, undoneActions: 2 });
     await screen.findByRole('status');
+  });
+});
+
+describe('backup file in the history dialog', () => {
+  beforeEach(() => {
+    mockReadHistory.mockResolvedValue([]);
+    mockExportFile.mockReset();
+    mockRestoreFile.mockReset();
+    mockConfirm.mockReset();
+    window.localStorage.clear();
+  });
+
+  it('saves the event to a file and lists it', async () => {
+    mockExportFile.mockResolvedValue({ filePath: '/usb/kup.json' });
+    render(<EventHistoryDialog eventId={4} open onClose={jest.fn()} />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Save backup file/ }),
+    );
+    expect(await screen.findByText(/Saved recently: kup\.json/)).toBeVisible();
+    expect(mockExportFile).toHaveBeenCalledWith(4);
+  });
+
+  it('restores from a file after asking, and the pages reload', async () => {
+    mockConfirm.mockResolvedValue(true);
+    mockRestoreFile.mockResolvedValue({ ok: true });
+    const changed = jest.fn();
+    window.addEventListener('scoring-app:event-data-changed', changed);
+    render(<EventHistoryDialog eventId={4} open onClose={jest.fn()} />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Restore from file/ }),
+    );
+    await screen.findByText(/No changes recorded yet/);
+    await waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
+    expect(changed.mock.calls[0][0].detail).toEqual({ eventId: 4 });
+    window.removeEventListener('scoring-app:event-data-changed', changed);
+    expect(mockConfirm.mock.calls[0][0]).toMatch(/will be replaced/);
+    expect(mockRestoreFile).toHaveBeenCalledWith(4);
+  });
+
+  it('does nothing when the restore is not confirmed', async () => {
+    mockConfirm.mockResolvedValue(false);
+    render(<EventHistoryDialog eventId={4} open onClose={jest.fn()} />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Restore from file/ }),
+    );
+    await waitFor(() => expect(mockConfirm).toHaveBeenCalled());
+    expect(mockRestoreFile).not.toHaveBeenCalled();
   });
 });

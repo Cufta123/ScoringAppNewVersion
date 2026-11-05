@@ -16,6 +16,7 @@ import {
   undoneActions,
 } from '../../shared/history/restore';
 import { notifyEventDataChanged } from '../utils/eventDataChanged';
+import BackupFileSection from './history/BackupFileSection';
 import { plainReason, describeError } from '../utils/userFeedback';
 
 interface EventHistoryDialogProps {
@@ -390,11 +391,11 @@ function EventHistoryDialog({
         className="feedback-modal help-modal explain-modal history-modal"
         role="dialog"
         aria-modal="true"
-        aria-label="Event history"
+        aria-label="History and backups"
         tabIndex={-1}
       >
         <h3 ref={headingRef} className="feedback-modal-title" tabIndex={-1}>
-          Event history
+          History and backups
         </h3>
         <label className="history-filter" htmlFor="event-history-filter">
           Filter by sail, heat or result
@@ -490,6 +491,10 @@ function EventHistoryDialog({
           </section>
         )}
         <div className="help-modal-body">{body}</div>
+        <BackupFileSection
+          eventId={eventId}
+          disabled={busy || goBackTarget != null}
+        />
         <div className="feedback-modal-actions">
           <button
             ref={closeRef}

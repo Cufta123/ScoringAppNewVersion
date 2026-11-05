@@ -120,8 +120,8 @@ function Navbar({
             type="button"
             className="app-navbar-tool"
             onClick={() => setHistoryOpen(true)}
-            aria-label="Open event history"
-            title="Event history: every change, with undo"
+            aria-label="Open history and backups"
+            title="Every change, with undo, and the event's backup file"
           >
             <i className="fa fa-clock-rotate-left" aria-hidden="true" />
             <span className="app-navbar-tool-label">History</span>

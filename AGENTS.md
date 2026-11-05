@@ -799,8 +799,15 @@ For most feature/fix requests, do this in order:
 - **One home per feature.** The entries page is the entry list (add, import,
   edit, export the starting list) plus one line on where the racing stands
   (`heats/HeatsSummary`). The heats (`HeatComponent`: creating them, moving
-  boats, the Final Series, backups, "Export heats…") are on the Scoring page
+  boats, the Final Series, "Export heats…") are on the Scoring page
   only; the event page used to show the whole component a second time.
+- **Taking the event back is in one place**: the Navbar's History opens
+  "History and backups" (`EventHistoryDialog`): the change history with
+  Undo / Go back to here, and below it the backup file
+  (`history/BackupFileSection`: Save backup file…, Restore from file…, the
+  files saved recently). A restore fires `notifyEventDataChanged` and the
+  pages reload. Starting the Final Series still offers to save a file first.
+  Importing a backup as a NEW event is on the landing page.
 - **The Scoring page's round bar** (`heats/RoundBar`, status and next step
   from `utils/roundStatus`): "Qualifying · Round 4 · 1 of 3 heats scored" and
   ONE green button for the next step (Score the first heat still to sail; once

@@ -277,8 +277,10 @@ test('a boat’s total explains itself, race by race, with the rule behind each 
 });
 
 test('the event history lists what was done, newest first, and filters by boat', async () => {
-  await window.getByRole('button', { name: 'Open event history' }).click();
-  const dialog = window.getByRole('dialog', { name: 'Event history' });
+  await window
+    .getByRole('button', { name: 'Open history and backups' })
+    .click();
+  const dialog = window.getByRole('dialog', { name: 'History and backups' });
   await expect(dialog).toBeVisible();
 
   // The ZFP edit above is the newest action; the races were scored before it.
@@ -302,8 +304,10 @@ test('the event history lists what was done, newest first, and filters by boat',
 
 test('the ZFP edit can be undone from the history, and the leaderboard follows', async () => {
   await expect(totalCell(/Bob/)).toHaveText('9');
-  await window.getByRole('button', { name: 'Open event history' }).click();
-  const dialog = window.getByRole('dialog', { name: 'Event history' });
+  await window
+    .getByRole('button', { name: 'Open history and backups' })
+    .click();
+  const dialog = window.getByRole('dialog', { name: 'History and backups' });
   await dialog
     .getByRole('button', { name: /^Undo: Results edited on the leaderboard/ })
     .click();
@@ -326,8 +330,10 @@ test('the ZFP edit can be undone from the history, and the leaderboard follows',
 });
 
 test('going back to an earlier point takes the later races back, and can be undone', async () => {
-  await window.getByRole('button', { name: 'Open event history' }).click();
-  const dialog = window.getByRole('dialog', { name: 'Event history' });
+  await window
+    .getByRole('button', { name: 'Open history and backups' })
+    .click();
+  const dialog = window.getByRole('dialog', { name: 'History and backups' });
   // Newest first: the undo, the ZFP edit, race 4, race 3, … Back to race 3.
   await dialog
     .getByRole('button', { name: /^Go back to here: Race scored/ })
@@ -355,7 +361,9 @@ test('going back to an earlier point takes the later races back, and can be undo
   await expect(totalCell(/Bob/)).toHaveText('6');
 
   // Undo going back: race 4 returns.
-  await window.getByRole('button', { name: 'Open event history' }).click();
+  await window
+    .getByRole('button', { name: 'Open history and backups' })
+    .click();
   await dialog.getByRole('button', { name: /^Undo going back/ }).click();
   await dialog
     .getByRole('alertdialog')

@@ -9,7 +9,6 @@ import type { HeatWithBoats } from '../utils/heatView';
 import AppModal from './shared/AppModal';
 import UnassignedEntriesNotice from './UnassignedEntriesNotice';
 import HeatColumn from './heats/HeatColumn';
-import HeatBackupBar from './heats/HeatBackupBar';
 import HeatSetupBar from './heats/HeatSetupBar';
 import RoundBar from './heats/RoundBar';
 import { roundStatus } from '../utils/roundStatus';
@@ -252,15 +251,6 @@ function HeatComponent({
             );
           })}
         </div>
-      )}
-
-      {heatsCreated && (
-        <HeatBackupBar
-          busy={busy}
-          onSaveBackup={() => runExclusive(snapshots.saveBackup)}
-          onRestoreBackup={() => runExclusive(snapshots.restoreBackup)}
-          history={snapshots.history}
-        />
       )}
     </div>
   );

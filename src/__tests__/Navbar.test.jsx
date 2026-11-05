@@ -48,7 +48,7 @@ describe('Navbar sections', () => {
       screen.queryByRole('navigation', { name: 'Event sections' }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('button', { name: 'Open event history' }),
+      screen.queryByRole('button', { name: 'Open history and backups' }),
     ).not.toBeInTheDocument();
   });
 
