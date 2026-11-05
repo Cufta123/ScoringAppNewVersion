@@ -57,18 +57,27 @@ export function compareOnSharedRaces(
 export interface Ranked<T> {
   item: T;
   place: number;
+  /**
+   * The tie-break went round in a circle (A ahead of B, B ahead of C, C
+   * ahead of A: possible under 5.7(ii), which compares each pair on the
+   * races they sailed together), so `fallback` placed this boat or a boat
+   * of her tie above her.
+   */
+  circular?: boolean;
 }
 
 /**
  * Lowest total first. Equal totals are broken by `compare`, the higher
- * place first (SHRS 5.7(ii)(3): the shared-heat compare is not transitive,
- * so the group is re-sorted after each place is decided). Boats `compare`
- * cannot separate share the place.
+ * place first (SHRS 5.7(ii)(3)): the place goes to the boat no other tied
+ * boat beats, then the rest are compared again. When every boat is beaten
+ * by another (a circle, which the rules do not settle), `fallback` decides
+ * the place. Boats `compare` cannot separate share the place.
  */
 export function rankByTotal<T>(
   items: readonly T[],
   total: (item: T) => number,
   compare: (a: T, b: T) => number,
+  fallback: (a: T, b: T) => number = () => 0,
 ): Ranked<T>[] {
   const groups = new Map<number, T[]>();
   items.forEach((item) => {
@@ -80,9 +89,14 @@ export function rankByTotal<T>(
     .sort((a, b) => a - b)
     .forEach((key) => {
       const remaining = [...groups.get(key)!];
+      let circle = false;
       while (remaining.length > 0) {
-        remaining.sort(compare);
-        const item = remaining.shift()!;
+        const unbeaten = remaining.find((candidate) =>
+          remaining.every((other) => compare(other, candidate) >= 0),
+        );
+        const item = unbeaten ?? [...remaining].sort(fallback)[0];
+        if (unbeaten === undefined) circle = true;
+        remaining.splice(remaining.indexOf(item), 1);
         const above = ranked[ranked.length - 1];
         const shares =
           above !== undefined &&
@@ -91,6 +105,7 @@ export function rankByTotal<T>(
         ranked.push({
           item,
           place: shares ? above.place : ranked.length + 1,
+          ...(circle ? { circular: true } : {}),
         });
       }
     });

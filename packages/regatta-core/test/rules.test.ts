@@ -199,4 +199,40 @@ describe('ranking', () => {
     );
     expect(ranked.map((r) => r.place)).toEqual([1, 2, 2, 4]);
   });
+
+  it('gives the place to the boat no tied boat beats', () => {
+    // 6 beats 3, 3 beats 5, 6 and 5 cannot be split: 6 first, then 3, 5.
+    const wins: Record<string, string[]> = { '6': ['3'], '3': ['5'] };
+    const compare = (a: string, b: string) => {
+      if (wins[a]?.includes(b)) return -1;
+      if (wins[b]?.includes(a)) return 1;
+      return 0;
+    };
+    const ranked = rankByTotal(['3', '5', '6'], () => 10, compare);
+    expect(ranked.map((r) => [r.item, r.place])).toEqual([
+      ['6', 1],
+      ['3', 2],
+      ['5', 3],
+    ]);
+    expect(ranked.some((r) => r.circular)).toBe(false);
+  });
+
+  it('settles a circle by the fallback and says so', () => {
+    // a beats b, b beats c, c beats a; the fallback prefers c.
+    const beats: Record<string, string> = { a: 'b', b: 'c', c: 'a' };
+    const compare = (x: string, y: string) => {
+      if (beats[x] === y) return -1;
+      if (beats[y] === x) return 1;
+      return 0;
+    };
+    const fallback = (x: string, y: string) =>
+      ['c', 'a', 'b'].indexOf(x) - ['c', 'a', 'b'].indexOf(y);
+    const ranked = rankByTotal(['a', 'b', 'c'], () => 4, compare, fallback);
+    // c by the fallback, then a beats b.
+    expect(ranked.map((r) => [r.item, r.place, r.circular])).toEqual([
+      ['c', 1, true],
+      ['a', 2, true],
+      ['b', 3, true],
+    ]);
+  });
 });

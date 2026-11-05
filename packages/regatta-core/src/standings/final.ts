@@ -20,7 +20,7 @@ import {
 } from '../rules/ranking';
 import { scoreRace } from '../event/score';
 import { largestHeat, raceKey, type EventState } from '../event/state';
-import { qualifyingStandings } from './qualifying';
+import { plainA8, qualifyingStandings } from './qualifying';
 import {
   kept,
   settleRedress,
@@ -43,6 +43,8 @@ export interface OverallStanding {
   qualifying: number;
   final: number;
   total: number;
+  /** Placed by plain RRS A8 because the 5.7 tie-break went in a circle. */
+  circular?: boolean;
 }
 
 const FINAL_ORDER = 1e8;
@@ -121,19 +123,57 @@ export function finalStandings(state: EventState): FleetStandings[] {
 
 export function overallStandings(state: EventState): OverallStanding[] {
   const qualifying = qualifyingStandings(state).standings;
-  if (!state.fleets) {
+  // SHRS 1.5: with no final race completed, the qualifying ranking stands
+  // (the fleets are shown, but do not reorder anyone yet).
+  if (!state.fleets || state.fleets.every((f) => f.races.length === 0)) {
+    const fleetOf = new Map(
+      (state.fleets ?? []).flatMap((f) => f.boats.map((b) => [b, f.id])),
+    );
     return qualifying.map((s) => ({
       boat: s.boat,
       place: s.place,
+      ...(s.circular ? { circular: true } : {}),
+      ...(fleetOf.has(s.boat) ? { fleet: fleetOf.get(s.boat) } : {}),
       qualifying: s.total,
       final: 0,
       total: s.total,
     }));
   }
-  const byBoat = new Map(qualifying.map((s) => [s.boat, s]));
+  const byFleet = overallEntries(state, qualifying);
   const overall: OverallStanding[] = [];
-  finalStandings(state).forEach((fleet) => {
-    const entries = fleet.standings.map((f) => {
+  byFleet.forEach(({ fleet, entries }) => {
+    const ranked = rankByTotal(
+      entries,
+      (entry) => entry.total,
+      overallCompare,
+      plainA8,
+    );
+    const offset = overall.length;
+    ranked.forEach(({ item, place, circular }) => {
+      overall.push({
+        boat: item.boat,
+        place: offset + place,
+        ...(circular ? { circular } : {}),
+        fleet,
+        qualifying: item.qualifying,
+        final: item.final,
+        total: item.total,
+      });
+    });
+  });
+  return overall;
+}
+
+type OverallEntry = ReturnType<
+  typeof overallEntries
+>[number]['entries'][number];
+
+/** Each fleet's boats with both series, for the SHRS 5.5 / 5.7 ranking. */
+function overallEntries(state: EventState, qualifying: Standing[]) {
+  const byBoat = new Map(qualifying.map((s) => [s.boat, s]));
+  return finalStandings(state).map((fleet) => ({
+    fleet: fleet.fleet,
+    entries: fleet.standings.map((f) => {
       const q = byBoat.get(f.boat);
       const qScores = q?.scores ?? [];
       return {
@@ -144,27 +184,25 @@ export function overallStandings(state: EventState): OverallStanding[] {
         scores: [...qScores, ...f.scores],
         keptBest: bestFirst([...kept(qScores), ...kept(f.scores)]),
       };
-    });
-    // SHRS 5.7(ii) across both series.
-    const ranked = rankByTotal(
-      entries,
-      (entry) => entry.total,
-      (a, b) =>
-        compareOnSharedRaces(a.scores, b.scores) ??
-        (compareLists(a.keptBest, b.keptBest) ||
-          compareLists(lastRaceFirst(a.scores), lastRaceFirst(b.scores))),
-    );
-    const offset = overall.length;
-    ranked.forEach(({ item, place }) => {
-      overall.push({
-        boat: item.boat,
-        place: offset + place,
-        fleet: fleet.fleet,
-        qualifying: item.qualifying,
-        final: item.final,
-        total: item.total,
-      });
-    });
-  });
-  return overall;
+    }),
+  }));
+}
+
+/** SHRS 5.7(ii) across both series. */
+function overallCompare(a: OverallEntry, b: OverallEntry): number {
+  return compareOnSharedRaces(a.scores, b.scores) ?? plainA8(a, b);
+}
+
+/**
+ * The overall tie-break between two boats of one fleet on equal points:
+ * negative when `a` is ahead, 0 when the rules cannot separate them.
+ */
+export function overallTieBreak(state: EventState) {
+  const entries = new Map(
+    overallEntries(state, qualifyingStandings(state).standings).flatMap(
+      (fleet) => fleet.entries.map((entry) => [entry.boat, entry]),
+    ),
+  );
+  return (a: BoatId, b: BoatId) =>
+    overallCompare(entries.get(a)!, entries.get(b)!);
 }

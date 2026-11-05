@@ -341,6 +341,16 @@ describe('the Final Series', () => {
     ]);
   });
 
+  it('1.5: with no final race yet, the overall is the qualifying ranking', () => {
+    const state = stateOf([...qualifying, { type: 'finalSeriesStarted' }]);
+    const overall = overallStandings(state);
+    const q = qualifyingStandings(state).standings;
+    expect(overall.map((o) => [o.boat, o.place])).toEqual(
+      q.map((s) => [s.boat, s.place]),
+    );
+    expect(overall[0].fleet).toBe('Gold');
+  });
+
   it('closes the qualifying heats', () => {
     expect(
       refusal([

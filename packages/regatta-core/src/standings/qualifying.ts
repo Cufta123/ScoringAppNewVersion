@@ -133,12 +133,19 @@ function tieBreak(singleHeat: boolean) {
         )
       );
     }
-    return (
-      compareOnSharedRaces(a.scores, b.scores) ??
-      (compareLists(a.keptBest, b.keptBest) ||
-        compareLists(lastRaceFirst(a.scores), lastRaceFirst(b.scores)))
-    );
+    return compareOnSharedRaces(a.scores, b.scores) ?? plainA8(a, b);
   };
+}
+
+/**
+ * RRS A8.1 then A8.2 without SHRS changes: the way out of a 5.7 circle,
+ * as 5.7(ii)(4) does for boats that never met.
+ */
+export function plainA8(a: Entry, b: Entry): number {
+  return (
+    compareLists(a.keptBest, b.keptBest) ||
+    compareLists(lastRaceFirst(a.scores), lastRaceFirst(b.scores))
+  );
 }
 
 function sameRaces(entries: Entry[]): boolean {
@@ -150,11 +157,10 @@ function sameRaces(entries: Entry[]): boolean {
   return entries.every((entry) => key(entry) === key(entries[0]));
 }
 
-export function qualifyingStandings(state: EventState): QualifyingStandings {
+function buildQualifying(state: EventState) {
   const { largest, counted, pending, completed } = scoredRaces(state);
   const noPlace = noPlacePoints(largest);
   const discards = discardCount(completed, state.settings.discards.qualifying);
-
   const entries: Entry[] = state.boats
     .filter((boat) => counted.get(boat.id)!.length > 0)
     .map((boat) => {
@@ -166,12 +172,20 @@ export function qualifyingStandings(state: EventState): QualifyingStandings {
         keptBest: bestFirst(kept(series.scores)),
       };
     });
-
-  const ranked = rankByTotal(
+  return {
     entries,
-    (entry) => entry.total,
-    tieBreak(sameRaces(entries)),
-  );
+    compare: tieBreak(sameRaces(entries)),
+    completed,
+    noPlace,
+    counted,
+    pending,
+  };
+}
+
+export function qualifyingStandings(state: EventState): QualifyingStandings {
+  const { entries, compare, completed, noPlace, counted, pending } =
+    buildQualifying(state);
+  const ranked = rankByTotal(entries, (entry) => entry.total, compare, plainA8);
 
   const pendingByBoat: Record<BoatId, Score[]> = {};
   pending.forEach((races, boat) => {
@@ -182,18 +196,27 @@ export function qualifyingStandings(state: EventState): QualifyingStandings {
 
   return {
     completedRaces: completed,
-    standings: ranked.map(({ item, place }) => ({
+    standings: ranked.map(({ item, place, circular }) => ({
       boat: item.boat,
       place,
       total: item.total,
       scores: item.scores,
+      ...(circular ? { circular } : {}),
     })),
     pending: pendingByBoat,
   };
 }
 
-/** The tie-break the ranking used, for the overall standings. */
-export { tieBreak as qualifyingTieBreak };
+/**
+ * The SHRS 5.7 tie-break between two boats on equal qualifying points:
+ * negative when `a` is ahead, 0 when the rules cannot separate them. For a
+ * "why is she ahead?" explanation, and to check an order.
+ */
+export function qualifyingTieBreak(state: EventState) {
+  const { entries, compare } = buildQualifying(state);
+  const byBoat = new Map(entries.map((entry) => [entry.boat, entry]));
+  return (a: BoatId, b: BoatId) => compare(byBoat.get(a)!, byBoat.get(b)!);
+}
 
 /**
  * The order boats are split into final fleets (SHRS 4.2, 4.3): qualifying

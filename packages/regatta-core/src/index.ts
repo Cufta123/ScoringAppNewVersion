@@ -20,8 +20,15 @@ export { scoreRace } from './event/score';
 export type { BoatResult } from './event/score';
 export { nextStep } from './event/nextStep';
 export type { NextStep } from './event/nextStep';
-export { qualifyingStandings } from './standings/qualifying';
+export {
+  qualifyingStandings,
+  qualifyingTieBreak,
+} from './standings/qualifying';
 export type { QualifyingStandings } from './standings/qualifying';
-export { finalStandings, overallStandings } from './standings/final';
+export {
+  finalStandings,
+  overallStandings,
+  overallTieBreak,
+} from './standings/final';
 export type { FleetStandings, OverallStanding } from './standings/final';
 export type { Score, Standing } from './standings/series';

@@ -25,6 +25,8 @@ export interface Standing {
   place: number;
   total: number;
   scores: Score[];
+  /** Placed by plain RRS A8 because the 5.7 tie-break went in a circle. */
+  circular?: boolean;
 }
 
 export interface ScoredRace {
