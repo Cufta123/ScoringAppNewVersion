@@ -18,6 +18,7 @@
  * Cancel on the "sail already registered" question left a sailor with no boat.
  */
 import { db } from '../../../public/Database/DBManager';
+import { applyToEvent } from './libraryWrite';
 import {
   findIndistinguishableBoats,
   type KeyedBoat,
@@ -215,12 +216,38 @@ const isEntered = (boatId: number, eventId: number) =>
       .get(boatId, eventId),
   );
 
-/** Enter an existing boat in the event (OR IGNORE: one entry per boat). */
+/**
+ * Enter an existing boat in the event: a boatEntered decision (regatta-core
+ * refuses an entry once the Final Series has started, parity R1). A boat
+ * already entered is left as she is.
+ */
 export function enterBoat(boatId: number, eventId: number): void {
+  if (isEntered(boatId, eventId)) return;
   refuseIndistinguishableEntry(boatId, eventId);
-  db.prepare(
-    'INSERT OR IGNORE INTO Boat_Event (boat_id, event_id) VALUES (?, ?)',
-  ).run(boatId, eventId);
+  const row = db
+    .prepare(
+      `SELECT b.country, b.sail_number,
+              TRIM(COALESCE(s.name, '') || ' ' || COALESCE(s.surname, '')) AS name
+       FROM Boats b LEFT JOIN Sailors s ON s.sailor_id = b.sailor_id
+       WHERE b.boat_id = ?`,
+    )
+    .get(boatId) as
+    | { country: string | null; sail_number: unknown; name: string }
+    | undefined;
+  if (!row) throw new Error('That boat is not in the app any more.');
+  applyToEvent(eventId, {
+    decide: () => [
+      {
+        type: 'boatEntered',
+        boat: {
+          id: String(boatId),
+          nat: String(row.country ?? '').trim(),
+          sail: String(row.sail_number ?? '').trim(),
+          ...(row.name ? { name: row.name } : {}),
+        },
+      },
+    ],
+  });
 }
 
 /**

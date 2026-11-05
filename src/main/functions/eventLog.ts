@@ -78,7 +78,8 @@ export const coreHeatId = (name: string) =>
 
 const id = (boatId: number) => String(boatId);
 
-function discardProfile(stored: unknown): DiscardProfile {
+/** A stored discard setting as the library's SHRS 5.4 profile. */
+export function discardProfile(stored: unknown): DiscardProfile {
   const config = normalizeDiscardConfig(stored);
   if (config.neverDiscard) return { kind: 'none' };
   if (config.thresholds && config.thresholds.length > 0) {

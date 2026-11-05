@@ -6,7 +6,9 @@ import revertHistoryAction from '../functions/revertHistoryAction';
 import restoreToHistoryPoint from '../functions/restoreToHistoryPoint';
 import retryWhenBusy from '../functions/retryWhenBusy';
 import { isAcceptableLogo } from '../functions/exportLogo';
-import { refuseIndistinguishableEntry } from '../functions/sailorEntry';
+import { enterBoat } from '../functions/sailorEntry';
+import { applyToEvent } from '../functions/libraryWrite';
+import { discardProfile } from '../functions/eventLog';
 import {
   normalizeHeatOverflowPolicy,
   normalizeQualifyingAssignmentMode,
@@ -127,18 +129,13 @@ handle(
 );
 
 handle('associateBoatWithEvent', async (event, boat_id, event_id) => {
-  // Two entries no one could tell apart (same national letters and sail
-  // number) could not be scored; refuse the second here, where it can still
-  // be fixed, rather than at the first heat. ITA 12 and CRO 12 are fine.
-  refuseIndistinguishableEntry(Number(boat_id), Number(event_id));
-  const result = db
-    // OR IGNORE: one entry per boat per event (schema migration 2). Entering
-    // a boat that is already entered is a no-op, not an error.
+  enterBoat(Number(boat_id), Number(event_id));
+  const row = db
     .prepare(
-      'INSERT OR IGNORE INTO Boat_Event (boat_id, event_id) VALUES (?, ?)',
+      'SELECT boat_event_id FROM Boat_Event WHERE boat_id = ? AND event_id = ?',
     )
-    .run(boat_id, event_id);
-  return { lastInsertRowid: result.lastInsertRowid };
+    .get(boat_id, event_id) as { boat_event_id: number } | undefined;
+  return { lastInsertRowid: row?.boat_event_id ?? 0 };
 });
 
 handle('readBoatsByEvent', async (event, event_id) => {
@@ -166,50 +163,21 @@ WHERE be.event_id = ?
 });
 
 handle('removeBoatFromEvent', async (event, boat_id, event_id) => {
-  // Server-side guard. The renderer blocks this once a race has happened, but
-  // that state can be stale and the channel is reachable on its own — the same
-  // reasoning recreateInitialHeatsAtomic already applies. A mid-series withdrawal is
-  // recorded as WTH in scoring; removing the entry would orphan her scores.
-  const scored = db
-    .prepare(
-      `SELECT COUNT(*) AS count FROM Races r
-       JOIN Heats h ON h.heat_id = r.heat_id
-       WHERE h.event_id = ?`,
-    )
-    .get(event_id) as { count: number };
-  if (scored.count > 0) {
-    throw new Error(
-      'Cannot remove a boat after a race has already been scored for this event. Record a mid-series withdrawal by scoring the boat as WTH instead.',
-    );
-  }
-
-  // Heats are built from the entry list and can exist before any race, so the
-  // entry and its heat assignment have to go together. Deleting only the
-  // Boat_Event row left the boat in her heat — on the starting list and
-  // scoreable — while every leaderboard read, which joins Boat_Event, no
-  // longer knew about her.
-  const removeEntry = db.transaction(() => {
-    db.prepare(
-      `DELETE FROM Heat_Boat
-       WHERE boat_id = ?
-         AND heat_id IN (SELECT heat_id FROM Heats WHERE event_id = ?)`,
-    ).run(boat_id, event_id);
-
-    // Defensive: a leaderboard row can survive undoing every race, and would
-    // otherwise keep a boat who is no longer entered in the results.
+  // regatta-core (boatRemoved) refuses a boat that has raced (she stays in
+  // the results: score her DNC or RET), parity R2; any other entry goes,
+  // from her heats too.
+  db.transaction(() => {
+    applyToEvent(Number(event_id), {
+      decide: () => [{ type: 'boatRemoved', boat: String(boat_id) }],
+    });
+    // The old standings tables (no longer read) drop her too.
     db.prepare(
       'DELETE FROM Leaderboard WHERE boat_id = ? AND event_id = ?',
     ).run(boat_id, event_id);
     db.prepare(
       'DELETE FROM FinalLeaderboard WHERE boat_id = ? AND event_id = ?',
     ).run(boat_id, event_id);
-
-    db.prepare('DELETE FROM Boat_Event WHERE boat_id = ? AND event_id = ?').run(
-      boat_id,
-      event_id,
-    );
-  });
-  removeEntry();
+  })();
 });
 
 handle(
@@ -265,88 +233,43 @@ handle(
       shrs_discard_profile_final,
     );
 
-    const existingQualifyingDiscardProfile = normalizeDiscardConfigString(
-      existingEvent.shrs_discard_profile_qualifying,
-    );
-    const existingFinalDiscardProfile = normalizeDiscardConfigString(
-      existingEvent.shrs_discard_profile_final,
-    );
-
-    if (
-      existingEvent.shrs_discard_locked_qualifying === 1 &&
-      existingQualifyingDiscardProfile !== normalizedQualifyingDiscardProfile
-    ) {
-      throw new Error(
-        'The qualifying discards cannot be changed any more: a qualifying race has already been scored with the current setting.',
-      );
-    }
-
-    if (
-      existingEvent.shrs_discard_locked_final === 1 &&
-      existingFinalDiscardProfile !== normalizedFinalDiscardProfile
-    ) {
-      throw new Error(
-        'The Final Series discards cannot be changed any more: a final race has already been scored with the current setting.',
-      );
-    }
-
-    // SHRS 3: the Notice of Race fixes progressive or pre-assignment for the
-    // whole qualifying series. Switching after a qualifying race would build
-    // the next rounds by the other method.
     const assignmentMode = normalizeQualifyingAssignmentMode(
       shrs_qualifying_assignment_mode,
     );
-    if (
-      existingEvent.qualifying_started === 1 &&
-      assignmentMode !==
-        normalizeQualifyingAssignmentMode(
-          existingEvent.shrs_qualifying_assignment_mode,
-        )
-    ) {
-      throw new Error(
-        'The qualifying assignment mode cannot be changed any more: the qualifying series has started with the current one.',
-      );
-    }
-
-    // The policy is used once, when the Final Series is split into fleets.
     const overflowPolicy = normalizeHeatOverflowPolicy(
       shrs_heat_overflow_policy,
     );
-    if (
-      existingEvent.final_series_started === 1 &&
-      overflowPolicy !==
-        normalizeHeatOverflowPolicy(existingEvent.shrs_heat_overflow_policy)
-    ) {
-      throw new Error(
-        'The final fleets setting cannot be changed any more: the Final Series has already been split into fleets.',
-      );
-    }
 
-    // shrs_version is deliberately NOT written here: an event keeps the rule
-    // version it was created under. Rewriting it on every edit would make a
-    // future rule version silently re-label (and re-score) old events.
-    db.prepare(
-      `UPDATE Events
-         SET event_name = ?,
-             event_location = ?,
-             start_date = ?,
-             end_date = ?,
-             shrs_qualifying_assignment_mode = ?,
-             shrs_discard_profile_qualifying = ?,
-             shrs_discard_profile_final = ?,
-             shrs_heat_overflow_policy = ?
-         WHERE event_id = ?`,
-    ).run(
-      event_name,
-      event_location,
-      start_date,
-      end_date,
-      assignmentMode,
-      normalizedQualifyingDiscardProfile,
-      normalizedFinalDiscardProfile,
-      overflowPolicy,
-      event_id,
-    );
+    db.transaction(() => {
+      db.prepare(
+        `UPDATE Events
+           SET event_name = ?, event_location = ?, start_date = ?, end_date = ?
+           WHERE event_id = ?`,
+      ).run(event_name, event_location, start_date, end_date, event_id);
+      // The scoring settings are a settingsChanged decision: regatta-core
+      // refuses a change of a value the racing has fixed (the assignment
+      // method once qualifying started, discards once their series raced,
+      // SHRS 5.4, the fleets setting once the fleets are made); a value
+      // saved again unchanged is no change.
+      applyToEvent(Number(event_id), {
+        decide: () => [
+          {
+            type: 'settingsChanged',
+            settings: {
+              qualifyingMode: assignmentMode,
+              discards: {
+                qualifying: discardProfile(normalizedQualifyingDiscardProfile),
+                final: discardProfile(normalizedFinalDiscardProfile),
+              },
+              finalOverflow:
+                overflowPolicy === 'auto-increase'
+                  ? 'add-fleets'
+                  : 'allow-oversize',
+            },
+          },
+        ],
+      });
+    })();
     return { success: true };
   },
 );

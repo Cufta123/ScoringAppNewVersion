@@ -131,7 +131,7 @@ describe('removeBoatFromEvent', () => {
     ).toBe(0);
   });
 
-  it('refuses once a race has been scored, changing nothing', async () => {
+  it('refuses a boat that has raced, changing nothing (parity R2)', async () => {
     // The renderer already blocks this, but that state can be stale and the
     // handler is reachable on its own. A mid-series withdrawal is WTH, not a
     // removal — removing here would orphan her scores.
@@ -142,7 +142,7 @@ describe('removeBoatFromEvent', () => {
 
     await expect(
       handlerRegistry.removeBoatFromEvent({}, REMOVED, EVENT_ID),
-    ).rejects.toThrow(/race has already been scored/i);
+    ).rejects.toThrow(/has raced; she stays in the results/i);
 
     expect(entriesIn(db, EVENT_ID)).toEqual([REMOVED, KEPT]);
     expect(assignmentsIn(db, 10)).toEqual([REMOVED, KEPT]);

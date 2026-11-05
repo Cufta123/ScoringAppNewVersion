@@ -614,7 +614,9 @@ function changeSettings(
     );
   }
   if (changes('finalOverflow') && finalStarted(state)) {
-    refuse('The fleets are already made.');
+    refuse(
+      'The final fleets are already made: the setting for fleets over 20 boats is fixed.',
+    );
   }
   // eslint-disable-next-line no-param-reassign
   state.settings = {

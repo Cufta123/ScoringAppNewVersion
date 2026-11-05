@@ -145,7 +145,7 @@ describe('event settings fixed once their series has begun', () => {
 
     await expect(
       update(eventId, 'pre-assigned', 'auto-increase'),
-    ).rejects.toThrow(/assignment mode cannot be changed/);
+    ).rejects.toThrow(/assignment method is fixed/);
     expect((await readEvent(eventId)).shrs_qualifying_assignment_mode).toBe(
       'progressive',
     );
@@ -158,7 +158,7 @@ describe('event settings fixed once their series has begun', () => {
     );
   });
 
-  it('keeps the mode fixed after the race is undone, like the discards', async () => {
+  it('frees the mode again once the race is undone (no race sailed, parity R11)', async () => {
     await scoreHeat('Heat A1');
     const { heat_id: heatId } = db
       .prepare("SELECT heat_id FROM Heats WHERE heat_name = 'Heat A1'")
@@ -167,7 +167,7 @@ describe('event settings fixed once their series has begun', () => {
     expect(db.prepare('SELECT COUNT(*) AS n FROM Races').get().n).toBe(0);
     await expect(
       update(eventId, 'pre-assigned', 'auto-increase'),
-    ).rejects.toThrow(/assignment mode cannot be changed/);
+    ).resolves.toMatchObject({ success: true });
   });
 
   it('refuses a new final fleets setting once the Final Series is split', async () => {
@@ -180,7 +180,7 @@ describe('event settings fixed once their series has begun', () => {
 
     await expect(
       update(eventId, 'progressive', 'confirm-allow-oversize'),
-    ).rejects.toThrow(/final fleets setting cannot be changed/);
+    ).rejects.toThrow(/final fleets are already made/);
     expect((await readEvent(eventId)).shrs_heat_overflow_policy).toBe(
       'auto-increase',
     );
