@@ -130,30 +130,33 @@ events through the app's real handlers on real SQLite and through this
 library, and after every step compares every heat and the qualifying, final
 and overall standings (`DIFF_SEEDS`, default 60). On 100 events (1,351 races,
 156 rounds, 57 final splits, 170 corrections, 142 protest decisions, 112 late
-entries) they agree on every heat and every total. They differ only where the
-rules or the app fall short:
+entries) they agree on every heat and every total.
+
+Two app bugs it found are fixed in the app since (ScoringApp `d967d31` and
+`0ca961b`), so the app and the library now agree on them too:
 
 1. **SHRS 5.7 can go round in a circle.** Under 5.7(ii) each pair of tied
    boats is compared on the races they sailed together, so A can beat B, B
-   beat C and C beat A. The rules do not settle that. The app sorts with a
-   comparator that is not transitive, so its order there follows the
-   database's row order, and it can put a boat above one that beat her
-   head-to-head (6 standings in 100 events). The library gives the place to
-   the boat no tied boat beats, settles a true circle by plain RRS A8 (as
-   5.7(ii)(4) does for boats that never met) and marks those boats
-   `circular`, so the screen can say so. Circles came up in 72 of 200
-   standings.
-2. **Redress beside a tie (app bug, RRS A6.2).** When one of two boats level
-   on a place gets RDG or DPI, the app re-scores the other as if she finished
-   alone (6.5 becomes 6). A6.2 says redress changes no other boat's score;
-   the library keeps 6.5.
+   beat C and C beat A. The rules do not settle that. Both now give the place
+   to the boat no tied boat beats and settle a true circle by plain RRS A8
+   (as 5.7(ii)(4) does for boats that never met). Only the library marks
+   those boats `circular`, so the screen can say so. Circles came up in 72
+   of 200 standings.
+2. **Redress beside a tie (RRS A6.2).** When one of two boats level on a
+   place got RDG or DPI, the app re-scored the other as if she finished
+   alone (6.5 became 6). A6.2 says redress changes no other boat's score;
+   both keep 6.5.
+
+Still different:
+
 3. **Who decided a DSQ.** The app does not record who entered a DSQ, so it
    treats every DSQ, DNE or DGM saved on the leaderboard as a protest
    decision for 3.1(5). The library knows: `raceCorrected` is the race office,
    `protestDecided` is the protest committee.
 
 Interpretations shared with the app (decided before): a boat with no heat in
-a counted race is DNC, filed under that round's first heat; RDG1/RDG2 with
+a counted race is DNC (the library files it under heat A, the app under the
+first heat scored: see `docs/parity`, R8); RDG1/RDG2 with
 nothing to average yet score as no place (largest heat + 1); a boat always
 keeps one score after discards; SHRS 1.5 for the overall standings applies
 while no final race at all is completed.
@@ -165,6 +168,9 @@ rules (scoring, heats, standings and their database glue; score explanations
 not counted).
 
 ## Not yet
+
+The full list, with the app's behaviour beside the library's, is in
+[`docs/parity`](docs/parity/README.md).
 
 - Score explanations ("how was this calculated?") and tie-break explanations
   (the comparators `qualifyingTieBreak` / `overallTieBreak` are there to build
