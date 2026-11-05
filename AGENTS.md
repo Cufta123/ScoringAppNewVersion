@@ -787,6 +787,16 @@ For most feature/fix requests, do this in order:
 - The main process logs uncaught errors instead of dying, and reloads the
   window if the page process dies.
 
+- **The Navbar** (`components/Navbar.tsx`) has three levels, and new items
+  go in the level they belong to, not as another equal button: the app name
+  (home); inside an event, its sections Entries / Scoring / Leaderboard
+  (`event` + `section` props; the open one is solid white with
+  `aria-current="page"`); on the right, small and without a button shape,
+  History and the Help menu (`HelpMenu.tsx`: help and glossary, Report a
+  problem). Pages with unsaved work pass `guardNavigation`, and every
+  navigation from the bar runs through it. A page's own next step is a button
+  in the page (the event page's green "Go to Scoring"), not in the bar.
+
 - **Outdoor readability is a requirement**: the app is used by race officers
   (often 60+) on cheap laptops in sunshine. Root font is 17px; secondary text
   and borders are dark tokens (`--text-secondary`, `--border-strong`); the
@@ -878,8 +888,8 @@ For most feature/fix requests, do this in order:
   > process also refuses a place past the last boat of the race
   > (`applyRaceColumnState`).
 
-- **Problem reports** (Help > Report a Problem…, the Navbar's "Report a
-  problem" button, and the crash screen's "Report this problem"):
+- **Problem reports** (Help > Report a Problem… in the menu bar and in the
+  Navbar's Help menu, and the crash screen's "Report this problem"):
   `ProblemReportHost` (mounted in `App.tsx`, outside the ErrorBoundary so it
   opens when a screen crashed) captures the window first
   (`captureProblemScreenshot`), then shows `ProblemReportDialog`: kind,

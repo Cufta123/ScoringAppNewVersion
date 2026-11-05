@@ -155,11 +155,6 @@ function EventPage() {
     setSelectedBoats(selectedOptions);
   };
 
-  const handleOpenLeaderboard = () => {
-    if (!event) return;
-    navigate(`/event/${event.event_name}/leaderboard`, { state: { event } });
-  };
-
   const handleRemoveBoat = async (boatId: number): Promise<boolean> => {
     if (!event) return false;
 
@@ -221,11 +216,7 @@ function EventPage() {
 
   return (
     <div>
-      <Navbar
-        onOpenLeaderboard={handleOpenLeaderboard}
-        onHeatRaceClick={handleHeatRaceClick}
-        historyEventId={event.event_id}
-      />
+      <Navbar event={event} section="entries" />
 
       <main id="main-content" className="page-wrapper" tabIndex={-1}>
         <Breadcrumbs
@@ -242,6 +233,18 @@ function EventPage() {
               {event.event_name}
             </h1>
             <p>{formatEventDateRange(event.start_date, event.end_date)}</p>
+          </div>
+          {/* The next step once the entries are in (the navbar has every
+              section; this is the one a race officer looks for here). */}
+          <div className="event-header-actions">
+            <button
+              type="button"
+              className="btn-success"
+              onClick={handleHeatRaceClick}
+            >
+              <i className="fa fa-flag-checkered" aria-hidden="true" />
+              Go to Scoring
+            </button>
           </div>
         </div>
 

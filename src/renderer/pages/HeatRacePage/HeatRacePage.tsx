@@ -77,8 +77,9 @@ function HeatRacePage() {
   return (
     <div>
       <Navbar
-        onNavigateHome={() => scoring.guardedNavigate(() => navigate('/'))}
-        historyEventId={event.event_id}
+        event={event}
+        section="scoring"
+        guardNavigation={scoring.guardedNavigate}
       />
 
       <main id="main-content" className="page-wrapper" tabIndex={-1}>
@@ -99,18 +100,8 @@ function HeatRacePage() {
           ]}
         />
 
-        {/* Back to the event page. In the scoring view the "Back to Heats"
-            button below is the relevant step back, so only show this one in the
-            heat-list view to avoid two stacked back buttons. */}
-        {!isScoring && (
-          <button
-            type="button"
-            className="btn-ghost back-link"
-            onClick={goToEvent}
-          >
-            <i className="fa fa-arrow-left" aria-hidden="true" /> Back to Event
-          </button>
-        )}
+        {/* The way back to the entries is the navbar's Entries section and
+            the breadcrumbs; the scoring view keeps its own "Back to Heats". */}
         {!isScoring ? (
           <>
             <h1 style={{ marginBottom: '20px' }}>

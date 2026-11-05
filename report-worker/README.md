@@ -1,7 +1,7 @@
 # Report service (Cloudflare Worker)
 
 Receives problem reports from IOM Regatta Manager (Help > Report a problem,
-or the "Report a problem" button in the top bar) and e-mails each one, with
+in the menu bar or the top bar's Help menu) and e-mails each one, with
 its attachments, to the developer through [Resend](https://resend.com).
 
 No Cloudflare domain is needed: Resend's `onboarding@resend.dev` sender may

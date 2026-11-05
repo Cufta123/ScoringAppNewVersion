@@ -102,7 +102,8 @@ test.describe('Report a problem', () => {
     await addSailor(window, { name: 'Ana', surname: 'Report', sail: '501' });
     await dismissToasts(window);
 
-    await window.getByRole('button', { name: /Report a problem/ }).click();
+    await window.getByRole('button', { name: 'Help' }).click();
+    await window.getByRole('menuitem', { name: /Report a problem/ }).click();
     const dialog = window.getByRole('dialog', { name: /Report a problem/ });
     await expect(dialog).toBeVisible();
     await expect(window.getByLabel('Where in the app?')).toHaveValue('entries');
@@ -160,7 +161,8 @@ test.describe('Report a problem', () => {
       SCORING_APP_REPORT_URL: serviceUrl,
       SCORING_APP_REPORT_KEY: 'e2e-key',
     }));
-    await window.getByRole('button', { name: /Report a problem/ }).click();
+    await window.getByRole('button', { name: 'Help' }).click();
+    await window.getByRole('menuitem', { name: /Report a problem/ }).click();
     await expect(window.getByLabel(/This event's data/)).toBeDisabled();
     await fillAndSend(window);
     await expect(window.getByText(/it will be sent later/)).toBeVisible();

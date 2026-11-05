@@ -144,7 +144,10 @@ test('advanced settings drive scoring and a 7-race series reaches the final seri
   // ── Verify the custom discard profile drives the leaderboard ──────────────
   await dismissToasts(window);
   await window.locator('.breadcrumbs-link', { hasText: EVENT_NAME }).click();
-  await window.getByRole('button', { name: 'Open leaderboard' }).click();
+  await window
+    .getByRole('navigation', { name: 'Event sections' })
+    .getByRole('button', { name: 'Leaderboard' })
+    .click();
 
   // Exactly 7 qualifying races were completed (Q1..Q7, no Q8).
   await expect(window.getByText('Q7')).toBeVisible();

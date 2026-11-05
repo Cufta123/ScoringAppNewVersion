@@ -9,6 +9,12 @@
   margin-bottom: 22px;
 }
 
+.event-header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
 .event-header-info h1 {
   margin-bottom: 6px;
 }

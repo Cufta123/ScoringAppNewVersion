@@ -174,7 +174,10 @@ test('submitting a complete race records it and locks roster edits', async () =>
   ).toHaveText(/Scored/);
 
   // SHRS rule: once a race is scored, no more sailors/boats may be added.
-  await window.getByRole('button', { name: /Back to Event/i }).click();
+  await window
+    .getByRole('navigation', { name: 'Event sections' })
+    .getByRole('button', { name: 'Entries' })
+    .click();
   await expect(
     window.getByText(/No more sailors or boats can be added/i),
   ).toBeVisible();

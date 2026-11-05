@@ -22,10 +22,10 @@ import { notifyEventDataChanged } from '../renderer/utils/eventDataChanged';
 jest.mock(
   '../renderer/components/Navbar',
   () =>
-    function ({ onNavigateHome }) {
+    function ({ guardNavigation }) {
       return (
         <header>
-          <button type="button" onClick={onNavigateHome}>
+          <button type="button" onClick={() => guardNavigation(() => {})}>
             Navbar home
           </button>
         </header>

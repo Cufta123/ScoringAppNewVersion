@@ -1141,21 +1141,6 @@ th.sortable:hover {
 }
 
 /* ── Problem report dialog ────────────────────────────────── */
-/* The Navbar button says "Problem?" on narrow windows, so the bar stays on
-   one line at 1024 px with every button of the event page. */
-.navbar-label-short {
-  display: none;
-}
-
-@media (max-width: 1180px) {
-  .navbar-label-long {
-    display: none;
-  }
-  .navbar-label-short {
-    display: inline;
-  }
-}
-
 .problem-report-dialog {
   width: min(760px, 96vw);
 }
@@ -1705,15 +1690,24 @@ tr.row-editing > td {
 }
 
 /* ── App navbar ───────────────────────────────────────────── */
+/* Three levels, so the eye finds the way around an event first:
+   the app name (home); the event's sections (Entries, Scoring, Leaderboard),
+   large, the open one solid white; History and Help on the right, small and
+   without a button shape. Every text here is >= 9:1 on --navy. */
 .app-navbar {
+  --navbar-text: #d6e4f2; /* 10.9:1 on --navy */
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 12px 28px;
+  gap: 8px;
+  min-height: 64px;
+  padding: 8px 28px;
   background: var(--navy);
   margin-bottom: 24px;
   box-shadow: 0 2px 12px rgba(15, 45, 74, 0.25);
+}
+
+.app-navbar button:focus-visible {
+  outline-color: #fff;
 }
 
 button.app-navbar-brand {
@@ -1727,21 +1721,162 @@ button.app-navbar-brand {
   display: flex;
   align-items: center;
   gap: 9px;
-  opacity: 0.95;
-  padding: 0;
+  padding: 0 6px;
   min-width: 0;
-  min-height: 0;
-  margin-right: auto;
+  margin-right: 14px;
 }
 button.app-navbar-brand:hover {
   background: none;
   box-shadow: none;
-  opacity: 0.8;
+  color: var(--navbar-text);
 }
 
-.app-navbar > button:not(.app-navbar-brand) {
+.app-navbar-sections {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 18px;
+  border-left: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+button.app-navbar-section {
+  background: transparent;
+  color: var(--navbar-text);
+  box-shadow: none;
+  font-size: 1rem;
+  padding: 9px 18px;
+  border-radius: var(--radius-sm);
+}
+button.app-navbar-section:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  box-shadow: none;
+}
+button.app-navbar-section[aria-current='page'] {
+  background: #fff;
+  color: var(--navy);
+  cursor: default;
+}
+button.app-navbar-section[aria-current='page'] .fa {
+  color: var(--ocean);
+}
+
+.app-navbar-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+button.app-navbar-tool {
+  background: transparent;
+  color: var(--navbar-text);
+  box-shadow: none;
   font-size: 0.9rem;
-  padding: 10px 20px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+}
+button.app-navbar-tool:hover,
+button.app-navbar-tool[aria-expanded='true'] {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  box-shadow: none;
+}
+
+/* Narrow windows (1024 px): icons only for History and Help (their names
+   stay as tooltips and for screen readers), then the app name. */
+@media (max-width: 1180px) {
+  .app-navbar {
+    padding: 8px 16px;
+  }
+  .app-navbar-tool-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  button.app-navbar-section {
+    padding: 9px 14px;
+  }
+}
+
+@media (max-width: 900px) {
+  .app-navbar-brand-name {
+    display: none;
+  }
+  button.app-navbar-brand {
+    margin-right: 4px;
+  }
+  .app-navbar-sections {
+    padding-left: 10px;
+  }
+}
+
+/* ── Help menu (navbar) ──────────────────────────────────── */
+.help-menu {
+  position: relative;
+}
+
+.help-menu-caret {
+  font-size: 0.7rem;
+}
+
+.help-menu-list {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 900;
+  width: 330px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+}
+
+button.help-menu-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  color: var(--text);
+  box-shadow: none;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  white-space: normal;
+}
+button.help-menu-item:hover,
+button.help-menu-item:focus-visible {
+  background: var(--ocean-light);
+  box-shadow: none;
+}
+button.help-menu-item:focus-visible {
+  outline-color: var(--ocean);
+  outline-offset: -2px;
+}
+button.help-menu-item > .fa {
+  margin-top: 3px;
+  width: 18px;
+  color: var(--ocean);
+}
+
+.help-menu-item-title {
+  display: block;
+  font-size: 0.95rem;
+}
+
+.help-menu-item-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
 }
 
 /* ── Back link (sub-views, e.g. scoring) ─────────────────── */

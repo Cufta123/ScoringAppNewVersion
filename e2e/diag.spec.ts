@@ -93,7 +93,10 @@ test('full advanced-settings -> 7 rounds -> final series', async () => {
   // ── verify custom discard profile correlates on the leaderboard ──
   await dismissToasts(window);
   await window.locator('.breadcrumbs-link', { hasText: name }).click();
-  await window.getByRole('button', { name: 'Open leaderboard' }).click();
+  await window
+    .getByRole('navigation', { name: 'Event sections' })
+    .getByRole('button', { name: 'Leaderboard' })
+    .click();
   await expect(window.getByText('Q7')).toBeVisible();
   const firstRow = window.locator('.leaderboard tbody tr').first();
   const excluded = firstRow.getByText(/^\(\d+(\.\d+)?\)$/);

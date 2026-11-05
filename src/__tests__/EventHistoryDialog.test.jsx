@@ -147,7 +147,7 @@ describe('History button in the navbar', () => {
 
     rerender(
       <MemoryRouter>
-        <Navbar historyEventId={7} />
+        <Navbar event={{ event_id: 7, event_name: 'Kup' }} />
       </MemoryRouter>,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Open event history' }));

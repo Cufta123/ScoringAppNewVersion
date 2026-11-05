@@ -465,7 +465,10 @@ test('tour', async () => {
     .catch(() => {});
 
   await openEventPage();
-  await window.getByRole('button', { name: 'Open leaderboard' }).click();
+  await window
+    .getByRole('navigation', { name: 'Event sections' })
+    .getByRole('button', { name: 'Leaderboard' })
+    .click();
   await window
     .getByText(/Qualifying Series/i)
     .first()
@@ -527,7 +530,9 @@ test('tour', async () => {
   await snap('history-go-back-question');
   await window.keyboard.press('Escape');
   await window.keyboard.press('Escape');
-  await window.getByRole('button', { name: /Help/i }).first().click();
+  await window.getByRole('button', { name: 'Help' }).click();
+  await snap('help-menu');
+  await window.getByRole('menuitem', { name: /Help and glossary/ }).click();
   await snap('help');
   await window.keyboard.press('Escape');
 
@@ -580,7 +585,10 @@ test('tour', async () => {
   await window.waitForTimeout(600);
   await snap('heats-final', true);
   await openEventPage();
-  await window.getByRole('button', { name: 'Open leaderboard' }).click();
+  await window
+    .getByRole('navigation', { name: 'Event sections' })
+    .getByRole('button', { name: 'Leaderboard' })
+    .click();
   await window.waitForTimeout(800);
   await snap('final-leaderboard');
   await snap('final-leaderboard-full', true);

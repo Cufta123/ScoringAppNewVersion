@@ -326,10 +326,7 @@ function LeaderboardPage() {
     return <LoadingState label="Loading event…" />;
   }
 
-  const navigateWithUnsavedCheck = async (target: {
-    path: string;
-    options?: NavigateOptions;
-  }) => {
+  const leaveWithUnsavedCheck = async (go: () => void) => {
     if (hasUnsavedChanges) {
       const confirmed = await confirmAction(
         'You have unsaved leaderboard changes. Leave this page and discard them?',
@@ -338,16 +335,19 @@ function LeaderboardPage() {
       );
       if (!confirmed) return;
     }
-    navigate(target.path, target.options);
+    go();
   };
+  const navigateWithUnsavedCheck = (target: {
+    path: string;
+    options?: NavigateOptions;
+  }) => leaveWithUnsavedCheck(() => navigate(target.path, target.options));
 
   return (
     <div>
       <Navbar
-        onNavigateHome={() =>
-          navigateWithUnsavedCheck({ path: '/', options: undefined })
-        }
-        historyEventId={event?.event_id ?? null}
+        event={event}
+        section="leaderboard"
+        guardNavigation={leaveWithUnsavedCheck}
       />
       <main
         id="main-content"

@@ -74,9 +74,14 @@ async function openLeaderboard(): Promise<void> {
     await window.getByText(EVENT_NAME).first().click();
   }
   await expect(
-    window.getByRole('button', { name: 'Open leaderboard' }),
+    window
+      .getByRole('navigation', { name: 'Event sections' })
+      .getByRole('button', { name: 'Leaderboard' }),
   ).toBeVisible();
-  await window.getByRole('button', { name: 'Open leaderboard' }).click();
+  await window
+    .getByRole('navigation', { name: 'Event sections' })
+    .getByRole('button', { name: 'Leaderboard' })
+    .click();
   await expect(window.getByText(/Qualifying Series/i)).toBeVisible();
 }
 
