@@ -65,20 +65,33 @@ export function assignPlaces(
 }
 
 /**
- * SHRS 2026 5.7(ii)(3): resolve the highest-place tie first, then re-apply
- * the tie-break comparison on the remaining tied boats. The shared-heat
- * comparison of 5.7.2 is not transitive, so a single sort is not enough.
+ * SHRS 2026 5.7(ii)(3): resolve the highest-place tie first, then compare
+ * the remaining tied boats again.
+ *
+ * 5.7(ii) compares each pair on the races they sailed together, so it is not
+ * transitive: A can beat B, B beat C and C beat A. Sorting with such a
+ * comparator gives an order that depends on the input order (it used to
+ * follow the database's row order, and could rank a boat above one that
+ * beat her head-to-head). So each place goes to a boat that no remaining
+ * boat beats; when there is none (a true circle, which the rules do not
+ * settle) `fallback` picks the place, plain RRS A8.1/A8.2 as 5.7(ii)(4) does
+ * for boats that never met. Boats the comparison leaves level keep their
+ * input order.
  */
 export function resolveTiesSequentially<T>(
   items: T[],
   compare: (left: T, right: T) => number,
+  fallback: (left: T, right: T) => number = () => 0,
 ): T[] {
   const remaining = [...items];
   const resolved: T[] = [];
 
   while (remaining.length > 0) {
-    remaining.sort(compare);
-    const [winner] = remaining.splice(0, 1);
+    const unbeaten = remaining.find((candidate) =>
+      remaining.every((other) => compare(other, candidate) >= 0),
+    );
+    const winner = unbeaten ?? [...remaining].sort(fallback)[0];
+    remaining.splice(remaining.indexOf(winner), 1);
     resolved.push(winner);
   }
 

@@ -78,8 +78,8 @@ interface AppHeat {
   heat_type: string;
 }
 
-/** Seeds where SHRS 5.7 gave no consistent order (see `settled`). */
-const GAPS = { circle: new Set<string>(), appOrder: new Set<string>() };
+/** Standings where SHRS 5.7 went round in a circle (see `settled`). */
+const CIRCLES = new Set<string>();
 /** What the random events covered, so a quiet run is not an empty one. */
 const COVERED: Record<string, number> = {};
 
@@ -414,14 +414,11 @@ async function runEvent(seed: number): Promise<string[]> {
     };
 
     /**
-     * Places compared exactly, except in a group of boats on equal points
-     * where SHRS 5.7 gives no consistent order:
-     *  - the core met a circle (A ahead of B ahead of C ahead of A) and
-     *    settled it by plain RRS A8; the app's order there follows its
-     *    database rows;
-     *  - the app put a boat above one that beats her under 5.7 (its sort
-     *    is handed a comparator that is not transitive).
-     * Both are counted and reported; totals are still compared.
+     * Places compared exactly. Where SHRS 5.7 goes round in a circle (A
+     * ahead of B ahead of C ahead of A) both settle it the same way: the
+     * boat no tied boat beats first, a true circle by plain RRS A8. Circles
+     * are counted; outside one, an order that puts a boat above one that
+     * beats her head-to-head is an error.
      */
     type Row = { boat: string; total: number; place: number; group: string };
     const settled = (
@@ -430,35 +427,30 @@ async function runEvent(seed: number): Promise<string[]> {
       coreRows: Array<Row & { circular?: boolean }>,
       tie: (a: string, b: string) => number,
     ) => {
-      const masked = new Set<string>();
-      const groupsOf = (rows: Row[]) => {
-        const groups = new Map<string, Row[]>();
-        rows.forEach((row) =>
-          groups.set(row.group, [...(groups.get(row.group) ?? []), row]),
+      const groups = new Map<string, Row[]>();
+      appRows.forEach((row) =>
+        groups.set(row.group, [...(groups.get(row.group) ?? []), row]),
+      );
+      // In a true circle every order puts someone above a boat that beats
+      // her; elsewhere no order may.
+      const circular = new Set(
+        coreRows.filter((r) => r.circular).map((r) => r.group),
+      );
+      groups.forEach((group, key) => {
+        if (circular.has(key)) return;
+        group.forEach((x) =>
+          group.forEach((y) => {
+            if (x.place < y.place && tie(y.boat, x.boat) < 0) {
+              problems.push(
+                `${where}: ${name} app puts ${x.boat} above ${y.boat}, who beats her under 5.7`,
+              );
+            }
+          }),
         );
-        return groups;
-      };
-      const coreGroups = groupsOf(coreRows);
-      groupsOf(appRows).forEach((group, key) => {
-        if (group.length < 2) return;
-        const circle = (coreGroups.get(key) ?? []).some(
-          (row: any) => row.circular,
-        );
-        const contradiction = group.some((x) =>
-          group.some((y) => x.place < y.place && tie(y.boat, x.boat) < 0),
-        );
-        if (circle) GAPS.circle.add(`${seed}:${name}`);
-        else if (contradiction) GAPS.appOrder.add(`${seed}:${name}`);
-        if (circle || contradiction)
-          group.forEach((row) => masked.add(row.boat));
       });
+      if (coreRows.some((row) => row.circular)) CIRCLES.add(`${seed}:${name}`);
       const view = (rows: Row[]) =>
-        new Map(
-          rows.map((row) => [
-            row.boat,
-            `${row.total}@${masked.has(row.boat) ? 'tie-gap' : row.place}`,
-          ]),
-        );
+        new Map(rows.map((row) => [row.boat, `${row.total}@${row.place}`]));
       diff(name, view(appRows), view(coreRows));
     };
 
@@ -656,8 +648,7 @@ describe('regatta-core agrees with the app', () => {
   afterAll(() => {
     jest.restoreAllMocks();
     process.stdout.write(
-      `regatta-core vs app: 5.7 circles in ${GAPS.circle.size} standings, ` +
-        `app order against a head-to-head result in ${GAPS.appOrder.size}\n` +
+      `regatta-core vs app: 5.7 circles in ${CIRCLES.size} standings\n` +
         `steps compared: ${JSON.stringify(COVERED)}\n`,
     );
   });

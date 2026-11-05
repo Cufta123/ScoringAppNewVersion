@@ -91,6 +91,7 @@ export function scoreBoatSeries(
 function rankByTotal<T extends { boat_id: BoatKey; totalPoints: number }>(
   boats: T[],
   compare: (left: T, right: T) => number,
+  fallback?: (left: T, right: T) => number,
 ): Array<T & { place: number }> {
   const byTotal = new Map<number, T[]>();
   boats.forEach((boat) => {
@@ -102,7 +103,7 @@ function rankByTotal<T extends { boat_id: BoatKey; totalPoints: number }>(
   const ordered = [...byTotal.keys()].sort(ascending).flatMap((total) => {
     const group = byTotal.get(total)!;
     if (group.length === 1) return group;
-    const resolved = resolveTiesSequentially(group, compare);
+    const resolved = resolveTiesSequentially(group, compare, fallback);
     findUnbrokenTies(resolved, compare).forEach((id) => tiedWithAbove.add(id));
     return resolved;
   });
@@ -229,8 +230,16 @@ export function rankQualifyingSeries<Id extends BoatKey>(
     };
   });
 
-  return rankByTotal(scored, (a, b) =>
-    compareQualifyingTie(a, b, singleHeatEvent),
+  return rankByTotal(
+    scored,
+    (a, b) => compareQualifyingTie(a, b, singleHeatEvent),
+    // Out of a 5.7 circle: plain RRS A8.1 on kept scores, then A8.2.
+    (a, b) =>
+      compareScoreArrays(a.keptAscending, b.keptAscending) ||
+      compareScoreArrays(
+        [...a.scores].sort(latestFirst).map((s) => s.points),
+        [...b.scores].sort(latestFirst).map((s) => s.points),
+      ),
   ).map(({ boat_id, totalPoints, place }) => ({ boat_id, totalPoints, place }));
 }
 

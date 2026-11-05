@@ -517,6 +517,13 @@ Scoring (`calculateBoatScores.ts`, `scoreStatus.ts`)
     the tied boats never shared a heat, use plain RRS A8.1/A8.2.
   - "Single-heat" is an **event-level** property: true only when every boat
     raced the identical set of races (`detectSingleHeatEvent`).
+  - (ii) is **not transitive** (each pair is compared on its own shared
+    races), so A can beat B, B beat C and C beat A. `resolveTiesSequentially`
+    gives each place to a boat no remaining tied boat beats, and settles a
+    true circle by plain RRS A8.1/A8.2 (the fallback the qualifying and
+    overall rankings pass in). It used to sort with the comparator, so the
+    order followed the database rows and could rank a boat above one that
+    beat her head-to-head (found by the regatta-core comparison, Nov 2026).
 
 RRS A8 detail (tie-break primitives)
 

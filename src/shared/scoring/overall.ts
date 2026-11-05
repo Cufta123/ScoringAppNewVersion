@@ -165,11 +165,22 @@ export function compareOverallTiePackets(
 export function resolveOverallTieGroupSequentially<
   T extends { boat_id: BoatKey },
 >(rows: T[], getTiePacket: (boatId: T['boat_id']) => OverallTiePacket): T[] {
-  return resolveTiesSequentially(rows, (left, right) =>
-    compareOverallTiePackets(
-      getTiePacket(left.boat_id),
-      getTiePacket(right.boat_id),
-    ),
+  return resolveTiesSequentially(
+    rows,
+    (left, right) =>
+      compareOverallTiePackets(
+        getTiePacket(left.boat_id),
+        getTiePacket(right.boat_id),
+      ),
+    // Out of a 5.7 circle: plain RRS A8.1 on kept scores, then A8.2.
+    (left, right) => {
+      const a = getTiePacket(left.boat_id);
+      const b = getTiePacket(right.boat_id);
+      return (
+        compareScoreArrays(a.a81KeptScores, b.a81KeptScores) ||
+        compareScoreArrays(a.a82AllScores, b.a82AllScores)
+      );
+    },
   );
 }
 
