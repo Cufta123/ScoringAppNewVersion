@@ -23,6 +23,7 @@ const config: Config = {
     'release/app/dist',
     '.erb/dll',
     '<rootDir>/src/__tests__/fixtures/',
+    '<rootDir>/src/__tests__/helpers/',
     // The template's whole-app render test needs a built bundle (test:full).
     '<rootDir>/src/__tests__/App.test.tsx',
     // Agent worktrees (.claude/worktrees) hold a second copy of the repo.
