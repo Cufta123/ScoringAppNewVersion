@@ -80,12 +80,15 @@ welcome. R6 is the order SHRS uses for every tie it does settle; R8 follows
    re-pointing later corrections, protests and RDG2 choices.
 2. **Moving a boat between heats** of the current round (the app's
    transfer).
-3. **Unchanged settings are not a change.** `settingsChanged` refuses
-   `qualifyingMode` or qualifying discards once racing has started even
-   when the value is the same; the app saves every field on every save.
-4. **Checks the app has:** DPI and RDG3 points above 0 and at most 99;
-   custom and threshold discard profiles; codes checked at replay, not only
-   by the schema; RAF read as RET.
+3. ~~**Unchanged settings are not a change.**~~ Done: only a value that
+   differs from the one in force is checked against the locks.
+4. ~~**Checks the app has.**~~ Done in replay (`test/checks.test.ts`): DPI
+   and RDG3 points more than 0, at most 99, one decimal; discard profiles
+   (whole numbers, increasing); assignment method and overflow setting;
+   codes and penalties on a sheet; a boat's id, letters and sail number.
+   The app corrects bad discard settings silently; the library refuses
+   them. RAF is not a 2025-2028 code (A10): the app's converter maps it to
+   RET.
 5. **Boat details changed** (national letters, sail number): they order the
    seeding and the ties, so a change is a decision.
 6. **`nextStep`:** a "start the Final Series" step; empty heats.

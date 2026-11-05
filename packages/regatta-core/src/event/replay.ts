@@ -8,11 +8,16 @@
  */
 import {
   DEFAULT_SETTINGS,
+  NO_PLACE_CODES,
+  PENALTY_CODES,
+  type DiscardProfile,
+  type ProtestOutcome,
   type Boat,
   type BoatId,
   type Decision,
   type RaceLine,
   type RaceRef,
+  type Settings,
 } from '../types';
 import { MAX_HEAT_SIZE, fleetName, splitIntoFleets } from '../rules/fleets';
 import {
@@ -35,6 +40,9 @@ import { finalSplitRanking } from '../standings/qualifying';
 
 /** The most heats a round can have: they are lettered A to Z. */
 export const MAX_HEATS = 26;
+
+const NO_PLACE = new Set<string>(NO_PLACE_CODES);
+const PENALTIES = new Set<string>(PENALTY_CODES);
 
 class Refusal extends Error {}
 
@@ -80,6 +88,12 @@ function checkLines(state: EventState, heat: Heat, lines: RaceLine[]) {
       refuse(`${label(state, line.boat)} is listed twice.`);
     }
     seen.add(line.boat);
+    if (line.code !== undefined && !NO_PLACE.has(line.code)) {
+      refuse(`${label(state, line.boat)}: unknown code ${line.code}.`);
+    }
+    if (line.penalty !== undefined && !PENALTIES.has(line.penalty)) {
+      refuse(`${label(state, line.boat)}: unknown penalty ${line.penalty}.`);
+    }
     if (line.code && (line.penalty || line.tied)) {
       refuse(
         `${label(state, line.boat)} has ${line.code}, so she has no place to keep or share.`,
@@ -119,7 +133,89 @@ function raceOf(state: EventState, ref: RaceRef) {
   return findRace(state, ref) ?? refuse(`${ref.heat} has no race ${ref.race}.`);
 }
 
+/*
+ * Values the types allow but the rules do not. A file can come from anywhere
+ * (the schema is not always checked), so replay checks them itself and
+ * refuses rather than correcting anything silently.
+ */
+const isText = (value: unknown) =>
+  typeof value === 'string' && value.trim() !== '';
+const isCount = (value: unknown) =>
+  Number.isInteger(value) && (value as number) >= 1;
+
+/** DPI and RDG3 points as the protest committee may set them. */
+function checkPoints(points: unknown, kind: string) {
+  if (
+    typeof points !== 'number' ||
+    !(points > 0 && points <= 99) ||
+    Math.round(points * 10) !== points * 10
+  ) {
+    refuse(
+      `${kind} points must be more than 0 and at most 99, with at most one decimal.`,
+    );
+  }
+}
+
+function checkOutcome(outcome: ProtestOutcome) {
+  switch (outcome.kind) {
+    case 'DSQ':
+    case 'DNE':
+    case 'DGM':
+    case 'RDG1':
+    case 'RDG2':
+    case 'cleared':
+      return;
+    case 'DPI':
+    case 'RDG3':
+      checkPoints(outcome.points, outcome.kind);
+      return;
+    default:
+      refuse(
+        `Unknown protest decision ${JSON.stringify((outcome as { kind: unknown }).kind)}.`,
+      );
+  }
+}
+
+/** SHRS 5.4 as the race committee may change it. */
+function checkDiscards(profile: DiscardProfile) {
+  switch (profile.kind) {
+    case 'standard':
+    case 'none':
+      return;
+    case 'custom':
+      if (
+        !isCount(profile.first) ||
+        !isCount(profile.second) ||
+        !isCount(profile.every) ||
+        profile.second <= profile.first
+      ) {
+        refuse(
+          'Discards: the first and second discard and the step must be whole numbers of races from 1, the second after the first.',
+        );
+      }
+      return;
+    case 'thresholds':
+      if (
+        !Array.isArray(profile.at) ||
+        !profile.at.every(isCount) ||
+        profile.at.some((at, i) => i > 0 && at <= profile.at[i - 1])
+      ) {
+        refuse(
+          'Discards: the race counts must be whole numbers from 1, each larger than the one before.',
+        );
+      }
+      return;
+    default:
+      refuse(
+        `Unknown discard setting ${JSON.stringify((profile as { kind: unknown }).kind)}.`,
+      );
+  }
+}
+
 function enter(state: EventState, boat: Boat) {
+  if (!isText(boat.id) || !isText(boat.nat) || !isText(boat.sail)) {
+    refuse('A boat needs an id, national letters and a sail number.');
+  }
   if (finalStarted(state)) {
     refuse('The Final Series has started: no more entries.');
   }
@@ -294,30 +390,70 @@ function startFinal(state: EventState, rule43: boolean) {
   }));
 }
 
+/** Same value, whatever order its keys were written in. */
+function same(a: unknown, b: unknown): boolean {
+  const canonical = (value: unknown): unknown =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(
+          Object.entries(value as Record<string, unknown>)
+            .sort(([x], [y]) => x.localeCompare(y))
+            .map(([key, inner]) => [key, canonical(inner)]),
+        )
+      : value;
+  return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
+}
+
+/**
+ * A settings decision may repeat values that are already in force (a form
+ * saves every field): only a real change is checked against the locks.
+ */
 function changeSettings(
   state: EventState,
   change: Decision & { type: 'settingsChanged' },
 ) {
   const { settings } = change;
-  if (settings.qualifyingMode && qualifyingStarted(state)) {
+  const changes = <K extends keyof Settings>(key: K) =>
+    settings[key] !== undefined && !same(settings[key], state.settings[key]);
+  const discardChanges = (series: 'qualifying' | 'final') =>
+    settings.discards?.[series] !== undefined &&
+    !same(settings.discards[series], state.settings.discards[series]);
+
+  if (
+    settings.qualifyingMode !== undefined &&
+    !['progressive', 'pre-assigned'].includes(settings.qualifyingMode)
+  ) {
+    refuse(`Unknown assignment method ${settings.qualifyingMode}.`);
+  }
+  if (
+    settings.finalOverflow !== undefined &&
+    !['add-fleets', 'allow-oversize'].includes(settings.finalOverflow)
+  ) {
+    refuse(
+      `Unknown setting for fleets over 20 boats: ${settings.finalOverflow}.`,
+    );
+  }
+  if (settings.discards?.qualifying)
+    checkDiscards(settings.discards.qualifying);
+  if (settings.discards?.final) checkDiscards(settings.discards.final);
+  if (changes('qualifyingMode') && qualifyingStarted(state)) {
     refuse(
       'The qualifying series has started: its assignment method is fixed.',
     );
   }
-  if (settings.discards?.qualifying && qualifyingStarted(state)) {
+  if (discardChanges('qualifying') && qualifyingStarted(state)) {
     refuse(
       'Discards change only before the first race of the series (SHRS 5.4).',
     );
   }
   if (
-    settings.discards?.final &&
+    discardChanges('final') &&
     (state.fleets ?? []).some((fleet) => fleet.races.length > 0)
   ) {
     refuse(
       'Discards change only before the first race of the series (SHRS 5.4).',
     );
   }
-  if (settings.finalOverflow && finalStarted(state)) {
+  if (changes('finalOverflow') && finalStarted(state)) {
     refuse('The fleets are already made.');
   }
   // eslint-disable-next-line no-param-reassign
@@ -337,6 +473,7 @@ function decideProtest(
     refuse(`${label(state, decision.boat)} did not sail this race.`);
   }
   const { outcome } = decision;
+  checkOutcome(outcome);
   if (outcome.kind === 'RDG2') {
     const { series } = findHeat(state, decision.race.heat)!;
     outcome.races.forEach((ref) => {
