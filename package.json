@@ -116,6 +116,7 @@
   "dependencies": {
     "@electron/notarize": "^2.3.2",
     "@fortawesome/fontawesome-free": "^6.6.0",
+    "@tanstack/react-query": "^5.106.1",
     "electron-debug": "^3.2.0",
     "exceljs": "^4.4.0",
     "papaparse": "^5.5.3",
