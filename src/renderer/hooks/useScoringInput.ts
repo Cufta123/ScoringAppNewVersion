@@ -33,8 +33,9 @@ import { resolveTypedSails, tokenizeSailInput } from '../utils/sailInput';
 
 export interface ScoringBoat {
   boat_id: number;
-  name: string;
-  surname: string;
+  /** The sailor is LEFT JOINed: a boat with no sailor has no name. */
+  name: string | null;
+  surname: string | null;
   country: string | null;
   sail_number: SailNumber;
 }

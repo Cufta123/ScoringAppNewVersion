@@ -1,8 +1,7 @@
-// Domain types for the renderer, mirroring the SQLite schema defined in
-// `public/Database/DBManager.js`. These describe the row shapes the main
-// process returns over IPC (see `src/main/preload.ts`). The preload bridge is
-// typed as `Promise<any>`, so this module is the renderer's typed view of that
-// contract — keep it in sync with the schema and the handler return shapes.
+// Domain types for the renderer. The rows and results the main process
+// returns over IPC are defined once in `src/shared/rows.ts` (the contract is
+// `src/shared/ipc.ts`); the names below are the renderer's aliases for them,
+// plus the renderer's own shapes (display rows, edit state).
 
 // --- Scoring vocabulary -----------------------------------------------------
 
@@ -17,125 +16,34 @@ import type {
   TieBreakStep,
 } from '../shared/scoring/tieBreakTypes';
 import type {
-  HeatOverflowPolicy,
-  QualifyingAssignmentMode,
-} from '../shared/eventSettings';
+  CategoryRow,
+  ClubRow,
+  EventBoatRow,
+  EventRow,
+  HeatBoatRow,
+  HeatRow,
+  HeatType,
+  InsertResult,
+  LeaderboardEditPreview,
+  PlacementGroup,
+  RaceRow,
+  SailorWithDetails,
+} from '../shared/rows';
 
-export type HeatType = 'Qualifying' | 'Final';
-
-/** Final-series fleet labels (SHRS 4.1), plus 'General' for single-fleet events. */
-export type PlacementGroup =
-  | 'Gold'
-  | 'Silver'
-  | 'Bronze'
-  | 'Copper'
-  | 'General'
-  | string;
-
-// --- Core entities ----------------------------------------------------------
-
-export interface EventRow {
-  event_id: number;
-  event_name: string;
-  event_location: string;
-  start_date: string;
-  end_date: string;
-  shrs_version: string;
-  shrs_qualifying_assignment_mode: QualifyingAssignmentMode;
-  shrs_discard_profile_qualifying: string;
-  shrs_discard_profile_final: string;
-  shrs_discard_locked_qualifying: 0 | 1;
-  shrs_discard_locked_final: 0 | 1;
-  shrs_heat_overflow_policy: HeatOverflowPolicy;
-  /** 1 once a qualifying race was scored (readAllEvents only). */
-  qualifying_started?: 0 | 1;
-  /** 1 once the Final Series was split into fleets (readAllEvents only). */
-  final_series_started?: 0 | 1;
-}
-
-export interface ClubRow {
-  club_id: number;
-  club_name: string;
-  country: string;
-}
-
-export interface CategoryRow {
-  category_id: number;
-  category_name: string;
-}
-
-export interface HeatRow {
-  heat_id: number;
-  event_id: number;
-  heat_name: string;
-  heat_type: HeatType;
-}
-
-export interface RaceRow {
-  race_id: number;
-  heat_id: number;
-  race_number: number;
-}
-
-// --- Joined / denormalized read shapes --------------------------------------
-
-/**
- * A boat joined with its sailor, club and category, as returned by
- * `readBoatsByEvent` / `readBoatsByHeat`. Column names follow the SQL aliases
- * the handler selects: `name` is the sailor's first name, `boat_country` the
- * boat's registered country, `club_country` the club's. Note the select aliases
- * `b.country AS boat_country` and does not include `sailor_id`, so it is not a
- * plain row of the Boats table.
- */
-export interface EventBoatRow {
-  boat_id: number;
-  sail_number: number;
-  boat_country: string | null;
-  model: string;
-  name: string;
-  surname: string;
-  club_name: string | null;
-  club_country: string | null;
-  category_name: string | null;
-}
-
-/**
- * A boat joined with its sailor and category, as returned by `readBoatsByHeat`.
- * Note this select returns `country` directly (no `boat_country` alias) and
- * omits club columns — so it differs from `EventBoatRow`.
- */
-export interface HeatBoatRow {
-  boat_id: number;
-  sail_number: number;
-  country: string | null;
-  model: string;
-  name: string;
-  surname: string;
-  category_name: string | null;
-}
-
-/**
- * A sailor joined with club, category and (left-joined) boat, as returned by
- * `readAllSailors`. The boat columns are nullable because the join is a LEFT
- * JOIN — a sailor may not have a boat yet.
- */
-export interface SailorWithDetails {
-  sailor_id: number;
-  name: string;
-  surname: string;
-  birthday: string;
-  category_id: number | null;
-  club_id: number | null;
-  sail_number: number | null;
-  model: string | null;
-  club_name: string | null;
-  category_name: string | null;
-}
-
-/** Shape returned by insert handlers (better-sqlite3 `run()` result). */
-export interface InsertResult {
-  lastInsertRowid: number;
-}
+export type {
+  CategoryRow,
+  ClubRow,
+  EventBoatRow,
+  EventRow,
+  HeatBoatRow,
+  HeatRow,
+  HeatType,
+  InsertResult,
+  LeaderboardEditPreview,
+  PlacementGroup,
+  RaceRow,
+  SailorWithDetails,
+};
 
 // --- Leaderboard shapes -----------------------------------------------------
 
@@ -151,15 +59,17 @@ export interface CompareEntry {
 }
 
 /**
- * A raw leaderboard row as returned by `readLeaderboard` / `readFinalLeaderboard`
+ * A raw leaderboard row: what `readLeaderboard` / `readFinalLeaderboard`
+ * return (`QualifyingLeaderboardRow` / `FinalLeaderboardRow` in
+ * shared/rows.ts, both assignable to this), or a partial row built by a test
  * — identity + display columns joined with comma-separated race columns
  * (`race_positions` etc.). `processLeaderboardEntry` turns this into a
- * `LeaderboardEntry`.
+ * `LeaderboardEntry`. The sailor is LEFT JOINed, so her name can be null.
  */
 export interface RawLeaderboardEntry {
   boat_id: number;
-  name?: string;
-  surname?: string;
+  name?: string | null;
+  surname?: string | null;
   country?: string | null;
   boat_number?: number | string | null;
   boat_type?: string | null;
@@ -189,8 +99,8 @@ export interface RawLeaderboardEntry {
  */
 export interface LeaderboardEntry {
   boat_id: number;
-  name?: string;
-  surname?: string;
+  name?: string | null;
+  surname?: string | null;
   country?: string | null;
   boat_number?: number | string | null;
   boat_type?: string | null;
@@ -216,7 +126,11 @@ export interface LeaderboardEntry {
   [key: string]: unknown;
 }
 
-/** Row from `readOverallLeaderboard` (qualifying + final combined standings). */
+/**
+ * A row of `readOverallLeaderboard` (qualifying + final combined standings;
+ * `OverallLeaderboardRow` in shared/rows.ts is assignable to this), or a
+ * partial row built by a test.
+ */
 export interface OverallLeaderboardEntry {
   boat_id: number;
   overall_points?: number | null;
@@ -224,19 +138,6 @@ export interface OverallLeaderboardEntry {
   overall_rank?: number | null;
   [key: string]: unknown;
 }
-
-/**
- * What the leaderboard edit would save (previewLeaderboardEdit): the three
- * reads as they would be after Save, or the rules' refusal.
- */
-export type LeaderboardEditPreview =
-  | {
-      ok: true;
-      eventResults: RawLeaderboardEntry[];
-      finalResults: RawLeaderboardEntry[];
-      overallResults: OverallLeaderboardEntry[];
-    }
-  | { ok: false; reason: string };
 
 // --- Tie-break (SHRS 5.7) explanation, from `explainTieBreak` ----------------
 // Defined once in src/shared/scoring/tieBreakTypes.ts (the main process builds

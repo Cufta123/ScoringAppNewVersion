@@ -1,5 +1,6 @@
 import { ipcMain, IpcMainInvokeEvent } from 'electron';
 import { explainError } from '../../shared/errors/explainError';
+import type { ChannelArgs, ChannelResult, IpcChannel } from '../../shared/ipc';
 import { logError } from '../errorLog';
 
 /**
@@ -46,9 +47,20 @@ export function setCallObserver<Mark>(next: CallObserver<Mark> | null): void {
   observer = next as CallObserver | null;
 }
 
-export default function handle<Args extends unknown[] = unknown[]>(
-  channel: string,
-  listener: (event: IpcMainInvokeEvent, ...args: Args) => unknown,
+/**
+ * The listener of one channel (shared/ipc.ts): it takes the channel's
+ * arguments and returns its result, or a promise of it. The arguments come
+ * from the window and are not trusted at runtime, so a listener still
+ * converts and checks them.
+ */
+export type ChannelListener<C extends IpcChannel> = (
+  event: IpcMainInvokeEvent,
+  ...args: ChannelArgs<C>
+) => ChannelResult<C> | Promise<ChannelResult<C>>;
+
+export default function handle<C extends IpcChannel>(
+  channel: C,
+  listener: ChannelListener<C>,
 ): void {
   ipcMain.handle(
     channel,
@@ -56,7 +68,8 @@ export default function handle<Args extends unknown[] = unknown[]>(
       const watching = observer;
       const mark = watching?.before(channel);
       try {
-        return await listener(event, ...(args as Args));
+        // Typed by the contract, not checked here: the listener converts.
+        return await listener(event, ...(args as ChannelArgs<C>));
       } catch (error) {
         // Only words the user can act on cross to the window: the app's own
         // refusals as they are, database failures explained, anything else as

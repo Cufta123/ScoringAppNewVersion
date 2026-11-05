@@ -11,13 +11,6 @@ import type { ScoredBoat } from '../utils/finishOrder';
 import type { EventRow } from '../types';
 import type { ScoringHeat } from './useScoringInput';
 
-interface SubmitResult {
-  ok?: boolean;
-  reason?: string;
-  unmatched?: Array<string | number>;
-  raceNumber?: number;
-}
-
 interface Options {
   event: EventRow | null;
   finalSeriesStarted: boolean;
@@ -130,15 +123,17 @@ export default function useScoringSession({
 
       // Penalty math, race + score inserts, and the leaderboard recompute all
       // happen atomically in the main process (see submitHeatRaceScoresAtomic).
-      const result = (await heatRaceDB.submitHeatRaceScoresAtomic({
+      const result = await heatRaceDB.submitHeatRaceScoresAtomic({
         event_id: event.event_id,
         heat_id: selectedHeat.heat_id,
         placeNumbers,
         isFinalSeries: finalSeriesStarted,
-      })) as SubmitResult;
+      });
 
-      if (result?.ok === false) {
-        if (result.reason === 'UNMATCHED_SAILS') {
+      if (result.ok === false) {
+        // Read as any string: a reason this screen does not know is a fault.
+        const { reason } = result;
+        if (reason === 'UNMATCHED_SAILS') {
           reportWarning(
             unmatchedSailsMessage(
               selectedHeat.heat_name,
@@ -150,7 +145,7 @@ export default function useScoringSession({
           // Not a refusal the app knows: treat it as a fault (code + log).
           reportError(
             'Could not save race scores. Nothing was saved.',
-            new TypeError(`submit refused: ${String(result.reason)}`),
+            new TypeError(`submit refused: ${reason}`),
           );
         }
         return false;

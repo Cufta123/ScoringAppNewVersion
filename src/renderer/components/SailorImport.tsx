@@ -289,7 +289,7 @@ function SailorImport({ eventId, onImportComplete = null }: SailorImportProps) {
           )}
           {/* Only show the import summary for an actual import result (the parse
               and missing-column failures above carry no counts). */}
-          {typeof result.created === 'number' && (
+          {'created' in result && (
             <span>
               <i
                 className={`fa ${

@@ -38,27 +38,14 @@ import {
 // leave a half-scored race. Keeping it here makes scoring all-or-nothing and
 // keeps the domain logic in the main process.
 handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
-  const {
-    event_id: payloadEventId,
-    heat_id,
-    placeNumbers,
-  } = payload as {
-    // HRH M4: event_id may arrive from the renderer but is NOT trusted — the
-    // authoritative event is read from the heat row below. Trusting a stale/
-    // wrong payload event_id would compute getMaxHeatSize for the wrong event
-    // (mis-scoring SHRS 5.2 penalties) and recompute the wrong leaderboard.
-    event_id?: number;
-    heat_id: number;
-    placeNumbers: Array<{
-      boatNumber: string | number;
-      place: number;
-      status: string;
-    }>;
-    // isFinalSeries may still arrive from older callers but is ignored: the
-    // series is derived from the heat row below, so a stale renderer flag can
-    // never mis-score penalties or skip the final-leaderboard recompute.
-    isFinalSeries?: boolean;
-  };
+  const { event_id: payloadEventId, heat_id, placeNumbers } = payload;
+  // HRH M4: event_id may arrive from the renderer but is NOT trusted — the
+  // authoritative event is read from the heat row below. Trusting a stale/
+  // wrong payload event_id would compute getMaxHeatSize for the wrong event
+  // (mis-scoring SHRS 5.2 penalties) and recompute the wrong leaderboard.
+  // isFinalSeries may still arrive from older callers but is ignored: the
+  // series is derived from the heat row below, so a stale renderer flag can
+  // never mis-score penalties or skip the final-leaderboard recompute.
 
   const heatRow = requireHeat(heat_id);
   // HRH M4: derive the event from the heat itself; ignore the payload value.

@@ -43,6 +43,7 @@ Use this document first. Only search the repo when this file does not answer the
 - Cross-process helpers: `src/shared/`. Code in `src/shared` takes data and returns results: it must
   not import main-process, renderer, database, Electron, React or Node code
   (an ESLint rule enforces this), so any future viewer can run it unchanged.
+- IPC contract (every channel's arguments and result): `src/shared/ipc.ts`
 - Preload bridge and exposed API: `src/main/preload.ts`
 - Renderer DB access wrapper: `src/renderer/api/db` (re-exports `eventDB`,
   `heatRaceDB`, etc. over `window.electron.sqlite.*`).
@@ -74,12 +75,36 @@ Use this document first. Only search the repo when this file does not answer the
 
 ### Preload contract
 
-- `src/main/preload.ts` exposes grouped sqlite APIs under `window.electron.sqlite.*`.
+- **One typed contract: `src/shared/ipc.ts`.** `IpcContract` maps every invoke
+  channel, grouped as the renderer uses them (`sailorDB`, `eventDB`,
+  `heatRaceDB`, `exportDB`, `problemReportDB`), to its arguments and its
+  result, written as a function type
+  (`readBoatsByEvent(eventId: number): EventBoatRow[]`). The rows and results
+  it names live in `src/shared/rows.ts` (rows straight from SQL describe the
+  columns the handler selects, with LEFT JOIN columns nullable) and the other
+  `src/shared` modules; `renderer/types.ts` re-exports them under the old names.
+  `WindowToMainMessages` / `MainToWindowMessages` type the one-way messages
+  (`app:logError`, `app:backupStatus`, `app:openProblemReport`).
+- Main: `handle(channel, listener)` is generic over the contract: a channel
+  name not in it, a listener whose parameters do not take the channel's
+  arguments, or a result of the wrong shape does not compile. The arguments
+  are still untrusted at runtime (convert and check them). `db` is untyped
+  JavaScript, so a raw SQL row is not checked against its row type; the
+  contract is what the SQL promises.
+- Preload: `src/main/preload.ts` exposes the groups under
+  `window.electron.sqlite.*`, built from the runtime list `SQLITE_CHANNELS`. A
+  compile-time check (`_ChannelListCheck`) makes that list name exactly the
+  contract's channels, group by group; `preload.contract.test.ts` checks at
+  runtime that every exposed channel has a `handle()` registration and the
+  reverse. `window.electron.sqlite` is typed `IpcApi` (every channel as an
+  async method).
 - Wrapper throws on `false` return values, so renderer callers should expect exceptions.
+  `importSailors` instead resolves `{ imported: 0, skipped: 0, errors }`
+  (`ImportSailorsFailure`, part of its contract result).
+- Renderer: `src/renderer/api/db.ts` derives every group (`eventDB`,
+  `heatRaceDB`, …) from the contract; it declares no method by hand.
 - `window.electron.appEvents` (not a sqlite group): `logError` sends a window
   error to the error log; `onBackupStatus` reports automatic-backup failures.
-- Channel names live once in `SQLITE_CHANNELS`, grouped as the renderer consumes
-  them; `type Channels` and the invoker map are derived from that list.
 
 ## 4. Database Model (SQLite)
 
@@ -305,12 +330,16 @@ Shared (renderer + main) — one definition per rule, imported by both processes
 - `subgroups.ts`.
 - `eventSettings.ts` — `QualifyingAssignmentMode`, `HeatOverflowPolicy` and
   their normalizers (the vocabulary of an event's SHRS settings).
-- IPC result types, one definition for both processes: `scoring/tieBreakTypes.ts`
-  (the tie-break explanation), `finalSeriesEligibility.ts`, `importSailors.ts`,
-  `scoring/explain.ts` (`BoatScoreExplanation`). The renderer's names for them
+- The IPC contract (`ipc.ts`) and the types it names, one definition for both
+  processes: `rows.ts` (table rows, joined reads, leaderboard rows, write
+  payloads), `scoring/tieBreakTypes.ts` (the tie-break explanation),
+  `finalSeriesEligibility.ts`, `importSailors.ts`, `scoring/explain.ts`
+  (`BoatScoreExplanation`), `exportTypes.ts`, `problemReport.ts`,
+  `conversionReport.ts`, `history/describe.ts`. The renderer's names for them
   in `renderer/types.ts` are aliases; where the renderer must tolerate partial
-  results it derives a looser type from the shared one. When a handler returns
-  a new shape, define it in `src/shared` and import it on both sides.
+  rows (test fixtures) it keeps a looser type the real row is assignable to
+  (`RawLeaderboardEntry`, `OverallLeaderboardEntry`). When a handler returns a
+  new shape, define it in `src/shared` and name it in the contract.
 - `scoringPenalty.ts` — RRS 44.3(c)/T1 points (20% / 30% of the DNF score, to
   the nearest tenth as in RRS 2025–2028, capped at the DNF score),
   and `scoringPenaltyStatuses`.
@@ -636,7 +665,8 @@ writes (race_number = round) hid the DNC backfill bug for a release.
 For most feature/fix requests, do this in order:
 
 1. Identify if change touches renderer UI, IPC contract, handler logic, or DB schema.
-2. Update types/contracts first (`preload.ts`, renderer usage, handler signatures).
+2. Update the contract first (`src/shared/ipc.ts`; the compiler then points at
+   `preload.ts`, the handler and every renderer call site).
 3. Implement logic change in handler/functions.
 4. Add or update tests in `src/__tests__`.
 5. Run targeted tests, then broader test set.
@@ -684,19 +714,25 @@ For most feature/fix requests, do this in order:
   channels are split by area (`HeatHandler`, `ScoringHandler`,
   `StandingsHandler`, `FinalSeriesHandler`, `SnapshotHandler`); a helper two of
   them need goes to `functions/`, never copied.
-- `handle()` is generic over the listener's parameters: an unannotated
-  parameter arrives as `unknown`, so convert ids once at the top of the handler
+- `handle()` is generic over the channel: its listener's parameters are the
+  contract's argument types (`shared/ipc.ts`) and its result must be the
+  contract's. They come from the window and are not trusted at runtime, so
+  still convert ids once at the top of the handler
   (`const event_id = Number(raw_event_id)`) and pass numbers on. Do not
+  annotate a listener's parameters with a narrower local type, and do not
   reintroduce `any` in `src/main`.
 - `functions/` modules import `db` directly from `DBManager` (not passed in),
   and only call `db.prepare` inside functions — never at module top level, so
   importing a module never touches the database.
-- When adding a preload channel, update three places: the `SQLITE_CHANNELS`
-  list in `preload.ts` (the `Channels` union and the invoker map are both
-  derived from it, so they cannot disagree), the handler's `handle()`
-  registration, and the renderer `api/db` wrapper. The wrapper is not
-  duplication — preload types every method as `Promise<any>`, and `api/db.ts`
-  is where the real return types live.
+- When adding a channel, write its shape in ONE place: `src/shared/ipc.ts`
+  (arguments and result; a new row or result type goes in `shared/rows.ts` or
+  its own `src/shared` module). Then the compiler asks for the rest: its name
+  in `SQLITE_CHANNELS` (`preload.ts`, the runtime list the bridge is built
+  from) and its `handle()` registration (`preload.contract.test.ts` fails
+  without it). The renderer method appears in `api/db.ts` by itself. A
+  renderer call site that does not match the contract is a compile error: fix
+  the call site, not the contract, unless the handler really returns
+  something else.
 - The global leaderboard feature is removed from the UI (Sept 2026). The route,
   both nav entry points, the page, the component and the
   `readGlobalLeaderboard` / `updateGlobalLeaderboard` channels are gone; users

@@ -50,9 +50,9 @@ export default function useRoundActions({
     if (!confirmed) return;
 
     try {
-      const result = (await heatRaceDB.createNewHeatsBasedOnLeaderboard(
+      const result = await heatRaceDB.createNewHeatsBasedOnLeaderboard(
         event.event_id,
-      )) as { advisory?: string } | null;
+      );
       if (result?.advisory) {
         reportInfo(result.advisory, 'SHRS advisory');
       }
@@ -99,9 +99,7 @@ export default function useRoundActions({
     if (!confirmed) return;
 
     try {
-      const result = (await heatRaceDB.undoLastScoredRaceForHeat(
-        heat.heat_id,
-      )) as { raceNumber?: number; heatName?: string; removedScores?: number };
+      const result = await heatRaceDB.undoLastScoredRaceForHeat(heat.heat_id);
       refreshHeats();
       reportInfo(
         `Race ${result.raceNumber} in "${result.heatName}" has been undone.\n${result.removedScores} score(s) removed.`,
@@ -122,9 +120,9 @@ export default function useRoundActions({
     if (!confirmed) return;
 
     try {
-      const result = (await heatRaceDB.undoLatestHeatRedistribution(
+      const result = await heatRaceDB.undoLatestHeatRedistribution(
         event.event_id,
-      )) as { removedHeats?: number; removedAssignments?: number };
+      );
       refreshHeats();
       reportInfo(
         `Heat redistribution undone. Removed ${result.removedHeats} heats and ${result.removedAssignments} assignments.`,

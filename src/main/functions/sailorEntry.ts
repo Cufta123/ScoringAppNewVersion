@@ -23,38 +23,15 @@ import {
   findIndistinguishableBoats,
   type KeyedBoat,
 } from '../../shared/boatKeys';
+import type { EntryInput, EntryResult } from '../../shared/rows';
 
-export interface EntryInput {
-  name: string;
-  surname: string;
-  birthday?: string;
-  clubName: string;
-  country: string;
-  sailNumber: string | number;
-  model?: string;
-  /**
-   * Categories.category_id (the subgroup); null when not given (an import
-   * without the column): a sailor found keeps hers, a new one is SENIOR.
-   */
-  categoryId: number | null;
-}
+// What the add form sends and gets back (IPC enterSailorInEvent).
+export type { EntryInput, EntryResult };
 
 /** Categories seeded by the schema: 3 is SENIOR. */
 const DEFAULT_CATEGORY_ID = 3;
 /** The club of a sailor entered without one. */
 const NO_CLUB = 'Unknown';
-
-export type EntryResult =
-  | {
-      status: 'entered';
-      boatId: number;
-      sailorId: number;
-      createdBoat: boolean;
-      createdSailor: boolean;
-    }
-  | { status: 'alreadyEntered'; boatId: number }
-  /** The boat is registered to someone else; nothing was written. */
-  | { status: 'ownerConflict'; boatId: number; ownerName: string };
 
 const text = (value: unknown) => String(value ?? '').trim();
 

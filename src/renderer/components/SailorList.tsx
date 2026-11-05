@@ -53,8 +53,9 @@ export interface SailorListSailor {
   country: string;
   sail_number: number | string;
   model: string;
-  name: string;
-  surname: string;
+  /** The sailor is LEFT JOINed: a boat entered without one has no name. */
+  name: string | null;
+  surname: string | null;
   club: string;
   category: string;
   [key: string]: unknown;

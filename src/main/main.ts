@@ -18,6 +18,8 @@ import { journalObserver } from './functions/changeJournal';
 import convertEventsAtStartup from './functions/startupConversion';
 import { logError, setErrorLogDir } from './errorLog';
 import { newErrorRef } from '../shared/errors/explainError';
+import type { BackupStatus } from '../shared/ipc';
+import sendToWindow from './windowMessages';
 
 // Every error is written to logs/errors.log next to the database.
 setErrorLogDir(path.join(path.dirname(dbPath), 'logs'), app.getVersion());
@@ -41,8 +43,10 @@ process.on('unhandledRejection', (reason) => {
   });
 });
 
-// Errors in the window itself (see renderer/utils/userFeedback.ts).
-ipcMain.on('app:logError', (_event, entry) => {
+// Errors in the window itself (see renderer/utils/userFeedback.ts). The
+// contract's `WindowErrorEntry` (shared/ipc.ts) is what a correct window
+// sends; the entry is read as untrusted input all the same.
+ipcMain.on('app:logError', (_event, entry: unknown) => {
   const { where, message, stack, ref } = (entry ?? {}) as {
     where?: string;
     message?: string;
@@ -72,7 +76,7 @@ let mainWindow: BrowserWindow | null = null;
  * writable) the window shows a warning that stays until they work again;
  * the status is sent again whenever the page (re)loads.
  */
-let backupStatus: { ok: boolean; reason?: string } = { ok: true };
+let backupStatus: BackupStatus = { ok: true };
 
 const backupFailureReason = (error: unknown): string => {
   const text = `${(error as { code?: unknown })?.code ?? ''} ${
@@ -95,7 +99,7 @@ autoBackup.onStatus(({ ok, error }: { ok: boolean; error?: unknown }) => {
     });
   }
   backupStatus = ok ? { ok } : { ok, reason: backupFailureReason(error) };
-  mainWindow?.webContents.send('app:backupStatus', backupStatus);
+  sendToWindow(mainWindow?.webContents, 'app:backupStatus', backupStatus);
 });
 
 if (process.env.NODE_ENV === 'production') {
@@ -239,7 +243,7 @@ const createWindow = async () => {
   let reloads = 0;
   mainWindow.webContents.on('did-finish-load', () => {
     if (!backupStatus.ok) {
-      mainWindow?.webContents.send('app:backupStatus', backupStatus);
+      sendToWindow(mainWindow?.webContents, 'app:backupStatus', backupStatus);
     }
   });
 

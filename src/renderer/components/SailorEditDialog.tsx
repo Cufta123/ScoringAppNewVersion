@@ -279,8 +279,6 @@ export default function SailorEditDialog({
     try {
       const country = draft.country.trim().toUpperCase();
       const result = await sailorDB.updateSailor({
-        originalName: sailor.name,
-        originalSurname: sailor.surname,
         name: draft.name.trim(),
         surname: draft.surname.trim(),
         category_name: draft.category,

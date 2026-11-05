@@ -24,7 +24,7 @@ import { sailorFullName } from '../../utils/sailorName';
 import StartingListExportDialog from '../../components/export/StartingListExportDialog';
 
 type MappedEventBoat = EventBoatRow & {
-  sailor: string;
+  sailor: string | null;
   club: string;
   country: string;
   category: string;

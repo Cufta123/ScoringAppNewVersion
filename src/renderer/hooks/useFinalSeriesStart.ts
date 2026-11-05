@@ -8,7 +8,6 @@ import {
   reportInfo,
 } from '../utils/userFeedback';
 import { finalSeriesBlockedMessage } from '../utils/finalSeriesMessages';
-import type { FinalSeriesEligibility } from '../utils/finalSeriesMessages';
 
 interface PendingStart {
   finalHeats: number;
@@ -52,9 +51,7 @@ export default function useFinalSeriesStart({
     try {
       // SHRS eligibility (group counting, equal-race-count, Rule 4.3 window) is
       // computed in the main process; the renderer only renders prompts.
-      const eligibility = (await heatRaceDB.getFinalSeriesEligibility(
-        eventId,
-      )) as FinalSeriesEligibility;
+      const eligibility = await heatRaceDB.getFinalSeriesEligibility(eventId);
 
       if (!eligibility.ok) {
         reportInfo(

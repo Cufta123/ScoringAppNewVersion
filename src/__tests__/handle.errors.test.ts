@@ -22,6 +22,12 @@ import handle from '../main/ipcHandlers/handle';
 // eslint-disable-next-line import/first
 import { setErrorLogDir } from '../main/errorLog';
 
+// 'failing' is no channel of the contract (shared/ipc.ts): register it untyped.
+const handleAnyChannel = handle as unknown as (
+  channel: string,
+  listener: () => unknown,
+) => void;
+
 class SqliteError extends Error {
   code: string;
 
@@ -46,7 +52,7 @@ describe('handle(): failures reach the window in words the user can act on', () 
   });
 
   const failWith = async (error: unknown) => {
-    handle('failing', () => {
+    handleAnyChannel('failing', () => {
       throw error;
     });
     try {

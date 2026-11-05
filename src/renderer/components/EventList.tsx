@@ -213,9 +213,7 @@ export default function EventList({
 
     if (choice === 'extra') {
       try {
-        const result = (await heatRaceDB.exportEventSnapshotToFile(
-          eventId,
-        )) as { canceled?: boolean };
+        const result = await heatRaceDB.exportEventSnapshotToFile(eventId);
         // If the user cancels the save dialog, abort the delete too — deleting
         // without the backup they just asked for would be the worst outcome.
         if (result?.canceled) return;

@@ -7,6 +7,7 @@ import {
   BrowserWindow,
   MenuItemConstructorOptions,
 } from 'electron';
+import sendToWindow from './windowMessages';
 
 interface DarwinMenuItemConstructorOptions extends MenuItemConstructorOptions {
   selector?: string;
@@ -40,7 +41,7 @@ export default class MenuBuilder {
         // when a screen is broken and its Navbar button is not.
         label: 'Report a Problem…',
         click: () => {
-          this.mainWindow.webContents.send('app:openProblemReport');
+          sendToWindow(this.mainWindow.webContents, 'app:openProblemReport');
         },
       },
       { type: 'separator' },

@@ -21,6 +21,11 @@ import { coreHeatId } from './eventLog';
 import { loadLog } from './decisionStore';
 import { getHeatRoundFromName } from '../../shared/heatNames';
 import type { PendingRace } from '../../shared/raceProgress';
+import type {
+  FinalLeaderboardRow,
+  OverallLeaderboardRow,
+  QualifyingLeaderboardRow,
+} from '../../shared/rows';
 
 /** The event replayed from its decision log, with the app's race ids. */
 export function replayEvent(eventId: number) {
@@ -169,7 +174,7 @@ function raceColumns(
 }
 
 /** readLeaderboard: the Qualifying Series (or the one-fleet event). */
-export function qualifyingRows(eventId: number) {
+export function qualifyingRows(eventId: number): QualifyingLeaderboardRow[] {
   const { state, raceIdOf } = replayEvent(eventId);
   const boat = boatColumns(eventId);
   const cells = storedCells(eventId);
@@ -198,7 +203,7 @@ export function qualifyingRows(eventId: number) {
 }
 
 /** readFinalLeaderboard: every fleet, Gold first, each in its order. */
-export function finalRows(eventId: number) {
+export function finalRows(eventId: number): FinalLeaderboardRow[] {
   const { state, raceIdOf } = replayEvent(eventId);
   const boat = boatColumns(eventId);
   const cells = storedCells(eventId);
@@ -220,7 +225,7 @@ export function finalRows(eventId: number) {
 }
 
 /** readOverallLeaderboard: qualifying until a final race is sailed (1.5). */
-export function overallRows(eventId: number) {
+export function overallRows(eventId: number): OverallLeaderboardRow[] {
   const { state } = replayEvent(eventId);
   const boat = boatColumns(eventId);
   const finalRaced = (state.fleets ?? []).some((f) => f.races.length > 0);

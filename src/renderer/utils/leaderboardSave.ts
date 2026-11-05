@@ -1,29 +1,10 @@
 import { parseRaceNum } from './leaderboardUtils';
 import type { UserRaceEdit } from './leaderboardEdit';
 import type { LeaderboardEntry } from '../types';
+import type { SaveRaceOperation } from '../../shared/rows';
 
-/** One touched race, saved whole as the edit screen shows it. */
-export interface SaveRaceOperation {
-  raceId: string;
-  cells: {
-    boatId: number;
-    position: number;
-    status: string;
-    /** RDG2: the races whose average was granted, so it stays live. */
-    rdgRaceIds?: number[];
-    /**
-     * RDG / DPI: the finishing place she keeps (RRS A6.2), null for none.
-     * Absent for every other status.
-     */
-    heldPlace?: number | null;
-    /**
-     * The user typed in this cell this session. A boat that only moved because
-     * of another cell (RRS A6.1 promotion, place ripple) is false. SHRS 3.1.5:
-     * only edited cells are protest decisions or race-office corrections.
-     */
-    edited: boolean;
-  }[];
-}
+/** One touched race, saved whole as the edit screen shows it (IPC contract). */
+export type { SaveRaceOperation };
 
 type RaceCells = SaveRaceOperation['cells'];
 

@@ -2,15 +2,27 @@
 /* eslint no-unused-vars: off */
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import { explainError } from '../shared/errors/explainError';
+import type {
+  BackupStatus,
+  IpcApi,
+  IpcChannel,
+  IpcContract,
+  IpcGroup,
+  MainToWindowMessages,
+  WindowErrorEntry,
+  WindowToMainMessages,
+} from '../shared/ipc';
+
+/** Each group's channel names, as the contract has them. */
+type ChannelNamesByGroup = {
+  [G in IpcGroup]: readonly (keyof IpcContract[G])[];
+};
 
 /**
- * Every sqlite channel, grouped exactly as the renderer consumes them
- * (`window.electron.sqlite.<group>.<channel>`).
- *
- * This list is the single source: the `Channels` union and the invoker map
- * below are both derived from it, so they cannot disagree. Adding a channel
- * means adding one string here, plus its `handle()` registration in
- * `src/main/ipcHandlers` and its typed signature in `src/renderer/api/db.ts`.
+ * Every invoke channel, grouped exactly as the renderer consumes them
+ * (`window.electron.sqlite.<group>.<channel>`): the runtime copy of the
+ * contract's names (src/shared/ipc.ts), which the bridge is built from. The
+ * check below makes it list exactly the contract's channels, group by group.
  */
 const SQLITE_CHANNELS = {
   sailorDB: [
@@ -67,19 +79,32 @@ const SQLITE_CHANNELS = {
   ],
   exportDB: ['exportDocumentPdf', 'exportDocumentFile', 'printDocument'],
   problemReportDB: ['captureProblemScreenshot', 'sendProblemReport'],
-} as const;
+} as const satisfies ChannelNamesByGroup;
 
-type SqliteChannelGroups = typeof SQLITE_CHANNELS;
-type SqliteChannel = SqliteChannelGroups[keyof SqliteChannelGroups][number];
+type Listed<G extends IpcGroup> = (typeof SQLITE_CHANNELS)[G][number];
+
+/**
+ * Compile-time check: a channel of the contract that is not listed above
+ * (it would not be exposed), or listed but not in the contract, names
+ * itself in a "does not satisfy the constraint 'never'" error here.
+ */
+type ExactlyTheContract<Problem extends never> = Problem;
+type _ChannelListCheck = ExactlyTheContract<
+  {
+    [G in IpcGroup]:
+      | Exclude<keyof IpcContract[G], Listed<G>>
+      | Exclude<Listed<G>, keyof IpcContract[G]>;
+  }[IpcGroup]
+>;
 
 /** Channels the renderer may invoke. */
-export type Channels = SqliteChannel;
+export type Channels = IpcChannel;
 
 /** The import summary says why, in words the user can act on. */
 const toErrorMessage = (error: unknown): string => explainError(error).message;
 
-// What an invoked channel resolves to is whatever its handler returned; the
-// renderer's typed view of each result lives in src/renderer/api/db.ts.
+// The bridge forwards arguments and results untouched; their types are the
+// contract's (`SqliteApi` below).
 type Invoker = (...args: unknown[]) => Promise<unknown>;
 
 // Typed wrapper around ipcRenderer.invoke. Restricting the channel to the
@@ -135,17 +160,14 @@ const wrapSqliteApi = <T extends object>(api: T): T => {
   return wrapped as T;
 };
 
-type SqliteApi = {
-  [Group in keyof SqliteChannelGroups]: {
-    [Channel in SqliteChannelGroups[Group][number]]: Invoker;
-  };
-};
+/** Every channel as an async method, typed by the contract. */
+type SqliteApi = IpcApi;
 
 const sqlite = Object.fromEntries(
   Object.entries(SQLITE_CHANNELS).map(([group, channels]) => [
     group,
     Object.fromEntries(
-      (channels as readonly Channels[]).map((channel) => [
+      (channels as readonly IpcChannel[]).map((channel) => [
         channel,
         makeInvoker(channel),
       ]),
@@ -154,13 +176,34 @@ const sqlite = Object.fromEntries(
 ) as SqliteApi;
 
 // Special-cased: callers render the returned summary object even on failure,
-// so this resolves a zero-result shape instead of throwing.
-sqlite.sailorDB.importSailors = async (...args: unknown[]) => {
+// so this resolves a zero-result shape (ImportSailorsFailure) instead of
+// throwing.
+const invokeImportSailors = sqlite.sailorDB.importSailors;
+sqlite.sailorDB.importSailors = async (...args) => {
   try {
-    return await invokeChannel('importSailors', ...args);
+    return await invokeImportSailors(...args);
   } catch (error) {
     return { imported: 0, skipped: 0, errors: [toErrorMessage(error)] };
   }
+};
+
+/** Send one of the window's one-way messages (shared/ipc.ts). */
+const sendToMain = <M extends keyof WindowToMainMessages>(
+  message: M,
+  ...args: Parameters<WindowToMainMessages[M]>
+) => ipcRenderer.send(message, ...args);
+
+/** Listen to one message from the main process; returns the unsubscribe. */
+const onMainMessage = <M extends keyof MainToWindowMessages>(
+  message: M,
+  listener: (...args: Parameters<MainToWindowMessages[M]>) => void,
+) => {
+  const subscription = (_event: IpcRendererEvent, ...args: unknown[]) =>
+    listener(...(args as Parameters<MainToWindowMessages[M]>));
+  ipcRenderer.on(message, subscription);
+  return () => {
+    ipcRenderer.removeListener(message, subscription);
+  };
 };
 
 /**
@@ -169,31 +212,15 @@ sqlite.sailorDB.importSailors = async (...args: unknown[]) => {
  * tells the window when the automatic backups stop working (or work again).
  */
 const appEvents = {
-  logError(entry: {
-    where: string;
-    message: string;
-    stack?: string;
-    ref?: string;
-  }) {
-    ipcRenderer.send('app:logError', entry);
+  logError(entry: WindowErrorEntry) {
+    sendToMain('app:logError', entry);
   },
-  onBackupStatus(listener: (status: { ok: boolean; reason?: string }) => void) {
-    const subscription = (
-      _event: IpcRendererEvent,
-      status: { ok: boolean; reason?: string },
-    ) => listener(status);
-    ipcRenderer.on('app:backupStatus', subscription);
-    return () => {
-      ipcRenderer.removeListener('app:backupStatus', subscription);
-    };
+  onBackupStatus(listener: (status: BackupStatus) => void) {
+    return onMainMessage('app:backupStatus', (status) => listener(status));
   },
   /** Help > Report a Problem… in the app menu. */
   onOpenProblemReport(listener: () => void) {
-    const subscription = () => listener();
-    ipcRenderer.on('app:openProblemReport', subscription);
-    return () => {
-      ipcRenderer.removeListener('app:openProblemReport', subscription);
-    };
+    return onMainMessage('app:openProblemReport', () => listener());
   },
 };
 
