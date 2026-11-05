@@ -275,21 +275,29 @@ export function sheetFromRows(
       for (let j = at + 1; j < order.length; j += 1) order[j].at += 1;
     });
 
-  // Stored places with a gap the sheet cannot hold (older records).
-  let expected = 1;
-  order.forEach((entry, i) => {
-    const above = order[i - 1];
-    if (entry.live && entry.place !== Number.MAX_SAFE_INTEGER) {
-      const levelAbove =
-        above !== undefined && above.live && above.place === entry.place;
-      if (!levelAbove && entry.at !== expected) {
-        anomalies.push(
-          `${where}: the stored places skip from ${expected - 1} to ${entry.at}; the places are closed up.`,
-        );
-      }
-    }
-    expected = i + 2;
+  // Stored places with a gap the sheet cannot hold (older records): one
+  // sentence per race, naming the places no boat was on.
+  const taken = new Set<number>();
+  const counted = new Map<number, number>();
+  order.forEach((entry) => {
+    if (!entry.live || entry.place === Number.MAX_SAFE_INTEGER) return;
+    counted.set(entry.place, (counted.get(entry.place) ?? 0) + 1);
   });
+  counted.forEach((count, place) => {
+    for (let p = place; p < place + count; p += 1) taken.add(p);
+  });
+  const highest = Math.max(0, ...taken);
+  const empty: number[] = [];
+  for (let p = 1; p < highest; p += 1) if (!taken.has(p)) empty.push(p);
+  if (empty.length > 0) {
+    const list =
+      empty.length === 1
+        ? `place ${empty[0]}`
+        : `places ${empty.slice(0, -1).join(', ')} and ${empty[empty.length - 1]}`;
+    anomalies.push(
+      `${where}: no boat was stored on ${list}; the boats behind are moved up (RRS A6.1).`,
+    );
+  }
 
   const lines: RaceLine[] = [
     ...order.map((entry, i) => {

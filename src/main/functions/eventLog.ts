@@ -408,7 +408,8 @@ export function eventToLog(eventId: number): EventLog {
       : sheetFromRows(
           sheetRows,
           noPlacePoints(largestOf(heat)),
-          `Heat ${ref.heat}, race ${race}`,
+          // As the screens name it: "Heat A2, race 1", "Final Gold, race 3".
+          `${heat.heat_name}, race ${race}`,
           boatLabel,
           true,
         );
