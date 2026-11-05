@@ -8,6 +8,9 @@ import { EXPECTED, exampleNames, resultsText } from '../scripts/examples';
 
 describe.each(exampleNames())('examples/%s', (name) => {
   it('gives the expected results', () => {
-    expect(resultsText(name)).toBe(readFileSync(join(EXPECTED, name), 'utf8'));
+    // Compared as data: the files may be reformatted (prettier on commit).
+    expect(JSON.parse(resultsText(name))).toEqual(
+      JSON.parse(readFileSync(join(EXPECTED, name), 'utf8')),
+    );
   });
 });

@@ -44,8 +44,12 @@ if (require.main === module) {
   SCHEMAS.forEach(({ type, file, title }) => {
     const text = generate(type, title);
     const path = schemaPath(file);
-    const current = existsSync(path) ? readFileSync(path, 'utf8') : '';
-    if (current === text) return;
+    // Compared as data: the file may be reformatted (prettier on commit).
+    const current = existsSync(path) ? readFileSync(path, 'utf8') : 'null';
+    if (
+      JSON.stringify(JSON.parse(current)) === JSON.stringify(JSON.parse(text))
+    )
+      return;
     if (check) {
       stale = true;
       process.stderr.write(

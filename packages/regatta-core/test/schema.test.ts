@@ -19,7 +19,9 @@ const validResults = ajv.compile(load('results.schema.json'));
 it.each(SCHEMAS.map((s) => [s.file, s] as const))(
   'schema/%s is up to date with the types (npm run schema)',
   (_file, { type, file, title }) => {
-    expect(readFileSync(schemaPath(file), 'utf8')).toBe(generate(type, title));
+    expect(JSON.parse(readFileSync(schemaPath(file), 'utf8'))).toEqual(
+      JSON.parse(generate(type, title)),
+    );
   },
   30000,
 );
