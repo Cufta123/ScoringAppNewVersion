@@ -9,7 +9,10 @@
  * One event that cannot be converted is logged and left as it is; the
  * others go on. Opening that event later tries again and shows the reason.
  */
-import { ensureEventLog, eventsWithoutLog } from './decisionStore';
+import { replay } from 'regatta-core';
+import { db } from '../../../public/Database/DBManager';
+import { ensureEventLog, eventsWithoutLog, loadLog } from './decisionStore';
+import projectEvent from './projectEvent';
 import { lastChangeId, tagChanges } from './changeJournal';
 import { logError } from '../errorLog';
 
@@ -24,14 +27,22 @@ export default function convertEventsAtStartup(): {
   eventsWithoutLog().forEach((eventId) => {
     const mark = lastChangeId();
     try {
-      ensureEventLog(eventId);
+      db.transaction(() => {
+        ensureEventLog(eventId);
+        // The tables are the log's projection: write them from it now, so
+        // what the screens show (places as well as points) is the rules'
+        // from the start. A log the rules refuse is left for its report.
+        const result = replay(loadLog(eventId));
+        if (result.ok) projectEvent(eventId, result.state);
+      })();
       converted.push(eventId);
     } catch (error) {
       failed.push(eventId);
       logError(`Moving event ${eventId} to the new scoring`, error);
     } finally {
-      // Whatever the conversion wrote (the log, missing DNS / DNC rows) is
-      // one action; a failed conversion rolled back and wrote nothing.
+      // Whatever the conversion wrote (the log, missing DNS / DNC rows, the
+      // tables from the log) is one action; a failed conversion rolled
+      // back and wrote nothing.
       tagChanges(mark, CONVERSION_CHANNEL);
     }
   });

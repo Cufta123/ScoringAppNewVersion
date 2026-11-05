@@ -216,8 +216,13 @@ export function eventToLog(eventId: number): EventLog {
         (
           db
             .prepare(
+              // Older versions kept every race's heat order as rank-only
+              // rows (no frozen place, no frozen code): nothing was frozen
+              // there, and the race is read from its places.
               `SELECT boat_id, frozen_position, frozen_status
-               FROM RaceAssignmentSnapshots WHERE race_id = ?`,
+               FROM RaceAssignmentSnapshots
+               WHERE race_id = ?
+                 AND (frozen_position IS NOT NULL OR frozen_status IS NOT NULL)`,
             )
             .all(raceId) as {
             boat_id: number;

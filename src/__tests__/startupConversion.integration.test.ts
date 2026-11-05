@@ -288,4 +288,42 @@ describe('moving events to the new scoring at start-up', () => {
       ),
     ]);
   });
+  it('reads a race from its places when older versions kept only its heat order (rank-only rows), and writes the tables from the log', async () => {
+    asBeforeTheSwitch();
+    // Versions before the SHRS 3.1(5) freeze kept every race's order as
+    // rank-only rows: no frozen place, no frozen code. Found on a real
+    // database: the conversion read every boat of every heat as tied.
+    const rows = db
+      .prepare(
+        `SELECT sc.race_id, sc.boat_id FROM Scores sc
+         JOIN Races r ON r.race_id = sc.race_id
+         JOIN Heats h ON h.heat_id = r.heat_id
+         WHERE h.event_id = ? ORDER BY sc.race_id, sc.position`,
+      )
+      .all(eventId);
+    const rank = new Map<number, number>();
+    rows.forEach((row: { race_id: number; boat_id: number }) => {
+      const next = rank.get(row.race_id) ?? 0;
+      rank.set(row.race_id, next + 1);
+      db.prepare(
+        'INSERT INTO RaceAssignmentSnapshots (race_id, rank, boat_id) VALUES (?, ?, ?)',
+      ).run(row.race_id, next, row.boat_id);
+    });
+
+    convertEventsAtStartup();
+    expect(await call('readConversionReport', eventId)).toBeNull();
+    const stored = db
+      .prepare(
+        `SELECT sc.position, sc.points FROM Scores sc
+         JOIN Races r ON r.race_id = sc.race_id
+         WHERE r.heat_id = ? ORDER BY sc.position`,
+      )
+      .all(heatId('Heat A1'));
+    expect(stored).toEqual([
+      { position: 1, points: 1 },
+      { position: 2, points: 2 },
+      { position: 3, points: 3 },
+      { position: 4, points: 4 },
+    ]);
+  });
 });
