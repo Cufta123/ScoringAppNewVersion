@@ -1,3 +1,57 @@
+// The SHRS 2026-1 / RRS 2025-2028 Appendix A rules live in
+// packages/regatta-core and nowhere else (AGENTS.md §1, §5). These were the
+// app's own copies of rules, removed when they moved into the library; they
+// must not come back under their old paths.
+const REMOVED_RULE_MODULES = {
+  group: [
+    // By file name, so a relative import from next door is caught too.
+    '**/raceColumnEdit',
+    '**/scoringPenalty',
+    '**/statusPoints',
+    '**/scoring/discards',
+    '**/redress',
+    '**/sailOrder',
+    '**/fleetNames',
+    '**/heatSizing',
+    '**/points',
+    '**/penaltyOrder',
+    '**/raceSeeding',
+  ],
+  message:
+    'That rule lives in packages/regatta-core: import it from "regatta-core" (AGENTS.md §1). The app must not implement SHRS / RRS scoring.',
+};
+
+// Names of the app's former rule copies: declaring one in src/ is a second
+// copy of a rule the library already has.
+const REIMPLEMENTED_RULES = [
+  'applyRaceColumnEdit',
+  'scoreRaceColumn',
+  'getScoringPenaltyPoints',
+  'deriveNonFinisherPoints',
+  'getExcludedIndexes',
+  'capExcludeCountForBoat',
+  'getExcludeCount',
+  'getExcludeCountForConfig',
+  'getExcludeCountForProfile',
+  'applyExclusions',
+  'averageRedressPoints',
+  'averageRacePoints',
+  'averageSelectedRacePoints',
+  'refreshSessionRdgAverages',
+  'withRedressAverage',
+  'rescoreEntry',
+  'roundToTenthHalfUp',
+  'compareNationalSail',
+  'compareSeededRows',
+  'orderBoatsByPenalty',
+  'fleetRank',
+  'fleetNameForIndex',
+  'minimumHeatsForEntries',
+  'getOddEvenMovementAdvisory',
+].join('|');
+const RULE_COPY_MESSAGE =
+  'This rule is regatta-core\'s: import it from "regatta-core" instead of writing a copy (AGENTS.md §1).';
+
 module.exports = {
   extends: 'erb',
   plugins: ['@typescript-eslint'],
@@ -105,9 +159,53 @@ module.exports = {
       },
     },
     {
-      // src/shared is the scoring core: plain TypeScript that the main process
-      // and the renderer both run, and that a future results viewer can run
-      // too. It must not reach into either side or into the database, UI or
+      // The app keeps storage, projection, the conversion of old records,
+      // input checks, display and IPC; every scoring rule is regatta-core's.
+      files: ['src/**/*.{js,jsx,ts,tsx}'],
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          { patterns: [REMOVED_RULE_MODULES] },
+        ],
+        'no-restricted-syntax': [
+          'error',
+          // airbnb's own (this list replaces it for src/).
+          {
+            selector: 'ForInStatement',
+            message:
+              'for..in loops iterate over the entire prototype chain, which is virtually never what you want. Use Object.{keys,values,entries}, and iterate over the resulting array.',
+          },
+          {
+            selector: 'ForOfStatement',
+            message:
+              'iterators/generators require regenerator-runtime, which is too heavyweight for this guide to allow them. Separately, loops should be avoided in favor of array iterations.',
+          },
+          {
+            selector: 'LabeledStatement',
+            message:
+              'Labels are a form of GOTO; using them makes code confusing and hard to maintain and understand.',
+          },
+          {
+            selector: 'WithStatement',
+            message:
+              '`with` is disallowed in strict mode because it makes code impossible to predict and optimize.',
+          },
+          {
+            selector: `FunctionDeclaration[id.name=/^(${REIMPLEMENTED_RULES})$/]`,
+            message: RULE_COPY_MESSAGE,
+          },
+          {
+            selector: `VariableDeclarator[id.name=/^(${REIMPLEMENTED_RULES})$/]`,
+            message: RULE_COPY_MESSAGE,
+          },
+        ],
+      },
+    },
+    {
+      // src/shared is plain TypeScript that the main process and the
+      // renderer both run (the IPC contract, row types, input parsing), and
+      // that a future results viewer can run too; the rules themselves are
+      // regatta-core's. It must not reach into either side or into the database, UI or
       // Node APIs, or it stops being shareable.
       files: ['src/shared/**/*.{js,ts}'],
       rules: {
@@ -120,6 +218,7 @@ module.exports = {
                 message:
                   'src/shared must stay free of main-process and renderer code; pass data in instead.',
               },
+              REMOVED_RULE_MODULES,
               {
                 group: [
                   'electron',

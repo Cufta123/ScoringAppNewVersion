@@ -8,6 +8,22 @@ Use this document first. Only search the repo when this file does not answer the
 - Product: IOM Regatta Manager desktop app.
 - Domain: event setup, sailor/boat management, heat/race scoring, leaderboards, final series handling.
 - Stack: Electron (main), React (renderer), TypeScript + JavaScript, SQLite via better-sqlite3.
+- **The rules live in `packages/regatta-core`; the app must not implement
+  SHRS / RRS scoring.** Every rule of SHRS 2026-1 and RRS 2025-2028
+  Appendix A (points, codes and their order, penalties, redress, discards,
+  ties, what a correction does to a race, heat counts and sizes, seeding and
+  recording order, fleet names, next step) is the library's, imported from
+  `regatta-core` by the main process, the renderer and the tests alike. The
+  app keeps storage, the projection, the conversion of old records
+  (`eventLog.ts`, `raceSheet.ts`), checks of what was typed (a place
+  1..boats in the race, a known code, committee points > 0 and <= 99),
+  display and IPC. A rule the library lacks is added to the library, with
+  tests, not written in `src/`. ESLint enforces it: `src/` cannot import the
+  removed rule modules (`raceColumnEdit`, `scoringPenalty`, `statusPoints`,
+  `scoring/discards`, `redress`, `sailOrder`, `fleetNames`, `heatSizing`,
+  `points`, `penaltyOrder`, `raceSeeding`) nor declare a function under
+  their old rule names (`REMOVED_RULE_MODULES` / `REIMPLEMENTED_RULES` in
+  `.eslintrc.js`).
 
 ## 2. First Places To Look
 
@@ -268,25 +284,27 @@ directory:
   on the log, or row-based for actions before the event's conversion.
 - `changeJournal.ts` — the change journal's grouping per IPC call (§4).
 - `raceScoring.ts` — `checkedRaceColumn` (the edit screen's whole race,
-  checked and scored with `scoreRaceColumn`: what a Save sends to the
-  library), `getMaxHeatSize`, `ensureCompleteRaceScoresForEvent` (DNS / DNC
-  rows older write paths left out, completed before a conversion; RRS
-  A5.1), `rescoreRace` (row-based undo).
-- `raceSeeding.ts` — a race's results in SHRS 5.3 recording order, and
-  `getOddEvenMovementAdvisory` for the next-round screen.
+  its input checked — each boat once, places 1..boats in the race, known
+  codes, committee points > 0 and <= 99 — and scored with regatta-core's
+  `scoreRaceColumn`: what a Save sends to the library), `getMaxHeatSize`,
+  `ensureCompleteRaceScoresForEvent` (DNS / DNC rows older write paths left
+  out, completed before a conversion; RRS A5.1), `rescoreRace` (row-based
+  undo, scored by the library's `scoreRaceColumn`).
 - `creatingNewHeatsUtls.ts` — finding the current round's heats
   (`findLatestHeatsBySuffix`, `checkRaceCountForLatestHeats`); the seeding
   and the Heat Movement Tables are the library's. Filename typo intentional
   (§10).
 - `heatQueries.ts`, `seriesGuards.ts` — shared reads and the guards on
   closed qualifying heats.
-- `discardConfig.ts` — re-exports `shared/discardProfile.ts` for the main
-  process.
-- `scoreStatus.ts` — status vocabulary, `normalizeScoreStatus`,
-  `getScoringPenaltyPoints` (RRS 44.3c/T1), `compareSeededRows` (SHRS 5.3).
+- `discardConfig.ts` — re-exports `shared/discardProfile.ts` (the stored
+  discard setting and `toDiscardProfile`) for the main process.
+- `scoreStatus.ts` — `normalizeScoreStatus`: a sent or stored status read
+  into the library's vocabulary (`RESULT_CODES`; RAF read as RET; an unknown
+  code refused in words). Nothing else: what a code scores and the 5.3
+  order are the library's.
 - `eventSettings.ts` — per-event SHRS configuration on the Events row:
-  qualifying assignment mode (3.1/3.2), heat overflow policy and
-  `SHRS_MAX_BOATS_PER_HEAT` (2.3), and the discard-profile lock (5.4). The
+  qualifying assignment mode (3.1/3.2), heat overflow policy (2.3; the cap
+  is the library's `MAX_HEAT_SIZE`), and the discard-profile lock (5.4). The
   allowed values (`QualifyingAssignmentMode`, `HeatOverflowPolicy`) and their
   one normalizer are in `shared/eventSettings.ts`. `readAllEvents` works the
   locks out from the races (parity R11).
@@ -325,7 +343,8 @@ directory:
   whole-race freeze for every race with a committee decision, and the
   conversion (`raceSheet.sheetFromFrozen`) reads it back. No module caches it.
 
-Shared (renderer + main) — one definition per rule, imported by both processes:
+Shared (renderer + main) — plain TypeScript both processes run; no rules
+(those are regatta-core's, §1):
 
 - `subgroups.ts`.
 - `eventSettings.ts` — `QualifyingAssignmentMode`, `HeatOverflowPolicy` and
@@ -340,61 +359,85 @@ Shared (renderer + main) — one definition per rule, imported by both processes
   rows (test fixtures) it keeps a looser type the real row is assignable to
   (`RawLeaderboardEntry`, `OverallLeaderboardEntry`). When a handler returns a
   new shape, define it in `src/shared` and name it in the contract.
-- `scoringPenalty.ts` — RRS 44.3(c)/T1 points (20% / 30% of the DNF score, to
-  the nearest tenth as in RRS 2025–2028, capped at the DNF score),
-  and `scoringPenaltyStatuses`.
-- `discardProfile.ts` — SHRS 5.4 profile parsing + exclusion count.
-- `fleetNames.ts` — SHRS 4.1 fleet naming and 5.5 precedence (`fleetRank`
-  orders "Fleet 5"+ too, not just Gold/Silver/Bronze/Copper).
-- `sailOrder.ts` — SHRS 5.3 / 3.1(iv) tie order: national letter then numeric
-  sail number.
-- `raceColumnEdit.ts` — what one result correction does to a whole race. A
-  correction gives the race the result it would have had if the corrected
-  finish had been entered on the scoring screen: a new place MOVES the boat
-  (the boats in between make room; two moves swap two boats); a code with no
-  finishing place (DNF, OCS, BFD, UFD, DSQ, RET, …) on a boat that had one
-  moves every boat behind her up (RRS A6.1, and the same for every other
-  no-place code); a place for a boat that had none pushes the boats from that
-  place down; RDG/DPI change no other boat (A6.2, A10); ZFP/SCP/T1 keep the
-  place. `scoreRaceColumn` scores a column from places and codes (A7 averages,
-  44.3(c), SHRS 5.2) and never compacts a gap. There is no "Shift other boats"
-  toggle any more and no duplicate-place dialog: off, the toggle left
-  duplicates/gaps, BFD/OCS left the boats behind a place too low, and Save
-  replayed edits in a different order from the screen, so the saved race
-  could differ from the one shown. The leaderboard's Save now sends every
-  touched race WHOLE (`{ raceId, cells }`); the main process checks and scores
-  it again (`raceScoring.checkedRaceColumn`, `scoreRaceColumn`) and turns it
-  into decisions for the library (`libraryCorrection`): what is shown is
-  what is saved. `saveLeaderboardRaceResultsAtomic` takes
-  `(event_id, operations, updateFinalLeaderboard)` and accepts nothing but
-  whole races (an operation without `cells` is refused); the old per-boat
-  `updateRaceResult` / `applyRaceResultUpdate` path and its `shift_positions`
-  flag are gone. The preview (`handleRaceChange`) and the main process both
-  call this module; do not reintroduce a local copy. That local re-rank is
-  only the instant draft: after every edit the hook sends the touched races
-  to `previewLeaderboardEdit`, which saves them exactly as Save does, reads
-  the three standings back and rolls back (`libraryWrite.previewOnEvent`);
-  those rows replace the draft, so totals, discards, redress averages and
-  places on screen are regatta-core's. A change the rules refuse comes back
-  as `{ ok: false, reason }` and is shown as a warning. Reads carry
-  `race_excluded` (1 per excluded score); `processLeaderboardEntry` marks
-  those and takes the library's total, and works discards out itself only
-  for rows without it.
+- `discardProfile.ts` — the stored SHRS 5.4 setting: parsing, normalising
+  (what the event form typed) and `toDiscardProfile` (the library's
+  `DiscardProfile`). The count is the library's `discardCount`.
+- `boatKeys.ts` — how a race officer names a boat when entering a finish.
+
+What the app imports from `regatta-core` instead of keeping its own copy
+(each was an app module until the library took it over):
+
+- **Correcting a result in place** — `applyRaceColumnEdit`,
+  `scoreRaceColumn`, `holdsPlace`, `keepsProvidedPoints`, `slotOf`
+  (`packages/regatta-core/src/rules/correction.ts`, tests in
+  `test/correction.test.ts`). A correction gives the race the result it
+  would have had if the corrected finish had been entered on the scoring
+  screen: a new place MOVES the boat (the boats in between make room; two
+  moves swap two boats); a code with no finishing place (DNF, OCS, BFD, UFD,
+  DSQ, RET, …) on a boat that had one moves every boat behind her up (RRS
+  A6.1, and the same for every other no-place code); a place for a boat that
+  had none pushes the boats from that place down; RDG/DPI change no other
+  boat and keep her place in the order (A6.2, A10); ZFP/SCP/T1 keep the
+  place. `scoreRaceColumn` scores a column from places and codes (A7
+  averages, 44.3(c), SHRS 5.2) and never compacts a gap that fits. The
+  leaderboard's Save sends every touched race WHOLE (`{ raceId, cells }`);
+  the main process checks the input and scores it again
+  (`raceScoring.checkedRaceColumn`) and turns it into decisions for the
+  library (`libraryCorrection`): what is shown is what is saved.
+  `saveLeaderboardRaceResultsAtomic` takes `(event_id, operations,
+updateFinalLeaderboard)` and accepts nothing but whole races. There is no
+  "Shift other boats" toggle and no duplicate-place dialog.
+- **The edit draft** (`renderer/utils/leaderboardEdit.ts`) only re-ranks the
+  edited race's column with `applyRaceColumnEdit`. It works out no totals,
+  discards or redress averages: after every edit the hook sends the touched
+  races to `previewLeaderboardEdit`, which saves them exactly as Save does,
+  reads the three standings back and rolls back
+  (`libraryWrite.previewOnEvent`); those rows replace the draft, so totals,
+  discards, redress averages and places on screen are regatta-core's. Until
+  the answer arrives the other columns and the totals show what they showed
+  before the edit. An RDG1 / RDG2 cell keeps the boat's current points in
+  that race until then (a value Save accepts: above 0, at most 99; the
+  library ignores it and averages from the races, RRS A9). A change the rules
+  refuse comes back as `{ ok: false, reason }` and is shown as a warning.
+  Reads carry `race_excluded` (1 per excluded score); `processLeaderboardEntry`
+  brackets those and takes the library's total. Nothing in the renderer
+  works discards out.
+- **Points** — `noPlacePoints` (SHRS 5.2), `penaltyPoints` (RRS 44.3(c) /
+  T1), `toTenth`, `redressAverage` (A9), `sumPoints` / `exactPoints` (totals
+  without float noise).
+- **Codes** — `NO_PLACE_CODES` (SHRS 5.3 order), `PENALTY_CODES` (ZFP, SCP,
+  T1), `COMMITTEE_CODES` / `REDRESS_CODES`, `RESULT_CODES` (all of them, in
+  that order: the leaderboard's code menu, the exports' legend,
+  `normalizeScoreStatus`), `FINISHED`. Labels stay in
+  `renderer/constants/penaltyLabels.ts` (display only).
+- **Discards** — `discardCount`, `excludedScores`, `NOT_EXCLUDABLE`.
+- **Order** — `compareBoats` (SHRS 3 / 3.1(iv) / 5.3), `inRecordingOrder` and
+  `codeRank` (5.3 recording order of the scoring screen's finish list).
+- **Heats and fleets** — `MAX_HEAT_SIZE` (2.3), `MAX_HEATS`, `fewestHeats`
+  (2.1 / 2.3: the heat-count default), `movementImbalanceExpected` (the note
+  under the Heat Movement Tables: the next-round advisory), `fleetName` /
+  `fleetIndex` (4.1 names, 5.5 precedence).
+- **What next** — `nextInRound` (the round bar's next heat, from the screen's
+  heats; `nextStep` uses it on an event).
 
 When extending the handler, keep this pattern: pure logic goes in a
 `functions/` module (so it is unit-testable), the handler only wires IPC.
 
-Observed rule implementation details:
+Observed rule implementation details (all in regatta-core):
 
-- Supported statuses include `FINISHED`, penalties (`DNF`, `DNS`, `DSQ`, `OCS`, `ZFP`, `RET`, `SCP`, `BFD`, `UFD`, `DNC`, `NSC`, `WTH`, `DNE`, `DGM`, `DPI`) and redress variants (`RDG1`, `RDG2`, `RDG3`).
-- Exclusion count logic:
+- Supported statuses: `FINISHED` and `RESULT_CODES` — penalties that keep the
+  place (`ZFP`, `SCP`, `T1`), no-place codes (`DNF`, `RET`, `NSC`, `OCS`,
+  `DNS`, `DNC`, `WTH`, `UFD`, `BFD`, `DSQ`, `DNE`, `DGM`), and the committee's
+  (`DPI`, `RDG1`, `RDG2`, `RDG3`). Stored `RAF` is read as `RET`.
+- Exclusion count logic (`discardCount`, standard profile):
   - `<4` races: 0 exclusions
   - `4-7`: 1 exclusion
   - `>=8`: `2 + floor((races - 8) / 8)`
-- Some statuses are non-excludable (for example `DNE`, `DGM`).
+- Some statuses are non-excludable (`NOT_EXCLUDABLE`: `DNE`, `DGM`).
 - Tie-break logic has dedicated handling for shared-race and multi-heat scenarios.
 
-When changing scoring logic, update or add tests first.
+When changing scoring logic, change it in `packages/regatta-core` and update
+or add its tests first.
 
 ### Full rule reference (SHRS 2026-1 + RRS Appendix A)
 
@@ -418,15 +461,17 @@ General / series structure
 Number/size of heats
 
 - 2.1–2.2 — As few heats as possible; sizes as equal as possible.
-- 2.3 — **Max 20 boats per heat** (`SHRS_MAX_BOATS_PER_HEAT` in
-  `shared/heatSizing.ts`; overflow governed by `shrs_heat_overflow_policy`).
+- 2.3 — **Max 20 boats per heat** (`MAX_HEAT_SIZE` in `rules/fleets.ts`;
+  `fewestHeats` in `rules/heats.ts` is the heat-count default; overflow
+  governed by `shrs_heat_overflow_policy`).
 
 Qualifying assignment (`rules/seeding.ts`)
 
 - 3.1 — **Progressive**: Race 1 seeds top-down `1,2,3,4,5,5,4,3,2,1`
   (`serpentine`); later races use the Heat Movement Table (`nextHeat`). Non-finishers ordered
   `DNF, RET, NSC, OCS, DNS, DNC, UFD, BFD, (DSQ)`; ties by alphanumeric
-  national-letter + sail number (`shared/sailOrder.ts`).
+  national-letter + sail number (`compareBoats`; the scoring screen's
+  finish list uses `inRecordingOrder`).
 - 2.2 — heats "as equal as possible" means within one boat, and **nothing pins
   the extra boat to Heat A**. The 3.1(1) walk drops it wherever it stops (10
   boats / 3 heats → A=3, B=3, C=4), and the movement table then rotates the odd
@@ -463,7 +508,7 @@ Qualifying assignment (`rules/seeding.ts`)
 
 Final Series (`rules/fleets.ts`, `standings/final.ts`)
 
-- 4.1 — Fleet naming and precedence live in `shared/fleetNames.ts`; fleets past
+- 4.1 — Fleet naming and precedence are `fleetName` / `fleetIndex`; fleets past
   Copper are named "Fleet 5"… and rank 5th… (never a shared catch-all rank).
 - 4.1 — Same number of fleets as qualifying heats (may shrink if withdrawals
   allow). Fleets `Gold, Silver, Bronze, Copper`; sizes as equal as possible with
@@ -489,7 +534,7 @@ Scoring (`event/score.ts`, `rules/points.ts`, `standings/series.ts`)
 - RRS A6.1 — A boat disqualified or retiring **after finishing** is removed from
   the finishing order and every boat behind her **moves up one place**. A
   correction to any other code with no finishing place does the same (see
-  `raceColumnEdit.ts`).
+  `rules/correction.ts`).
 - RRS A7 — **Race ties**: tied places share the summed points equally. Enterable
   from the scoring screen via the per-row tie ("=") control, which submits a
   shared place (`tied` on the sheet line) for the library to average.
@@ -509,11 +554,11 @@ Scoring (`event/score.ts`, `rules/points.ts`, `standings/series.ts`)
 - 5.3 — Recording order: finishers by place, then
   `DNF, RET, NSC, OCS, DNS, DNC, WTH, UFD, BFD, DSQ, DNE`; ties alphanumeric.
   Position-keeping penalties (`ZFP`, `SCP`, `T1`) keep the boat's finishing
-  place (`compareSeededRows`, `scoringPenaltyStatuses`).
+  place (`compareRecorded`, `inRecordingOrder`, `PENALTY_CODES`).
 - 5.4 — **Discards** (per series, Qualifying and Final counted independently):
   0 below 4 completed races, 1 at 4–7, 2 at 8–15, then +1 per additional 8.
   Non-excludable: `DNE`, `DGM` (RRS 90.3(b)). Configurable per event before the
-  first warning signal (`shared/discardProfile.ts`); an explicitly **empty**
+  first warning signal (stored as `shared/discardProfile.ts` reads it); an explicitly **empty**
   threshold list means **never discard**. The count is series-wide — fleet-wide
   in the Final Series, since 5.1 scores each fleet separately.
   The library (`rules/discards.ts`) additionally caps it per boat so a boat
@@ -525,7 +570,7 @@ Scoring (`event/score.ts`, `rules/points.ts`, `standings/series.ts`)
   tie-break vector.
 - 5.5 — Overall event score = Qualifying + Final series scores. Lowest in Gold
   wins; fleets rank `Gold > Silver > Bronze > Copper > Fleet 5 > …` regardless
-  of raw points (`fleetRank`).
+  of raw points (`fleetIndex`).
 - 5.6 — Redress averages computed separately per series: an RDG2 average covers
   ONLY races in the same series as the redressed cell — never a Q+F pool.
 - RRS A9 (2025–2028) redress: RDG1 = average of all other races in the
@@ -533,8 +578,8 @@ Scoring (`event/score.ts`, `rules/points.ts`, `standings/series.ts`)
   decision; projected to `Scores.rdg_race_ids`), RDG3 = PC-set points (never
   recomputed). Averages include discarded races, EXCLUDE other RDG1/RDG2
   races, round to the tenth (0.05 up), and are LIVE: the library works them
-  out on every replay. (`shared/redress.ts` is the renderer's instant-draft
-  copy; the preview then shows the library's.)
+  out on every replay; the leaderboard edit shows them from the library's
+  preview (the renderer has no copy).
 - Series ties that A8 cannot break (identical scores) SHARE the place
   (1, 2, 2, 4) — `rules/ranking.ts`, used by qualifying, final and overall
   standings: a boat shares a place only with boats no rule separates her
@@ -629,7 +674,7 @@ The app on the library:
   and the overall order, three differences pinned and explained),
   `euroIom2025.startingHeats.test.ts` (the library's Race 1 draw against
   the published one) and `iomWorlds2024.published.test.ts` (HMS event;
-  checks the renderer's discards, totals and order only — its sheet has
+  checks the library's discards, totals and order only — its sheet has
   one documented nett error, ARG 63).
 
 Handlers, history, renderer:
@@ -645,8 +690,8 @@ Handlers, history, renderer:
   `changeJournal.integration.test.ts`
 - `scoreStatus.test.ts`, `creatingNewHeatsUtils.test.ts` (note: tests the
   `...Utls.ts` source), `compareUtils.test.ts`,
-  `leaderboardUtils.discards.test.ts`, `leaderboard.property.test.jsx`
-  (the renderer's discard marking for the instant draft)
+  `leaderboardUtils.exclusions.test.ts` (the library's discards shown as
+  sent), `roundStatus.test.ts`
 - `DBManager.failStartup.test.ts` (startup advice per failure kind and
   `classifyDatabaseFailure`), `retryWhenBusy.test.ts`
 - `ScoringInputComponent.test.jsx`, `useLeaderboard.scoring.test.jsx`,
@@ -754,7 +799,7 @@ For most feature/fix requests, do this in order:
   boat into a current-round qualifying heat that has not raced.
 - Sailor/boat edits intentionally apply everywhere, past events included
   (one record per sailor/boat). Do not add per-event entry snapshots.
-- Point totals go through `sumPoints`/`roundPoints` (`shared/points.ts`). A
+- Point totals go through regatta-core's `sumPoints` / `exactPoints`. A
   plain sum of tenth-point RDG scores carries float noise, equal totals stop
   comparing equal, and the SHRS 5.7 tie-break is skipped.
 
@@ -805,8 +850,8 @@ For most feature/fix requests, do this in order:
   `scoreRaceColumn`, and every total vs its races and discards must hold. It
   found: moving a boat out of a heat that had raced (she sailed the round
   twice; `transferBoatBetweenHeats` now refuses raced heats), a correction
-  that put a boat past the last place (redress gap; `raceColumnEdit` now
-  fills the nearest free slot), and an undo from the history that left two
+  that put a boat past the last place (redress gap; `applyRaceColumnEdit`
+  now fills the nearest free slot), and an undo from the history that left two
   boats on one place unaveraged (the row-based undo calls `rescoreRace`).
   Since the switch it also converts the tables back to a log after every
   step and checks that it gives the same event.
@@ -881,8 +926,8 @@ For most feature/fix requests, do this in order:
   event (before the first event it is open, with "How it works"). Delete in
   an event row is a quiet red icon (`btn-icon-danger`), never a filled red
   button.
-- **The Scoring page's round bar** (`heats/RoundBar`, status and next step
-  from `utils/roundStatus`): "Qualifying · Round 4 · 1 of 3 heats scored" and
+- **The Scoring page's round bar** (`heats/RoundBar`, status from
+  `utils/roundStatus`, the next heat from regatta-core's `nextInRound`): "Qualifying · Round 4 · 1 of 3 heats scored" and
   ONE green button for the next step (Score the first heat still to sail; once
   a round of several heats is complete, Create Round N; in one fleet or the
   Final Series, the fleet that is behind). Export heats, Undo round (rounds

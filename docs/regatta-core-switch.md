@@ -82,7 +82,42 @@ keep in step.
   - [x] Events from before the switch are converted at start-up (one history action each); what the conversion changed is recorded (migration 11) and shown on the leaderboard until confirmed (`ConversionNotice`)
   - [x] R13: a three-way tie's higher place goes to every boat no tied boat beats (5.7(ii)(3))
   - [x] The old Save path removed (`applyRaceColumnState`, the per-boat 3.1.5 shields, their in-memory cache, `raceTieScoring`); its rule scenarios run through the real Save in `leaderboardCorrection.rules` (RDG1 is the A9(a) average now, R9)
-  - [ ] The renderer's instant-draft maths (`applyExclusions`, `shared/redress`) only bridges until the library's answer arrives; keep or replace with the library run in the renderer
+  - [x] The renderer's instant-draft maths (`applyExclusions`, `shared/redress`) removed: the draft only re-ranks the edited race with the library's `applyRaceColumnEdit`; totals, discards and averages come from the preview
+- [x] Phase 7: every rule in the library only (2026-11-05). The owner: "I have the package for scoring and the whole logic; I don't need logic in my main code."
+  - [x] What a correction does to a race (`applyRaceColumnEdit`, `scoreRaceColumn`) moved from `src/shared/raceColumnEdit.ts` into `rules/correction.ts`, with its tests (`test/correction.test.ts`); the main process (`checkedRaceColumn`, `rescoreRace`) and the renderer import it from `regatta-core`
+  - [x] Point rules (`scoringPenalty`, `scoring/statusPoints`, the points of `scoreStatus`, `shared/points`): the library's `penaltyPoints`, `noPlacePoints`, `toTenth`, `sumPoints` / `exactPoints`; the code lists and their order are `NO_PLACE_CODES`, `PENALTY_CODES`, `COMMITTEE_CODES`, `REDRESS_CODES`, `RESULT_CODES`
+  - [x] Discards and redress (`scoring/discards`, the count in `discardProfile`, `shared/redress`, the renderer's `applyExclusions` / `rescoreEntry` / `refreshSessionRdgAverages` / `withRedressAverage` / `averageSelectedRacePoints`): `discardCount`, `excludedScores`, `redressAverage`, and the rows' `race_excluded`; the stored setting reads as a `DiscardProfile` (`toDiscardProfile`)
+  - [x] Order and names (`sailOrder`, `penaltyOrder`, `raceSeeding`, `fleetNames`, `heatSizing`, the round bar's next heat): `compareBoats`, `inRecordingOrder` / `codeRank`, `movementImbalanceExpected`, `fleetName` / `fleetIndex`, `MAX_HEAT_SIZE` / `MAX_HEATS` / `fewestHeats`, `nextInRound` (what `nextStep` now uses)
+  - [x] ESLint guard: `src/` cannot import the removed modules or declare their rule functions again (`.eslintrc.js`, AGENTS.md §1)
+
+## Phase 7: what changed for the user
+
+The correction rule moved unchanged (same code, same tests, now in the
+library), and the app's point, discard and order copies computed what the
+library computes. Where the app copy and the library differed, the library
+is followed:
+
+- **Edit draft.** The draft re-ranks the edited race at once; totals,
+  discards, the Overall and redress averages change when the library's
+  preview arrives (milliseconds), not from a second calculation. Without a
+  preview they stay as before the edit until Save.
+- **RDG1 / RDG2 while editing** show the boat's current points in that race
+  until the preview shows the library's average (RRS A9); that is also the
+  value Save sends (above 0, at most 99), which the library ignores. Before,
+  the renderer averaged with its own copy.
+- **RDG2 from the race picker keeps her place in the order** (RRS A6.2),
+  as RDG1, RDG3 and DPI always did. The picker used to drop it, so a boat
+  level with her lost the shared points of the dead heat on Save.
+- **Round bar.** A qualifying heat with no boats no longer holds the round
+  up (it has nothing to sail; the library's rule), and "one fleet races on"
+  follows the heats of the current round rather than the event's group
+  count.
+- **Code lists** (leaderboard menu, scoring-screen menu, export legend, the
+  refusal message for an unknown code) are in the library's order: ZFP, SCP,
+  T1, then SHRS 5.3 (DNF, RET, NSC, OCS, DNS, DNC, WTH, UFD, BFD, DSQ, DNE),
+  DGM, DPI, RDG1-3. RAF is no longer listed anywhere (read as RET, A10).
+- The leaderboard no longer reads the event's discard settings: nothing in
+  the renderer counts discards.
 
 ## Conversion
 
