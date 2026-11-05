@@ -19,6 +19,70 @@ overallStandings(result.state);
 nextStep(result.state); // { kind: 'score', heat: 'B3', race: 1 }
 ```
 
+Or everything at once, as plain JSON:
+
+```ts
+import { results } from 'regatta-core';
+
+results({ decisions: log }); // heats, next step, qualifying, final, overall
+```
+
+## Command line
+
+In the ScoringApp checkout the tools come from the app's `npm install`;
+run these in `packages/regatta-core`. On its own, run `npm install` first.
+
+```sh
+npm run build
+
+node dist/cli.js examples/heats-and-final.json          # results as JSON
+node dist/cli.js --text examples/heats-and-final.json   # the same as tables
+node dist/cli.js - < event.json                         # from stdin
+npm run results -- --text examples/one-fleet.json       # straight from src/
+```
+
+Exit codes: `0` results, `1` a decision was refused (the results are the
+event before it, with `refused: { at, reason, decision }`), `2` the file is
+not JSON or not a valid event file (the schema errors are printed per
+decision).
+
+## File format
+
+| File                         | What                                             |
+| ---------------------------- | ------------------------------------------------ |
+| `schema/event.schema.json`   | input: `{ "name"?, "decisions": [Decision, …] }` |
+| `schema/results.schema.json` | output of `results()` and of the command line    |
+| `examples/*.json`            | event files                                      |
+| `examples/expected/*.json`   | their results                                    |
+
+Both schemas are generated from the types in `src/results.ts` and
+`src/types.ts` (`npm run schema`); a test fails when they are out of date.
+The results are a public shape of their own (`RaceScore`, `SeriesStanding`,
+…), not the internal types, so they change only on purpose.
+
+An event file can start with `"$schema": "../schema/event.schema.json"` for
+completion and checking in an editor.
+
+## Tests
+
+```sh
+npm test
+```
+
+| Test                     | What                                                              |
+| ------------------------ | ----------------------------------------------------------------- |
+| `test/rules.test.ts`     | rule by rule (points, discards, seeding, fleets, ranking)         |
+| `test/event.test.ts`     | whole events through `replay`, from the rules' text               |
+| `test/examples.test.ts`  | each `examples/*.json` gives `examples/expected/*.json`           |
+| `test/schema.test.ts`    | schemas up to date; examples and results valid; bad files refused |
+| `test/cli.test.ts`       | command line: output, exit codes, error messages                  |
+| `test/isolation.test.ts` | nothing in `src/` but the CLI imports outside the library         |
+
+To add a case: put an event file in `examples/`, run `npm run examples`,
+and **check the new `examples/expected/` file by hand against the rules**
+before committing it. Those files record what the library says, not what
+the rules say; a wrong expected file only locks a bug in.
+
 ## The idea
 
 The event **is** its decision log (`Decision` in `src/types.ts`):
@@ -59,6 +123,8 @@ A6.2, A7, A8, A9 (RDG1/2/3, live averages), A10 (DPI), 44.3(c), T1. Tests in
 
 ## Checked against the app
 
+In the ScoringApp repository (where this library started, in
+`packages/regatta-core`),
 `src/__tests__/regattaCore.differential.integration.test.ts` runs random
 events through the app's real handlers on real SQLite and through this
 library, and after every step compares every heat and the qualifying, final

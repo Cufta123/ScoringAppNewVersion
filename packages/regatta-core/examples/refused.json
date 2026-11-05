@@ -1,0 +1,85 @@
+{
+  "$schema": "../schema/event.schema.json",
+  "name": "A sheet with a boat listed twice",
+  "decisions": [
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b1",
+        "nat": "CRO",
+        "sail": "10",
+        "name": "Bura"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b2",
+        "nat": "ITA",
+        "sail": "17",
+        "name": "Jugo"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b3",
+        "nat": "SLO",
+        "sail": "24",
+        "name": "Maestral"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b4",
+        "nat": "AUT",
+        "sail": "31",
+        "name": "Tramontana"
+      }
+    },
+    {
+      "type": "heatsCreated",
+      "heatCount": 1
+    },
+    {
+      "type": "raceScored",
+      "heat": "A1",
+      "lines": [
+        {
+          "boat": "b2"
+        },
+        {
+          "boat": "b3"
+        },
+        {
+          "boat": "b1"
+        },
+        {
+          "boat": "b4"
+        }
+      ]
+    },
+    {
+      "type": "raceScored",
+      "heat": "A1",
+      "lines": [
+        {
+          "boat": "b2"
+        },
+        {
+          "boat": "b2"
+        },
+        {
+          "boat": "b3"
+        },
+        {
+          "boat": "b1"
+        },
+        {
+          "boat": "b4"
+        }
+      ]
+    }
+  ]
+}

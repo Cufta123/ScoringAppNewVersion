@@ -1,0 +1,598 @@
+{
+  "$schema": "../schema/event.schema.json",
+  "name": "Two heats and a Final Series",
+  "decisions": [
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b1",
+        "nat": "CRO",
+        "sail": "10",
+        "name": "Bura"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b2",
+        "nat": "ITA",
+        "sail": "17",
+        "name": "Jugo"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b3",
+        "nat": "SLO",
+        "sail": "24",
+        "name": "Maestral"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b4",
+        "nat": "AUT",
+        "sail": "31",
+        "name": "Tramontana"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b5",
+        "nat": "GER",
+        "sail": "38",
+        "name": "Levant"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b6",
+        "nat": "HUN",
+        "sail": "45",
+        "name": "Pulenat"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b7",
+        "nat": "CRO",
+        "sail": "52",
+        "name": "Garbin"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b8",
+        "nat": "ITA",
+        "sail": "59",
+        "name": "Oštro"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b9",
+        "nat": "SLO",
+        "sail": "66",
+        "name": "Lebić"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b10",
+        "nat": "AUT",
+        "sail": "73",
+        "name": "Burin"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b11",
+        "nat": "GER",
+        "sail": "80",
+        "name": "Neverin"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b12",
+        "nat": "HUN",
+        "sail": "87",
+        "name": "Fortunal"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b13",
+        "nat": "CRO",
+        "sail": "94",
+        "name": "Šilok"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b14",
+        "nat": "ITA",
+        "sail": "101",
+        "name": "Zefir"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b15",
+        "nat": "SLO",
+        "sail": "108",
+        "name": "Bonaca"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b16",
+        "nat": "AUT",
+        "sail": "115",
+        "name": "Kosac"
+      }
+    },
+    {
+      "type": "heatsCreated",
+      "heatCount": 2
+    },
+    {
+      "type": "raceScored",
+      "heat": "A1",
+      "lines": [
+        {
+          "boat": "b11"
+        },
+        {
+          "boat": "b6"
+        },
+        {
+          "boat": "b1"
+        },
+        {
+          "boat": "b15"
+        },
+        {
+          "boat": "b14"
+        },
+        {
+          "boat": "b7"
+        },
+        {
+          "boat": "b4"
+        },
+        {
+          "boat": "b8"
+        }
+      ]
+    },
+    {
+      "type": "raceScored",
+      "heat": "B1",
+      "lines": [
+        {
+          "boat": "b5"
+        },
+        {
+          "boat": "b12"
+        },
+        {
+          "boat": "b16"
+        },
+        {
+          "boat": "b10"
+        },
+        {
+          "boat": "b9"
+        },
+        {
+          "boat": "b2"
+        },
+        {
+          "boat": "b13"
+        },
+        {
+          "boat": "b3"
+        }
+      ]
+    },
+    {
+      "type": "roundCreated"
+    },
+    {
+      "type": "raceScored",
+      "heat": "A2",
+      "lines": [
+        {
+          "boat": "b11"
+        },
+        {
+          "boat": "b12"
+        },
+        {
+          "boat": "b2"
+        },
+        {
+          "boat": "b1"
+        },
+        {
+          "boat": "b3"
+        },
+        {
+          "boat": "b10"
+        },
+        {
+          "boat": "b14"
+        },
+        {
+          "boat": "b4"
+        }
+      ]
+    },
+    {
+      "type": "raceScored",
+      "heat": "B2",
+      "lines": [
+        {
+          "boat": "b13"
+        },
+        {
+          "boat": "b9"
+        },
+        {
+          "boat": "b16"
+        },
+        {
+          "boat": "b7"
+        },
+        {
+          "boat": "b6"
+        },
+        {
+          "boat": "b15"
+        },
+        {
+          "boat": "b5"
+        },
+        {
+          "boat": "b8"
+        }
+      ]
+    },
+    {
+      "type": "roundCreated"
+    },
+    {
+      "type": "raceScored",
+      "heat": "A3",
+      "lines": [
+        {
+          "boat": "b8"
+        },
+        {
+          "boat": "b2"
+        },
+        {
+          "boat": "b9"
+        },
+        {
+          "boat": "b7"
+        },
+        {
+          "boat": "b15"
+        },
+        {
+          "boat": "b11"
+        },
+        {
+          "boat": "b14"
+        },
+        {
+          "boat": "b3"
+        }
+      ]
+    },
+    {
+      "type": "raceScored",
+      "heat": "B3",
+      "lines": [
+        {
+          "boat": "b12"
+        },
+        {
+          "boat": "b10"
+        },
+        {
+          "boat": "b4"
+        },
+        {
+          "boat": "b6"
+        },
+        {
+          "boat": "b1"
+        },
+        {
+          "boat": "b16"
+        },
+        {
+          "boat": "b5"
+        },
+        {
+          "boat": "b13"
+        }
+      ]
+    },
+    {
+      "type": "roundCreated"
+    },
+    {
+      "type": "raceScored",
+      "heat": "A4",
+      "lines": [
+        {
+          "boat": "b15"
+        },
+        {
+          "boat": "b13"
+        },
+        {
+          "boat": "b10"
+        },
+        {
+          "boat": "b8"
+        },
+        {
+          "boat": "b14"
+        },
+        {
+          "boat": "b16"
+        },
+        {
+          "boat": "b9"
+        },
+        {
+          "boat": "b6"
+        }
+      ]
+    },
+    {
+      "type": "raceScored",
+      "heat": "B4",
+      "lines": [
+        {
+          "boat": "b12"
+        },
+        {
+          "boat": "b5"
+        },
+        {
+          "boat": "b2"
+        },
+        {
+          "boat": "b7"
+        },
+        {
+          "boat": "b4"
+        },
+        {
+          "boat": "b11"
+        },
+        {
+          "boat": "b3"
+        },
+        {
+          "boat": "b1"
+        }
+      ]
+    },
+    {
+      "type": "protestDecided",
+      "race": {
+        "heat": "B2",
+        "race": 1
+      },
+      "boat": "b16",
+      "outcome": {
+        "kind": "DSQ"
+      }
+    },
+    {
+      "type": "finalSeriesStarted"
+    },
+    {
+      "type": "raceScored",
+      "heat": "Gold",
+      "lines": [
+        {
+          "boat": "b5",
+          "code": "OCS"
+        },
+        {
+          "boat": "b13"
+        },
+        {
+          "boat": "b11"
+        },
+        {
+          "boat": "b9"
+        },
+        {
+          "boat": "b15"
+        },
+        {
+          "boat": "b12"
+        },
+        {
+          "boat": "b10"
+        },
+        {
+          "boat": "b2"
+        }
+      ]
+    },
+    {
+      "type": "raceScored",
+      "heat": "Silver",
+      "lines": [
+        {
+          "boat": "b4"
+        },
+        {
+          "boat": "b6"
+        },
+        {
+          "boat": "b16"
+        },
+        {
+          "boat": "b8"
+        },
+        {
+          "boat": "b3"
+        },
+        {
+          "boat": "b7"
+        },
+        {
+          "boat": "b1"
+        },
+        {
+          "boat": "b14"
+        }
+      ]
+    },
+    {
+      "type": "raceScored",
+      "heat": "Gold",
+      "lines": [
+        {
+          "boat": "b15"
+        },
+        {
+          "boat": "b9"
+        },
+        {
+          "boat": "b10"
+        },
+        {
+          "boat": "b2"
+        },
+        {
+          "boat": "b11"
+        },
+        {
+          "boat": "b13"
+        },
+        {
+          "boat": "b12"
+        },
+        {
+          "boat": "b5"
+        }
+      ]
+    },
+    {
+      "type": "raceScored",
+      "heat": "Silver",
+      "lines": [
+        {
+          "boat": "b6"
+        },
+        {
+          "boat": "b1"
+        },
+        {
+          "boat": "b8"
+        },
+        {
+          "boat": "b4"
+        },
+        {
+          "boat": "b3"
+        },
+        {
+          "boat": "b7"
+        },
+        {
+          "boat": "b14"
+        },
+        {
+          "boat": "b16"
+        }
+      ]
+    },
+    {
+      "type": "raceScored",
+      "heat": "Gold",
+      "lines": [
+        {
+          "boat": "b12"
+        },
+        {
+          "boat": "b13"
+        },
+        {
+          "boat": "b11"
+        },
+        {
+          "boat": "b5"
+        },
+        {
+          "boat": "b2"
+        },
+        {
+          "boat": "b9"
+        },
+        {
+          "boat": "b15"
+        },
+        {
+          "boat": "b10"
+        }
+      ]
+    },
+    {
+      "type": "raceScored",
+      "heat": "Silver",
+      "lines": [
+        {
+          "boat": "b7"
+        },
+        {
+          "boat": "b6"
+        },
+        {
+          "boat": "b16"
+        },
+        {
+          "boat": "b4"
+        },
+        {
+          "boat": "b14"
+        },
+        {
+          "boat": "b1"
+        },
+        {
+          "boat": "b8"
+        },
+        {
+          "boat": "b3"
+        }
+      ]
+    }
+  ]
+}

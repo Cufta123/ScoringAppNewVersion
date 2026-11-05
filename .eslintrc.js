@@ -38,8 +38,14 @@ module.exports = {
   overrides: [
     {
       // packages/regatta-core is a standalone library: decisions in, results
-      // out. It must not import the app, the database or any runtime.
+      // out. It must not import the app, the database or any runtime. Its
+      // command line, scripts and tests run on Node (next override).
       files: ['packages/regatta-core/**/*.ts'],
+      excludedFiles: [
+        'packages/regatta-core/src/cli.ts',
+        'packages/regatta-core/scripts/**',
+        'packages/regatta-core/test/**',
+      ],
       rules: {
         'no-restricted-imports': [
           'error',
@@ -65,6 +71,33 @@ module.exports = {
                   'path',
                 ],
                 message: 'regatta-core runs anywhere: no runtime APIs.',
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      // regatta-core's command line, scripts and tests may use Node, but
+      // still not the app: the library is checked on its own.
+      files: [
+        'packages/regatta-core/src/cli.ts',
+        'packages/regatta-core/scripts/**/*.ts',
+        'packages/regatta-core/test/**/*.ts',
+      ],
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          {
+            patterns: [
+              {
+                group: [
+                  '**/src/main/**',
+                  '**/src/renderer/**',
+                  '**/src/shared/**',
+                  '**/public/**',
+                ],
+                message: 'regatta-core stands alone; pass data in instead.',
               },
             ],
           },

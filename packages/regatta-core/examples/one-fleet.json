@@ -1,0 +1,246 @@
+{
+  "$schema": "../schema/event.schema.json",
+  "name": "Club race, one fleet",
+  "decisions": [
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b1",
+        "nat": "CRO",
+        "sail": "10",
+        "name": "Bura"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b2",
+        "nat": "ITA",
+        "sail": "17",
+        "name": "Jugo"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b3",
+        "nat": "SLO",
+        "sail": "24",
+        "name": "Maestral"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b4",
+        "nat": "AUT",
+        "sail": "31",
+        "name": "Tramontana"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b5",
+        "nat": "GER",
+        "sail": "38",
+        "name": "Levant"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b6",
+        "nat": "HUN",
+        "sail": "45",
+        "name": "Pulenat"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b7",
+        "nat": "CRO",
+        "sail": "52",
+        "name": "Garbin"
+      }
+    },
+    {
+      "type": "boatEntered",
+      "boat": {
+        "id": "b8",
+        "nat": "ITA",
+        "sail": "59",
+        "name": "Oštro"
+      }
+    },
+    {
+      "type": "heatsCreated",
+      "heatCount": 1
+    },
+    {
+      "type": "raceScored",
+      "heat": "A1",
+      "lines": [
+        {
+          "boat": "b4"
+        },
+        {
+          "boat": "b2"
+        },
+        {
+          "boat": "b1"
+        },
+        {
+          "boat": "b8"
+        },
+        {
+          "boat": "b3"
+        },
+        {
+          "boat": "b5"
+        },
+        {
+          "boat": "b7"
+        },
+        {
+          "boat": "b6"
+        }
+      ]
+    },
+    {
+      "type": "raceScored",
+      "heat": "A1",
+      "lines": [
+        {
+          "boat": "b6"
+        },
+        {
+          "boat": "b5"
+        },
+        {
+          "boat": "b7"
+        },
+        {
+          "boat": "b8",
+          "tied": true
+        },
+        {
+          "boat": "b1"
+        },
+        {
+          "boat": "b2"
+        },
+        {
+          "boat": "b4"
+        },
+        {
+          "boat": "b3"
+        }
+      ]
+    },
+    {
+      "type": "raceScored",
+      "heat": "A1",
+      "lines": [
+        {
+          "boat": "b2"
+        },
+        {
+          "boat": "b1",
+          "penalty": "ZFP"
+        },
+        {
+          "boat": "b7"
+        },
+        {
+          "boat": "b6"
+        },
+        {
+          "boat": "b3"
+        },
+        {
+          "boat": "b8"
+        },
+        {
+          "boat": "b4"
+        },
+        {
+          "boat": "b5"
+        }
+      ]
+    },
+    {
+      "type": "raceScored",
+      "heat": "A1",
+      "lines": [
+        {
+          "boat": "b2"
+        },
+        {
+          "boat": "b8"
+        },
+        {
+          "boat": "b3"
+        },
+        {
+          "boat": "b5"
+        },
+        {
+          "boat": "b1"
+        },
+        {
+          "boat": "b7"
+        },
+        {
+          "boat": "b6"
+        },
+        {
+          "boat": "b4",
+          "code": "DNF"
+        }
+      ]
+    },
+    {
+      "type": "raceScored",
+      "heat": "A1",
+      "lines": [
+        {
+          "boat": "b8"
+        },
+        {
+          "boat": "b3"
+        },
+        {
+          "boat": "b7"
+        },
+        {
+          "boat": "b2"
+        },
+        {
+          "boat": "b5"
+        },
+        {
+          "boat": "b6"
+        },
+        {
+          "boat": "b4"
+        },
+        {
+          "boat": "b1"
+        }
+      ]
+    },
+    {
+      "type": "protestDecided",
+      "race": {
+        "heat": "A1",
+        "race": 4
+      },
+      "boat": "b2",
+      "outcome": {
+        "kind": "RDG1"
+      }
+    }
+  ]
+}

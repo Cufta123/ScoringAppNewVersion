@@ -1,0 +1,460 @@
+{
+  "title": "regatta-core event file",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/EventFile",
+  "definitions": {
+    "EventFile": {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string",
+          "description": "Optional link to `schema/event.schema.json`, for editors."
+        },
+        "name": {
+          "type": "string",
+          "description": "A name for the event; copied to the results."
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Decision"
+          }
+        }
+      },
+      "required": ["decisions"],
+      "additionalProperties": false,
+      "description": "An event file: the event's decision log, oldest first."
+    },
+    "Decision": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "settingsChanged"
+            },
+            "settings": {
+              "type": "object",
+              "properties": {
+                "qualifyingMode": {
+                  "$ref": "#/definitions/QualifyingMode"
+                },
+                "discards": {
+                  "type": "object",
+                  "properties": {
+                    "qualifying": {
+                      "$ref": "#/definitions/DiscardProfile"
+                    },
+                    "final": {
+                      "$ref": "#/definitions/DiscardProfile"
+                    }
+                  },
+                  "required": ["qualifying", "final"],
+                  "additionalProperties": false
+                },
+                "finalOverflow": {
+                  "type": "string",
+                  "enum": ["add-fleets", "allow-oversize"],
+                  "description": "Final fleets over 20 boats (SHRS 2.3): add fleets, or keep the fleet count and accept the oversize fleets."
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": ["type", "settings"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "boatEntered"
+            },
+            "boat": {
+              "$ref": "#/definitions/Boat"
+            }
+          },
+          "required": ["type", "boat"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "boatRemoved"
+            },
+            "boat": {
+              "$ref": "#/definitions/BoatId"
+            }
+          },
+          "required": ["type", "boat"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "heatsCreated"
+            },
+            "heatCount": {
+              "type": "number"
+            },
+            "seeding": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/BoatId"
+              }
+            }
+          },
+          "required": ["type", "heatCount"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "boatAssigned"
+            },
+            "boat": {
+              "$ref": "#/definitions/BoatId"
+            },
+            "heat": {
+              "$ref": "#/definitions/HeatId"
+            }
+          },
+          "required": ["type", "boat", "heat"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "raceScored"
+            },
+            "heat": {
+              "$ref": "#/definitions/HeatId"
+            },
+            "lines": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/RaceLine"
+              }
+            }
+          },
+          "required": ["type", "heat", "lines"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "raceCorrected"
+            },
+            "race": {
+              "$ref": "#/definitions/RaceRef"
+            },
+            "lines": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/RaceLine"
+              }
+            }
+          },
+          "required": ["type", "race", "lines"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "protestDecided"
+            },
+            "race": {
+              "$ref": "#/definitions/RaceRef"
+            },
+            "boat": {
+              "$ref": "#/definitions/BoatId"
+            },
+            "outcome": {
+              "$ref": "#/definitions/ProtestOutcome"
+            }
+          },
+          "required": ["type", "race", "boat", "outcome"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "roundCreated"
+            }
+          },
+          "required": ["type"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "finalSeriesStarted"
+            },
+            "rule43": {
+              "type": "boolean",
+              "description": "SHRS 4.3 for the fleet split; on unless the SI say otherwise."
+            }
+          },
+          "required": ["type"],
+          "additionalProperties": false
+        }
+      ],
+      "description": "Everything that can happen to an event. The log is the event: to undo a decision, take it out of the log and replay."
+    },
+    "QualifyingMode": {
+      "type": "string",
+      "enum": ["progressive", "pre-assigned"]
+    },
+    "DiscardProfile": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "standard"
+            }
+          },
+          "required": ["kind"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "custom"
+            },
+            "first": {
+              "type": "number"
+            },
+            "second": {
+              "type": "number"
+            },
+            "every": {
+              "type": "number"
+            }
+          },
+          "required": ["kind", "first", "second", "every"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "thresholds"
+            },
+            "at": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          "required": ["kind", "at"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "none"
+            }
+          },
+          "required": ["kind"],
+          "additionalProperties": false
+        }
+      ],
+      "description": "SHRS 5.4 as published, or as the race committee changed it."
+    },
+    "Boat": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/BoatId"
+        },
+        "nat": {
+          "type": "string",
+          "description": "National letters (\"CRO\"); SHRS 3 / 5.3 order boats by them first."
+        },
+        "sail": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "nat", "sail"],
+      "additionalProperties": false
+    },
+    "BoatId": {
+      "type": "string",
+      "description": "The library's vocabulary. Everything here is plain data (JSON in, JSON out), so an event can be saved, sent and replayed anywhere.\n\nThe one input is the event's DECISION LOG: what the race office and the protest committee decided, in order. Every heat, score and standing is worked out from it; nothing derived is ever stored."
+    },
+    "HeatId": {
+      "type": "string",
+      "description": "A heat is \"A1\", \"B3\" (qualifying group + round) or \"Gold\" (final fleet)."
+    },
+    "RaceLine": {
+      "type": "object",
+      "properties": {
+        "boat": {
+          "$ref": "#/definitions/BoatId"
+        },
+        "code": {
+          "$ref": "#/definitions/NoPlaceCode",
+          "description": "No finishing place."
+        },
+        "penalty": {
+          "$ref": "#/definitions/PenaltyCode",
+          "description": "Finished, with a scoring penalty that keeps her place."
+        },
+        "tied": {
+          "type": "boolean",
+          "description": "Finished level with the finisher listed directly above (RRS A7)."
+        }
+      },
+      "required": ["boat"],
+      "additionalProperties": false,
+      "description": "One boat's line on the race office's result sheet. The sheet lists the finishers in finishing order; boats with a `code` have no place and can be anywhere in the list."
+    },
+    "NoPlaceCode": {
+      "type": "string",
+      "enum": [
+        "DNF",
+        "RET",
+        "NSC",
+        "OCS",
+        "DNS",
+        "DNC",
+        "WTH",
+        "UFD",
+        "BFD",
+        "DSQ",
+        "DNE",
+        "DGM"
+      ]
+    },
+    "PenaltyCode": {
+      "type": "string",
+      "enum": ["ZFP", "SCP", "T1"]
+    },
+    "RaceRef": {
+      "type": "object",
+      "properties": {
+        "heat": {
+          "$ref": "#/definitions/HeatId"
+        },
+        "race": {
+          "type": "number"
+        }
+      },
+      "required": ["heat", "race"],
+      "additionalProperties": false,
+      "description": "A race is the n-th race a heat sails."
+    },
+    "ProtestOutcome": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": ["DSQ", "DNE", "DGM"]
+            }
+          },
+          "required": ["kind"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "DPI"
+            },
+            "points": {
+              "type": "number"
+            }
+          },
+          "required": ["kind", "points"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "RDG1"
+            }
+          },
+          "required": ["kind"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "RDG2"
+            },
+            "races": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/RaceRef"
+              }
+            }
+          },
+          "required": ["kind", "races"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "RDG3"
+            },
+            "points": {
+              "type": "number"
+            }
+          },
+          "required": ["kind", "points"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "cleared"
+            }
+          },
+          "required": ["kind"],
+          "additionalProperties": false
+        }
+      ],
+      "description": "What a protest committee decided about one boat in one race."
+    }
+  }
+}

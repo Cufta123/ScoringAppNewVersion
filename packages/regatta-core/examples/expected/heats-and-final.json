@@ -1,0 +1,1562 @@
+{
+  "name": "Two heats and a Final Series",
+  "settings": {
+    "qualifyingMode": "progressive",
+    "discards": {
+      "qualifying": {
+        "kind": "standard"
+      },
+      "final": {
+        "kind": "standard"
+      }
+    },
+    "finalOverflow": "add-fleets"
+  },
+  "boats": [
+    {
+      "id": "b1",
+      "nat": "CRO",
+      "sail": "10",
+      "name": "Bura"
+    },
+    {
+      "id": "b2",
+      "nat": "ITA",
+      "sail": "17",
+      "name": "Jugo"
+    },
+    {
+      "id": "b3",
+      "nat": "SLO",
+      "sail": "24",
+      "name": "Maestral"
+    },
+    {
+      "id": "b4",
+      "nat": "AUT",
+      "sail": "31",
+      "name": "Tramontana"
+    },
+    {
+      "id": "b5",
+      "nat": "GER",
+      "sail": "38",
+      "name": "Levant"
+    },
+    {
+      "id": "b6",
+      "nat": "HUN",
+      "sail": "45",
+      "name": "Pulenat"
+    },
+    {
+      "id": "b7",
+      "nat": "CRO",
+      "sail": "52",
+      "name": "Garbin"
+    },
+    {
+      "id": "b8",
+      "nat": "ITA",
+      "sail": "59",
+      "name": "Oštro"
+    },
+    {
+      "id": "b9",
+      "nat": "SLO",
+      "sail": "66",
+      "name": "Lebić"
+    },
+    {
+      "id": "b10",
+      "nat": "AUT",
+      "sail": "73",
+      "name": "Burin"
+    },
+    {
+      "id": "b11",
+      "nat": "GER",
+      "sail": "80",
+      "name": "Neverin"
+    },
+    {
+      "id": "b12",
+      "nat": "HUN",
+      "sail": "87",
+      "name": "Fortunal"
+    },
+    {
+      "id": "b13",
+      "nat": "CRO",
+      "sail": "94",
+      "name": "Šilok"
+    },
+    {
+      "id": "b14",
+      "nat": "ITA",
+      "sail": "101",
+      "name": "Zefir"
+    },
+    {
+      "id": "b15",
+      "nat": "SLO",
+      "sail": "108",
+      "name": "Bonaca"
+    },
+    {
+      "id": "b16",
+      "nat": "AUT",
+      "sail": "115",
+      "name": "Kosac"
+    }
+  ],
+  "rounds": [
+    [
+      {
+        "id": "A1",
+        "boats": ["b4", "b1", "b7", "b11", "b6", "b8", "b14", "b15"],
+        "races": 1
+      },
+      {
+        "id": "B1",
+        "boats": ["b10", "b16", "b13", "b5", "b12", "b2", "b3", "b9"],
+        "races": 1
+      }
+    ],
+    [
+      {
+        "id": "A2",
+        "boats": ["b11", "b1", "b14", "b4", "b12", "b10", "b2", "b3"],
+        "races": 1
+      },
+      {
+        "id": "B2",
+        "boats": ["b6", "b15", "b7", "b8", "b5", "b16", "b9", "b13"],
+        "races": 1
+      }
+    ],
+    [
+      {
+        "id": "A3",
+        "boats": ["b11", "b2", "b3", "b14", "b9", "b7", "b15", "b8"],
+        "races": 1
+      },
+      {
+        "id": "B3",
+        "boats": ["b12", "b1", "b10", "b4", "b13", "b16", "b6", "b5"],
+        "races": 1
+      }
+    ],
+    [
+      {
+        "id": "A4",
+        "boats": ["b8", "b9", "b15", "b14", "b10", "b6", "b16", "b13"],
+        "races": 1
+      },
+      {
+        "id": "B4",
+        "boats": ["b2", "b7", "b11", "b3", "b12", "b4", "b1", "b5"],
+        "races": 1
+      }
+    ]
+  ],
+  "fleets": [
+    {
+      "id": "Gold",
+      "boats": ["b12", "b11", "b2", "b5", "b10", "b13", "b15", "b9"],
+      "races": 3
+    },
+    {
+      "id": "Silver",
+      "boats": ["b6", "b7", "b1", "b8", "b4", "b16", "b14", "b3"],
+      "races": 3
+    }
+  ],
+  "nextStep": {
+    "kind": "score",
+    "heat": "Gold",
+    "race": 4
+  },
+  "qualifying": {
+    "completedRaces": 4,
+    "standings": [
+      {
+        "boat": "b12",
+        "place": 1,
+        "total": 4,
+        "scores": [
+          {
+            "heat": "B1",
+            "race": 1,
+            "round": 1,
+            "raceNumber": 1,
+            "place": 2,
+            "points": 2,
+            "excluded": true
+          },
+          {
+            "heat": "A2",
+            "race": 1,
+            "round": 2,
+            "raceNumber": 1,
+            "place": 2,
+            "points": 2,
+            "excluded": false
+          },
+          {
+            "heat": "B3",
+            "race": 1,
+            "round": 3,
+            "raceNumber": 1,
+            "place": 1,
+            "points": 1,
+            "excluded": false
+          },
+          {
+            "heat": "B4",
+            "race": 1,
+            "round": 4,
+            "raceNumber": 1,
+            "place": 1,
+            "points": 1,
+            "excluded": false
+          }
+        ]
+      },
+      {
+        "boat": "b11",
+        "place": 2,
+        "total": 8,
+        "scores": [
+          {
+            "heat": "A1",
+            "race": 1,
+            "round": 1,
+            "raceNumber": 1,
+            "place": 1,
+            "points": 1,
+            "excluded": false
+          },
+          {
+            "heat": "A2",
+            "race": 1,
+            "round": 2,
+            "raceNumber": 1,
+            "place": 1,
+            "points": 1,
+            "excluded": false
+          },
+          {
+            "heat": "A3",
+            "race": 1,
+            "round": 3,
+            "raceNumber": 1,
+            "place": 6,
+            "points": 6,
+            "excluded": true
+          },
+          {
+            "heat": "B4",
+            "race": 1,
+            "round": 4,
+            "raceNumber": 1,
+            "place": 6,
+            "points": 6,
+            "excluded": false
+          }
+        ]
+      },
+      {
+        "boat": "b2",
+        "place": 3,
+        "total": 8,
+        "scores": [
+          {
+            "heat": "B1",
+            "race": 1,
+            "round": 1,
+            "raceNumber": 1,
+            "place": 6,
+            "points": 6,
+            "excluded": true
+          },
+          {
+            "heat": "A2",
+            "race": 1,
+            "round": 2,
+            "raceNumber": 1,
+            "place": 3,
+            "points": 3,
+            "excluded": false
+          },
+          {
+            "heat": "A3",
+            "race": 1,
+            "round": 3,
+            "raceNumber": 1,
+            "place": 2,
+            "points": 2,
+            "excluded": false
+          },
+          {
+            "heat": "B4",
+            "race": 1,
+            "round": 4,
+            "raceNumber": 1,
+            "place": 3,
+            "points": 3,
+            "excluded": false
+          }
+        ]
+      },
+      {
+        "boat": "b5",
+        "place": 4,
+        "total": 9,
+        "scores": [
+          {
+            "heat": "B1",
+            "race": 1,
+            "round": 1,
+            "raceNumber": 1,
+            "place": 1,
+            "points": 1,
+            "excluded": false
+          },
+          {
+            "heat": "B2",
+            "race": 1,
+            "round": 2,
+            "raceNumber": 1,
+            "place": 6,
+            "points": 6,
+            "excluded": false
+          },
+          {
+            "heat": "B3",
+            "race": 1,
+            "round": 3,
+            "raceNumber": 1,
+            "place": 7,
+            "points": 7,
+            "excluded": true
+          },
+          {
+            "heat": "B4",
+            "race": 1,
+            "round": 4,
+            "raceNumber": 1,
+            "place": 2,
+            "points": 2,
+            "excluded": false
+          }
+        ]
+      },
+      {
+        "boat": "b10",
+        "place": 5,
+        "total": 9,
+        "scores": [
+          {
+            "heat": "B1",
+            "race": 1,
+            "round": 1,
+            "raceNumber": 1,
+            "place": 4,
+            "points": 4,
+            "excluded": false
+          },
+          {
+            "heat": "A2",
+            "race": 1,
+            "round": 2,
+            "raceNumber": 1,
+            "place": 6,
+            "points": 6,
+            "excluded": true
+          },
+          {
+            "heat": "B3",
+            "race": 1,
+            "round": 3,
+            "raceNumber": 1,
+            "place": 2,
+            "points": 2,
+            "excluded": false
+          },
+          {
+            "heat": "A4",
+            "race": 1,
+            "round": 4,
+            "raceNumber": 1,
+            "place": 3,
+            "points": 3,
+            "excluded": false
+          }
+        ]
+      },
+      {
+        "boat": "b13",
+        "place": 6,
+        "total": 10,
+        "scores": [
+          {
+            "heat": "B1",
+            "race": 1,
+            "round": 1,
+            "raceNumber": 1,
+            "place": 7,
+            "points": 7,
+            "excluded": false
+          },
+          {
+            "heat": "B2",
+            "race": 1,
+            "round": 2,
+            "raceNumber": 1,
+            "place": 1,
+            "points": 1,
+            "excluded": false
+          },
+          {
+            "heat": "B3",
+            "race": 1,
+            "round": 3,
+            "raceNumber": 1,
+            "place": 8,
+            "points": 8,
+            "excluded": true
+          },
+          {
+            "heat": "A4",
+            "race": 1,
+            "round": 4,
+            "raceNumber": 1,
+            "place": 2,
+            "points": 2,
+            "excluded": false
+          }
+        ]
+      },
+      {
+        "boat": "b15",
+        "place": 7,
+        "total": 10,
+        "scores": [
+          {
+            "heat": "A1",
+            "race": 1,
+            "round": 1,
+            "raceNumber": 1,
+            "place": 4,
+            "points": 4,
+            "excluded": false
+          },
+          {
+            "heat": "B2",
+            "race": 1,
+            "round": 2,
+            "raceNumber": 1,
+            "place": 5,
+            "points": 5,
+            "excluded": true
+          },
+          {
+            "heat": "A3",
+            "race": 1,
+            "round": 3,
+            "raceNumber": 1,
+            "place": 5,
+            "points": 5,
+            "excluded": false
+          },
+          {
+            "heat": "A4",
+            "race": 1,
+            "round": 4,
+            "raceNumber": 1,
+            "place": 1,
+            "points": 1,
+            "excluded": false
+          }
+        ]
+      },
+      {
+        "boat": "b9",
+        "place": 8,
+        "total": 10,
+        "scores": [
+          {
+            "heat": "B1",
+            "race": 1,
+            "round": 1,
+            "raceNumber": 1,
+            "place": 5,
+            "points": 5,
+            "excluded": false
+          },
+          {
+            "heat": "B2",
+            "race": 1,
+            "round": 2,
+            "raceNumber": 1,
+            "place": 2,
+            "points": 2,
+            "excluded": false
+          },
+          {
+            "heat": "A3",
+            "race": 1,
+            "round": 3,
+            "raceNumber": 1,
+            "place": 3,
+            "points": 3,
+            "excluded": false
+          },
+          {
+            "heat": "A4",
+            "race": 1,
+            "round": 4,
+            "raceNumber": 1,
+            "place": 7,
+            "points": 7,
+            "excluded": true
+          }
+        ]
+      },
+      {
+        "boat": "b6",
+        "place": 9,
+        "total": 10,
+        "scores": [
+          {
+            "heat": "A1",
+            "race": 1,
+            "round": 1,
+            "raceNumber": 1,
+            "place": 2,
+            "points": 2,
+            "excluded": false
+          },
+          {
+            "heat": "B2",
+            "race": 1,
+            "round": 2,
+            "raceNumber": 1,
+            "place": 4,
+            "points": 4,
+            "excluded": false
+          },
+          {
+            "heat": "B3",
+            "race": 1,
+            "round": 3,
+            "raceNumber": 1,
+            "place": 4,
+            "points": 4,
+            "excluded": false
+          },
+          {
+            "heat": "A4",
+            "race": 1,
+            "round": 4,
+            "raceNumber": 1,
+            "place": 8,
+            "points": 8,
+            "excluded": true
+          }
+        ]
+      },
+      {
+        "boat": "b7",
+        "place": 10,
+        "total": 11,
+        "scores": [
+          {
+            "heat": "A1",
+            "race": 1,
+            "round": 1,
+            "raceNumber": 1,
+            "place": 6,
+            "points": 6,
+            "excluded": true
+          },
+          {
+            "heat": "B2",
+            "race": 1,
+            "round": 2,
+            "raceNumber": 1,
+            "place": 3,
+            "points": 3,
+            "excluded": false
+          },
+          {
+            "heat": "A3",
+            "race": 1,
+            "round": 3,
+            "raceNumber": 1,
+            "place": 4,
+            "points": 4,
+            "excluded": false
+          },
+          {
+            "heat": "B4",
+            "race": 1,
+            "round": 4,
+            "raceNumber": 1,
+            "place": 4,
+            "points": 4,
+            "excluded": false
+          }
+        ]
+      },
+      {
+        "boat": "b1",
+        "place": 11,
+        "total": 12,
+        "scores": [
+          {
+            "heat": "A1",
+            "race": 1,
+            "round": 1,
+            "raceNumber": 1,
+            "place": 3,
+            "points": 3,
+            "excluded": false
+          },
+          {
+            "heat": "A2",
+            "race": 1,
+            "round": 2,
+            "raceNumber": 1,
+            "place": 4,
+            "points": 4,
+            "excluded": false
+          },
+          {
+            "heat": "B3",
+            "race": 1,
+            "round": 3,
+            "raceNumber": 1,
+            "place": 5,
+            "points": 5,
+            "excluded": false
+          },
+          {
+            "heat": "B4",
+            "race": 1,
+            "round": 4,
+            "raceNumber": 1,
+            "place": 8,
+            "points": 8,
+            "excluded": true
+          }
+        ]
+      },
+      {
+        "boat": "b8",
+        "place": 12,
+        "total": 12,
+        "scores": [
+          {
+            "heat": "A1",
+            "race": 1,
+            "round": 1,
+            "raceNumber": 1,
+            "place": 8,
+            "points": 8,
+            "excluded": true
+          },
+          {
+            "heat": "B2",
+            "race": 1,
+            "round": 2,
+            "raceNumber": 1,
+            "place": 7,
+            "points": 7,
+            "excluded": false
+          },
+          {
+            "heat": "A3",
+            "race": 1,
+            "round": 3,
+            "raceNumber": 1,
+            "place": 1,
+            "points": 1,
+            "excluded": false
+          },
+          {
+            "heat": "A4",
+            "race": 1,
+            "round": 4,
+            "raceNumber": 1,
+            "place": 4,
+            "points": 4,
+            "excluded": false
+          }
+        ]
+      },
+      {
+        "boat": "b4",
+        "place": 13,
+        "total": 15,
+        "scores": [
+          {
+            "heat": "A1",
+            "race": 1,
+            "round": 1,
+            "raceNumber": 1,
+            "place": 7,
+            "points": 7,
+            "excluded": false
+          },
+          {
+            "heat": "A2",
+            "race": 1,
+            "round": 2,
+            "raceNumber": 1,
+            "place": 8,
+            "points": 8,
+            "excluded": true
+          },
+          {
+            "heat": "B3",
+            "race": 1,
+            "round": 3,
+            "raceNumber": 1,
+            "place": 3,
+            "points": 3,
+            "excluded": false
+          },
+          {
+            "heat": "B4",
+            "race": 1,
+            "round": 4,
+            "raceNumber": 1,
+            "place": 5,
+            "points": 5,
+            "excluded": false
+          }
+        ]
+      },
+      {
+        "boat": "b16",
+        "place": 14,
+        "total": 15,
+        "scores": [
+          {
+            "heat": "B1",
+            "race": 1,
+            "round": 1,
+            "raceNumber": 1,
+            "place": 3,
+            "points": 3,
+            "excluded": false
+          },
+          {
+            "heat": "B2",
+            "race": 1,
+            "round": 2,
+            "raceNumber": 1,
+            "code": "DSQ",
+            "points": 9,
+            "excluded": true
+          },
+          {
+            "heat": "B3",
+            "race": 1,
+            "round": 3,
+            "raceNumber": 1,
+            "place": 6,
+            "points": 6,
+            "excluded": false
+          },
+          {
+            "heat": "A4",
+            "race": 1,
+            "round": 4,
+            "raceNumber": 1,
+            "place": 6,
+            "points": 6,
+            "excluded": false
+          }
+        ]
+      },
+      {
+        "boat": "b14",
+        "place": 15,
+        "total": 17,
+        "scores": [
+          {
+            "heat": "A1",
+            "race": 1,
+            "round": 1,
+            "raceNumber": 1,
+            "place": 5,
+            "points": 5,
+            "excluded": false
+          },
+          {
+            "heat": "A2",
+            "race": 1,
+            "round": 2,
+            "raceNumber": 1,
+            "place": 7,
+            "points": 7,
+            "excluded": true
+          },
+          {
+            "heat": "A3",
+            "race": 1,
+            "round": 3,
+            "raceNumber": 1,
+            "place": 7,
+            "points": 7,
+            "excluded": false
+          },
+          {
+            "heat": "A4",
+            "race": 1,
+            "round": 4,
+            "raceNumber": 1,
+            "place": 5,
+            "points": 5,
+            "excluded": false
+          }
+        ]
+      },
+      {
+        "boat": "b3",
+        "place": 16,
+        "total": 20,
+        "scores": [
+          {
+            "heat": "B1",
+            "race": 1,
+            "round": 1,
+            "raceNumber": 1,
+            "place": 8,
+            "points": 8,
+            "excluded": true
+          },
+          {
+            "heat": "A2",
+            "race": 1,
+            "round": 2,
+            "raceNumber": 1,
+            "place": 5,
+            "points": 5,
+            "excluded": false
+          },
+          {
+            "heat": "A3",
+            "race": 1,
+            "round": 3,
+            "raceNumber": 1,
+            "place": 8,
+            "points": 8,
+            "excluded": false
+          },
+          {
+            "heat": "B4",
+            "race": 1,
+            "round": 4,
+            "raceNumber": 1,
+            "place": 7,
+            "points": 7,
+            "excluded": false
+          }
+        ]
+      }
+    ],
+    "pending": {}
+  },
+  "final": [
+    {
+      "fleet": "Gold",
+      "races": 3,
+      "standings": [
+        {
+          "boat": "b13",
+          "place": 1,
+          "total": 9,
+          "scores": [
+            {
+              "heat": "Gold",
+              "race": 1,
+              "round": 0,
+              "raceNumber": 1,
+              "place": 1,
+              "points": 1,
+              "excluded": false
+            },
+            {
+              "heat": "Gold",
+              "race": 2,
+              "round": 0,
+              "raceNumber": 2,
+              "place": 6,
+              "points": 6,
+              "excluded": false
+            },
+            {
+              "heat": "Gold",
+              "race": 3,
+              "round": 0,
+              "raceNumber": 3,
+              "place": 2,
+              "points": 2,
+              "excluded": false
+            }
+          ]
+        },
+        {
+          "boat": "b11",
+          "place": 2,
+          "total": 10,
+          "scores": [
+            {
+              "heat": "Gold",
+              "race": 1,
+              "round": 0,
+              "raceNumber": 1,
+              "place": 2,
+              "points": 2,
+              "excluded": false
+            },
+            {
+              "heat": "Gold",
+              "race": 2,
+              "round": 0,
+              "raceNumber": 2,
+              "place": 5,
+              "points": 5,
+              "excluded": false
+            },
+            {
+              "heat": "Gold",
+              "race": 3,
+              "round": 0,
+              "raceNumber": 3,
+              "place": 3,
+              "points": 3,
+              "excluded": false
+            }
+          ]
+        },
+        {
+          "boat": "b9",
+          "place": 3,
+          "total": 11,
+          "scores": [
+            {
+              "heat": "Gold",
+              "race": 1,
+              "round": 0,
+              "raceNumber": 1,
+              "place": 3,
+              "points": 3,
+              "excluded": false
+            },
+            {
+              "heat": "Gold",
+              "race": 2,
+              "round": 0,
+              "raceNumber": 2,
+              "place": 2,
+              "points": 2,
+              "excluded": false
+            },
+            {
+              "heat": "Gold",
+              "race": 3,
+              "round": 0,
+              "raceNumber": 3,
+              "place": 6,
+              "points": 6,
+              "excluded": false
+            }
+          ]
+        },
+        {
+          "boat": "b15",
+          "place": 4,
+          "total": 12,
+          "scores": [
+            {
+              "heat": "Gold",
+              "race": 1,
+              "round": 0,
+              "raceNumber": 1,
+              "place": 4,
+              "points": 4,
+              "excluded": false
+            },
+            {
+              "heat": "Gold",
+              "race": 2,
+              "round": 0,
+              "raceNumber": 2,
+              "place": 1,
+              "points": 1,
+              "excluded": false
+            },
+            {
+              "heat": "Gold",
+              "race": 3,
+              "round": 0,
+              "raceNumber": 3,
+              "place": 7,
+              "points": 7,
+              "excluded": false
+            }
+          ]
+        },
+        {
+          "boat": "b12",
+          "place": 5,
+          "total": 13,
+          "scores": [
+            {
+              "heat": "Gold",
+              "race": 1,
+              "round": 0,
+              "raceNumber": 1,
+              "place": 5,
+              "points": 5,
+              "excluded": false
+            },
+            {
+              "heat": "Gold",
+              "race": 2,
+              "round": 0,
+              "raceNumber": 2,
+              "place": 7,
+              "points": 7,
+              "excluded": false
+            },
+            {
+              "heat": "Gold",
+              "race": 3,
+              "round": 0,
+              "raceNumber": 3,
+              "place": 1,
+              "points": 1,
+              "excluded": false
+            }
+          ]
+        },
+        {
+          "boat": "b2",
+          "place": 6,
+          "total": 16,
+          "scores": [
+            {
+              "heat": "Gold",
+              "race": 1,
+              "round": 0,
+              "raceNumber": 1,
+              "place": 7,
+              "points": 7,
+              "excluded": false
+            },
+            {
+              "heat": "Gold",
+              "race": 2,
+              "round": 0,
+              "raceNumber": 2,
+              "place": 4,
+              "points": 4,
+              "excluded": false
+            },
+            {
+              "heat": "Gold",
+              "race": 3,
+              "round": 0,
+              "raceNumber": 3,
+              "place": 5,
+              "points": 5,
+              "excluded": false
+            }
+          ]
+        },
+        {
+          "boat": "b10",
+          "place": 7,
+          "total": 17,
+          "scores": [
+            {
+              "heat": "Gold",
+              "race": 1,
+              "round": 0,
+              "raceNumber": 1,
+              "place": 6,
+              "points": 6,
+              "excluded": false
+            },
+            {
+              "heat": "Gold",
+              "race": 2,
+              "round": 0,
+              "raceNumber": 2,
+              "place": 3,
+              "points": 3,
+              "excluded": false
+            },
+            {
+              "heat": "Gold",
+              "race": 3,
+              "round": 0,
+              "raceNumber": 3,
+              "place": 8,
+              "points": 8,
+              "excluded": false
+            }
+          ]
+        },
+        {
+          "boat": "b5",
+          "place": 8,
+          "total": 21,
+          "scores": [
+            {
+              "heat": "Gold",
+              "race": 1,
+              "round": 0,
+              "raceNumber": 1,
+              "code": "OCS",
+              "points": 9,
+              "excluded": false
+            },
+            {
+              "heat": "Gold",
+              "race": 2,
+              "round": 0,
+              "raceNumber": 2,
+              "place": 8,
+              "points": 8,
+              "excluded": false
+            },
+            {
+              "heat": "Gold",
+              "race": 3,
+              "round": 0,
+              "raceNumber": 3,
+              "place": 4,
+              "points": 4,
+              "excluded": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fleet": "Silver",
+      "races": 3,
+      "standings": [
+        {
+          "boat": "b6",
+          "place": 1,
+          "total": 5,
+          "scores": [
+            {
+              "heat": "Silver",
+              "race": 1,
+              "round": 0,
+              "raceNumber": 1,
+              "place": 2,
+              "points": 2,
+              "excluded": false
+            },
+            {
+              "heat": "Silver",
+              "race": 2,
+              "round": 0,
+              "raceNumber": 2,
+              "place": 1,
+              "points": 1,
+              "excluded": false
+            },
+            {
+              "heat": "Silver",
+              "race": 3,
+              "round": 0,
+              "raceNumber": 3,
+              "place": 2,
+              "points": 2,
+              "excluded": false
+            }
+          ]
+        },
+        {
+          "boat": "b4",
+          "place": 2,
+          "total": 9,
+          "scores": [
+            {
+              "heat": "Silver",
+              "race": 1,
+              "round": 0,
+              "raceNumber": 1,
+              "place": 1,
+              "points": 1,
+              "excluded": false
+            },
+            {
+              "heat": "Silver",
+              "race": 2,
+              "round": 0,
+              "raceNumber": 2,
+              "place": 4,
+              "points": 4,
+              "excluded": false
+            },
+            {
+              "heat": "Silver",
+              "race": 3,
+              "round": 0,
+              "raceNumber": 3,
+              "place": 4,
+              "points": 4,
+              "excluded": false
+            }
+          ]
+        },
+        {
+          "boat": "b7",
+          "place": 3,
+          "total": 13,
+          "scores": [
+            {
+              "heat": "Silver",
+              "race": 1,
+              "round": 0,
+              "raceNumber": 1,
+              "place": 6,
+              "points": 6,
+              "excluded": false
+            },
+            {
+              "heat": "Silver",
+              "race": 2,
+              "round": 0,
+              "raceNumber": 2,
+              "place": 6,
+              "points": 6,
+              "excluded": false
+            },
+            {
+              "heat": "Silver",
+              "race": 3,
+              "round": 0,
+              "raceNumber": 3,
+              "place": 1,
+              "points": 1,
+              "excluded": false
+            }
+          ]
+        },
+        {
+          "boat": "b16",
+          "place": 4,
+          "total": 14,
+          "scores": [
+            {
+              "heat": "Silver",
+              "race": 1,
+              "round": 0,
+              "raceNumber": 1,
+              "place": 3,
+              "points": 3,
+              "excluded": false
+            },
+            {
+              "heat": "Silver",
+              "race": 2,
+              "round": 0,
+              "raceNumber": 2,
+              "place": 8,
+              "points": 8,
+              "excluded": false
+            },
+            {
+              "heat": "Silver",
+              "race": 3,
+              "round": 0,
+              "raceNumber": 3,
+              "place": 3,
+              "points": 3,
+              "excluded": false
+            }
+          ]
+        },
+        {
+          "boat": "b8",
+          "place": 5,
+          "total": 14,
+          "scores": [
+            {
+              "heat": "Silver",
+              "race": 1,
+              "round": 0,
+              "raceNumber": 1,
+              "place": 4,
+              "points": 4,
+              "excluded": false
+            },
+            {
+              "heat": "Silver",
+              "race": 2,
+              "round": 0,
+              "raceNumber": 2,
+              "place": 3,
+              "points": 3,
+              "excluded": false
+            },
+            {
+              "heat": "Silver",
+              "race": 3,
+              "round": 0,
+              "raceNumber": 3,
+              "place": 7,
+              "points": 7,
+              "excluded": false
+            }
+          ]
+        },
+        {
+          "boat": "b1",
+          "place": 6,
+          "total": 15,
+          "scores": [
+            {
+              "heat": "Silver",
+              "race": 1,
+              "round": 0,
+              "raceNumber": 1,
+              "place": 7,
+              "points": 7,
+              "excluded": false
+            },
+            {
+              "heat": "Silver",
+              "race": 2,
+              "round": 0,
+              "raceNumber": 2,
+              "place": 2,
+              "points": 2,
+              "excluded": false
+            },
+            {
+              "heat": "Silver",
+              "race": 3,
+              "round": 0,
+              "raceNumber": 3,
+              "place": 6,
+              "points": 6,
+              "excluded": false
+            }
+          ]
+        },
+        {
+          "boat": "b3",
+          "place": 7,
+          "total": 18,
+          "scores": [
+            {
+              "heat": "Silver",
+              "race": 1,
+              "round": 0,
+              "raceNumber": 1,
+              "place": 5,
+              "points": 5,
+              "excluded": false
+            },
+            {
+              "heat": "Silver",
+              "race": 2,
+              "round": 0,
+              "raceNumber": 2,
+              "place": 5,
+              "points": 5,
+              "excluded": false
+            },
+            {
+              "heat": "Silver",
+              "race": 3,
+              "round": 0,
+              "raceNumber": 3,
+              "place": 8,
+              "points": 8,
+              "excluded": false
+            }
+          ]
+        },
+        {
+          "boat": "b14",
+          "place": 8,
+          "total": 20,
+          "scores": [
+            {
+              "heat": "Silver",
+              "race": 1,
+              "round": 0,
+              "raceNumber": 1,
+              "place": 8,
+              "points": 8,
+              "excluded": false
+            },
+            {
+              "heat": "Silver",
+              "race": 2,
+              "round": 0,
+              "raceNumber": 2,
+              "place": 7,
+              "points": 7,
+              "excluded": false
+            },
+            {
+              "heat": "Silver",
+              "race": 3,
+              "round": 0,
+              "raceNumber": 3,
+              "place": 5,
+              "points": 5,
+              "excluded": false
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "overall": [
+    {
+      "boat": "b12",
+      "place": 1,
+      "fleet": "Gold",
+      "qualifying": 4,
+      "final": 13,
+      "total": 17
+    },
+    {
+      "boat": "b11",
+      "place": 2,
+      "fleet": "Gold",
+      "qualifying": 8,
+      "final": 10,
+      "total": 18
+    },
+    {
+      "boat": "b13",
+      "place": 3,
+      "fleet": "Gold",
+      "qualifying": 10,
+      "final": 9,
+      "total": 19
+    },
+    {
+      "boat": "b9",
+      "place": 4,
+      "fleet": "Gold",
+      "qualifying": 10,
+      "final": 11,
+      "total": 21
+    },
+    {
+      "boat": "b15",
+      "place": 5,
+      "fleet": "Gold",
+      "qualifying": 10,
+      "final": 12,
+      "total": 22
+    },
+    {
+      "boat": "b2",
+      "place": 6,
+      "fleet": "Gold",
+      "qualifying": 8,
+      "final": 16,
+      "total": 24
+    },
+    {
+      "boat": "b10",
+      "place": 7,
+      "fleet": "Gold",
+      "qualifying": 9,
+      "final": 17,
+      "total": 26
+    },
+    {
+      "boat": "b5",
+      "place": 8,
+      "fleet": "Gold",
+      "qualifying": 9,
+      "final": 21,
+      "total": 30
+    },
+    {
+      "boat": "b6",
+      "place": 9,
+      "fleet": "Silver",
+      "qualifying": 10,
+      "final": 5,
+      "total": 15
+    },
+    {
+      "boat": "b4",
+      "place": 10,
+      "fleet": "Silver",
+      "qualifying": 15,
+      "final": 9,
+      "total": 24
+    },
+    {
+      "boat": "b7",
+      "place": 11,
+      "fleet": "Silver",
+      "qualifying": 11,
+      "final": 13,
+      "total": 24
+    },
+    {
+      "boat": "b8",
+      "place": 12,
+      "fleet": "Silver",
+      "qualifying": 12,
+      "final": 14,
+      "total": 26
+    },
+    {
+      "boat": "b1",
+      "place": 13,
+      "fleet": "Silver",
+      "qualifying": 12,
+      "final": 15,
+      "total": 27
+    },
+    {
+      "boat": "b16",
+      "place": 14,
+      "fleet": "Silver",
+      "qualifying": 15,
+      "final": 14,
+      "total": 29
+    },
+    {
+      "boat": "b14",
+      "place": 15,
+      "fleet": "Silver",
+      "qualifying": 17,
+      "final": 20,
+      "total": 37
+    },
+    {
+      "boat": "b3",
+      "place": 16,
+      "fleet": "Silver",
+      "qualifying": 20,
+      "final": 18,
+      "total": 38
+    }
+  ]
+}
