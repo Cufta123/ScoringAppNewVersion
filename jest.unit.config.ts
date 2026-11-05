@@ -14,6 +14,7 @@ const config: Config = {
     '\\.(css|less|sass|scss)$': 'identity-obj-proxy',
     // The scoring library (packages/regatta-core), as the app imports it.
     '^regatta-core$': '<rootDir>/packages/regatta-core/src/index.ts',
+    '^regatta-core/(.*)$': '<rootDir>/packages/regatta-core/$1',
   },
   // No setupFiles – we do not require a pre-built Electron bundle for unit tests
   setupFiles: [],

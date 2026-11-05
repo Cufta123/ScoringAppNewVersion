@@ -15,7 +15,8 @@
     "allowJs": true,
     "outDir": ".erb/dll",
     "paths": {
-      "regatta-core": ["./packages/regatta-core/src/index.ts"]
+      "regatta-core": ["./packages/regatta-core/src/index.ts"],
+      "regatta-core/*": ["./packages/regatta-core/*"]
     }
   },
   "exclude": [

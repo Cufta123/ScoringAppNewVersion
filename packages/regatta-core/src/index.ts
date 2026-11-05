@@ -17,6 +17,8 @@ export { replay, emptyEvent, MAX_HEATS } from './event/replay';
 export type { ReplayResult } from './event/replay';
 export type { EventState, Heat, Race } from './event/state';
 export { scoreRace } from './event/score';
+/** Point arithmetic: RRS 44.3(c) / A9 tenths, SHRS 5.2 no-place points. */
+export { noPlacePoints, penaltyPoints, toTenth } from './rules/points';
 export type { BoatResult } from './event/score';
 export { nextStep } from './event/nextStep';
 export type { NextStep } from './event/nextStep';

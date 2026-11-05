@@ -32,6 +32,7 @@
 import {
   NO_PLACE_CODES,
   replay,
+  toTenth,
   qualifyingStandings,
   finalStandings,
   type Boat,
@@ -198,6 +199,14 @@ export function eventToLog(eventId: number): EventLog {
       ).map((row) => id(row.boat_id)),
     ]),
   );
+  /** SHRS 5.2: the boats in the largest heat of the heat's series. */
+  const largestOf = (of: HeatRow) =>
+    heats
+      .filter((other) => other.heat_type === of.heat_type)
+      .reduce(
+        (max, other) => Math.max(max, listed.get(other.heat_id)!.length),
+        0,
+      );
   const racesOf = (heatId: number) =>
     db
       .prepare(
@@ -428,13 +437,35 @@ export function eventToLog(eventId: number): EventLog {
       byPlace.set(entry.place, [...(byPlace.get(entry.place) ?? []), entry]),
     );
     const tiedWith = new Map<Entry, boolean>();
+    const plainPlaces = [
+      ...new Set(live.filter((e) => !e.committee).map((e) => e.place)),
+    ].sort((a, b) => a - b);
     byPlace.forEach((group, place) => {
       const plain = group.filter((e) => !e.committee);
       const committee = group.filter((e) => e.committee);
+      // How many boats share this place: up to the next finisher's place,
+      // or, for the last one, from her shared points (a penalty changes
+      // them, so only a boat without one tells).
+      const next = plainPlaces.find((p) => p > place);
       const scored = plain.find((e) => !e.penalty);
-      const size = scored
-        ? Math.round(2 * (scored.points - place) + 1)
-        : plain.length;
+      const penalised = plain.find((e) => e.penalty);
+      let size = plain.length;
+      if (next !== undefined) {
+        size = next - place;
+      } else if (scored) {
+        size = Math.round(2 * (scored.points - place) + 1);
+      } else if (penalised) {
+        // Her points are the shared points plus the penalty (RRS 44.3(c)):
+        // a share of the DNF score, largest heat + 1 (SHRS 5.2).
+        const dnf = largestOf(heat) + 1;
+        const penalty = toTenth(dnf * (penalised.penalty === 'T1' ? 0.3 : 0.2));
+        // Capped at the DNF score, her points say nothing: the boats on
+        // the last place finished level.
+        size =
+          penalised.points < dnf
+            ? Math.round(2 * (penalised.points - penalty - place) + 1)
+            : group.length;
+      }
       const join = Math.max(0, Math.min(committee.length, size - plain.length));
       committee.forEach((entry, i) => {
         if (plain.length > 0 && i >= join) {
