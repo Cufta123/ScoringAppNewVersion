@@ -100,9 +100,10 @@ export function ensureEventLog(eventId: number): boolean {
     const converted = convertTables(eventId);
     append(eventId, converted.decisions, null);
     db.prepare(
-      'INSERT INTO EventLogs (event_id, notes, anomalies) VALUES (?, ?, ?)',
+      'INSERT INTO EventLogs (event_id, converted_by, notes, anomalies) VALUES (?, ?, ?, ?)',
     ).run(
       eventId,
+      PENDING,
       JSON.stringify(converted.notes),
       JSON.stringify(converted.anomalies),
     );
@@ -125,20 +126,26 @@ export function loadLog(eventId: number): Decision[] {
 export function saveLog(eventId: number, next: Decision[]) {
   if (!ensureEventLog(eventId)) return;
   const current = inForce(eventId);
+  // The longest start of `next` the stored rows give in order (skipping
+  // rows to withdraw); the rest of `next` is appended in its order, so the
+  // stored log is always `next`, order included.
   const kept = new Set<number>();
   const added: Decision[] = [];
   let at = 0;
+  let matching = true;
   next.forEach((decision) => {
     const body = JSON.stringify(decision);
-    // The next unused row with this decision, in order.
-    let i = at;
-    while (i < current.length && current[i].body !== body) i += 1;
-    if (i < current.length) {
-      kept.add(current[i].decision_id);
-      at = i + 1;
-    } else {
-      added.push(decision);
+    if (matching) {
+      let i = at;
+      while (i < current.length && current[i].body !== body) i += 1;
+      if (i < current.length) {
+        kept.add(current[i].decision_id);
+        at = i + 1;
+        return;
+      }
+      matching = false;
     }
+    added.push(decision);
   });
   const withdraw = db.prepare(
     'UPDATE Decisions SET withdrawn_by = ? WHERE decision_id = ?',
@@ -164,9 +171,10 @@ export function reconvertEventLog(eventId: number) {
     const converted = convertTables(eventId);
     append(eventId, converted.decisions, null);
     db.prepare(
-      'INSERT INTO EventLogs (event_id, notes, anomalies) VALUES (?, ?, ?)',
+      'INSERT INTO EventLogs (event_id, converted_by, notes, anomalies) VALUES (?, ?, ?, ?)',
     ).run(
       eventId,
+      PENDING,
       JSON.stringify(converted.notes),
       JSON.stringify(converted.anomalies),
     );
@@ -190,6 +198,20 @@ export function tagDecisions(actionId: number) {
   db.prepare(
     'UPDATE Decisions SET withdrawn_by = ? WHERE withdrawn_by = ?',
   ).run(actionId, PENDING);
+  db.prepare(
+    'UPDATE EventLogs SET converted_by = ? WHERE converted_by = ?',
+  ).run(actionId, PENDING);
+}
+
+/** The action whose call converted the event's tables to its log. */
+export function conversionAction(eventId: number): number | null {
+  if (!hasLogStore()) return null;
+  const row = db
+    .prepare('SELECT converted_by FROM EventLogs WHERE event_id = ?')
+    .get(eventId) as { converted_by: number | null } | undefined;
+  return row?.converted_by != null && row.converted_by > 0
+    ? Number(row.converted_by)
+    : null;
 }
 
 /** Whether a call wrote or withdrew decisions not yet tagged. */
@@ -198,8 +220,116 @@ export function hasPendingDecisions(): boolean {
   return Boolean(
     db
       .prepare(
-        'SELECT 1 FROM Decisions WHERE action_id = ? OR withdrawn_by = ? LIMIT 1',
+        `SELECT 1 FROM Decisions WHERE action_id = ? OR withdrawn_by = ?
+         UNION SELECT 1 FROM EventLogs WHERE converted_by = ? LIMIT 1`,
       )
-      .get(PENDING, PENDING),
+      .get(PENDING, PENDING, PENDING),
   );
+}
+
+// ── History on the log (switch phase 4) ────────────────────────────────
+
+interface FullRow extends Row {
+  action_id: number | null;
+  withdrawn_by: number | null;
+}
+
+const rowsOf = (eventId: number) =>
+  db
+    .prepare(
+      `SELECT decision_id, seq, body, action_id, withdrawn_by
+       FROM Decisions WHERE event_id = ? ORDER BY seq`,
+    )
+    .all(eventId) as FullRow[];
+
+/** Whether an action wrote or withdrew decisions of the event. */
+export function actionHasDecisions(eventId: number, actionId: number): boolean {
+  if (!hasLogStore()) return false;
+  return rowsOf(eventId).some(
+    (row) => row.action_id === actionId || row.withdrawn_by === actionId,
+  );
+}
+
+/**
+ * The decisions an action made (still in force) and the ones it withdrew,
+ * as decisions.
+ */
+export function decisionsOfAction(eventId: number, actionId: number) {
+  const rows = rowsOf(eventId);
+  return {
+    added: rows
+      .filter((row) => row.action_id === actionId && row.withdrawn_by == null)
+      .map((row) => JSON.parse(row.body) as Decision),
+    withdrawn: rows
+      .filter((row) => row.withdrawn_by === actionId)
+      .map((row) => JSON.parse(row.body) as Decision),
+  };
+}
+
+/** Decisions in force made by actions after `actionId`, with their action. */
+export function laterDecisions(eventId: number, actionId: number) {
+  return rowsOf(eventId)
+    .filter(
+      (row) =>
+        row.withdrawn_by == null &&
+        row.action_id != null &&
+        row.action_id > actionId,
+    )
+    .map((row) => ({
+      decision: JSON.parse(row.body) as Decision,
+      actionId: Number(row.action_id),
+    }));
+}
+
+/**
+ * The log in force once an action is undone: its decisions out, the
+ * decisions it withdrew back (at the end, as the undo's own).
+ */
+export function logWithoutAction(
+  eventId: number,
+  actionId: number,
+): Decision[] {
+  const rows = rowsOf(eventId);
+  return [
+    ...rows
+      .filter((row) => row.withdrawn_by == null && row.action_id !== actionId)
+      .map((row) => JSON.parse(row.body) as Decision),
+    ...rows
+      .filter((row) => row.withdrawn_by === actionId)
+      .map((row) => JSON.parse(row.body) as Decision),
+  ];
+}
+
+/** The log as it was in force right after `actionId`. */
+export function logAfterAction(eventId: number, actionId: number): Decision[] {
+  return rowsOf(eventId)
+    .filter(
+      (row) =>
+        (row.action_id == null || row.action_id <= actionId) &&
+        (row.withdrawn_by == null || row.withdrawn_by > actionId),
+    )
+    .map((row) => JSON.parse(row.body) as Decision);
+}
+
+/** Actions after `actionId` that changed the event without decisions. */
+export function laterActionsWithoutDecisions(
+  eventId: number,
+  actionId: number,
+): number[] {
+  if (!hasLogStore()) return [];
+  const withDecisions = new Set<number>();
+  rowsOf(eventId).forEach((row) => {
+    if (row.action_id != null) withDecisions.add(Number(row.action_id));
+    if (row.withdrawn_by != null) withDecisions.add(Number(row.withdrawn_by));
+  });
+  return (
+    db
+      .prepare(
+        `SELECT DISTINCT action_id FROM ChangeLog
+         WHERE event_id = ? AND action_id > ?`,
+      )
+      .all(eventId, actionId) as { action_id: number }[]
+  )
+    .map((row) => Number(row.action_id))
+    .filter((id) => !withDecisions.has(id));
 }

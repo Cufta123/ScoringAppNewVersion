@@ -1,7 +1,13 @@
 import * as DBManager from '../../../public/Database/DBManager';
 import { lastChangeId, tagChanges } from './changeJournal';
 import refreshStandings from './standings';
-import { reconvertEventLog } from './decisionStore';
+import {
+  conversionAction,
+  hasLogStore,
+  laterActionsWithoutDecisions,
+  reconvertEventLog,
+} from './decisionStore';
+import { restoreLogToAction } from './logHistory';
 import { invalidateAssignmentSnapshotCache } from './raceAssignmentSnapshot';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -183,20 +189,37 @@ export default function restoreToHistoryPoint(
     );
   }
 
+  // Going back within the decision-log era works on the log (logHistory):
+  // the event's own columns (name, place, dates) come back from the
+  // journal, everything the results are made of from the log.
+  const converted = conversionAction(event_id);
+  const onLog =
+    hasLogStore() &&
+    (converted == null || action_id >= converted) &&
+    laterActionsWithoutDecisions(event_id, action_id).length === 0;
+
   const mark = lastChangeId();
   try {
     return db.transaction(() => {
-      later.forEach(invert);
+      if (onLog) {
+        later
+          .filter((change) => change.table_name === 'Events')
+          .forEach(invert);
+        restoreLogToAction(event_id, action_id);
+      } else {
+        later.forEach(invert);
+      }
       // The standings are a cache of the results: rebuild them from what is
       // there now (no final standings if the final series is gone).
       db.prepare('DELETE FROM Leaderboard WHERE event_id = ?').run(event_id);
       db.prepare('DELETE FROM FinalLeaderboard WHERE event_id = ?').run(
         event_id,
       );
-      refreshStandings(event_id);
-      // Until the history works on the log itself (switch phase 4), the
-      // restored tables are converted to the event's log again.
-      reconvertEventLog(event_id);
+      if (!onLog) {
+        refreshStandings(event_id);
+        // A point before the log: the restored tables become the log.
+        reconvertEventLog(event_id);
+      }
 
       const restoreId = tagChanges(mark, 'restoreEventToHistoryPoint');
       if (restoreId != null) {

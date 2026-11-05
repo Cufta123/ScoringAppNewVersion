@@ -65,7 +65,7 @@ keep in step.
 - [x] Phase 1: `eventToLog` / `checkEventLog`, checked after every step of the comparison test (400 events) and the chaos test (200 sessions)
 - [x] Phase 2: the leaderboard reads, both explanations and the Final Series eligibility come from the library (`libraryStandings`, `libraryExplain`, `libraryEvent`). `getMaxHeatSize` stays on the tables until the writes move
 - [x] Phase 3: every scoring write goes through the library (`libraryWrite`); the event's decision log is stored (`Decisions`, migration 9, `decisionStore`), converted from the tables the first time an event is used (notes and anomalies in `EventLogs`); reads replay the stored log; the tables are the projection. Restores of backups, imports and the old history paths convert the tables again (until phase 4). A boat's details edit is a boatChanged in each of her events
-- [ ] Phase 4
+- [x] Phase 4: undo from the history and going back to a point work on the stored log (`logHistory`): an undo withdraws the action's decisions and brings back, as its own, the ones it withdrew (so undoing an undo works the same way); going back makes the log what it was right after that action, and the event's own columns come back from the journal. A point before the event's log was converted uses the row-based history and converts again. Chaos (200 sessions) and the comparison (200 events) pass
 - [ ] Phase 5
 - [ ] Phase 6
 

@@ -467,8 +467,10 @@ const MIGRATIONS = [
     // from the tables when the event first met this version); a decision
     // taken back stays, with `withdrawn_by` the action that took it back
     // (-1 while that call is still running). Not journalled: the log is the
-    // history. EventLogs marks an event whose log exists, with what the
-    // conversion had to assume (notes) or could not express (anomalies).
+    // history. EventLogs marks an event whose log exists: the action that
+    // converted it (going back before it uses the row-based history), and
+    // what the conversion had to assume (notes) or could not express
+    // (anomalies).
     up(db) {
       db.exec(`
         CREATE TABLE IF NOT EXISTS Decisions (
@@ -486,6 +488,7 @@ const MIGRATIONS = [
         CREATE TABLE IF NOT EXISTS EventLogs (
           event_id INTEGER PRIMARY KEY,
           converted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          converted_by INTEGER,
           notes TEXT,
           anomalies TEXT,
           FOREIGN KEY (event_id) REFERENCES Events(event_id)

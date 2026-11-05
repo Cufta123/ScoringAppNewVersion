@@ -106,23 +106,48 @@ async function stateOf(eventId: number) {
     entries: q(
       'SELECT boat_id FROM Boat_Event WHERE event_id = ? ORDER BY boat_id',
     ),
-    heats: q('SELECT * FROM Heats WHERE event_id = ? ORDER BY heat_id'),
+    // Rows by natural keys: the tables are worked out from the event's
+    // decision log, so a heat or race made again gets a new id.
+    heats: q(
+      'SELECT heat_name, heat_type FROM Heats WHERE event_id = ? ORDER BY heat_name',
+    ),
     heatBoats: q(
-      `SELECT hb.heat_id, hb.boat_id FROM Heat_Boat hb JOIN Heats h ON h.heat_id = hb.heat_id
-       WHERE h.event_id = ? ORDER BY hb.heat_id, hb.boat_id`,
+      `SELECT h.heat_name, hb.boat_id FROM Heat_Boat hb JOIN Heats h ON h.heat_id = hb.heat_id
+       WHERE h.event_id = ? ORDER BY h.heat_name, hb.boat_id`,
     ),
     races: q(
-      `SELECT r.* FROM Races r JOIN Heats h ON h.heat_id = r.heat_id
-       WHERE h.event_id = ? ORDER BY r.race_id`,
+      `SELECT h.heat_name, r.race_number FROM Races r JOIN Heats h ON h.heat_id = r.heat_id
+       WHERE h.event_id = ? ORDER BY h.heat_name, r.race_number`,
     ),
-    scores: q(
-      `SELECT s.race_id, s.boat_id, s.position, s.points, s.status, s.rdg_race_ids
-       FROM Scores s JOIN Races r ON r.race_id = s.race_id JOIN Heats h ON h.heat_id = r.heat_id
-       WHERE h.event_id = ? ORDER BY s.race_id, s.boat_id`,
-    ),
+    scores: (
+      q(
+        `SELECT h.heat_name, r.race_number, s.boat_id, s.position, s.points, s.status,
+                s.rdg_race_ids
+         FROM Scores s JOIN Races r ON r.race_id = s.race_id JOIN Heats h ON h.heat_id = r.heat_id
+         WHERE h.event_id = ? ORDER BY h.heat_name, r.race_number, s.boat_id`,
+      ) as any[]
+    ).map((row) => ({
+      ...row,
+      // RDG2: the races averaged, by name.
+      rdg_race_ids: row.rdg_race_ids
+        ? (JSON.parse(row.rdg_race_ids) as number[])
+            .map((id) => {
+              const r = db
+                .prepare(
+                  'SELECT h.heat_name, r.race_number FROM Races r JOIN Heats h ON h.heat_id = r.heat_id WHERE r.race_id = ?',
+                )
+                .get(id) as any;
+              return r ? `${r.heat_name}#${r.race_number}` : `gone`;
+            })
+            .join(',')
+        : null,
+    })),
     frozen: q(
-      `SELECT ras.* FROM RaceAssignmentSnapshots ras JOIN Races r ON r.race_id = ras.race_id
-       JOIN Heats h ON h.heat_id = r.heat_id WHERE h.event_id = ? ORDER BY ras.race_id, ras.rank`,
+      `SELECT h.heat_name, r.race_number, ras.rank, ras.boat_id, ras.frozen_position,
+              ras.frozen_status
+       FROM RaceAssignmentSnapshots ras JOIN Races r ON r.race_id = ras.race_id
+       JOIN Heats h ON h.heat_id = r.heat_id WHERE h.event_id = ?
+       ORDER BY h.heat_name, r.race_number, ras.rank`,
     ),
     standings: standings.map((row: any) => [
       row.boat_id,
@@ -484,10 +509,11 @@ describe('going back refuses, and changes nothing, when it cannot be exact', () 
     });
   };
 
-  it('a row changed outside the history', async () => {
+  it('a result row changed outside the history is put right (the tables follow the log)', async () => {
     const eventId = await newEvent('Tampered', 4);
     await call('createInitialHeatsAtomic', eventId, 1);
     const heatsAction = latestActionOf(eventId)!;
+    const atHeats = await stateOf(eventId);
     await scoreHeatOnce(eventId);
     // Changed behind the journal's back (its trigger off for a moment).
     db.exec('DROP TRIGGER journal_Scores_update');
@@ -496,13 +522,10 @@ describe('going back refuses, and changes nothing, when it cannot be exact', () 
     ).run();
     // eslint-disable-next-line global-require
     require('../../public/Database/journal').installJournalTriggers(db);
-    const before = await stateOf(eventId);
-    await expect(
-      call('restoreEventToHistoryPoint', eventId, heatsAction),
-    ).rejects.toThrow(
-      /data no longer matches the history.*Nothing was changed/,
-    );
-    expect(await stateOf(eventId)).toEqual(before);
+    // The results are the event's decision log worked out; going back
+    // makes the tables the log at that point, whatever the rows held.
+    await call('restoreEventToHistoryPoint', eventId, heatsAction);
+    expect(await stateOf(eventId)).toEqual(atHeats);
   });
 
   it('a boat of the event deleted from the app since', async () => {

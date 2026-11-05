@@ -1,5 +1,6 @@
 import { db } from '../../../public/Database/DBManager';
-import { reconvertEventLog } from './decisionStore';
+import { actionHasDecisions, reconvertEventLog } from './decisionStore';
+import { undoActionOnLog } from './logHistory';
 import {
   laterActionOn,
   lastChangeId,
@@ -102,6 +103,25 @@ export default function revertHistoryAction(
   }
   const reason = whyNotRevertable(action);
   if (reason) throw new Error(reason);
+
+  // An action of the decision-log era is undone on the log (logHistory).
+  if (actionHasDecisions(event_id, action_id)) {
+    const logMark = lastChangeId();
+    try {
+      return db.transaction(() => {
+        undoActionOnLog(event_id, action_id);
+        const undoId = tagChanges(logMark, 'revertHistoryAction');
+        if (undoId != null) {
+          db.prepare(
+            'UPDATE ChangeActions SET reverts_action_id = ? WHERE action_id = ?',
+          ).run(action_id, undoId);
+        }
+        return { success: true as const, actionId: undoId };
+      })();
+    } finally {
+      invalidateAssignmentSnapshotCache();
+    }
+  }
 
   const lastOfAction = Math.max(...action.changes.map((c) => c.change_id));
   const steps = revertSteps(action);
