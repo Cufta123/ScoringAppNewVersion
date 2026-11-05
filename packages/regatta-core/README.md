@@ -95,6 +95,7 @@ The event **is** its decision log (`Decision` in `src/types.ts`):
 | --------------------- | ----------------- | ------------------------------------------------------------ |
 | `settingsChanged`     | race committee    | assignment method, discard profiles, fleet overflow          |
 | `boatEntered/Removed` | race office       | entries                                                      |
+| `boatChanged`         | race office       | national letters, sail number or name corrected              |
 | `heatsCreated`        | race office       | the first round (3.1(1) serpentine from the seeding)         |
 | `boatAssigned`        | race office       | a late entry joins a heat of the current round               |
 | `boatMoved`           | race office       | a boat to another heat of the round, before either races     |

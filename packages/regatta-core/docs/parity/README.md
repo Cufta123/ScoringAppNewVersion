@@ -90,8 +90,8 @@ welcome. R6 is the order SHRS uses for every tie it does settle; R8 follows
    The app corrects bad discard settings silently; the library refuses
    them. RAF is not a 2025-2028 code (A10): the app's converter maps it to
    RET.
-5. **Boat details changed** (national letters, sail number): they order the
-   seeding and the ties, so a change is a decision.
+5. ~~**Boat details changed**~~ Done: `boatChanged { boat, nat?, sail?,
+name? }`, refused if it collides with another entry.
 6. ~~**`nextStep`**~~: nothing to change. `createRound` comes only when
    the round is complete, which is also when the Final Series can start;
    which one is next is the notice of race's to say (SHRS 1.4), so the
@@ -133,3 +133,12 @@ after a protest in the same race. These go into
   from the start (schema v4, 2026-10-27) and never restored or imported.
   Older events get a plausible log, checked by replaying it against every
   stored heat and score. See [event.md](event.md) §3.
+
+## Also fixed
+
+- A correction of a race sailed before a boat joined the heat asked for
+  her too (the sheet was checked against the heat's boats now). It is
+  checked against the boats of the original sheet.
+- R12: redress (RDG1/2/3) for a race a boat had no heat in is a
+  `protestDecided` filed under any heat of that round; anything else for
+  that race is refused (`test/late-entries.test.ts`).

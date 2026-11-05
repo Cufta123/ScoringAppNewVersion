@@ -77,12 +77,22 @@ function roundComplete(state: EventState): boolean {
   return counts.length > 0 && counts.every((n) => n === counts[0] && n > 0);
 }
 
-/** A sheet must list every boat of the heat once, and make sense. */
-function checkLines(state: EventState, heat: Heat, lines: RaceLine[]) {
+/**
+ * A sheet must list every boat that sailed the race once (`boats`: the
+ * heat's boats when it is scored, the original sheet's when it is
+ * corrected, so a boat that joined the heat later is not asked for), and
+ * make sense.
+ */
+function checkLines(
+  state: EventState,
+  heatId: string,
+  boats: readonly BoatId[],
+  lines: RaceLine[],
+) {
   const seen = new Set<BoatId>();
   lines.forEach((line, index) => {
-    if (!heat.boats.includes(line.boat)) {
-      refuse(`${label(state, line.boat)} is not in ${heat.id}.`);
+    if (!boats.includes(line.boat)) {
+      refuse(`${label(state, line.boat)} is not in ${heatId}.`);
     }
     if (seen.has(line.boat)) {
       refuse(`${label(state, line.boat)} is listed twice.`);
@@ -106,10 +116,10 @@ function checkLines(state: EventState, heat: Heat, lines: RaceLine[]) {
       }
     }
   });
-  const missing = heat.boats.filter((boat) => !seen.has(boat));
+  const missing = boats.filter((boat) => !seen.has(boat));
   if (missing.length > 0) {
     refuse(
-      `Every boat of ${heat.id} needs a result. Missing: ${missing
+      `Every boat of ${heatId} needs a result. Missing: ${missing
         .map((boat) => label(state, boat))
         .join(', ')}.`,
     );
@@ -224,6 +234,31 @@ function enter(state: EventState, boat: Boat) {
     refuse(`${boat.nat} ${boat.sail} is already entered.`);
   }
   state.boats.push({ ...boat });
+}
+
+function changeBoat(
+  state: EventState,
+  decision: Decision & { type: 'boatChanged' },
+) {
+  const boat =
+    boatById(state, decision.boat) ??
+    refuse(`${decision.boat} is not entered.`);
+  const changed: Boat = {
+    ...boat,
+    ...(decision.nat !== undefined ? { nat: decision.nat } : {}),
+    ...(decision.sail !== undefined ? { sail: decision.sail } : {}),
+    ...(decision.name !== undefined ? { name: decision.name } : {}),
+  };
+  if (!isText(changed.nat) || !isText(changed.sail)) {
+    refuse('A boat needs national letters and a sail number.');
+  }
+  const other = state.boats.find(
+    (entry) => entry.id !== boat.id && sameBoat(entry, changed),
+  );
+  if (other) {
+    refuse(`${changed.nat} ${changed.sail} is already entered.`);
+  }
+  Object.assign(boat, changed);
 }
 
 function remove(state: EventState, id: BoatId) {
@@ -498,11 +533,30 @@ function decideProtest(
   decision: Decision & { type: 'protestDecided' },
 ) {
   const race = raceOf(state, decision.race);
-  if (!race.lines.some((line) => line.boat === decision.boat)) {
-    refuse(`${label(state, decision.boat)} did not sail this race.`);
-  }
   const { outcome } = decision;
   checkOutcome(outcome);
+  if (!race.lines.some((line) => line.boat === decision.boat)) {
+    // A boat with no heat in this race of the round is scored DNC (RRS
+    // A5.1); the protest committee can still give her redress for it (RRS
+    // A9, 62.1), filed under any heat's race of that round.
+    const heat = findHeat(state, decision.race.heat)!;
+    const noHeat =
+      heat.series === 'qualifying' &&
+      boatById(state, decision.boat) !== undefined &&
+      !state.rounds[heat.round - 1].some((other) =>
+        other.races[decision.race.race - 1]?.lines.some(
+          (line) => line.boat === decision.boat,
+        ),
+      );
+    if (!noHeat) {
+      refuse(`${label(state, decision.boat)} did not sail this race.`);
+    }
+    if (!['RDG1', 'RDG2', 'RDG3', 'cleared'].includes(outcome.kind)) {
+      refuse(
+        `${label(state, decision.boat)} had no heat in this race: only redress can change her DNC.`,
+      );
+    }
+  }
   if (outcome.kind === 'RDG2') {
     const { series } = findHeat(state, decision.race.heat)!;
     outcome.races.forEach((ref) => {
@@ -528,6 +582,8 @@ function applyDecision(state: EventState, decision: Decision) {
       return changeSettings(state, decision);
     case 'boatEntered':
       return enter(state, decision.boat);
+    case 'boatChanged':
+      return changeBoat(state, decision);
     case 'boatRemoved':
       return remove(state, decision.boat);
     case 'heatsCreated':
@@ -538,7 +594,7 @@ function applyDecision(state: EventState, decision: Decision) {
       return move(state, decision.boat, decision.from, decision.to);
     case 'raceScored': {
       const heat = scorableHeat(state, decision.race.heat);
-      checkLines(state, heat, decision.lines);
+      checkLines(state, heat.id, heat.boats, decision.lines);
       const next = heat.races.length + 1;
       if (decision.race.race !== next) {
         refuse(
@@ -556,7 +612,12 @@ function applyDecision(state: EventState, decision: Decision) {
     }
     case 'raceCorrected': {
       const race = raceOf(state, decision.race);
-      checkLines(state, findHeat(state, decision.race.heat)!, decision.lines);
+      checkLines(
+        state,
+        decision.race.heat,
+        race.lines.map((line) => line.boat),
+        decision.lines,
+      );
       race.lines = structuredClone(decision.lines);
       return undefined;
     }

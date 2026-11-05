@@ -201,6 +201,29 @@
           "properties": {
             "type": {
               "type": "string",
+              "const": "boatChanged"
+            },
+            "boat": {
+              "$ref": "#/definitions/BoatId"
+            },
+            "nat": {
+              "type": "string"
+            },
+            "sail": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": ["type", "boat"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
               "const": "heatsCreated"
             },
             "heatCount": {

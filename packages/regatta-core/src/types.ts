@@ -116,6 +116,18 @@ export type Decision =
   | { type: 'boatEntered'; boat: Boat }
   | { type: 'boatRemoved'; boat: BoatId }
   /**
+   * A boat's details corrected. National letters and sail number order the
+   * seeding and every tie SHRS settles by them (3, 3.1(iv), 5.3), so a
+   * change is a decision in the log, from where it applies on.
+   */
+  | {
+      type: 'boatChanged';
+      boat: BoatId;
+      nat?: string;
+      sail?: string;
+      name?: string;
+    }
+  /**
    * The first qualifying round. Boats are seeded in `seeding` order, or by
    * national letters and sail number when there is no seeding list (SHRS 3).
    */

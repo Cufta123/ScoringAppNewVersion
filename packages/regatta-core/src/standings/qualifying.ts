@@ -18,7 +18,7 @@ import {
   rankByTotal,
 } from '../rules/ranking';
 import { compareBoats } from '../rules/seeding';
-import { scoreRace } from '../event/score';
+import { scoreRace, type BoatResult } from '../event/score';
 import {
   largestHeat,
   raceKey,
@@ -92,11 +92,7 @@ function scoredRaces(state: EventState) {
               raceNumber: n,
               race: `${raceKey(anchor.races[n - 1].ref)}~${boat.id}`,
               order,
-              result: {
-                boat: boat.id,
-                code: 'DNC',
-                points: noPlacePoints(largest),
-              },
+              result: noHeatResult(boat.id, heats, n, largest),
             },
           );
         } else if (own) {
@@ -106,6 +102,33 @@ function scoredRaces(state: EventState) {
     }
   });
   return { largest, counted, pending, completed };
+}
+
+/**
+ * A boat with no heat in race `n` of a round: DNC (RRS A5.1), unless the
+ * protest committee gave her redress for it, filed under one of the
+ * round's races (replay allows only redress there).
+ */
+function noHeatResult(
+  boat: BoatId,
+  heats: Heat[],
+  n: number,
+  largest: number,
+): BoatResult {
+  const dnc: BoatResult = { boat, code: 'DNC', points: noPlacePoints(largest) };
+  const outcome = heats
+    .map((heat) => heat.races[n - 1]?.protests[boat])
+    .find((decided) => decided !== undefined);
+  switch (outcome?.kind) {
+    case 'RDG3':
+      return { boat, code: 'RDG3', points: outcome.points };
+    case 'RDG1':
+      return { ...dnc, code: 'RDG1', pending: { races: 'all' } };
+    case 'RDG2':
+      return { ...dnc, code: 'RDG2', pending: { races: outcome.races } };
+    default:
+      return dnc;
+  }
 }
 
 interface Entry {
