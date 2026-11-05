@@ -47,13 +47,13 @@ test('create event, score a race, and see it on the leaderboard', async () => {
     country: 'CRO',
   });
 
-  // ── Build a single heat with both boats ───────────────────────────────────
+  // ── Go to scoring, build a single heat with both boats ────────────────────
+  await window.getByRole('button', { name: /Go to Scoring/i }).click();
   await window.getByLabel('Number of heats').selectOption('1');
   await window.getByRole('button', { name: 'Create Heats' }).click();
   await expect(window.getByText(/Heat A1/i)).toBeVisible();
 
-  // ── Go to scoring and score the race ──────────────────────────────────────
-  await window.getByRole('button', { name: /Go to Scoring/i }).click();
+  // ── Score the race ────────────────────────────────────────────────────────
   await window
     .getByText(/Heat A1/i)
     .first()

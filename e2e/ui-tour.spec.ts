@@ -400,6 +400,11 @@ test('tour', async () => {
   await saveExport('PDF', 'sample-starting-list-grouped.pdf');
   await closeExportDialog();
 
+  await window.getByRole('button', { name: /Go to Scoring/i }).click();
+  await window.waitForTimeout(800);
+  await snap('heats');
+  await snap('heats-full', true);
+
   await window
     .getByRole('button', { name: 'Export heats…', exact: true })
     .click();
@@ -418,11 +423,6 @@ test('tour', async () => {
   await snap('export-heats-scoring-sheets-dialog');
   await saveExport('PDF', 'sample-heats-scoring-sheets.pdf');
   await closeExportDialog();
-
-  await window.getByRole('button', { name: /Go to Scoring/i }).click();
-  await window.waitForTimeout(800);
-  await snap('heats');
-  await snap('heats-full', true);
 
   // Open a heat that has not sailed round 4 yet and start scoring.
   const cards = window.locator('.heat-column');

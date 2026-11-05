@@ -1815,6 +1815,31 @@ button.app-navbar-tool[aria-expanded='true'] {
   }
 }
 
+/* ── Heats summary (entries page) ───────────────────────── */
+.heats-summary {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 12px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.heats-summary > .fa {
+  color: var(--ocean);
+  font-size: 1.1rem;
+}
+
+.heats-summary p {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  color: var(--text);
+}
+
 /* ── Help menu (navbar) ──────────────────────────────────── */
 .help-menu {
   position: relative;

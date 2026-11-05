@@ -22,6 +22,7 @@ test('a refusal says why, in plain words, and is in the error log', async () => 
     await openEvent(window, name);
 
     // No boats entered yet: the main process refuses to create heats.
+    await window.getByRole('button', { name: /Go to Scoring/i }).click();
     await window.getByRole('button', { name: 'Create Heats' }).click();
     const toast = window.locator('.Toastify__toast').filter({
       hasText: /No boats are registered for this event yet/,

@@ -796,6 +796,11 @@ For most feature/fix requests, do this in order:
   problem). Pages with unsaved work pass `guardNavigation`, and every
   navigation from the bar runs through it. A page's own next step is a button
   in the page (the event page's green "Go to Scoring"), not in the bar.
+- **One home per feature.** The entries page is the entry list (add, import,
+  edit, export the starting list) plus one line on where the racing stands
+  (`heats/HeatsSummary`). The heats (`HeatComponent`: creating them, moving
+  boats, the Final Series, backups, "Export heats…") are on the Scoring page
+  only; the event page used to show the whole component a second time.
 
 - **Outdoor readability is a requirement**: the app is used by race officers
   (often 60+) on cheap laptops in sunshine. Root font is 17px; secondary text
@@ -842,7 +847,7 @@ For most feature/fix requests, do this in order:
 - **Exported documents** (results, starting list, heat lists / scoring
   sheets): one dialog (`components/export/`, opened by "Export…" on the
   leaderboard, "Export starting list…" on the event page, "Export heats…" on
-  the heats) with the options on the left and a live preview on the right (a
+  the Scoring page) with the options on the left and a live preview on the right (a
   sandboxed `<iframe srcdoc>` of the exact document, rebuilt 200 ms after the
   last change). `src/renderer/exports/` holds pure builders from plain data and
   options to one self-contained HTML string (`resultsDocument`, `startingList`,

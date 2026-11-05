@@ -8,7 +8,7 @@ import Navbar from '../../components/Navbar';
 import Breadcrumbs from '../../components/shared/Breadcrumbs';
 import LoadingState from '../../components/shared/LoadingState';
 import './EventPage.css';
-import HeatComponent from '../../components/HeatComponent';
+import HeatsSummary from '../../components/heats/HeatsSummary';
 import { useEventDataChanged } from '../../utils/eventDataChanged';
 import {
   reportError,
@@ -248,6 +248,12 @@ function EventPage() {
           </div>
         </div>
 
+        {/* Where the racing stands; the heats are on the Scoring page. */}
+        <HeatsSummary
+          eventId={event.event_id}
+          refreshToken={heatsRefreshToken}
+        />
+
         {/* ── Warning banner ─── */}
         {raceHappened && (
           <div className="warning">
@@ -383,13 +389,6 @@ function EventPage() {
             }
           />
         </div>
-
-        {/* ── Heat overview ─── */}
-        <HeatComponent
-          event={event}
-          clickable={false}
-          refreshToken={heatsRefreshToken}
-        />
 
         {/* Mounted only while open: each opening reads the entries as they are
             now and starts from the options remembered for this event. */}
