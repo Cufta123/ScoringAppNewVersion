@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import { QueryClientProvider } from '@tanstack/react-query';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -11,6 +12,7 @@ import LeaderboardPage from './pages/LeaderboardPage/LeaderboardPage';
 import ConfirmDialogHost from './components/shared/ConfirmDialogHost';
 import ProblemReportHost from './components/ProblemReportHost';
 import ErrorBoundary from './components/ErrorBoundary';
+import { createQueryClient } from './api/queryClient';
 import {
   reportError,
   reportWarning,
@@ -20,6 +22,10 @@ import {
 const BACKUP_TOAST = 'automatic-backup-status';
 
 function App() {
+  // The one cache of what the main process answered (api/queryClient.ts);
+  // writes invalidate what they touched (api/writes.ts).
+  const [queryClient] = useState(createQueryClient);
+
   useEffect(() => {
     // Anything no screen caught itself. The reason (or, for a fault in the
     // app, a code that is also in the error log) is shown with it.
@@ -86,42 +92,44 @@ function App() {
   }, []);
 
   return (
-    <Router>
-      <a href="#main-content" className="skip-link">
-        Skip to main content
-      </a>
-      <ErrorBoundary>
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/event/:name" element={<EventPage />} />
-          <Route
-            path="/event/:eventName/heat-race"
-            element={<HeatRacePage />}
-          />
-          <Route
-            path="/event/:eventName/leaderboard"
-            element={<LeaderboardPage />}
-          />
-        </Routes>
-      </ErrorBoundary>
-      <ToastContainer
-        // Default placement; each toast sets its own (userFeedback
-        // toastPosition: bottom-right on the scoring screen).
-        position="bottom-left"
-        // At most four on screen; identical ones are merged (userFeedback).
-        // Any more wait their turn instead of covering the page.
-        limit={4}
-        autoClose={5000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-      />
-      <ProblemReportHost />
-      <ConfirmDialogHost />
-    </Router>
+    <QueryClientProvider client={queryClient}>
+      <Router>
+        <a href="#main-content" className="skip-link">
+          Skip to main content
+        </a>
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/event/:name" element={<EventPage />} />
+            <Route
+              path="/event/:eventName/heat-race"
+              element={<HeatRacePage />}
+            />
+            <Route
+              path="/event/:eventName/leaderboard"
+              element={<LeaderboardPage />}
+            />
+          </Routes>
+        </ErrorBoundary>
+        <ToastContainer
+          // Default placement; each toast sets its own (userFeedback
+          // toastPosition: bottom-right on the scoring screen).
+          position="bottom-left"
+          // At most four on screen; identical ones are merged (userFeedback).
+          // Any more wait their turn instead of covering the page.
+          limit={4}
+          autoClose={5000}
+          hideProgressBar={false}
+          newestOnTop
+          closeOnClick
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+        />
+        <ProblemReportHost />
+        <ConfirmDialogHost />
+      </Router>
+    </QueryClientProvider>
   );
 }
 
