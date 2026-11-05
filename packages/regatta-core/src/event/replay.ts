@@ -140,7 +140,9 @@ function remove(state: EventState, id: BoatId) {
     );
   }
   state.boats = state.boats.filter((boat) => boat.id !== id);
-  state.rounds.flat().forEach((heat) => {
+  // A late entry can be in a fleet she has not raced in yet: she leaves it
+  // too, or every final sheet would need her and she would count for 5.2.
+  [...state.rounds.flat(), ...(state.fleets ?? [])].forEach((heat) => {
     // eslint-disable-next-line no-param-reassign
     heat.boats = heat.boats.filter((boat) => boat !== id);
   });
@@ -254,6 +256,8 @@ function createRound(state: EventState) {
       next[heat.index].boats.push(...heat.boats);
       return;
     }
+    // A heat left with no boats (its boats withdrew) sends nobody on.
+    if (heat.boats.length === 0) return;
     movementOrder(state, heat).forEach((id, rank) => {
       next[nextHeat(heat.index, rank + 1, round.length)].boats.push(id);
     });
