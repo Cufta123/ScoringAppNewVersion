@@ -74,6 +74,7 @@ const SQLITE_CHANNELS = {
     'explainBoatScore',
     'readEventStatus',
     'exportEventSnapshotToFile',
+    'readBackupFiles',
     'restoreEventSnapshotFromFile',
     'importEventSnapshotFromFile',
   ],

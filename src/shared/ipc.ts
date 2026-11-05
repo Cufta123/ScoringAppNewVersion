@@ -20,6 +20,7 @@
  * `handle()` registration. The compiler points at whichever is missing.
  */
 import type { ConversionReport } from './conversionReport';
+import type { BackupFileEntry } from './backupFiles';
 import type { HeatOverflowPolicy } from './eventSettings';
 import type {
   ExportFileRequest,
@@ -241,6 +242,8 @@ export interface HeatRaceChannels {
    */
   readEventStatus(eventId: number): EventStatusView;
   exportEventSnapshotToFile(eventId: number): SnapshotFileResult;
+  /** The backup files saved for the event, newest first (a few). */
+  readBackupFiles(eventId: number): BackupFileEntry[];
   restoreEventSnapshotFromFile(eventId: number): SnapshotFileResult;
   /** A backup file added as a new event (another computer, a deleted event). */
   importEventSnapshotFromFile(): SnapshotImportResult;

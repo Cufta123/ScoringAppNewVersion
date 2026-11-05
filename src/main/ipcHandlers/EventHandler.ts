@@ -3,6 +3,7 @@ import { deleteEventLog, markConversionSeen } from '../functions/decisionStore';
 import conversionReport from '../functions/conversionReport';
 import { normalizeDiscardConfigString } from '../functions/discardConfig';
 import handle from './handle';
+import { deleteBackupFiles } from '../functions/backupFiles';
 import { readEventHistory } from '../functions/changeJournal';
 import revertHistoryAction from '../functions/revertHistoryAction';
 import restoreToHistoryPoint from '../functions/restoreToHistoryPoint';
@@ -325,6 +326,7 @@ handle('deleteEvent', async (event, event_id) => {
 
     // Its decision log (no cascade: foreign keys are enforced).
     deleteEventLog(Number(event_id));
+    deleteBackupFiles(Number(event_id));
 
     // Finally delete the event itself
     db.prepare('DELETE FROM Events WHERE event_id = ?').run(event_id);

@@ -1,25 +1,25 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { heatRaceDB } from '../api/db';
 import { useWrite } from '../api/writes';
-import useSnapshotHistory from './useSnapshotHistory';
+import { queries } from '../api/queries';
+import { queryKeys } from '../api/queryKeys';
 import { confirmAction, reportError, reportInfo } from '../utils/userFeedback';
 
 /**
  * The recovery-backup actions of an event: save it to a file, restore it from
- * one, and the "Recent backups" list that remembers what was saved. A restore
+ * one, and the "Saved recently" list (kept by the main process, which records
+ * every file it writes: IPC readBackupFiles). A restore
  * replaces the event's data (its entries can bring sailors and boats), so
  * every screen reads everything again (api/writes.ts).
  */
 export default function useHeatSnapshots(eventId: number) {
-  const { history, load: loadHistory, remember } = useSnapshotHistory(eventId);
+  const queryClient = useQueryClient();
+  const history = useQuery(queries.backupFiles(eventId)).data ?? [];
   const restoreFromFile = useWrite(
     (id: number) => heatRaceDB.restoreEventSnapshotFromFile(id),
     'everything',
   );
-
-  useEffect(() => {
-    loadHistory();
-  }, [loadHistory]);
 
   /**
    * Ask for a file and write the backup there. Resolves true when it was
@@ -29,10 +29,12 @@ export default function useHeatSnapshots(eventId: number) {
   const saveBackupFile = useCallback(async (): Promise<boolean> => {
     const result = await heatRaceDB.exportEventSnapshotToFile(eventId);
     if (result?.canceled) return false;
-    remember(result?.filePath);
+    await queryClient.invalidateQueries({
+      queryKey: queryKeys.backupFiles(eventId),
+    });
     reportInfo('Recovery backup saved successfully.', 'Backup saved');
     return true;
-  }, [eventId, remember]);
+  }, [eventId, queryClient]);
 
   const saveBackup = useCallback(async () => {
     try {

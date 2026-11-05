@@ -225,6 +225,8 @@ Key tables:
 - `Boat_Event` (boat-event association)
 - `Decisions` (the event's decision log) and `EventLogs` (migration 9)
 - `Heats`, `Races`, `Scores`, `Heat_Boat` (the projection of the log)
+- `BackupFiles` (migration 13): the backup files saved for an event, full
+  path and time; not journalled, deleted with the event.
 - No standings tables: `Leaderboard` and `FinalLeaderboard` were dropped in
   migration 10, `GlobalLeaderboard` in 12. Standings are worked out on every
   read, never stored.
@@ -1056,7 +1058,9 @@ For most feature/fix requests, do this in order:
   "History and backups" (`EventHistoryDialog`): the change history with
   Undo / Go back to here, and below it the backup file
   (`history/BackupFileSection`: Save backup file…, Restore from file…, the
-  files saved recently). A restore invalidates everything (§3) and the
+  files saved recently: the `BackupFiles` table, migration 13, recorded by
+  the main process when it writes a file, IPC `readBackupFiles`, marked when
+  a file has been moved or deleted since; not the window's localStorage). A restore invalidates everything (§3) and the
   pages, this dialog's history included, read it again. Starting the Final Series still offers to save a file first.
   Importing a backup as a NEW event is on the landing page.
 - **Entries page adding** is one block, "Add Sailors", with three tabs: One

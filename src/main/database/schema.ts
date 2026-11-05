@@ -570,6 +570,27 @@ export const MIGRATIONS: Migration[] = [
       db.exec('DROP TABLE IF EXISTS GlobalLeaderboard;');
     },
   },
+  {
+    version: 13,
+    name: 'the backup files saved for an event',
+    // Kept by the main process when it writes a backup file (it knows the
+    // full path); the window used to keep only the file names, in its own
+    // localStorage, where they were lost with the browser data. Not
+    // journalled: a list of files, not the event's data.
+    up(db: SqlConnection) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS BackupFiles (
+          backup_id INTEGER PRIMARY KEY AUTOINCREMENT,
+          event_id INTEGER NOT NULL,
+          file_path TEXT NOT NULL,
+          saved_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (event_id) REFERENCES Events(event_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_backup_files_event
+          ON BackupFiles (event_id);
+      `);
+    },
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

@@ -540,6 +540,24 @@ describe('a backup file with the decision log (schemaVersion 3)', () => {
     expect(loadLog(eventId)).toEqual(logBefore);
   });
 
+  it('remembers the backup files saved, with their full path, until the event is deleted', async () => {
+    const second = await saveBackup(eventId, `kup-second-${Date.now()}.json`);
+    const listed = await call('readBackupFiles', eventId);
+    expect(listed.map((f: any) => f.filePath)).toEqual([
+      second.file,
+      backup.file,
+    ]);
+    expect(listed[0]).toMatchObject({
+      fileName: path.basename(second.file),
+      exists: true,
+    });
+    fs.unlinkSync(second.file);
+    expect((await call('readBackupFiles', eventId))[0].exists).toBe(false);
+
+    await call('deleteEvent', eventId);
+    expect(await call('readBackupFiles', eventId)).toEqual([]);
+  });
+
   it('refuses a file from a newer version of the app', async () => {
     pickFile(
       writeFile(`newer-${Date.now()}.json`, {

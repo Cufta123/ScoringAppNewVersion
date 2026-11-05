@@ -19,6 +19,7 @@ const mockRevert = jest.fn();
 const mockRestore = jest.fn();
 const mockExportFile = jest.fn();
 const mockRestoreFile = jest.fn();
+const mockBackupFiles = [];
 jest.mock('../renderer/api/db', () => ({
   eventDB: {
     readEventHistory: (...args) => mockReadHistory(...args),
@@ -26,7 +27,20 @@ jest.mock('../renderer/api/db', () => ({
     restoreEventToHistoryPoint: (...args) => mockRestore(...args),
   },
   heatRaceDB: {
-    exportEventSnapshotToFile: (...args) => mockExportFile(...args),
+    // As the main process does: a file it writes is in the list it reads.
+    exportEventSnapshotToFile: async (...args) => {
+      const result = await mockExportFile(...args);
+      if (result?.filePath) {
+        mockBackupFiles.unshift({
+          fileName: result.filePath.split('/').pop(),
+          filePath: result.filePath,
+          savedAt: '2026-11-05 18:00:00',
+          exists: true,
+        });
+      }
+      return result;
+    },
+    readBackupFiles: async () => [...mockBackupFiles],
     restoreEventSnapshotFromFile: (...args) => mockRestoreFile(...args),
   },
 }));
@@ -493,6 +507,7 @@ describe('backup file in the history dialog', () => {
       await screen.findByRole('button', { name: /Save backup file/ }),
     );
     expect(await screen.findByText(/Saved recently: kup\.json/)).toBeVisible();
+    mockBackupFiles.length = 0;
     expect(mockExportFile).toHaveBeenCalledWith(4);
   });
 

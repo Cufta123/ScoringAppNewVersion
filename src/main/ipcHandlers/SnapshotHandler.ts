@@ -1,6 +1,7 @@
 import { dialog } from 'electron';
 import fs from 'fs';
 import handle from './handle';
+import { listBackupFiles, recordBackupFile } from '../functions/backupFiles';
 import {
   buildEventSnapshot,
   importEventSnapshot,
@@ -55,6 +56,7 @@ handle('exportEventSnapshotToFile', async (_event, event_id) => {
     JSON.stringify(snapshot, null, 2),
     'utf-8',
   );
+  recordBackupFile(Number(event_id), saveResult.filePath);
 
   return {
     success: true,
@@ -79,3 +81,8 @@ handle('importEventSnapshotFromFile', async () => {
   const { eventId, eventName } = importEventSnapshot(picked.snapshot);
   return { success: true, filePath: picked.filePath, eventId, eventName };
 });
+
+/** The backup files saved for an event, newest first. */
+handle('readBackupFiles', async (_event, event_id) =>
+  listBackupFiles(Number(event_id)),
+);

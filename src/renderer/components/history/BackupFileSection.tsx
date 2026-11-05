@@ -55,7 +55,10 @@ export default function BackupFileSection({
         <p className="backup-file-recent">
           Saved recently:{' '}
           {history
-            .map((item) => `${item.fileName} (${formatDateTime(item.savedAt)})`)
+            .map(
+              (item) =>
+                `${item.fileName} (${formatDateTime(`${item.savedAt.replace(' ', 'T')}Z`)}${item.exists ? '' : ', moved or deleted since'})`,
+            )
             .join(', ')}
         </p>
       )}

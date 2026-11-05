@@ -179,6 +179,12 @@ export const queries = {
       queryFn: async () => listOf(await eventDB.readEventHistory(eventId)),
     }),
 
+  backupFiles: (eventId: number) =>
+    queryOptions({
+      queryKey: queryKeys.backupFiles(eventId),
+      queryFn: async () => listOf(await heatRaceDB.readBackupFiles(eventId)),
+    }),
+
   conversionReport: (eventId: number) =>
     queryOptions({
       queryKey: queryKeys.conversionReport(eventId),

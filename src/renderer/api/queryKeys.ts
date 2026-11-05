@@ -66,6 +66,8 @@ export const queryKeys = {
   ) => ['event', eventId, 'tieBreak', boatA, boatB, finalSeries] as const,
   /** readEventHistory */
   history: (eventId: number) => ['event', eventId, 'history'] as const,
+  /** readBackupFiles */
+  backupFiles: (eventId: number) => ['event', eventId, 'backupFiles'] as const,
   /** readConversionReport */
   conversionReport: (eventId: number) =>
     ['event', eventId, 'conversionReport'] as const,
