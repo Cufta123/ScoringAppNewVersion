@@ -280,12 +280,54 @@ function remove(state: EventState, id: BoatId) {
   });
 }
 
-function createHeats(state: EventState, heatCount: number, seeding?: BoatId[]) {
+/** A round's heats as recorded (a converted record), checked for shape. */
+function givenRound(
+  state: EventState,
+  given: BoatId[][],
+  round: number,
+): Heat[] {
+  if (given.length < 1 || given.length > MAX_HEATS) {
+    refuse(`The number of heats must be 1 to ${MAX_HEATS}.`);
+  }
+  const listed = given.flat();
+  if (
+    new Set(listed).size !== listed.length ||
+    listed.some((id) => !boatById(state, id))
+  ) {
+    refuse('The heats must list entered boats, each once.');
+  }
+  if (given.some((heat) => heat.length > MAX_HEAT_SIZE)) {
+    refuse(`A heat cannot have more than ${MAX_HEAT_SIZE} boats (SHRS 2.3).`);
+  }
+  return given.map((boats, index) => ({
+    id: `${groupLetter(index)}${round}`,
+    series: 'qualifying' as const,
+    index,
+    round,
+    boats: [...boats],
+    races: [],
+  }));
+}
+
+function createHeats(
+  state: EventState,
+  heatCount: number,
+  seeding?: BoatId[],
+  given?: BoatId[][],
+) {
   if (finalStarted(state) || qualifyingStarted(state)) {
     refuse('Racing has started: the first round can no longer be redrawn.');
   }
   if (!Number.isInteger(heatCount) || heatCount < 1 || heatCount > MAX_HEATS) {
     refuse(`The number of heats must be 1 to ${MAX_HEATS}.`);
+  }
+  if (given) {
+    if (given.length !== heatCount) {
+      refuse(`${given.length} heats are listed for ${heatCount}.`);
+    }
+    // eslint-disable-next-line no-param-reassign
+    state.rounds = [givenRound(state, given, 1)];
+    return;
   }
   const boats = state.boats.length;
   if (boats < heatCount)
@@ -389,8 +431,15 @@ function movementOrder(state: EventState, heat: Heat): BoatId[] {
     .map((row) => row.boat.id);
 }
 
-function createRound(state: EventState) {
+function createRound(state: EventState, given?: BoatId[][]) {
   if (finalStarted(state)) refuse('The Final Series has started.');
+  if (given) {
+    if (state.rounds.length === 0) refuse('Create the heats first.');
+    // A recorded round stands as made (older records allow a round built
+    // before the last one was fully sailed).
+    state.rounds.push(givenRound(state, given, state.rounds.length + 1));
+    return;
+  }
   const round = currentRound(state);
   if (round.length < 2) {
     refuse(
@@ -426,25 +475,69 @@ function createRound(state: EventState) {
   state.rounds.push(next);
 }
 
-function startFinal(state: EventState, rule43: boolean) {
+/**
+ * Fleets given as made (a converted record): entered boats, each in one
+ * fleet (a boat entered after the split, which older records allow, is in
+ * none), no more fleets than heats (4.1), none larger than the one before
+ * (4.1) or over 20 unless the race committee allows it (2.3).
+ */
+function checkFleets(state: EventState, fleets: BoatId[][], heats: number) {
+  const listed = fleets.flat();
+  if (
+    new Set(listed).size !== listed.length ||
+    listed.some((id) => !boatById(state, id))
+  ) {
+    refuse('The fleets must list entered boats, each once.');
+  }
+  if (fleets.length < 1 || fleets.length > heats) {
+    refuse(`There can be 1 to ${heats} fleets (SHRS 4.1).`);
+  }
+  fleets.forEach((fleet, i) => {
+    if (fleet.length === 0) refuse('A fleet cannot be empty.');
+    if (i > 0 && fleet.length > fleets[i - 1].length) {
+      refuse(
+        `${fleetName(i)} cannot be larger than ${fleetName(i - 1)} (SHRS 4.1).`,
+      );
+    }
+    if (
+      fleet.length > MAX_HEAT_SIZE &&
+      state.settings.finalOverflow !== 'allow-oversize'
+    ) {
+      refuse(
+        `${fleetName(i)} has more than ${MAX_HEAT_SIZE} boats (SHRS 2.3).`,
+      );
+    }
+  });
+}
+
+function startFinal(state: EventState, rule43: boolean, given?: BoatId[][]) {
   if (finalStarted(state)) refuse('The Final Series has already started.');
   const round = currentRound(state);
   if (round.length < 2) {
     refuse('With one heat there is no Final Series (SHRS 1.1).');
   }
-  if (!roundComplete(state)) {
+  // A recorded split stands as made, even from a round not fully sailed
+  // (older records allow it).
+  if (!given && !roundComplete(state)) {
     refuse('Every heat of this round must sail the same races first.');
   }
-  const { ranked, withdrawn } = finalSplitRanking(state, rule43);
-  const split = splitIntoFleets(
-    ranked,
-    (id) => withdrawn.has(id),
-    round.length,
-    state.settings.finalOverflow,
-  );
-  if (!split.ok) refuse(split.reason);
+  let fleets: BoatId[][];
+  if (given) {
+    checkFleets(state, given, round.length);
+    fleets = given.map((fleet) => [...fleet]);
+  } else {
+    const { ranked, withdrawn } = finalSplitRanking(state, rule43);
+    const split = splitIntoFleets(
+      ranked,
+      (id) => withdrawn.has(id),
+      round.length,
+      state.settings.finalOverflow,
+    );
+    if (!split.ok) refuse(split.reason);
+    fleets = split.fleets;
+  }
   // eslint-disable-next-line no-param-reassign
-  state.fleets = split.fleets.map((boats, index) => ({
+  state.fleets = fleets.map((boats, index) => ({
     id: fleetName(index),
     series: 'final' as const,
     index,
@@ -587,7 +680,12 @@ function applyDecision(state: EventState, decision: Decision) {
     case 'boatRemoved':
       return remove(state, decision.boat);
     case 'heatsCreated':
-      return createHeats(state, decision.heatCount, decision.seeding);
+      return createHeats(
+        state,
+        decision.heatCount,
+        decision.seeding,
+        decision.heats,
+      );
     case 'boatAssigned':
       return assign(state, decision.boat, decision.heat);
     case 'boatMoved':
@@ -624,9 +722,9 @@ function applyDecision(state: EventState, decision: Decision) {
     case 'protestDecided':
       return decideProtest(state, decision);
     case 'roundCreated':
-      return createRound(state);
+      return createRound(state, decision.heats);
     case 'finalSeriesStarted':
-      return startFinal(state, decision.rule43 ?? true);
+      return startFinal(state, decision.rule43 ?? true, decision.fleets);
     default: {
       const unknown: never = decision;
       return refuse(`Unknown decision ${JSON.stringify(unknown)}.`);

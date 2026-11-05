@@ -27,16 +27,19 @@ commits. The comparison test (`regattaCore.differential`) runs throughout.
 
 ## Phases
 
+Revised after phase 0: the log is built from the tables first, and reads
+move to it before writes do, so there is never a second source of truth to
+keep in step.
+
 0. **Library in the app build.** `regatta-core` importable from main,
    renderer and tests (tsconfig paths, webpack, jest).
-1. **The log beside the tables (dual write).** Migration: `Decisions`
-   table. Every scoring handler also appends its decision in the same
-   transaction; existing events get a log converted from their tables and
-   checked by replaying it against the stored heats and scores. Tests
-   compare the log's results with the tables after every handler call.
+1. **The tables as a log.** `functions/eventLog.ts`: `eventToLog` turns
+   an event's tables into a decision log; `checkEventLog` replays it and
+   compares every heat and every score with the tables. It is the
+   migration of existing events and the read path of phase 2.
 2. **Reads from the log.** Standings, explanations, eligibility, next-round
-   heats and the Final split read the replayed log; the tables become a
-   projection rebuilt from it.
+   heats and the Final split come from the library on the converted log;
+   the `Leaderboard` / `FinalLeaderboard` tables are no longer read.
 3. **Writes through the log.** Handlers build the decision first; replay
    decides; the projection is rebuilt. The old validation and scoring code
    goes.
@@ -59,7 +62,7 @@ commits. The comparison test (`regattaCore.differential`) runs throughout.
 ## Progress
 
 - [x] Phase 0: `regatta-core` resolves in tsc, webpack (main checked) and both Jest configs
-- [ ] Phase 1
+- [x] Phase 1: `eventToLog` / `checkEventLog`, checked after every step of the comparison test (400 events) and the chaos test (200 sessions)
 - [ ] Phase 2
 - [ ] Phase 3
 - [ ] Phase 4
@@ -68,4 +71,24 @@ commits. The comparison test (`regattaCore.differential`) runs throughout.
 
 ## Conversion
 
-(filled in during phase 1)
+The tables hold the event's state, not its history, so the converted log
+is a record that leads to that state: heats as made, sheets, committee
+decisions, the split (by the rules if they give the stored fleets, else as
+made). What only the old app could write and the rules cannot express
+exactly is reported as an anomaly; there the log's scores can differ from
+the tables, and the migration must show the user every such difference:
+
+- a result for a boat not listed in the heat (a no-heat DNC corrected to a
+  finish): the log puts her in the heat, which can change the largest heat;
+- a kept RDG / DPI place a later correction gave to a finisher;
+- a gap in the stored places;
+- a boat entered after the Final Series started (in no fleet).
+
+The library gained three record forms for this (checked for shape only):
+`heatsCreated.heats`, `roundCreated.heats`, `finalSeriesStarted.fleets`.
+
+In the chaos test 31 of 200 random sessions hit an anomaly that changes a
+score or a heat; random sessions do far stranger things than race offices.
+Everywhere else the converted log gives exactly the tables' heats and
+points. The known app bugs (R8, R9, SHRS 3.1(5) after a correction) are
+where the app's tables are wrong, and the log follows the rules.

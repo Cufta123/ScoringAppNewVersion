@@ -136,6 +136,16 @@
               "items": {
                 "$ref": "#/definitions/BoatId"
               }
+            },
+            "heats": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/BoatId"
+                }
+              },
+              "description": "The heats as the race office made them, heat A first, instead of the SHRS 3.1(1) draw: a converted record. Checked for shape only: each boat entered and in one heat, at most 20 to a heat."
             }
           },
           "required": ["type", "heatCount"],
@@ -244,6 +254,16 @@
             "type": {
               "type": "string",
               "const": "roundCreated"
+            },
+            "heats": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/BoatId"
+                }
+              },
+              "description": "The round's heats as the race office made them, heat A first, instead of the Heat Movement Table: a converted record. Checked for shape only, as for `heatsCreated`."
             }
           },
           "required": ["type"],
@@ -259,6 +279,16 @@
             "rule43": {
               "type": "boolean",
               "description": "SHRS 4.3 for the fleet split; on unless the SI say otherwise."
+            },
+            "fleets": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/BoatId"
+                }
+              },
+              "description": "The fleets as the race office made them, Gold first, instead of the split worked out here. For an event converted from records that keep the fleets but not the results they were split from (results corrected after the split). Checked for shape only."
             }
           },
           "required": ["type"],

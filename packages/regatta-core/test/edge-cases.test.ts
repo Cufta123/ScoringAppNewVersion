@@ -134,3 +134,104 @@ describe('a race is named, not counted', () => {
     expect(result.state.rounds[0][0].races).toHaveLength(2);
   });
 });
+
+describe('fleets given as made (a converted record)', () => {
+  const qualifying: Decision[] = [
+    boat(1),
+    boat(2),
+    boat(3),
+    boat(4),
+    { type: 'heatsCreated', heatCount: 2 }, // A1: 1, 4; B1: 2, 3
+    sheet('A1', 1, 'b1', 'b4'),
+    sheet('B1', 1, 'b2', 'b3'),
+  ];
+  const start = (fleets: string[][]): Decision => ({
+    type: 'finalSeriesStarted',
+    fleets,
+  });
+
+  it('may leave out a boat entered after the split (older records)', () => {
+    const result = replay([...qualifying, start([['b1', 'b2'], ['b3']])]);
+    expect(result.ok).toBe(true);
+  });
+
+  it('are used as given', () => {
+    const result = replay([
+      ...qualifying,
+      start([
+        ['b4', 'b3'],
+        ['b1', 'b2'],
+      ]),
+    ]);
+    expect(result.ok).toBe(true);
+    expect(result.state.fleets!.map((f) => [f.id, f.boats])).toEqual([
+      ['Gold', ['b4', 'b3']],
+      ['Silver', ['b1', 'b2']],
+    ]);
+  });
+
+  it.each([
+    [
+      [
+        ['b1', 'b2'],
+        ['b3', 'b9'],
+      ],
+      /entered boats, each once/,
+    ],
+    [
+      [
+        ['b1', 'b2'],
+        ['b3', 'b3', 'b4'],
+      ],
+      /entered boats, each once/,
+    ],
+    [[['b1'], ['b2', 'b3', 'b4']], /Silver cannot be larger than Gold/],
+    [[['b1'], ['b2'], ['b3', 'b4']], /1 to 2 fleets/],
+  ])('are refused when wrong: %p', (fleets, message) => {
+    const result = replay([...qualifying, start(fleets)]);
+    expect(result).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(message),
+    });
+  });
+});
+
+describe('heats given as made (a converted record)', () => {
+  const entries: Decision[] = [boat(1), boat(2), boat(3)];
+  const create = (heats: string[][]): Decision => ({
+    type: 'heatsCreated',
+    heatCount: heats.length,
+    heats,
+  });
+
+  it('are used as given, an empty heat too', () => {
+    const result = replay([...entries, create([['b3', 'b1'], [], ['b2']])]);
+    expect(result.ok).toBe(true);
+    expect(result.state.rounds[0].map((h) => [h.id, h.boats])).toEqual([
+      ['A1', ['b3', 'b1']],
+      ['B1', []],
+      ['C1', ['b2']],
+    ]);
+  });
+
+  it('then the round sails and moves on (the empty heat holds nothing)', () => {
+    const result = replay([
+      ...entries,
+      create([['b3', 'b1'], [], ['b2']]),
+      sheet('A1', 1, 'b1', 'b3'),
+      sheet('C1', 1, 'b2'),
+      { type: 'roundCreated' },
+    ]);
+    expect(result.ok).toBe(true);
+  });
+
+  it.each([
+    [[['b1', 'b1'], ['b2']], /each once/],
+    [[['b1'], ['b9']], /each once/],
+  ])('are refused when wrong: %p', (heats, message) => {
+    expect(replay([...entries, create(heats)])).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(message),
+    });
+  });
+});

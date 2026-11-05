@@ -55,6 +55,7 @@ const mockDbHolderRef = mockDbHolder;
 
 /* eslint-disable import/first, import/order */
 import { invalidateAssignmentSnapshotCache } from '../main/functions/raceAssignmentSnapshot';
+import { checkEventLog, eventToLog } from '../main/functions/eventLog';
 import applyRaceColumnEdit from '../shared/raceColumnEdit';
 import { payloadFor, prng, randomOutcome } from './fixtures/scoringOracle';
 // The library is not an installed package; import its source.
@@ -94,6 +95,8 @@ interface AppHeat {
 
 /** Standings where SHRS 5.7 went round in a circle (see `settled`). */
 const CIRCLES = new Set<string>();
+/** What the table-to-log conversion had to assume, over all events. */
+const CONVERSION_NOTES = new Set<string>();
 /** Events stopped at parity R9, a stale average redress (`staleRedress`). */
 const KNOWN_R9 = new Map<number, string>();
 /** Events stopped at parity R8, a no-heat DNC in a tie-break (`settled`). */
@@ -742,6 +745,14 @@ async function runEvent(seed: number): Promise<string[]> {
       KNOWN_R9.set(seed, `after ${step}: ${stale.join('; ')}`);
       return false;
     }
+    // The app's tables, converted to a decision log (the migration and the
+    // read path of the switch to regatta-core), must replay to the same
+    // heats and points as the tables.
+    const converted = eventToLog(eventId);
+    checkEventLog(eventId, converted).forEach((difference) =>
+      problems.push(`${where}: converted log: ${difference}`),
+    );
+    converted.notes.forEach((note) => CONVERSION_NOTES.add(note));
     const diff = (
       name: string,
       a: Map<string, string>,
@@ -1097,7 +1108,11 @@ describe('regatta-core agrees with the app', () => {
         ]
           .map(([seed, what]) => `\n  seed ${seed} ${what}`)
           .join('')}\n` +
-        `steps compared: ${JSON.stringify(COVERED)}\n`,
+        `steps compared: ${JSON.stringify(COVERED)}\n` +
+        `conversion notes: ${CONVERSION_NOTES.size}${[...CONVERSION_NOTES]
+          .slice(0, 20)
+          .map((note) => `\n  ${note}`)
+          .join('')}\n`,
     );
   });
 

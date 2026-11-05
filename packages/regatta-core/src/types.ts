@@ -131,7 +131,17 @@ export type Decision =
    * The first qualifying round. Boats are seeded in `seeding` order, or by
    * national letters and sail number when there is no seeding list (SHRS 3).
    */
-  | { type: 'heatsCreated'; heatCount: number; seeding?: BoatId[] }
+  | {
+      type: 'heatsCreated';
+      heatCount: number;
+      seeding?: BoatId[];
+      /**
+       * The heats as the race office made them, heat A first, instead of
+       * the SHRS 3.1(1) draw: a converted record. Checked for shape only:
+       * each boat entered and in one heat, at most 20 to a heat.
+       */
+      heats?: BoatId[][];
+    }
   /** A late entry joins a heat of the current round. */
   | { type: 'boatAssigned'; boat: BoatId; heat: HeatId }
   /**
@@ -155,11 +165,26 @@ export type Decision =
       outcome: ProtestOutcome;
     }
   /** The next qualifying round, assigned from the round just sailed. */
-  | { type: 'roundCreated' }
+  | {
+      type: 'roundCreated';
+      /**
+       * The round's heats as the race office made them, heat A first,
+       * instead of the Heat Movement Table: a converted record. Checked
+       * for shape only, as for `heatsCreated`.
+       */
+      heats?: BoatId[][];
+    }
   | {
       type: 'finalSeriesStarted';
       /** SHRS 4.3 for the fleet split; on unless the SI say otherwise. */
       rule43?: boolean;
+      /**
+       * The fleets as the race office made them, Gold first, instead of
+       * the split worked out here. For an event converted from records
+       * that keep the fleets but not the results they were split from
+       * (results corrected after the split). Checked for shape only.
+       */
+      fleets?: BoatId[][];
     };
 
 export type DecisionType = Decision['type'];

@@ -55,6 +55,7 @@ import {
   randomOutcome,
   tenth,
 } from './fixtures/scoringOracle';
+import { checkEventLog, eventToLog } from '../main/functions/eventLog';
 /* eslint-enable import/first, import/order */
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -93,6 +94,20 @@ const GUARDS: RegExp[] = [
 
 const isGuard = (error: unknown) =>
   GUARDS.some((pattern) => pattern.test((error as Error)?.message ?? ''));
+
+/** Kinds of state the table-to-log conversion reported, over all sessions. */
+const ANOMALIES = new Set<string>();
+/** Sessions where a reported anomaly changed a score or a heat. */
+const ANOMALOUS_EVENTS = new Set<number>();
+afterAll(() => {
+  process.stdout.write(
+    `conversion anomalies (${ANOMALOUS_EVENTS.size} sessions with a difference): ${[
+      ...ANOMALIES,
+    ]
+      .map((kind) => `\n  ${kind}`)
+      .join('')}\n`,
+  );
+});
 
 describe('chaos: random race-office sessions keep the data whole', () => {
   let db: any;
@@ -557,6 +572,27 @@ describe('chaos: random race-office sessions keep the data whole', () => {
           `${context}: reading the standings: ${(error as Error).stack}`,
         );
         return;
+      }
+      // The tables as a regatta-core decision log (the switch's migration
+      // and read path) replay to the same heats and points.
+      // Where the converter reports an anomaly (a state the rules cannot
+      // express exactly, which only the old app could write) a difference
+      // is expected and counted; anywhere else it is an error.
+      try {
+        const converted = eventToLog(eventId);
+        const differences = checkEventLog(eventId, converted);
+        converted.anomalies.forEach((anomaly) =>
+          ANOMALIES.add(anomaly.replace(/[0-9]+/g, 'N')),
+        );
+        if (converted.anomalies.length === 0) {
+          differences.forEach((difference) =>
+            unexpected.push(`${context}: converted log: ${difference}`),
+          );
+        } else if (differences.length > 0) {
+          ANOMALOUS_EVENTS.add(seed);
+        }
+      } catch (error) {
+        unexpected.push(`${context}: converting: ${(error as Error).message}`);
       }
       const races = db
         .prepare(
