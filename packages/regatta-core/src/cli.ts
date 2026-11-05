@@ -13,6 +13,8 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
 import {
+  FORMAT_VERSION,
+  readEventFile,
   results,
   type EventFile,
   type Results,
@@ -224,6 +226,15 @@ export function main(
     data = JSON.parse(raw);
   } catch (error) {
     return { code: 2, out: '', err: `Not JSON: ${(error as Error).message}\n` };
+  }
+  // A newer format first: its schema errors would only confuse.
+  const version = (data as { formatVersion?: unknown } | null)?.formatVersion;
+  if (typeof version === 'number' && version !== FORMAT_VERSION) {
+    try {
+      readEventFile({ formatVersion: version });
+    } catch (error) {
+      return { code: 2, out: '', err: `${(error as Error).message}\n` };
+    }
   }
   const problems = validateEventFile(data);
   if (problems.length > 0) {

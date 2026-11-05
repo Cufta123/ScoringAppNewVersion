@@ -41,15 +41,24 @@ describe.each(exampleNames())('examples/%s', (name) => {
 describe('the event schema refuses', () => {
   it.each([
     ['no decisions', {}],
-    ['an unknown field', { decisions: [], extra: 1 }],
-    ['an unknown decision', { decisions: [{ type: 'boatSank' }] }],
+    ['an unknown field', { formatVersion: 1, decisions: [], extra: 1 }],
+    ['no format version', { decisions: [] }],
+    ['a newer format version', { formatVersion: 2, decisions: [] }],
+    [
+      'an unknown decision',
+      { formatVersion: 1, decisions: [{ type: 'boatSank' }] },
+    ],
     [
       'a boat without sail number',
-      { decisions: [{ type: 'boatEntered', boat: { id: 'a', nat: 'CRO' } }] },
+      {
+        formatVersion: 1,
+        decisions: [{ type: 'boatEntered', boat: { id: 'a', nat: 'CRO' } }],
+      },
     ],
     [
       'an unknown code',
       {
+        formatVersion: 1,
         decisions: [
           {
             type: 'raceScored',
@@ -62,6 +71,7 @@ describe('the event schema refuses', () => {
     [
       'a DPI without points',
       {
+        formatVersion: 1,
         decisions: [
           {
             type: 'protestDecided',
@@ -74,5 +84,19 @@ describe('the event schema refuses', () => {
     ],
   ])('%s', (_what, file) => {
     expect(validEvent(file)).toBe(false);
+  });
+});
+
+describe('format version', () => {
+  it('results() reads format 1 and says so in the results', () => {
+    expect(results({ formatVersion: 1, decisions: [] }).formatVersion).toBe(1);
+  });
+  it('results() refuses another version in words', () => {
+    expect(() =>
+      results({ formatVersion: 2, decisions: [] } as unknown as EventFile),
+    ).toThrow('format 2, from a newer regatta-core');
+    expect(() => results({ decisions: [] } as unknown as EventFile)).toThrow(
+      'no known format version',
+    );
   });
 });

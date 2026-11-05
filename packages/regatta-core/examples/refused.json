@@ -1,5 +1,6 @@
 {
   "$schema": "../schema/event.schema.json",
+  "formatVersion": 1,
   "name": "A sheet with a boat listed twice",
   "decisions": [
     {

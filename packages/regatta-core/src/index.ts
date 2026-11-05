@@ -32,7 +32,7 @@ export {
 } from './standings/final';
 export type { FleetStandings, OverallStanding } from './standings/final';
 export type { Score, Standing } from './standings/series';
-export { results, resultsOf } from './results';
+export { FORMAT_VERSION, readEventFile, results, resultsOf } from './results';
 export type {
   EventFile,
   Results,

@@ -1,5 +1,6 @@
 {
   "$schema": "../schema/event.schema.json",
+  "formatVersion": 1,
   "name": "Two heats and a Final Series",
   "decisions": [
     {

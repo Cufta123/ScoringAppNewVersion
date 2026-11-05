@@ -6,6 +6,11 @@
     "Results": {
       "type": "object",
       "properties": {
+        "formatVersion": {
+          "type": "number",
+          "const": 1,
+          "description": "The file format's version (`FORMAT_VERSION`)."
+        },
         "name": {
           "type": "string"
         },
@@ -93,6 +98,7 @@
         }
       },
       "required": [
+        "formatVersion",
         "settings",
         "boats",
         "rounds",
@@ -225,6 +231,26 @@
             }
           },
           "required": ["type", "boat", "heat"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "boatMoved"
+            },
+            "boat": {
+              "$ref": "#/definitions/BoatId"
+            },
+            "from": {
+              "$ref": "#/definitions/HeatId"
+            },
+            "to": {
+              "$ref": "#/definitions/HeatId"
+            }
+          },
+          "required": ["type", "boat", "from", "to"],
           "additionalProperties": false
         },
         {

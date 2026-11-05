@@ -16,10 +16,19 @@ import { qualifyingStandings } from './standings/qualifying';
 import { finalStandings, overallStandings } from './standings/final';
 import type { Score, Standing } from './standings/series';
 
+/**
+ * The version of the file format this library reads and writes. A change
+ * that an older reader would misread raises it; `readEventFile` upgrades
+ * older files and refuses newer ones.
+ */
+export const FORMAT_VERSION = 1;
+
 /** An event file: the event's decision log, oldest first. */
 export interface EventFile {
   /** Optional link to `schema/event.schema.json`, for editors. */
   $schema?: string;
+  /** The file format's version (`FORMAT_VERSION`). */
+  formatVersion: 1;
   /** A name for the event; copied to the results. */
   name?: string;
   decisions: Decision[];
@@ -89,6 +98,8 @@ export interface Refusal {
 }
 
 export interface Results {
+  /** The file format's version (`FORMAT_VERSION`). */
+  formatVersion: 1;
   name?: string;
   /** Present when a decision was refused; everything else is the event before it. */
   refused?: Refusal;
@@ -143,6 +154,7 @@ export function resultsOf(state: EventState): Results {
     pending[boat] = scores.map(raceScore);
   });
   return {
+    formatVersion: FORMAT_VERSION,
     settings: structuredClone(state.settings),
     boats: state.boats.map((boat) => ({ ...boat })),
     rounds: state.rounds.map((round) => round.map(heatSummary)),
@@ -162,10 +174,34 @@ export function resultsOf(state: EventState): Results {
   };
 }
 
-/** An event file in, its results out. A refusal is reported, not thrown. */
-export function results(file: EventFile): Results {
+/**
+ * Check an event file's format version. Version 1 is the first; when a
+ * later version changes the format, the upgrade from each older version
+ * goes here, so old files keep their results.
+ */
+export function readEventFile(file: { formatVersion?: unknown }): EventFile {
+  const version = file.formatVersion;
+  if (version === FORMAT_VERSION) return file as EventFile;
+  if (typeof version === 'number' && version > FORMAT_VERSION) {
+    throw new Error(
+      `This event file is format ${version}, from a newer regatta-core; this one reads format ${FORMAT_VERSION}.`,
+    );
+  }
+  throw new Error(
+    `This event file has no known format version ("formatVersion": ${FORMAT_VERSION} expected).`,
+  );
+}
+
+/**
+ * An event file in, its results out. A refused decision is reported in the
+ * results, not thrown; a file of an unknown format version is thrown.
+ */
+export function results(input: EventFile): Results {
+  const file = readEventFile(input);
   const replayed = replay(file.decisions);
+  const { formatVersion, ...rest } = resultsOf(replayed.state);
   return {
+    formatVersion,
     ...(file.name !== undefined ? { name: file.name } : {}),
     ...(replayed.ok
       ? {}
@@ -176,6 +212,6 @@ export function results(file: EventFile): Results {
             decision: file.decisions[replayed.at],
           },
         }),
-    ...resultsOf(replayed.state),
+    ...rest,
   };
 }

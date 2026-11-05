@@ -304,6 +304,35 @@ function assign(state: EventState, id: BoatId, heatId: string) {
   heat.boats.push(id);
 }
 
+function move(state: EventState, id: BoatId, fromId: string, toId: string) {
+  if (!boatById(state, id)) refuse(`${id} is not entered.`);
+  if (finalStarted(state)) {
+    refuse(
+      'The Final Series has started: boats stay in their fleets (SHRS 4.1).',
+    );
+  }
+  const round = currentRound(state);
+  const heatOf = (heatId: string) => {
+    const heat =
+      findHeat(state, heatId) ?? refuse(`There is no heat ${heatId}.`);
+    if (!round.includes(heat)) refuse(`${heatId} is not in the current round.`);
+    if (heat.races.length > 0) {
+      refuse(`${heatId} has raced; its boats stay as they sailed.`);
+    }
+    return heat;
+  };
+  const from = heatOf(fromId);
+  const to = heatOf(toId);
+  if (!from.boats.includes(id))
+    refuse(`${label(state, id)} is not in ${fromId}.`);
+  if (from === to) refuse(`${label(state, id)} is already in ${toId}.`);
+  if (to.boats.length >= MAX_HEAT_SIZE) {
+    refuse(`${toId} already has ${MAX_HEAT_SIZE} boats (SHRS 2.3).`);
+  }
+  from.boats = from.boats.filter((boat) => boat !== id);
+  to.boats.push(id);
+}
+
 /** SHRS 3.1(2)-(4): a heat's boats in the order the movement table reads. */
 function movementOrder(state: EventState, heat: Heat): BoatId[] {
   const last = heat.races[heat.races.length - 1];
@@ -505,6 +534,8 @@ function applyDecision(state: EventState, decision: Decision) {
       return createHeats(state, decision.heatCount, decision.seeding);
     case 'boatAssigned':
       return assign(state, decision.boat, decision.heat);
+    case 'boatMoved':
+      return move(state, decision.boat, decision.from, decision.to);
     case 'raceScored': {
       const heat = scorableHeat(state, decision.race.heat);
       checkLines(state, heat, decision.lines);

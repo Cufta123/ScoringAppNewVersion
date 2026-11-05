@@ -48,12 +48,12 @@ decision).
 
 ## File format
 
-| File                         | What                                             |
-| ---------------------------- | ------------------------------------------------ |
-| `schema/event.schema.json`   | input: `{ "name"?, "decisions": [Decision, …] }` |
-| `schema/results.schema.json` | output of `results()` and of the command line    |
-| `examples/*.json`            | event files                                      |
-| `examples/expected/*.json`   | their results                                    |
+| File                         | What                                                                 |
+| ---------------------------- | -------------------------------------------------------------------- |
+| `schema/event.schema.json`   | input: `{ "formatVersion": 1, "name"?, "decisions": [Decision, …] }` |
+| `schema/results.schema.json` | output of `results()` and of the command line                        |
+| `examples/*.json`            | event files                                                          |
+| `examples/expected/*.json`   | their results                                                        |
 
 Both schemas are generated from the types in `src/results.ts` and
 `src/types.ts` (`npm run schema`); a test fails when they are out of date.
@@ -62,6 +62,10 @@ The results are a public shape of their own (`RaceScore`, `SeriesStanding`,
 
 An event file can start with `"$schema": "../schema/event.schema.json"` for
 completion and checking in an editor.
+
+`formatVersion` is the file format's version (`FORMAT_VERSION`, now 1).
+A change an older reader would misread raises it; `readEventFile` then
+upgrades older files, and a newer file is refused in words.
 
 ## Tests
 
@@ -93,6 +97,7 @@ The event **is** its decision log (`Decision` in `src/types.ts`):
 | `boatEntered/Removed` | race office       | entries                                                      |
 | `heatsCreated`        | race office       | the first round (3.1(1) serpentine from the seeding)         |
 | `boatAssigned`        | race office       | a late entry joins a heat of the current round               |
+| `boatMoved`           | race office       | a boat to another heat of the round, before either races     |
 | `raceScored`          | race office       | a heat's next race, named: the finishing **order** and codes |
 | `raceCorrected`       | race office       | the whole sheet again                                        |
 | `protestDecided`      | protest committee | DSQ / DNE / DGM / DPI / RDG1-3 for one boat, or cleared      |
@@ -175,5 +180,4 @@ The full list, with the app's behaviour beside the library's, is in
 - Score explanations ("how was this calculated?") and tie-break explanations
   (the comparators `qualifyingTieBreak` / `overallTieBreak` are there to build
   them on).
-- Moving a boat between heats of the current round.
 - The app does not use the library yet.

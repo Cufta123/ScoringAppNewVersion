@@ -73,6 +73,20 @@ describe('bad input exits 2', () => {
       err: expect.stringContaining('Not JSON'),
     });
   });
+  it('a newer format, in words', () => {
+    expect(run(['-'], '{"formatVersion": 2, "decisions": []}')).toMatchObject({
+      code: 2,
+      err: 'This event file is format 2, from a newer regatta-core; this one reads format 1.\n',
+    });
+  });
+  it('no format version', () => {
+    expect(run(['-'], '{"decisions": []}')).toMatchObject({
+      code: 2,
+      err: expect.stringContaining(
+        "must have required property 'formatVersion'",
+      ),
+    });
+  });
   it('not an event file', () => {
     expect(run(['-'], '[]')).toMatchObject({
       code: 2,
@@ -83,7 +97,12 @@ describe('bad input exits 2', () => {
 
 describe('schema errors name the decision', () => {
   it('an unknown type', () => {
-    expect(validateEventFile({ decisions: [{ type: 'boatSank' }] })).toEqual([
+    expect(
+      validateEventFile({
+        formatVersion: 1,
+        decisions: [{ type: 'boatSank' }],
+      }),
+    ).toEqual([
       expect.stringMatching(
         /^decision 0: "type" must be one of settingsChanged, /,
       ),
@@ -91,6 +110,7 @@ describe('schema errors name the decision', () => {
   });
   it('a missing field, under the decision it belongs to', () => {
     const problems = validateEventFile({
+      formatVersion: 1,
       decisions: [
         { type: 'boatEntered', boat: { id: 'a', nat: 'CRO', sail: '1' } },
         { type: 'heatsCreated' },
@@ -102,11 +122,11 @@ describe('schema errors name the decision', () => {
     ]);
   });
   it('an unknown field at the top', () => {
-    expect(validateEventFile({ decisions: [], extra: 1 })).toEqual([
-      '  / must NOT have additional properties: extra',
-    ]);
+    expect(
+      validateEventFile({ formatVersion: 1, decisions: [], extra: 1 }),
+    ).toEqual(['  / must NOT have additional properties: extra']);
   });
   it('a valid file has none', () => {
-    expect(validateEventFile({ decisions: [] })).toEqual([]);
+    expect(validateEventFile({ formatVersion: 1, decisions: [] })).toEqual([]);
   });
 });

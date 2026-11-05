@@ -123,6 +123,11 @@ export type Decision =
   /** A late entry joins a heat of the current round. */
   | { type: 'boatAssigned'; boat: BoatId; heat: HeatId }
   /**
+   * The race office moves a boat to another heat of the current qualifying
+   * round, before either heat has raced.
+   */
+  | { type: 'boatMoved'; boat: BoatId; from: HeatId; to: HeatId }
+  /**
    * The heat's next race, as the race office recorded it. `race` names it
    * (the heat's race 1, 2, …) and must be the heat's next race, so taking
    * an earlier race out of the log cannot quietly renumber the later ones

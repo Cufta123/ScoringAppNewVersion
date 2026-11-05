@@ -78,8 +78,9 @@ welcome. R6 is the order SHRS uses for every tie it does settle; R8 follows
    (`race: { heat, race }`) and must be the heat's next one, so taking a
    middle race out of the log stops replay at the next race instead of
    re-pointing later corrections, protests and RDG2 choices.
-2. **Moving a boat between heats** of the current round (the app's
-   transfer).
+2. ~~**Moving a boat between heats**~~ Done: `boatMoved { boat, from, to }`
+   (`test/move.test.ts`), with the app's checks plus one it lacks: both
+   heats must be in the current round.
 3. ~~**Unchanged settings are not a change.**~~ Done: only a value that
    differs from the one in force is checked against the locks.
 4. ~~**Checks the app has.**~~ Done in replay (`test/checks.test.ts`): DPI
@@ -91,8 +92,14 @@ welcome. R6 is the order SHRS uses for every tie it does settle; R8 follows
    RET.
 5. **Boat details changed** (national letters, sail number): they order the
    seeding and the ties, so a change is a decision.
-6. **`nextStep`:** a "start the Final Series" step; empty heats.
-7. **Format version** in the event file and the settings, with migrations.
+6. ~~**`nextStep`**~~: nothing to change. `createRound` comes only when
+   the round is complete, which is also when the Final Series can start;
+   which one is next is the notice of race's to say (SHRS 1.4), so the
+   screen offers both, as the app's round bar does. Empty heats no longer
+   stop a round (fixed earlier).
+7. ~~**Format version**~~ Done: `formatVersion: 1` in the event file and
+   the results; `readEventFile` is where upgrades of older files go, and a
+   newer file is refused in words.
 8. **Score and tie-break explanations** (the app has both).
 9. **A withdrawn decision stays on record.** Undo now deletes from the log;
    the app keeps an audit trail and can redo. The log needs a "withdrawn"

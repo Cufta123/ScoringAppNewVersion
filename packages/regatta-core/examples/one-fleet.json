@@ -1,5 +1,6 @@
 {
   "$schema": "../schema/event.schema.json",
+  "formatVersion": 1,
   "name": "Club race, one fleet",
   "decisions": [
     {

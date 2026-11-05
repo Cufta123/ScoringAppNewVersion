@@ -10,6 +10,11 @@
           "type": "string",
           "description": "Optional link to `schema/event.schema.json`, for editors."
         },
+        "formatVersion": {
+          "type": "number",
+          "const": 1,
+          "description": "The file format's version (`FORMAT_VERSION`)."
+        },
         "name": {
           "type": "string",
           "description": "A name for the event; copied to the results."
@@ -21,7 +26,7 @@
           }
         }
       },
-      "required": ["decisions"],
+      "required": ["formatVersion", "decisions"],
       "additionalProperties": false,
       "description": "An event file: the event's decision log, oldest first."
     },
@@ -128,6 +133,26 @@
             }
           },
           "required": ["type", "boat", "heat"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "boatMoved"
+            },
+            "boat": {
+              "$ref": "#/definitions/BoatId"
+            },
+            "from": {
+              "$ref": "#/definitions/HeatId"
+            },
+            "to": {
+              "$ref": "#/definitions/HeatId"
+            }
+          },
+          "required": ["type", "boat", "from", "to"],
           "additionalProperties": false
         },
         {
