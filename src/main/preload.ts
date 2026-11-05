@@ -36,6 +36,8 @@ const SQLITE_CHANNELS = {
     'restoreEventToHistoryPoint',
     'readEventExportLogo',
     'saveEventExportLogo',
+    'readConversionReport',
+    'markConversionReportSeen',
   ],
   heatRaceDB: [
     'readAllHeats',

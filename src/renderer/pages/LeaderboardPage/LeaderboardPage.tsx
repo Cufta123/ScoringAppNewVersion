@@ -11,6 +11,7 @@ import { EditValidityProvider } from '../../components/leaderboard/editValidity'
 import ScoreExplanationDialog, {
   type ExplainTarget,
 } from '../../components/leaderboard/ScoreExplanationDialog';
+import ConversionNotice from '../../components/leaderboard/ConversionNotice';
 import ResultsExportDialog from '../../components/export/ResultsExportDialog';
 import EventHeader from '../../components/shared/EventHeader';
 import EmptyState from '../../components/shared/EmptyState';
@@ -187,6 +188,8 @@ function LeaderboardContent({
             hasUnsavedEdits={hasUnsavedChanges}
           />
         )}
+
+        <ConversionNotice eventId={eventId} />
 
         {editMode && (
           <div className="edit-mode-banner" role="status">

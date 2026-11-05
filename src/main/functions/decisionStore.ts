@@ -18,7 +18,7 @@
  */
 import type { Decision } from 'regatta-core';
 import { db } from '../../../public/Database/DBManager';
-import { eventToLog } from './eventLog';
+import { eventToLog, logDifferences } from './eventLog';
 import { ensureCompleteRaceScoresForEvent } from './raceScoring';
 import { hasFinalSeriesStarted } from './seriesGuards';
 
@@ -86,6 +86,49 @@ function append(
   });
 }
 
+const hasColumn = (table: string, column: string) =>
+  (
+    db.prepare(`PRAGMA table_info('${table}')`).all() as { name: string }[]
+  ).some((row) => row.name === column);
+
+/**
+ * Convert the event's tables, append the log and record the conversion in
+ * EventLogs: its notes, its anomalies and (migration 11) what regatta-core
+ * scores differently from the tables, which the race officer is shown.
+ */
+function convertAndRecord(eventId: number) {
+  const converted = convertTables(eventId);
+  // Compared before anything is written: the tables are still the old
+  // app's.
+  const differences = logDifferences(eventId, converted);
+  append(eventId, converted.decisions, null);
+  const changes = JSON.stringify({
+    refused: differences.refused,
+    heats: differences.heats,
+    points: differences.points.map(({ stored: _stored, ...point }) => point),
+  });
+  if (hasColumn('EventLogs', 'changes')) {
+    db.prepare(
+      'INSERT INTO EventLogs (event_id, converted_by, notes, anomalies, changes) VALUES (?, ?, ?, ?, ?)',
+    ).run(
+      eventId,
+      PENDING,
+      JSON.stringify(converted.notes),
+      JSON.stringify(converted.anomalies),
+      changes,
+    );
+  } else {
+    db.prepare(
+      'INSERT INTO EventLogs (event_id, converted_by, notes, anomalies) VALUES (?, ?, ?, ?)',
+    ).run(
+      eventId,
+      PENDING,
+      JSON.stringify(converted.notes),
+      JSON.stringify(converted.anomalies),
+    );
+  }
+}
+
 /**
  * Make the event's log exist: converted from its tables (and recorded in
  * EventLogs) when it has none. Returns false without a store.
@@ -96,18 +139,7 @@ export function ensureEventLog(eventId: number): boolean {
     .prepare('SELECT 1 FROM EventLogs WHERE event_id = ?')
     .get(eventId);
   if (known) return true;
-  db.transaction(() => {
-    const converted = convertTables(eventId);
-    append(eventId, converted.decisions, null);
-    db.prepare(
-      'INSERT INTO EventLogs (event_id, converted_by, notes, anomalies) VALUES (?, ?, ?, ?)',
-    ).run(
-      eventId,
-      PENDING,
-      JSON.stringify(converted.notes),
-      JSON.stringify(converted.anomalies),
-    );
-  })();
+  db.transaction(() => convertAndRecord(eventId))();
   return true;
 }
 
@@ -168,16 +200,7 @@ export function reconvertEventLog(eventId: number) {
       'UPDATE Decisions SET withdrawn_by = ? WHERE event_id = ? AND withdrawn_by IS NULL',
     ).run(PENDING, eventId);
     db.prepare('DELETE FROM EventLogs WHERE event_id = ?').run(eventId);
-    const converted = convertTables(eventId);
-    append(eventId, converted.decisions, null);
-    db.prepare(
-      'INSERT INTO EventLogs (event_id, converted_by, notes, anomalies) VALUES (?, ?, ?, ?)',
-    ).run(
-      eventId,
-      PENDING,
-      JSON.stringify(converted.notes),
-      JSON.stringify(converted.anomalies),
-    );
+    convertAndRecord(eventId);
   })();
 }
 
@@ -332,4 +355,71 @@ export function laterActionsWithoutDecisions(
   )
     .map((row) => Number(row.action_id))
     .filter((id) => !withDecisions.has(id));
+}
+
+// ── Startup and the conversion report (migration 11) ───────────────────
+
+/** Events that have no log yet (made before this version, or imported). */
+export function eventsWithoutLog(): number[] {
+  if (!hasLogStore()) return [];
+  return (
+    db
+      .prepare(
+        `SELECT event_id FROM Events
+         WHERE event_id NOT IN (SELECT event_id FROM EventLogs)
+         ORDER BY event_id`,
+      )
+      .all() as { event_id: number }[]
+  ).map((row) => Number(row.event_id));
+}
+
+export interface ConversionRecord {
+  convertedAt: string;
+  anomalies: string[];
+  changes: {
+    refused: string | null;
+    heats: { heat: string; stored: string[]; log: string[] | null }[];
+    points: {
+      raceId: number;
+      heat: string;
+      race: number;
+      boat: number;
+      status: string;
+      before: number;
+      after: number;
+    }[];
+  } | null;
+  seenAt: string | null;
+}
+
+/** What converting the event recorded, or null (no log store, or none). */
+export function conversionRecord(eventId: number): ConversionRecord | null {
+  if (!hasLogStore() || !hasColumn('EventLogs', 'changes')) return null;
+  const row = db
+    .prepare(
+      'SELECT converted_at, anomalies, changes, report_seen_at FROM EventLogs WHERE event_id = ?',
+    )
+    .get(eventId) as
+    | {
+        converted_at: string;
+        anomalies: string | null;
+        changes: string | null;
+        report_seen_at: string | null;
+      }
+    | undefined;
+  if (!row) return null;
+  return {
+    convertedAt: row.converted_at,
+    anomalies: row.anomalies ? JSON.parse(row.anomalies) : [],
+    changes: row.changes ? JSON.parse(row.changes) : null,
+    seenAt: row.report_seen_at,
+  };
+}
+
+/** The race officer has read what the conversion changed. */
+export function markConversionSeen(eventId: number) {
+  if (!hasLogStore() || !hasColumn('EventLogs', 'report_seen_at')) return;
+  db.prepare(
+    'UPDATE EventLogs SET report_seen_at = CURRENT_TIMESTAMP WHERE event_id = ? AND report_seen_at IS NULL',
+  ).run(eventId);
 }

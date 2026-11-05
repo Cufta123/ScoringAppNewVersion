@@ -1,5 +1,6 @@
 import { db } from '../../../public/Database/DBManager';
-import { deleteEventLog } from '../functions/decisionStore';
+import { deleteEventLog, markConversionSeen } from '../functions/decisionStore';
+import conversionReport from '../functions/conversionReport';
 import { normalizeDiscardConfigString } from '../functions/discardConfig';
 import handle from './handle';
 import { readEventHistory } from '../functions/changeJournal';
@@ -335,5 +336,18 @@ handle('deleteEvent', async (event, event_id) => {
     db.prepare('DELETE FROM Events WHERE event_id = ?').run(event_id);
   })();
 
+  return { success: true };
+});
+
+/**
+ * What moving the event to regatta-core changed (null: nothing to tell),
+ * shown on its leaderboard until the race officer confirms it.
+ */
+handle('readConversionReport', async (_event, raw_event_id) =>
+  conversionReport(Number(raw_event_id)),
+);
+
+handle('markConversionReportSeen', async (_event, raw_event_id) => {
+  markConversionSeen(Number(raw_event_id));
   return { success: true };
 });

@@ -511,6 +511,26 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 11,
+    name: 'what moving an event to regatta-core changed',
+    // When an event's tables are converted to its decision log, the results
+    // regatta-core scores differently from what the old app stored (JSON:
+    // heats and race points, before and after) are kept in `changes`, so the
+    // race officer is shown them; `report_seen_at` is set once they confirm.
+    up(db) {
+      addMissingColumns(db, 'EventLogs', [
+        {
+          name: 'changes',
+          sql: 'ALTER TABLE EventLogs ADD COLUMN changes TEXT;',
+        },
+        {
+          name: 'report_seen_at',
+          sql: 'ALTER TABLE EventLogs ADD COLUMN report_seen_at TEXT;',
+        },
+      ]);
+    },
+  },
 ];
 
 const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

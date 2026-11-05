@@ -192,3 +192,42 @@ select.race-cell-status {
   font-size: 0.9rem;
   font-weight: 600;
 }
+
+/* An event moved to regatta-core: what that changed, until confirmed. */
+.conversion-notice {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin: 0 0 14px;
+  padding: 12px 16px;
+  border: 2px solid var(--amber);
+  border-left-width: 6px;
+  border-radius: var(--radius-sm);
+  background: var(--amber-light);
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+.conversion-notice > .fa {
+  margin-top: 4px;
+  color: var(--amber-strong);
+}
+.conversion-notice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.conversion-notice-details {
+  margin-top: 10px;
+}
+.conversion-notice-table {
+  border-collapse: collapse;
+  background: #fff;
+}
+.conversion-notice-table th,
+.conversion-notice-table td {
+  padding: 4px 10px;
+  border: 1px solid var(--border-strong);
+  text-align: left;
+}

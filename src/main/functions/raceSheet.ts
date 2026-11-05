@@ -51,11 +51,15 @@ export interface Sheet {
   anomalies: string[];
 }
 
-/** `where` names the race in notes ("A2 race 1"); `dnf` its no-place score. */
+/**
+ * `where` names the race in notes and anomalies ("Heat A2, race 1"), `name`
+ * a boat in them; `dnf` is the race's no-place score.
+ */
 export function sheetFromRows(
   rows: SheetRow[],
   dnf: number,
   where: string,
+  name: (boat: BoatId) => string = (boat) => boat,
 ): Sheet {
   const notes: string[] = [];
   const anomalies: string[] = [];
@@ -125,7 +129,7 @@ export function sheetFromRows(
       coded.push({ boat: boatId, code: status });
     } else {
       anomalies.push(
-        `${where}: ${boatId} has the unknown result ${status}; DNF on the sheet.`,
+        `${where}: ${name(boatId)} has the unknown result ${status}; she is scored DNF.`,
       );
       coded.push({ boat: boatId, code: 'DNF' });
     }
@@ -172,7 +176,7 @@ export function sheetFromRows(
     committee.forEach((entry, i) => {
       if (plain.length > 0 && i >= join) {
         anomalies.push(
-          `${where}: ${entry.boat}'s kept place ${place} went to another boat in a later correction; she follows the finishers on the sheet.`,
+          `${where}: the place ${name(entry.boat)} kept (${place}) was given to another boat in a later correction; she is placed after the finishers.`,
         );
         // eslint-disable-next-line no-param-reassign
         entry.place = Number.MAX_SAFE_INTEGER;
@@ -206,7 +210,7 @@ export function sheetFromRows(
         above !== undefined && above.live && above.place === entry.place;
       if (!levelAbove && entry.at !== expected) {
         anomalies.push(
-          `${where}: the stored places skip from ${expected - 1} to ${entry.at}; the sheet has no gap.`,
+          `${where}: the stored places skip from ${expected - 1} to ${entry.at}; the places are closed up.`,
         );
       }
     }

@@ -49,6 +49,7 @@ import { normalizeDiscardConfig } from '../../shared/discardProfile';
 import { getHeatRoundFromName } from '../../shared/heatNames';
 import { fleetRank } from '../../shared/fleetNames';
 import { normalizeScoreStatus } from './scoreStatus';
+import { boatLabel } from './labels';
 import {
   COMMITTEE_DSQ,
   REDRESS,
@@ -172,7 +173,7 @@ export function eventToLog(eventId: number): EventLog {
     if (entered.has(boatId)) return;
     const boat = boatOf.get(boatId);
     if (!boat) {
-      anomalies.push(`${boatId} has results but is not entered.`);
+      anomalies.push(`${boatLabel(boatId)} has results but is not entered.`);
       return;
     }
     entered.add(boatId);
@@ -255,7 +256,7 @@ export function eventToLog(eventId: number): EventLog {
         if (!first.has(boatId)) {
           if (status === 'DNC' || REDRESS.has(status)) return; // no heat
           anomalies.push(
-            `${coreHeatId(heat.heat_name)}: ${boatId} has a result in it (${status}) but is not listed in the heat; the log puts her in it.`,
+            `Heat ${coreHeatId(heat.heat_name)}: ${boatLabel(boatId)} has a result in it (${status}) but was not listed in the heat; she is put in it.`,
           );
           first.set(boatId, n + 1);
           return;
@@ -398,7 +399,8 @@ export function eventToLog(eventId: number): EventLog {
       : sheetFromRows(
           sheetRows,
           largestOf(heat) + 1,
-          `${ref.heat} race ${race}`,
+          `Heat ${ref.heat}, race ${race}`,
+          boatLabel,
         );
     notes.push(...sheet.notes);
     anomalies.push(...sheet.anomalies);
@@ -551,7 +553,7 @@ export function eventToLog(eventId: number): EventLog {
     entries.forEach((row) => {
       if (!entered.has(id(row.boat_id))) {
         anomalies.push(
-          `${id(row.boat_id)} was entered after the Final Series started; she is in no fleet.`,
+          `${boatLabel(row.boat_id)} was entered after the Final Series started; she is in no fleet.`,
         );
       }
     });
@@ -560,18 +562,49 @@ export function eventToLog(eventId: number): EventLog {
   return { decisions, notes, anomalies, races: raceRefs };
 }
 
+/** A race result the converted log scores differently from the tables. */
+export interface PointsDifference {
+  raceId: number;
+  heat: string;
+  race: number;
+  boat: number;
+  status: string;
+  /** What the tables held (the old app's points). */
+  before: number;
+  /** What regatta-core gives. */
+  after: number;
+  /** The race's stored rows, for the test reports. */
+  stored: string;
+}
+
+export interface HeatDifference {
+  heat: string;
+  stored: string[];
+  log: string[] | null;
+}
+
+export interface LogDifferences {
+  /** The log is refused (it cannot be replayed at all). */
+  refused: string | null;
+  heats: HeatDifference[];
+  points: PointsDifference[];
+}
+
 /**
  * Replay `log` and compare it with the tables: every heat's boats and
- * every boat's points in every race. Returns the differences in words
- * (empty: the log is the event as the tables hold it).
+ * every boat's points in every race.
  */
-export function checkEventLog(eventId: number, log: EventLog): string[] {
+export function logDifferences(eventId: number, log: EventLog): LogDifferences {
   const result = replay(log.decisions);
   if (!result.ok) {
-    return [`Decision ${result.at} refused: ${result.reason}`];
+    return {
+      refused: `Decision ${result.at} refused: ${result.reason}`,
+      heats: [],
+      points: [],
+    };
   }
   const { state } = result;
-  const problems: string[] = [];
+  const differences: LogDifferences = { refused: null, heats: [], points: [] };
   const heats = db
     .prepare('SELECT heat_id, heat_name FROM Heats WHERE event_id = ?')
     .all(eventId) as { heat_id: number; heat_name: string }[];
@@ -586,15 +619,9 @@ export function checkEventLog(eventId: number, log: EventLog): string[] {
     )
       .map((row) => id(row.boat_id))
       .sort();
-    if (!mine) {
-      problems.push(`${name} is not in the log.`);
-      return;
-    }
-    const ours = [...mine.boats].sort();
+    const ours = mine ? [...mine.boats].sort() : null;
     if (JSON.stringify(ours) !== JSON.stringify(stored)) {
-      problems.push(
-        `${name}: tables [${stored.join(',')}], log [${ours.join(',')}].`,
-      );
+      differences.heats.push({ heat: name, stored, log: ours });
     }
   });
 
@@ -644,10 +671,37 @@ export function checkEventLog(eventId: number, log: EventLog): string[] {
       )
       .join(' ');
     wrong.forEach((row) =>
-      problems.push(
-        `${ref.heat} race ${ref.race}, ${row.boat_id} (${row.status}): tables ${row.points}, log ${points.get(key(ref, id(row.boat_id)))}. Stored: ${stored}`,
-      ),
+      differences.points.push({
+        raceId,
+        heat: ref.heat,
+        race: ref.race,
+        boat: Number(row.boat_id),
+        status: normalizeScoreStatus(row.status),
+        before: Number(row.points),
+        after: points.get(key(ref, id(row.boat_id)))!,
+        stored,
+      }),
     );
   });
-  return problems;
+  return differences;
+}
+
+/**
+ * The differences between `log` and the tables in words, for the tests
+ * (empty: the log is the event as the tables hold it).
+ */
+export function checkEventLog(eventId: number, log: EventLog): string[] {
+  const { refused, heats, points } = logDifferences(eventId, log);
+  if (refused) return [refused];
+  return [
+    ...heats.map((heat) =>
+      heat.log === null
+        ? `${heat.heat} is not in the log.`
+        : `${heat.heat}: tables [${heat.stored.join(',')}], log [${heat.log.join(',')}].`,
+    ),
+    ...points.map(
+      (p) =>
+        `${p.heat} race ${p.race}, ${p.boat} (${p.status}): tables ${p.before}, log ${p.after}. Stored: ${p.stored}`,
+    ),
+  ];
 }

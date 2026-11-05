@@ -190,9 +190,16 @@ Important migration details:
   settings (`projectEvent`), all in one transaction. The tables are a
   projection the screens and exports read; `projectEvent.roundtrip.test.ts`
   checks that they convert back to the same event. An event made before
-  this version is converted from its tables the first time it is used
-  (`eventLog.eventToLog`; what the conversion assumed or could not express
-  is kept in `EventLogs`). A decision is never deleted: taking it back marks
+  this version is converted from its tables when the app starts, after the
+  start-up backup (`startupConversion.ts`; one `convertEventLog` history
+  action per event, "Moved to the new scoring", not undoable; an event that
+  fails is logged and tried again on use). `eventLog.eventToLog` converts;
+  `EventLogs` keeps what it assumed (notes), what it could not express
+  (anomalies, worded with sail numbers) and, migration 11, every result
+  the rules score differently from what the old app stored (`changes`,
+  from `logDifferences`). The leaderboard shows that report
+  (`ConversionNotice`, IPC `readConversionReport`) until the race officer
+  confirms it (`markConversionReportSeen`, `report_seen_at`). A decision is never deleted: taking it back marks
   it `withdrawn_by` the action that did; decisions are tagged with the
   `ChangeActions` row of the call that made them.
   Reads: `readLeaderboard`, `readFinalLeaderboard`, `readOverallLeaderboard`

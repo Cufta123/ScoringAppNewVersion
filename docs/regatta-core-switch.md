@@ -79,6 +79,8 @@ keep in step.
   - [x] The old engine's rule scenarios ported to `packages/regatta-core/test/ported` (209 tests; the library was right in every case where they disagreed)
   - [x] `euroIom2025.published` and `.startingHeats` replay the real sheet through the library
   - [x] AGENTS.md
+  - [x] Events from before the switch are converted at start-up (one history action each); what the conversion changed is recorded (migration 11) and shown on the leaderboard until confirmed (`ConversionNotice`)
+  - [x] R13: a three-way tie's higher place goes to every boat no tied boat beats (5.7(ii)(3))
   - [x] The old Save path removed (`applyRaceColumnState`, the per-boat 3.1.5 shields, their in-memory cache, `raceTieScoring`); its rule scenarios run through the real Save in `leaderboardCorrection.rules` (RDG1 is the A9(a) average now, R9)
   - [ ] The renderer's instant-draft maths (`applyExclusions`, `shared/redress`) only bridges until the library's answer arrives; keep or replace with the library run in the renderer
 

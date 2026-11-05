@@ -41,6 +41,7 @@ export interface HistoryAction {
  */
 const ACTION_LABELS: Record<string, string> = {
   insertEvent: 'Event created',
+  convertEventLog: 'Moved to the new scoring',
   updateEvent: 'Event settings changed',
   associateBoatWithEvent: 'Boat entered',
   removeBoatFromEvent: 'Boat removed from the event',

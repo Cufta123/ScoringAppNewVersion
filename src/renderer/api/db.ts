@@ -37,6 +37,7 @@ import type {
   TieBreakResult,
 } from '../types';
 import type { HistoryAction } from '../../shared/history/describe';
+import type { ConversionReport } from '../../shared/conversionReport';
 import type { SaveRaceOperation } from '../utils/leaderboardSave';
 import type {
   ImportOwnerConflict,
@@ -127,6 +128,9 @@ export interface EventDB {
   deleteEvent(eventId: number): Promise<unknown>;
   /** The event's change history, newest action first. */
   readEventHistory(eventId: number): Promise<HistoryAction[]>;
+  /** What moving the event to regatta-core changed; null: nothing to tell. */
+  readConversionReport(eventId: number): Promise<ConversionReport | null>;
+  markConversionReportSeen(eventId: number): Promise<{ success: true }>;
   /** Undo one result change from the history (refused if overwritten since). */
   revertHistoryAction(
     eventId: number,

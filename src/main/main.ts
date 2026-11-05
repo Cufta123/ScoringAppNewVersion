@@ -23,6 +23,7 @@ import { startProblemReportOutbox } from './ipcHandlers/ProblemReportHandler';
 import handle, { setCallObserver } from './ipcHandlers/handle';
 import { autoBackup, dbPath } from '../../public/Database/DBManager';
 import { journalObserver } from './functions/changeJournal';
+import convertEventsAtStartup from './functions/startupConversion';
 import { logError, setErrorLogDir } from './errorLog';
 import { newErrorRef } from '../shared/errors/explainError';
 
@@ -322,6 +323,13 @@ app
     autoBackup.start();
     // Problem reports saved while offline go out once there is a connection.
     startProblemReportOutbox();
+    try {
+      // Events from before regatta-core get their log now (each logs its
+      // own failure; this only guards the start against the unexpected).
+      convertEventsAtStartup();
+    } catch (error) {
+      logError('Moving events to the new scoring', error);
+    }
     createWindow();
     app.on('activate', () => {
       if (mainWindow === null) createWindow();

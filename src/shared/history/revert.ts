@@ -58,6 +58,8 @@ const SCORING_PAGE_REASON =
  * for history rows recorded under them in existing databases.
  */
 const AUTOMATIC_CHANNELS = [
+  // Moving an event to regatta-core at start-up (startupConversion.ts).
+  'convertEventLog',
   'readLeaderboard',
   'readFinalLeaderboard',
   'updateEventLeaderboard',
