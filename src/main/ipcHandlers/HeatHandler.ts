@@ -1,11 +1,12 @@
 import { db } from '../../../public/Database/DBManager';
 import handle from './handle';
+import { applyToEvent } from '../functions/libraryWrite';
+import { coreHeatId } from '../functions/eventLog';
 import {
   assignBoatsToInitialHeatsSerpentine,
   checkRaceCountForLatestHeats,
   compareByCountryThenSail,
 } from '../functions/creatingNewHeatsUtls';
-import { clearAssignmentSnapshotsForHeat } from '../functions/raceAssignmentSnapshot';
 import {
   getLatestQualifyingHeats,
   getRaceCountForHeat,
@@ -478,80 +479,30 @@ handle(
       );
     }
 
-    // SHRS 4.1: "Boats shall compete in the same Fleet throughout the Final
-    // Series." The UI blocks this, but a direct IPC call must not move a boat
-    // into, out of, or between final fleets (RULE-M25).
-    if (fromHeat.heat_type === 'Final' || toHeat.heat_type === 'Final') {
+    // The screen showed her in that heat, but she is not there any more
+    // (the heats changed since): say so in the screen's terms.
+    const inFrom = db
+      .prepare('SELECT 1 FROM Heat_Boat WHERE heat_id = ? AND boat_id = ?')
+      .get(from_heat_id, boat_id);
+    if (!inFrom) {
       throw new Error(
-        'Cannot transfer a boat to or from a Final Series fleet.',
+        'That boat is no longer in the heat it was dragged from (the heats changed in the meantime). Nothing was moved; reload the page and try again.',
       );
     }
 
-    // A heat that has raced keeps the boats it raced with: moving a boat
-    // out would leave her result behind and let her sail the round again in
-    // the other heat (two results in one round, which shifted everyone's
-    // discards); moving one in would give her no result. The heats page
-    // blocks dragging then, but its state can be stale.
-    const racedHeat = db
-      .prepare(
-        `SELECT h.heat_name FROM Heats h
-           WHERE h.heat_id IN (?, ?)
-             AND EXISTS (SELECT 1 FROM Races r WHERE r.heat_id = h.heat_id)`,
-      )
-      .get(from_heat_id, to_heat_id) as { heat_name: string } | undefined;
-    if (racedHeat) {
-      throw new Error(
-        `Cannot move a boat: ${racedHeat.heat_name} has already raced. Undo its race first.`,
-      );
-    }
-
-    // Same SHRS cap the insertHeatBoat handler enforces — a drag-and-drop
-    // transfer must not build an oversize heat either.
-    const targetCount = db
-      .prepare('SELECT COUNT(*) as count FROM Heat_Boat WHERE heat_id = ?')
-      .get(to_heat_id) as { count: number };
-    if (targetCount.count >= SHRS_MAX_BOATS_PER_HEAT) {
-      throw new Error(
-        `Cannot assign more than ${SHRS_MAX_BOATS_PER_HEAT} boats to one heat.`,
-      );
-    }
-
-    const deleteQuery = db.prepare(
-      'DELETE FROM Heat_Boat WHERE heat_id = ? AND boat_id = ?',
-    );
-    // BK-1: OR IGNORE so transferring a boat that is somehow already in the
-    // target heat collapses to the target (delete-from-source + no-op insert)
-    // instead of throwing on the new UNIQUE(heat_id, boat_id) constraint.
-    const insertQuery = db.prepare(
-      'INSERT OR IGNORE INTO Heat_Boat (heat_id, boat_id) VALUES (?, ?)',
-    );
-
-    // Atomic: a failed insert must not leave the boat removed from both heats
-    // (which would drop it from the event's heats entirely).
-    const transfer = db.transaction(() => {
-      const deleteInfo = deleteQuery.run(from_heat_id, boat_id);
-      // The screen showed her in that heat, but she is not there any more
-      // (the heats changed since): moving her would put her in two heats.
-      if (deleteInfo.changes === 0) {
-        throw new Error(
-          'That boat is no longer in the heat it was dragged from (the heats changed in the meantime). Nothing was moved; reload the page and try again.',
-        );
-      }
-      const insertInfo = insertQuery.run(to_heat_id, boat_id);
-      return {
-        removed: deleteInfo.changes,
-        inserted: insertInfo.changes,
-      };
+    // regatta-core decides (boatMoved): both heats in the current
+    // qualifying round, neither raced, at most 20 boats (SHRS 2.3), no move
+    // once the Final Series has started (4.1); the tables follow.
+    applyToEvent(Number(fromHeat.event_id), {
+      decide: () => [
+        {
+          type: 'boatMoved',
+          boat: String(boat_id),
+          from: coreHeatId(fromHeat.heat_name),
+          to: coreHeatId(toHeat.heat_name),
+        },
+      ],
     });
-
-    transfer();
-
-    // RULE-M13: both heats' membership just changed, so any SHRS 3.1.5
-    // assignment snapshot naming this boat in her old heat is stale. Left in
-    // place it would seed the next round from the pre-transfer order and put
-    // the boat into two next-round heats at once.
-    clearAssignmentSnapshotsForHeat(Number(from_heat_id));
-    clearAssignmentSnapshotsForHeat(Number(to_heat_id));
 
     return { success: true };
   },

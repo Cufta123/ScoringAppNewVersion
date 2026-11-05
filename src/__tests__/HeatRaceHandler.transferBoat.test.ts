@@ -1,18 +1,13 @@
-export {};
+/** @jest-environment node */
+/**
+ * Moving a boat between heats (transferBoatBetweenHeats), through the real
+ * handler on real SQLite. regatta-core decides (boatMoved); the tables
+ * follow. Every refusal leaves the heats as they were.
+ */
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { DatabaseSync } = require('node:sqlite');
 
-// Regression test for transferBoatBetweenHeats: the DELETE (from source heat)
-// and INSERT (into target heat) must run in a single transaction, so a failing
-// insert can never leave the boat removed from both heats.
-
-type PrepareStatement = {
-  get?: (...args: any[]) => any;
-  all?: (...args: any[]) => any[];
-  run?: (...args: any[]) => any;
-};
-
-const racedHeats = new Set<number>();
 const handlerRegistry: Record<string, (...args: any[]) => any> = {};
-
 jest.mock('electron', () => ({
   ipcMain: {
     handle: jest.fn((channel: string, callback: (...args: any[]) => any) => {
@@ -20,236 +15,142 @@ jest.mock('electron', () => ({
     }),
     on: jest.fn(),
   },
+  dialog: { showSaveDialog: jest.fn(), showOpenDialog: jest.fn() },
+  app: { getPath: jest.fn(() => '/tmp') },
 }));
 
-// In-memory Heat_Boat rows; the transaction mock only commits the inner writes
-// if the callback completes without throwing.
-const state = {
-  rows: [] as Array<{ heat_id: number; boat_id: number }>,
-  heats: {} as Record<number, { event_id: number; heat_type: string }>,
-  failInsert: false,
-  // RULE-M13: races per heat, and the snapshot rows the transfer must clear.
-  racesByHeatId: {} as Record<number, number[]>,
-  clearedSnapshotRaceIds: [] as number[],
+const mockDbHolder: { current: any } = { current: null };
+jest.mock('../../public/Database/DBManager', () => {
+  // eslint-disable-next-line global-require
+  const { createSqliteDbMock } = require('./fixtures/eventLifecycleSchema');
+  // eslint-disable-next-line no-use-before-define
+  return { db: createSqliteDbMock(mockDbHolderRef) };
+});
+const mockDbHolderRef = mockDbHolder;
+
+/* eslint-disable import/first, import/order */
+import { realEvent } from './fixtures/realEvent';
+/* eslint-enable import/first, import/order */
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { migrate } = require('../../public/Database/schema');
+
+const call = (channel: string, ...args: any[]) =>
+  handlerRegistry[channel]({}, ...args);
+
+let db: any;
+let event: ReturnType<typeof realEvent>;
+let eventId: number;
+
+beforeAll(() => {
+  jest.spyOn(console, 'log').mockImplementation(() => {});
+  jest.spyOn(console, 'warn').mockImplementation(() => {});
+  jest.spyOn(console, 'error').mockImplementation(() => {});
+  require('../main/ipcHandlers/EventHandler');
+  require('../main/ipcHandlers/HeatRaceHandler');
+});
+afterAll(() => jest.restoreAllMocks());
+
+/** CRO 1 … CRO n in `heats` heats (SHRS 3: A1 = 1, 4, 5, 8…). */
+beforeEach(async () => {
+  db = new DatabaseSync(':memory:');
+  db.exec('PRAGMA foreign_keys = ON');
+  migrate(db);
+  mockDbHolder.current = db;
+  event = realEvent(db, call);
+  eventId = await event.createEvent('Transfer');
+});
+afterEach(() => db.close());
+
+const setUp = async (boats: number, heats: number) => {
+  await event.enterBoats(
+    eventId,
+    Array.from({ length: boats }, (_v, i) => i + 1),
+  );
+  await call('createInitialHeatsAtomic', eventId, heats);
 };
-
-const norm = (sql: string) => sql.replace(/\s+/g, ' ').trim();
-
-const dbMock = {
-  // Mimic better-sqlite3: run the callback against a snapshot and roll back on throw.
-  transaction: (fn: (...args: any[]) => any) => {
-    return (...args: any[]) => {
-      const snapshot = state.rows.map((r) => ({ ...r }));
-      try {
-        return fn(...args);
-      } catch (error) {
-        state.rows = snapshot;
-        throw error;
-      }
-    };
-  },
-  prepare: (rawSql: string): PrepareStatement => {
-    const sql = norm(rawSql);
-    if (
-      sql.startsWith(
-        'SELECT heat_id, heat_name, event_id, heat_type FROM Heats',
+const heat = (name: string) => event.heatId(eventId, name);
+const boatOf = (sail: number) =>
+  db.prepare('SELECT boat_id FROM Boats WHERE sail_number = ?').get(sail)
+    .boat_id;
+const heats = () =>
+  Object.fromEntries(
+    db
+      .prepare(
+        'SELECT heat_name, heat_id FROM Heats WHERE event_id = ? ORDER BY heat_name',
       )
-    ) {
-      return {
-        get: (heatId: number) => state.heats[heatId],
-      };
-    }
-    // Heats that have raced (none unless a test adds one).
-    if (sql.includes('EXISTS (SELECT 1 FROM Races r')) {
-      return {
-        get: (fromId: number, toId: number) =>
-          [fromId, toId]
-            .filter((id) => racedHeats.has(id))
-            .map((id) => ({ heat_name: `Heat ${id}` }))[0],
-      };
-    }
-    if (sql.includes('COUNT(*) as count FROM Heat_Boat')) {
-      return {
-        get: (heatId: number) => ({
-          count: state.rows.filter((r) => r.heat_id === heatId).length,
-        }),
-      };
-    }
-    if (sql.startsWith('DELETE FROM Heat_Boat')) {
-      return {
-        run: (heatId: number, boatId: number) => {
-          const before = state.rows.length;
-          state.rows = state.rows.filter(
-            (r) => !(r.heat_id === heatId && r.boat_id === boatId),
-          );
-          return { changes: before - state.rows.length };
-        },
-      };
-    }
-    // BK-1: the handler now uses `INSERT OR IGNORE INTO Heat_Boat`, so match on
-    // the table rather than the exact verb, and honour OR IGNORE's dedup no-op.
-    if (sql.startsWith('INSERT') && sql.includes('INTO Heat_Boat')) {
-      const orIgnore = sql.includes('OR IGNORE');
-      return {
-        run: (heatId: number, boatId: number) => {
-          if (state.failInsert) {
-            throw new Error('Simulated insert failure');
-          }
-          const exists = state.rows.some(
-            (r) => r.heat_id === heatId && r.boat_id === boatId,
-          );
-          if (orIgnore && exists) {
-            return { changes: 0, lastInsertRowid: state.rows.length };
-          }
-          state.rows.push({ heat_id: heatId, boat_id: boatId });
-          return { changes: 1, lastInsertRowid: state.rows.length };
-        },
-      };
-    }
-    // RULE-M13: a membership change invalidates the heat's SHRS 3.1.5
-    // assignment snapshots.
-    if (sql.startsWith('SELECT race_id FROM Races WHERE heat_id')) {
-      return {
-        all: (heatId: number) =>
-          (state.racesByHeatId[heatId] ?? []).map((race_id) => ({ race_id })),
-      };
-    }
-    if (sql.startsWith('DELETE FROM RaceAssignmentSnapshots')) {
-      return {
-        run: (raceId: number) => {
-          state.clearedSnapshotRaceIds.push(raceId);
-          return { changes: 1 };
-        },
-      };
-    }
-    throw new Error(`Unhandled SQL in test mock: ${sql}`);
-  },
-};
+      .all(eventId)
+      .map((h: any) => [h.heat_name, event.sailsIn(h.heat_id)]),
+  );
+const move = (sail: number, from: string, to: string) =>
+  call('transferBoatBetweenHeats', heat(from), heat(to), boatOf(sail));
 
-jest.mock('../../public/Database/DBManager', () => ({ db: dbMock }));
-
-describe('transferBoatBetweenHeats atomicity', () => {
-  beforeAll(() => {
-    require('../main/ipcHandlers/HeatRaceHandler');
+it('moves the boat', async () => {
+  await setUp(4, 2);
+  expect(heats()).toEqual({ 'Heat A1': [1, 4], 'Heat B1': [2, 3] });
+  await expect(move(4, 'Heat A1', 'Heat B1')).resolves.toEqual({
+    success: true,
   });
+  expect(heats()).toEqual({ 'Heat A1': [1], 'Heat B1': [2, 3, 4] });
+});
 
-  beforeEach(() => {
-    state.rows = [{ heat_id: 1, boat_id: 42 }];
-    state.heats = {
-      1: { event_id: 5, heat_type: 'Qualifying' },
-      2: { event_id: 5, heat_type: 'Qualifying' },
-    };
-    state.failInsert = false;
-    state.racesByHeatId = { 1: [11, 12], 2: [21] };
-    state.clearedSnapshotRaceIds = [];
+it('is a no-op onto her own heat', async () => {
+  await setUp(4, 2);
+  await expect(move(4, 'Heat A1', 'Heat A1')).resolves.toEqual({
+    success: true,
   });
+  expect(heats()).toEqual({ 'Heat A1': [1, 4], 'Heat B1': [2, 3] });
+});
 
-  // RULE-M13 / SHRS 3.1.5: an assignment snapshot records which boats were in a
-  // heat. Once a boat moves, the snapshot still lists her in the OLD heat, so
-  // the next round is seeded from both heats and she is assigned to two
-  // next-round heats at once. Both heats' snapshots must be invalidated.
-  it('invalidates the assignment snapshots of both heats after a transfer', async () => {
-    await handlerRegistry.transferBoatBetweenHeats({}, 1, 2, 42);
+it('refuses a heat that has raced, and changes nothing', async () => {
+  await setUp(4, 2);
+  await event.scoreHeat(eventId, 'Heat A1');
+  await expect(move(4, 'Heat A1', 'Heat B1')).rejects.toThrow(/A1 has raced/);
+  await expect(move(2, 'Heat B1', 'Heat A1')).rejects.toThrow(/A1 has raced/);
+  expect(heats()).toEqual({ 'Heat A1': [1, 4], 'Heat B1': [2, 3] });
+});
 
-    expect(state.clearedSnapshotRaceIds.sort()).toEqual([11, 12, 21]);
-  });
+it('refuses a 21st boat (SHRS 2.3)', async () => {
+  await setUp(40, 2);
+  const [first] = event.sailsIn(heat('Heat A1'));
+  await expect(move(first, 'Heat A1', 'Heat B1')).rejects.toThrow(
+    /already has 20 boats/,
+  );
+});
 
-  it('does not invalidate snapshots when the transfer is a no-op', async () => {
-    await handlerRegistry.transferBoatBetweenHeats({}, 1, 1, 42);
+it('refuses a boat no longer in the heat (an old screen)', async () => {
+  await setUp(4, 2);
+  await move(4, 'Heat A1', 'Heat B1');
+  await expect(move(4, 'Heat A1', 'Heat B1')).rejects.toThrow(
+    /no longer in the heat it was dragged from/,
+  );
+  expect(heats()).toEqual({ 'Heat A1': [1], 'Heat B1': [2, 3, 4] });
+});
 
-    expect(state.clearedSnapshotRaceIds).toEqual([]);
-  });
+it('refuses heats of two events', async () => {
+  await setUp(4, 2);
+  const other = await event.createEvent('Other');
+  await event.enterBoats(other, [11, 12]);
+  await call('createInitialHeatsAtomic', other, 1);
+  await expect(
+    call(
+      'transferBoatBetweenHeats',
+      heat('Heat A1'),
+      event.heatId(other, 'Heat A1'),
+      boatOf(4),
+    ),
+  ).rejects.toThrow(/same event/);
+});
 
-  it('does not invalidate snapshots when the transfer fails', async () => {
-    state.failInsert = true;
-
-    await expect(
-      handlerRegistry.transferBoatBetweenHeats({}, 1, 2, 42),
-    ).rejects.toThrow(/insert failure/i);
-
-    expect(state.clearedSnapshotRaceIds).toEqual([]);
-  });
-
-  it('moves the boat from the source heat to the target heat', async () => {
-    const result = await handlerRegistry.transferBoatBetweenHeats({}, 1, 2, 42);
-
-    expect(result).toEqual({ success: true });
-    expect(state.rows).toEqual([{ heat_id: 2, boat_id: 42 }]);
-  });
-
-  it('keeps the boat in the source heat when the insert fails', async () => {
-    state.failInsert = true;
-
-    await expect(
-      handlerRegistry.transferBoatBetweenHeats({}, 1, 2, 42),
-    ).rejects.toThrow(/insert failure/i);
-
-    // Rolled back: the boat is still in its original heat, not lost.
-    expect(state.rows).toEqual([{ heat_id: 1, boat_id: 42 }]);
-  });
-
-  it('is a no-op when the target heat is the source heat', async () => {
-    const result = await handlerRegistry.transferBoatBetweenHeats({}, 1, 1, 42);
-
-    expect(result).toEqual({ success: true });
-    // No delete+insert churn: the row is untouched.
-    expect(state.rows).toEqual([{ heat_id: 1, boat_id: 42 }]);
-  });
-
-  it('refuses to transfer into a heat that already has 20 boats (SHRS cap)', async () => {
-    state.rows = [
-      { heat_id: 1, boat_id: 42 },
-      ...Array.from({ length: 20 }, (_v, i) => ({
-        heat_id: 2,
-        boat_id: 100 + i,
-      })),
-    ];
-
-    await expect(
-      handlerRegistry.transferBoatBetweenHeats({}, 1, 2, 42),
-    ).rejects.toThrow(/more than 20 boats/i);
-    // The boat stays where it was.
-    expect(state.rows).toContainEqual({ heat_id: 1, boat_id: 42 });
-  });
-
-  it('refuses to move a boat out of or into a heat that has raced', async () => {
-    // Found by the chaos test: moved out of a raced heat, the boat kept her
-    // result there and sailed the round again in the other heat.
-    racedHeats.add(1);
-    try {
-      await expect(
-        handlerRegistry.transferBoatBetweenHeats({}, 1, 2, 42),
-      ).rejects.toThrow('Heat 1 has already raced. Undo its race first.');
-      expect(state.rows).toEqual([{ heat_id: 1, boat_id: 42 }]);
-    } finally {
-      racedHeats.clear();
-    }
-  });
-
-  it('refuses to transfer between heats of different events', async () => {
-    state.heats = {
-      1: { event_id: 5, heat_type: 'Qualifying' },
-      2: { event_id: 6, heat_type: 'Qualifying' },
-    };
-
-    await expect(
-      handlerRegistry.transferBoatBetweenHeats({}, 1, 2, 42),
-    ).rejects.toThrow(/same event/i);
-    expect(state.rows).toEqual([{ heat_id: 1, boat_id: 42 }]);
-  });
-
-  // SHRS 4.1: boats stay in the same fleet throughout the Final Series — a
-  // direct IPC transfer must not move a boat into/out of/between final fleets
-  // (RULE-M25).
-  it('refuses to transfer a boat into or out of a Final Series fleet', async () => {
-    state.heats = {
-      1: { event_id: 5, heat_type: 'Final' },
-      2: { event_id: 5, heat_type: 'Final' },
-    };
-
-    await expect(
-      handlerRegistry.transferBoatBetweenHeats({}, 1, 2, 42),
-    ).rejects.toThrow(/Final Series fleet/i);
-    expect(state.rows).toEqual([{ heat_id: 1, boat_id: 42 }]);
-  });
+it('refuses a Final Series fleet (SHRS 4.1)', async () => {
+  await setUp(4, 2);
+  await event.scoreHeat(eventId, 'Heat A1');
+  await event.scoreHeat(eventId, 'Heat B1');
+  await call('startFinalSeriesAtomic', eventId, true, false);
+  const gold = heat('Final Gold');
+  const silver = heat('Final Silver');
+  const [boat] = event.sailsIn(gold);
+  await expect(
+    call('transferBoatBetweenHeats', gold, silver, boatOf(boat)),
+  ).rejects.toThrow(/SHRS 4.1/);
 });
