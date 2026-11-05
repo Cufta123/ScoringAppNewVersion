@@ -63,6 +63,10 @@ Use this document first. Only search the repo when this file does not answer the
 - Preload bridge and exposed API: `src/main/preload.ts`
 - Renderer DB access wrapper: `src/renderer/api/db` (re-exports `eventDB`,
   `heatRaceDB`, etc. over `window.electron.sqlite.*`).
+- Renderer server state (TanStack Query, "the one refresh rule", §3):
+  `src/renderer/api/queryClient.ts` (defaults), `queryKeys.ts` (every key),
+  `queries.ts` (every read as query options), `writes.ts` (`useWrite`: every
+  write, and what it invalidates).
 - Renderer routes: `src/renderer/App.tsx`
 - Database open + startup: `public/Database/DBManager.js` (its startup dialog
   words its own advice but recognises damaged / busy / full / read-only files
@@ -88,6 +92,61 @@ Use this document first. Only search the repo when this file does not answer the
   - `/event/:eventName/heat-race`
   - `/event/:eventName/leaderboard`
 - Uses `window.electron` API from preload (via the `src/renderer/api/db` wrapper).
+
+### Renderer data: the one refresh rule (TanStack Query)
+
+- **One `QueryClient`** (`api/queryClient.ts`), provided at the app root
+  (`App.tsx`). Defaults for local data only this window writes:
+  `staleTime: Infinity` (an answer is fresh until a write says otherwise;
+  nothing is read again because a page mounted or the window got focus, which
+  would fight an edit), `retry: false` for queries and mutations (a failure is
+  told in words — `useReportQueryError` → `reportError`, or the screen's own
+  error state — never retried silently), and `networkMode: 'always'` (the
+  default pauses everything while the browser says it is offline: a race
+  officer at sea has no internet).
+- **Keys in one place**, `api/queryKeys.ts`. Everything about an event is
+  under `['event', eventId, …]` (entries, heats, the heat list with boats and
+  race counts, a heat's boats / races, the three standings, max heat sizes,
+  eligibility, explanations, tie-breaks, history, conversion report, export
+  logo), so one invalidation of `queryKeys.event(id)` refreshes all of it.
+  Global: `['events']` (its rows carry flags worked out from the races) and
+  `['onFile', …]` (boats, clubs, categories on file).
+- **Every read** is a `useQuery` with the options in `api/queries.ts` (the IPC
+  call typed by the contract). A check made just before a write (a name taken,
+  races already sailed, Final Series eligibility) uses `useReadNow` (a fetch
+  with `staleTime: 0` through the same key).
+- **Every write** goes through `useWrite(write, affected)` (`api/writes.ts`, a
+  `useMutation`): once it succeeds it invalidates what it affected and resolves
+  only after the screens' queries were read again. `{ eventId }` = the event +
+  the events list (every heat, scoring, leaderboard, entry and history write);
+  `{ eventId, onFile: true }` = also the boats/clubs on file (entering a
+  sailor); `'events'` (a new event); `'everything'` (import of an event, restore
+  from a file, a sailor's details, a CSV import). Deleting an event removes its
+  queries. Undo / go back in the history are writes like any other. Never
+  reload a screen by hand, never add a window event or a refresh token: say
+  what the write affected.
+- **Editing is never overwritten**: the leaderboard shows the saved standings
+  outside edit mode and its draft inside. If the saved standings change while
+  editing and not by our own Save (an undo / go-back), the draft stays,
+  `editIsStaleRef` is set with a "Results changed" warning, and Save is refused
+  until Cancel Editing. An unchanged re-read (structural sharing keeps the same
+  rows) does not count. The standings change only once all their reads are back
+  (no qualifying rows next to final fleets of before). The scoring page closes
+  the scoring view if the heat list read again says its heat is gone or was
+  raced (not while our own submit runs).
+- **The leaderboard preview** (`previewLeaderboardEdit`) is a `useMutation`
+  that invalidates nothing (the main process rolls it back); TanStack calls a
+  `mutate`'s own `onSuccess` for the newest call only, so an older answer never
+  overwrites a newer edit, and `reset()` on leaving edit mode / Save / a stale
+  edit drops the one on its way.
+- Not data writes, so direct IPC calls: exporting documents, printing, saving a
+  backup file, the problem report, `previewSailorImport` (a dry run).
+- Tests render through `src/__tests__/helpers/renderWithQuery` (re-exports
+  @testing-library/react; `render` / `renderHook` wrap a NEW client per call
+  with the app's defaults and return it as `queryClient`). To simulate a change
+  from elsewhere (the history), change the mock and
+  `queryClient.invalidateQueries({ queryKey: queryKeys.event(id) })`. Writes
+  start their IPC call a microtask after the click: `waitFor` the mock call.
 
 ### Preload contract
 
@@ -206,9 +265,10 @@ Important migration details:
   converted is undone row by row (rules in `shared/history/revert.ts`: every
   row put back as it was, only if no later action changed it), then the
   tables are converted to the log again. The undo is recorded
-  with `ChangeActions.reverts_action_id`, so it can be undone too. After an
-  undo the dialog fires `notifyEventDataChanged`; the leaderboard (unless
-  editing) and scoring pages reload via `useEventDataChanged`.
+  with `ChangeActions.reverts_action_id`, so it can be undone too. The undo is
+  a `useWrite` on the event, so every screen showing it reads it again (§3,
+  the one refresh rule); an edit in progress on the leaderboard keeps its draft
+  and refuses Save.
   Covered by `changeJournal.integration.test.ts` (real migrations and
   handlers; an undo restores results, SHRS 3.1.5 rows and standings exactly),
   `historyDescribe.test.ts`, `historyRevert.test.ts` and
@@ -829,8 +889,8 @@ For most feature/fix requests, do this in order:
   `shared/history/restore.ts` works out which entries are in effect
   (`undoneActions`, following undo chains and earlier go-backs) and what a
   go-back would take back and bring back (`restorePreview`), which the
-  dialog lists before asking. Afterwards the event, scoring and leaderboard
-  pages reload (`useEventDataChanged`); a scoring view whose heat changed is
+  dialog lists before asking. Afterwards every screen showing the event reads
+  it again (the one refresh rule, §3); a scoring view whose heat changed is
   closed, and a leaderboard edit started before is refused on Save.
   `restoreToHistoryPoint.integration.test.ts` checks, over random sessions,
   that going back to any earlier entry gives exactly the state recorded then,
@@ -908,8 +968,8 @@ For most feature/fix requests, do this in order:
   "History and backups" (`EventHistoryDialog`): the change history with
   Undo / Go back to here, and below it the backup file
   (`history/BackupFileSection`: Save backup file…, Restore from file…, the
-  files saved recently). A restore fires `notifyEventDataChanged` and the
-  pages reload. Starting the Final Series still offers to save a file first.
+  files saved recently). A restore invalidates everything (§3) and the
+  pages, this dialog's history included, read it again. Starting the Final Series still offers to save a file first.
   Importing a backup as a NEW event is on the landing page.
 - **Entries page adding** is one block, "Add Sailors", with three tabs: One
   sailor, Boats on file (boats from earlier events), CSV file. The list
