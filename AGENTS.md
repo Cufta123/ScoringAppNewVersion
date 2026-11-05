@@ -608,6 +608,9 @@ Handlers, history, renderer:
   submit, undo and guards, Save, Final Series start),
   `eventSettings.locks.integration.test.ts`,
   `EventHandler.removeBoatFromEvent.integration.test.ts`,
+  `leaderboardCorrection.rules.integration.test.ts` (what a leaderboard
+  Save stores, per rule: RRS A6.1/A6.2/A7/A9/A10, SHRS 5.2, 44.3(c)/T1,
+  every refusal),
   `restoreToHistoryPoint.integration.test.ts`,
   `changeJournal.integration.test.ts`
 - `scoreStatus.test.ts`, `creatingNewHeatsUtils.test.ts` (note: tests the
