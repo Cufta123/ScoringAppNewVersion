@@ -391,12 +391,17 @@ directory:
   into the library's vocabulary (`RESULT_CODES`; RAF read as RET; an unknown
   code refused in words). Nothing else: what a code scores and the 5.3
   order are the library's.
-- `eventSettings.ts` — per-event SHRS configuration on the Events row:
-  qualifying assignment mode (3.1/3.2), heat overflow policy (2.3; the cap
-  is the library's `MAX_HEAT_SIZE`), and the discard-profile lock (5.4). The
-  allowed values (`QualifyingAssignmentMode`, `HeatOverflowPolicy`) and their
-  one normalizer are in `shared/eventSettings.ts`. `readAllEvents` works the
-  locks out from the races (parity R11).
+- **Event settings** (assignment mode 3.1/3.2, discards 5.4, fleets over 20
+  boats 2.3) are one object in the event's log: `insertEvent` records them as
+  the event's first `settingsChanged` decision and `updateEvent` as another
+  (regatta-core refuses a change the racing has fixed). The `shrs_*` columns
+  on Events are their projection (written by `projectEvent`, read by the
+  event form through `readAllEvents`), and the input for converting older
+  events; nothing else writes them, and nothing decides from them (the
+  Final Series reads the fleets setting from the log). The discard locks are
+  worked out from the races on read (parity R11); the stored flags were
+  dropped in migration 14. Allowed values and their one normalizer:
+  `shared/eventSettings.ts`.
 - `labels.ts` — heats, races and boats named as the screen names them.
 - `validation.ts` — input sanitising for the handlers.
 - `retryWhenBusy.ts` — retry a write a few times while SQLite reports
@@ -736,8 +741,8 @@ Event locking was removed entirely (June 2026):
 - No `lockEvent`/`unlockEvent` IPC handlers, no lock checks in mutating handlers, no lock UI.
 - New databases no longer create `Events.is_locked`; older databases may still
   carry the column, but nothing reads or writes it.
-- Do not reintroduce lock checks. (The separate discard-profile locks,
-  `shrs_discard_locked_*`, still exist and are unrelated.)
+- Do not reintroduce lock checks. (The discard locks are a different thing:
+  worked out from the races, never stored; migration 14 dropped their flags.)
 
 ## 7. Commands Agents Should Use
 

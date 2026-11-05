@@ -172,3 +172,14 @@ score or a heat; random sessions do far stranger things than race offices.
 Everywhere else the converted log gives exactly the tables' heats and
 points. The known app bugs (R8, R9, SHRS 3.1(5) after a correction) are
 where the app's tables are wrong, and the log follows the rules.
+
+## The plan's last two items (2026-11-05)
+
+- The backup files saved for an event are kept in the database
+  (`BackupFiles`, migration 13), recorded by the main process; the window's
+  localStorage list is gone.
+- Event settings are one object in the log from the event's creation
+  (`insertEvent` records them as a decision); the `shrs_*` columns are only
+  their projection and the input for converting older records; the stored
+  discard-lock flags are dropped (migration 14), the locks are worked out
+  from the races.

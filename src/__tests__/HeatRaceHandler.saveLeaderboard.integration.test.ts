@@ -365,16 +365,28 @@ describe('saveLeaderboardRaceResultsAtomic (real SQLite, FKs on)', () => {
       ).rejects.toThrow(/must be a whole number of 1 or more/);
     });
 
-    it('locks the discard profile once a result is saved', async () => {
+    it('fixes the discards once a result is saved (SHRS 5.4; worked out, not stored)', async () => {
       const [first] = boatsIn(db, 'Heat A1');
       await save(db, raceA, first, 2, 'FINISHED');
-      expect(
-        db
-          .prepare(
-            'SELECT shrs_discard_locked_qualifying AS l FROM Events WHERE event_id = ?',
-          )
-          .get(EVENT_ID).l,
-      ).toBe(1);
+      // eslint-disable-next-line global-require
+      const { applyToEvent } = require('../main/functions/libraryWrite');
+      expect(() =>
+        applyToEvent(EVENT_ID, {
+          decide: () => [
+            {
+              type: 'settingsChanged',
+              settings: {
+                discards: {
+                  qualifying: { kind: 'none' },
+                  final: { kind: 'standard' },
+                },
+              },
+            },
+          ],
+        }),
+      ).toThrow(
+        'Discards change only before the first race of the series (SHRS 5.4).',
+      );
     });
 
     it('refuses a change that does not carry the whole race, writing nothing', async () => {

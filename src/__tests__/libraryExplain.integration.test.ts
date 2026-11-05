@@ -209,6 +209,8 @@ async function runEvent(seed: number) {
   const rand = prng(seed * 104729);
   const pick = <T>(list: T[]): T => list[Math.floor(rand() * list.length)];
 
+  // Custom discards go in with the event (its first decision).
+  const customDiscards = rand() < 0.4;
   const eventId = Number(
     (
       await call(
@@ -217,14 +219,11 @@ async function runEvent(seed: number) {
         'Split',
         '2026-05-01',
         '2026-05-03',
+        'progressive',
+        customDiscards ? JSON.stringify({ thresholds: [2, 4] }) : 'standard',
       )
     ).lastInsertRowid,
   );
-  if (rand() < 0.4) {
-    db.prepare(
-      'UPDATE Events SET shrs_discard_profile_qualifying = ? WHERE event_id = ?',
-    ).run(JSON.stringify({ thresholds: [2, 4] }), eventId);
-  }
   let nextSail = 1;
   const enterBoat = async () => {
     const sail = nextSail;

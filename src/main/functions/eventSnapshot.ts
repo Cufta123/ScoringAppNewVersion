@@ -383,8 +383,6 @@ export function restoreEventSnapshot(
            shrs_qualifying_assignment_mode = ?,
            shrs_discard_profile_qualifying = ?,
            shrs_discard_profile_final = ?,
-           shrs_discard_locked_qualifying = ?,
-           shrs_discard_locked_final = ?,
            shrs_heat_overflow_policy = ?
        WHERE event_id = ?`,
     ).run(
@@ -396,8 +394,6 @@ export function restoreEventSnapshot(
       eventRow.shrs_qualifying_assignment_mode,
       eventRow.shrs_discard_profile_qualifying,
       eventRow.shrs_discard_profile_final,
-      eventRow.shrs_discard_locked_qualifying,
-      eventRow.shrs_discard_locked_final,
       eventRow.shrs_heat_overflow_policy,
       event_id,
     );
@@ -573,9 +569,8 @@ export function importEventSnapshot(snapshot: EventSnapshotInput): {
           `INSERT INTO Events (
              event_name, event_location, start_date, end_date, shrs_version,
              shrs_qualifying_assignment_mode, shrs_discard_profile_qualifying,
-             shrs_discard_profile_final, shrs_discard_locked_qualifying,
-             shrs_discard_locked_final, shrs_heat_overflow_policy, export_logo)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             shrs_discard_profile_final, shrs_heat_overflow_policy, export_logo)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           eventName,
@@ -586,8 +581,6 @@ export function importEventSnapshot(snapshot: EventSnapshotInput): {
           text(row.shrs_qualifying_assignment_mode) || 'progressive',
           text(row.shrs_discard_profile_qualifying) || 'standard',
           text(row.shrs_discard_profile_final) || 'standard',
-          Number(row.shrs_discard_locked_qualifying) === 1 ? 1 : 0,
-          Number(row.shrs_discard_locked_final) === 1 ? 1 : 0,
           text(row.shrs_heat_overflow_policy) || 'auto-increase',
           isAcceptableLogo(row.export_logo) ? row.export_logo : null,
         ).lastInsertRowid,

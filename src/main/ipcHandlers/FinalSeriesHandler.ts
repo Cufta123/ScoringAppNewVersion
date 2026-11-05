@@ -6,7 +6,7 @@ import {
   type FinalSeriesStatus,
 } from 'regatta-core';
 import handle from './handle';
-import { getEventHeatOverflowPolicy } from '../functions/eventSettings';
+import type { HeatOverflowPolicy } from '../../shared/eventSettings';
 import { applyToEvent, currentEvent } from '../functions/libraryWrite';
 
 /** The library's refusal (SHRS 1.1, 4.1, 4.2, parity R7) in this screen's words. */
@@ -57,7 +57,11 @@ handle(
     };
     const trial = replay([...log, decision]);
     if (!trial.ok) throw new Error(trial.reason);
-    const overflowPolicy = getEventHeatOverflowPolicy(event_id);
+    // The fleets setting, as the event's log has it (SHRS 2.3).
+    const overflowPolicy: HeatOverflowPolicy =
+      trial.state.settings.finalOverflow === 'add-fleets'
+        ? 'auto-increase'
+        : 'confirm-allow-oversize';
     const oversize = (trial.state.fleets ?? []).some(
       (fleet) => fleet.boats.length > MAX_HEAT_SIZE,
     );

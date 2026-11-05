@@ -1,3 +1,4 @@
+import type { Decision } from 'regatta-core';
 import { db } from '../database/DBManager';
 import { deleteEventLog, markConversionSeen } from '../functions/decisionStore';
 import conversionReport from '../functions/conversionReport';
@@ -99,6 +100,36 @@ handle('saveEventExportLogo', async (event, raw_event_id, logo) => {
   return { success: true };
 });
 
+/**
+ * The event's scoring settings as a decision. regatta-core refuses a change
+ * of a value the racing has fixed (the assignment method once qualifying
+ * started, discards once their series raced, SHRS 5.4, the fleets setting
+ * once the fleets are made); a value saved again unchanged is no change.
+ */
+function settingsDecision(
+  assignment: unknown,
+  qualifyingDiscards: unknown,
+  finalDiscards: unknown,
+  overflow: unknown,
+): Decision {
+  return {
+    type: 'settingsChanged',
+    settings: {
+      qualifyingMode: normalizeQualifyingAssignmentMode(assignment),
+      discards: {
+        qualifying: discardProfile(
+          normalizeDiscardConfigString(qualifyingDiscards),
+        ),
+        final: discardProfile(normalizeDiscardConfigString(finalDiscards)),
+      },
+      finalOverflow:
+        normalizeHeatOverflowPolicy(overflow) === 'auto-increase'
+          ? 'add-fleets'
+          : 'allow-oversize',
+    },
+  };
+}
+
 handle(
   'insertEvent',
   async (
@@ -112,33 +143,31 @@ handle(
     shrs_discard_profile_final = 'standard',
     shrs_heat_overflow_policy = 'auto-increase',
   ) => {
-    return retryWhenBusy(() => {
-      const result = db
-        .prepare(
-          `INSERT INTO Events (
-            event_name,
-            event_location,
-            start_date,
-            end_date,
-            shrs_version,
-            shrs_qualifying_assignment_mode,
-            shrs_discard_profile_qualifying,
-            shrs_discard_profile_final,
-            shrs_heat_overflow_policy
-          ) VALUES (?, ?, ?, ?, '2026-1', ?, ?, ?, ?)`,
-        )
-        .run(
-          event_name,
-          event_location,
-          start_date,
-          end_date,
-          normalizeQualifyingAssignmentMode(shrs_qualifying_assignment_mode),
-          normalizeDiscardConfigString(shrs_discard_profile_qualifying),
-          normalizeDiscardConfigString(shrs_discard_profile_final),
-          normalizeHeatOverflowPolicy(shrs_heat_overflow_policy),
-        );
-      return { lastInsertRowid: Number(result.lastInsertRowid) };
-    });
+    return retryWhenBusy(() =>
+      db.transaction(() => {
+        const result = db
+          .prepare(
+            `INSERT INTO Events (event_name, event_location, start_date, end_date, shrs_version)
+             VALUES (?, ?, ?, ?, '2026-1')`,
+          )
+          .run(event_name, event_location, start_date, end_date);
+        const eventId = Number(result.lastInsertRowid);
+        // The scoring settings are the event's first decision; the Events
+        // columns are their projection (written by projectEvent), never
+        // the source.
+        applyToEvent(eventId, {
+          decide: () => [
+            settingsDecision(
+              shrs_qualifying_assignment_mode,
+              shrs_discard_profile_qualifying,
+              shrs_discard_profile_final,
+              shrs_heat_overflow_policy,
+            ),
+          ],
+        });
+        return { lastInsertRowid: eventId };
+      })(),
+    );
   },
 );
 
@@ -200,50 +229,14 @@ handle(
     shrs_heat_overflow_policy = 'auto-increase',
   ) => {
     const existingEvent = db
-      .prepare(
-        `SELECT
-            shrs_discard_profile_qualifying,
-            shrs_discard_profile_final,
-            shrs_discard_locked_qualifying,
-            shrs_discard_locked_final,
-            shrs_qualifying_assignment_mode,
-            shrs_heat_overflow_policy,
-            ${SERIES_STARTED_COLUMNS}
-           FROM Events
-           WHERE event_id = ?`,
-      )
-      .get(event_id) as
-      | {
-          shrs_discard_profile_qualifying: string;
-          shrs_discard_profile_final: string;
-          shrs_discard_locked_qualifying: number;
-          shrs_discard_locked_final: number;
-          shrs_qualifying_assignment_mode: string | null;
-          shrs_heat_overflow_policy: string | null;
-          qualifying_started: number;
-          final_series_started: number;
-        }
-      | undefined;
+      .prepare('SELECT 1 FROM Events WHERE event_id = ?')
+      .get(event_id);
 
     if (!existingEvent) {
       throw new Error(
         'This event no longer exists (it may have been deleted in the meantime). Go back to the event list.',
       );
     }
-
-    const normalizedQualifyingDiscardProfile = normalizeDiscardConfigString(
-      shrs_discard_profile_qualifying,
-    );
-    const normalizedFinalDiscardProfile = normalizeDiscardConfigString(
-      shrs_discard_profile_final,
-    );
-
-    const assignmentMode = normalizeQualifyingAssignmentMode(
-      shrs_qualifying_assignment_mode,
-    );
-    const overflowPolicy = normalizeHeatOverflowPolicy(
-      shrs_heat_overflow_policy,
-    );
 
     db.transaction(() => {
       db.prepare(
@@ -258,20 +251,12 @@ handle(
       // saved again unchanged is no change.
       applyToEvent(Number(event_id), {
         decide: () => [
-          {
-            type: 'settingsChanged',
-            settings: {
-              qualifyingMode: assignmentMode,
-              discards: {
-                qualifying: discardProfile(normalizedQualifyingDiscardProfile),
-                final: discardProfile(normalizedFinalDiscardProfile),
-              },
-              finalOverflow:
-                overflowPolicy === 'auto-increase'
-                  ? 'add-fleets'
-                  : 'allow-oversize',
-            },
-          },
+          settingsDecision(
+            shrs_qualifying_assignment_mode,
+            shrs_discard_profile_qualifying,
+            shrs_discard_profile_final,
+            shrs_heat_overflow_policy,
+          ),
         ],
       });
     })();

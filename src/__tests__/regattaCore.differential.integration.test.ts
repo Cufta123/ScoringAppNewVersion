@@ -118,6 +118,11 @@ async function runEvent(seed: number): Promise<string[]> {
   const log: core.Decision[] = [];
   const problems: string[] = [];
 
+  const [qApp, qCore] = pick(PROFILES);
+  const [fApp, fCore] = pick(PROFILES);
+  const mode = rand() < 0.25 ? 'pre-assigned' : 'progressive';
+  // The settings go in with the event, as the form sends them: they are
+  // the event's first decision (the Events columns are only its projection).
   const eventId = Number(
     (
       await call(
@@ -126,17 +131,12 @@ async function runEvent(seed: number): Promise<string[]> {
         'Split',
         '2026-05-01',
         '2026-05-03',
+        mode,
+        qApp,
+        fApp,
       )
     ).lastInsertRowid,
   );
-  const [qApp, qCore] = pick(PROFILES);
-  const [fApp, fCore] = pick(PROFILES);
-  const mode = rand() < 0.25 ? 'pre-assigned' : 'progressive';
-  db.prepare(
-    `UPDATE Events SET shrs_discard_profile_qualifying = ?,
-       shrs_discard_profile_final = ?, shrs_qualifying_assignment_mode = ?
-     WHERE event_id = ?`,
-  ).run(qApp, fApp, mode, eventId);
   log.push({
     type: 'settingsChanged',
     settings: {

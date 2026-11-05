@@ -20,7 +20,6 @@ import {
   qualifyingRows,
 } from '../functions/libraryStandings';
 import { getLatestRaceForHeat, requireHeat } from '../functions/heatQueries';
-import { lockDiscardProfileForRace } from '../functions/eventSettings';
 import { assertQualifyingHeatIsOpen } from '../functions/seriesGuards';
 import {
   boatsByEntryName,
@@ -177,8 +176,6 @@ handle('submitHeatRaceScoresAtomic', async (_event, payload) => {
         .get(heat_id, nextRaceNumber) as { race_id: number }
     ).race_id,
   );
-  lockDiscardProfileForRace(raceId);
-
   return { ok: true as const, raceNumber: nextRaceNumber, raceId };
 });
 
@@ -253,9 +250,6 @@ handle(
           ),
         ),
     });
-    safeOperations.forEach((operation) =>
-      lockDiscardProfileForRace(Number(operation.raceId)),
-    );
     return { success: true, updatedCount: safeOperations.length };
   },
 );

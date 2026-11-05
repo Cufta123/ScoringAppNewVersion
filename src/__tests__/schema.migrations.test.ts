@@ -187,6 +187,30 @@ describe('schema migrations', () => {
     db.close();
   });
 
+  it('drops the stored discard locks and keeps journalling the Events row (migration 14)', () => {
+    const db = new DatabaseSync(':memory:');
+    migrate(db);
+    const columns = db
+      .prepare("PRAGMA table_info('Events')")
+      .all()
+      .map((c: { name: string }) => c.name);
+    expect(columns).not.toContain('shrs_discard_locked_qualifying');
+    expect(columns).not.toContain('shrs_discard_locked_final');
+    expect(columns).toContain('shrs_discard_profile_qualifying');
+    db.prepare(
+      "INSERT INTO Events (event_name, event_location, start_date, end_date) VALUES ('Kup', 'Split', '2026-05-01', '2026-05-03')",
+    ).run();
+    db.prepare("UPDATE Events SET event_name = 'Kup 2'").run();
+    expect(
+      db
+        .prepare(
+          "SELECT COUNT(*) AS n FROM ChangeLog WHERE table_name = 'Events'",
+        )
+        .get().n,
+    ).toBe(2);
+    db.close();
+  });
+
   it('numbers migrations 1..n with no gaps', () => {
     expect(MIGRATIONS.map((m: any) => m.version)).toEqual(
       MIGRATIONS.map((_m: any, i: number) => i + 1),

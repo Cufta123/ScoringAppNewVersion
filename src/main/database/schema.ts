@@ -591,6 +591,36 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 14,
+    name: 'discard locks are worked out, not stored',
+    // shrs_discard_locked_qualifying / _final were flags set when a series'
+    // first race was scored and never cleared; the screens work the locks
+    // out from the races (parity R11) and regatta-core refuses a change the
+    // racing has fixed. Nothing reads the flags. The journal triggers list
+    // the Events columns, so they are dropped first and installed again.
+    up(db: SqlConnection) {
+      const columns = (
+        db.prepare("PRAGMA table_info('Events')").all() as ColumnInfoRow[]
+      ).map((column) => column.name);
+      const locks = [
+        'shrs_discard_locked_qualifying',
+        'shrs_discard_locked_final',
+      ].filter((name) => columns.includes(name));
+      if (locks.length === 0) return;
+      (
+        db
+          .prepare(
+            "SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'Events'",
+          )
+          .all() as { name: string }[]
+      ).forEach(({ name }) => db.exec(`DROP TRIGGER IF EXISTS ${name};`));
+      locks.forEach((name) =>
+        db.exec(`ALTER TABLE Events DROP COLUMN ${name};`),
+      );
+      installJournalTriggers(db);
+    },
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
